@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+reviews:
+  profile: "assertive"
+  high_level_summary: true
+  auto_review:
+    enabled: true
+    drafts: false
+    # Also auto-review PRs targeting main (the default branch, dev, is already
+    # covered automatically).
+    base_branches:
+      - "main"
+    ignore_title_keywords:
+      - "wip"
+      - "draft"
+  tools:
+    eslint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    hadolint:
+      enabled: true
+chat:
+  auto_reply: true
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      # AGENTS.md is the canonical guidance file; CLAUDE.md is a one-line
+      # import of it. Both are listed so the pointer never becomes the only
+      # thing the reviewer reads.
+      - "**/AGENTS.md"
+      - "**/CLAUDE.md"
