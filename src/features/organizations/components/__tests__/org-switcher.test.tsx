@@ -68,6 +68,9 @@ describe("OrgSwitcher", () => {
     });
     renderSwitcher(true);
     expect(
+      screen.getByRole("group", { name: "Organizacja" }),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("button", { name: "Utwórz organizację" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Pierwsza")).not.toBeInTheDocument();

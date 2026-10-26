@@ -6,6 +6,11 @@ const flag = z
   .optional()
   .transform((value) => value === "true");
 
+const optionalString = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().min(1).optional(),
+);
+
 export const coreEnvSchema = z
   .object({
     NODE_ENV: z
@@ -14,15 +19,15 @@ export const coreEnvSchema = z
     DATABASE_URL: z.string().min(1),
     BETTER_AUTH_SECRET: z.string().min(32),
     BETTER_AUTH_URL: z.string().min(1),
-    RESEND_API_KEY: z.string().min(1).optional(),
-    SMTP_URL: z.string().min(1).optional(),
+    RESEND_API_KEY: optionalString,
+    SMTP_URL: optionalString,
     EMAIL_FROM: z.string().min(1),
     AUTH_PUBLIC_SIGNUP: flag,
     MULTI_ORG: flag,
-    ADMIN_EMAIL: z.string().min(1).optional(),
-    ADMIN_PASSWORD: z.string().min(1).optional(),
-    LOG_LEVEL: z.string().min(1).optional(),
-    OTEL_EXPORTER_OTLP_ENDPOINT: z.string().min(1).optional(),
+    ADMIN_EMAIL: optionalString,
+    ADMIN_PASSWORD: optionalString,
+    LOG_LEVEL: optionalString,
+    OTEL_EXPORTER_OTLP_ENDPOINT: optionalString,
   })
   .refine((value) => value.NODE_ENV !== "production" || value.RESEND_API_KEY, {
     path: ["RESEND_API_KEY"],

@@ -12,6 +12,7 @@ export const LABELS = {
   inviteSubmit: "Wyślij zaproszenie",
   invited: "Zaproszenie wysłane",
   createOrganization: "Utwórz organizację",
+  orgSwitcher: "Organizacja",
 } as const;
 
 type MailpitAddress = { Address: string };

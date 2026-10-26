@@ -60,7 +60,11 @@ function MultiOrgSwitcher() {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div
+      role="group"
+      aria-label={t("switcher-label")}
+      className="flex items-center gap-2"
+    >
       {organizations && organizations.length > 1 && (
         <Select
           value={activeOrganization?.id ?? ""}

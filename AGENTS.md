@@ -106,7 +106,7 @@ src/app/[locale]/(auth|app)
 - E2E: Playwright w `e2e/`. Dwa projekty z osobnymi serwerami (`node .next/standalone/server.js`):
   `core-auth` (port 3000, `MULTI_ORG=false`, `AUTH_PUBLIC_SIGNUP=false`) i
   `multi-org` (port 3001, `MULTI_ORG=true`, `AUTH_PUBLIC_SIGNUP=true`).
-  `globalSetup` resetuje bazę i uruchamia `admin:create`. Maile czyta `getLastMail(to)` z API mailpit.
+  `globalSetup` resetuje bazę (tylko gdy jej nazwa kończy się na `_e2e`) i uruchamia `admin:create`. Maile czyta `getLastMail(to)` z API mailpit.
 - Bugfix = test, który bez poprawki nie przechodzi.
 
 ## Commity

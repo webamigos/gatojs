@@ -21,8 +21,12 @@ test.describe("MULTI_ORG=true, AUTH_PUBLIC_SIGNUP=true", () => {
     await signUp(page, ANIA);
     await signIn(page, ANIA.email, ANIA.password);
 
+    const orgSwitcher = page.getByRole("group", {
+      name: LABELS.orgSwitcher,
+    });
+    await expect(orgSwitcher).toBeVisible();
     await expect(
-      page.getByRole("button", { name: LABELS.createOrganization }),
+      orgSwitcher.getByRole("button", { name: LABELS.createOrganization }),
     ).toBeVisible();
 
     await page.goto("/users");

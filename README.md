@@ -63,7 +63,13 @@ npm run build -w @wa-kit/cli && npm run wa -- generate   # odśwież pliki gener
 
 `globalSetup` **czyści bazę** wskazaną przez `DATABASE_URL` (domyślnie `postgresql://postgres:postgres@localhost:${DB_PORT:-5432}/wa_app_e2e`),
 uruchamia `admin:create --yes` i czyści skrzynkę mailpit (`MAILPIT_URL`, domyślnie `http://localhost:8025`).
-Nie uruchamiaj e2e z `DATABASE_URL` wskazującym na bazę deweloperską.
+Reset odbywa się tylko wtedy, gdy nazwa bazy kończy się na `_e2e` — inaczej `globalSetup` przerywa test.
+Baza `wa_app_e2e` powstaje automatycznie w kontenerze z `docker compose up -d`:
+
+```bash
+docker compose up -d
+npm run test:e2e
+```
 
 ## Railway
 
@@ -71,11 +77,19 @@ Nie uruchamiaj e2e z `DATABASE_URL` wskazującym na bazę deweloperską.
 2. Ustaw zmienne: `DATABASE_URL` (referencja do Postgresa), `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
    (publiczny adres), `RESEND_API_KEY`, `EMAIL_FROM`, `AUTH_PUBLIC_SIGNUP`, `MULTI_ORG`.
 3. Zacommituj katalog `prisma/migrations` — przed każdym wdrożeniem Railway uruchamia `npx prisma migrate deploy`.
-   Healthcheck: `/api/healthcheck`.
+   W wygenerowanym projekcie najpierw usuń linię `prisma/migrations/` z `.gitignore` (kit jej używa, bo sam nie
+   dostarcza migracji), inaczej migracje nie trafią do repozytorium. Healthcheck: `/api/healthcheck`.
 4. Po pierwszym wdrożeniu utwórz administratora:
 
    ```bash
    railway run npm run admin:create -- --email <email>
+   ```
+
+   `railway run` uruchamia skrypt **na Twoim komputerze** ze zmiennymi z Railway, więc `DATABASE_URL` musi być
+   osiągalny z zewnątrz (publiczny URL Postgresa, np. `DATABASE_PUBLIC_URL`), a nie wewnętrzny adres `*.railway.internal`:
+
+   ```bash
+   railway run sh -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" npm run admin:create -- --email <email>'
    ```
 
 ## wa-kit

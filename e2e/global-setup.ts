@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
+import { assertE2eDatabase } from "./database-guard";
 import { appEnv, E2E_ADMIN, E2E_PORTS } from "./env";
 import { clearMailbox } from "./helpers";
 
@@ -24,6 +25,7 @@ export default async function globalSetup(): Promise<void> {
     multiOrg: false,
     publicSignup: false,
   });
+  assertE2eDatabase(env.DATABASE_URL);
 
   run(
     hasMigrations()
