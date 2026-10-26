@@ -3,34 +3,11 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { createAuthMiddleware } from "better-auth/api";
 import { admin, organization } from "better-auth/plugins";
 import { authPlugins } from "@/modules.generated";
-import { assertSignupAllowed } from "@/features/auth/services/signup-policy";
+import { enforceSignupPolicy } from "@/features/auth/services/signup-gate";
 import { env } from "@/shared/lib/env";
 import { prisma } from "@/shared/lib/prisma";
 import { isWelcomeSetPasswordUrl } from "./reset-password-routing";
 import { USER_ROLES } from "./roles";
-
-async function hasPendingInvitation(
-  body: unknown,
-  email: string,
-): Promise<boolean> {
-  const invitationId =
-    typeof body === "object" && body !== null && "invitationId" in body
-      ? (body as { invitationId: unknown }).invitationId
-      : undefined;
-  if (typeof invitationId !== "string" || invitationId === "") {
-    return false;
-  }
-  const invitation = await prisma.invitation.findFirst({
-    where: {
-      id: invitationId,
-      email: { equals: email, mode: "insensitive" },
-      status: "pending",
-      expiresAt: { gt: new Date() },
-    },
-    select: { id: true },
-  });
-  return invitation !== null;
-}
 
 export const auth = betterAuth({
   secret: env.BETTER_AUTH_SECRET,
@@ -60,13 +37,7 @@ export const auth = betterAuth({
       if (ctx.path !== "/sign-up/email") {
         return;
       }
-      const email = (ctx.body as { email?: unknown } | undefined)?.email;
-      assertSignupAllowed({
-        publicSignup: env.AUTH_PUBLIC_SIGNUP,
-        hasInvitation:
-          typeof email === "string" &&
-          (await hasPendingInvitation(ctx.body, email)),
-      });
+      await enforceSignupPolicy(ctx.body, env.AUTH_PUBLIC_SIGNUP);
     }),
   },
   session: {
