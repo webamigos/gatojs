@@ -20,7 +20,8 @@
     "wa": "node packages/cli/dist/bin.js",
     "postinstall": "prisma generate",
     "prepare": "husky",
-    "admin:create": "tsx scripts/admin-create.ts"
+    "admin:create": "tsx scripts/admin-create.ts",
+    "test:e2e": "npm run build && rm -rf .next/standalone/.next/static && cp -R .next/static .next/standalone/.next/static && playwright test"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
@@ -46,6 +47,7 @@
     "next": "16.3.8",
     "next-intl": "^4.9.0",
     "next-themes": "^0.4.6",
+    "nodemailer": "^10.2.1",
     "pg": "^8.20.0",
     "prisma": "^7.4.2",
     "react": "19.2.3",
@@ -61,11 +63,13 @@
   "devDependencies": {
     "@commitlint/cli": "^19.8.1",
     "@commitlint/config-conventional": "^19.8.1",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.8",
     "@types/node": "^22",
+    "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8",
     "@types/react": "^19",
     "@types/react-dom": "^19",

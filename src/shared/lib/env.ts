@@ -15,6 +15,7 @@ export const coreEnvSchema = z
     BETTER_AUTH_SECRET: z.string().min(32),
     BETTER_AUTH_URL: z.string().min(1),
     RESEND_API_KEY: z.string().min(1).optional(),
+    SMTP_URL: z.string().min(1).optional(),
     EMAIL_FROM: z.string().min(1),
     AUTH_PUBLIC_SIGNUP: flag,
     MULTI_ORG: flag,

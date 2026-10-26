@@ -1,4 +1,6 @@
 import { Resend } from "resend";
+import nodemailer, { type Transporter } from "nodemailer";
+import { render } from "@react-email/render";
 import type { ReactNode } from "react";
 import { OrganizationInvitationEmail } from "@/app/emails/organization-invitation-email";
 import { PasswordResetEmail } from "@/app/emails/password-reset-email";
@@ -8,10 +10,46 @@ import { env } from "@/shared/lib/env";
 import { logger } from "@/shared/lib/logger";
 
 let resendClient: Resend | null = null;
+let smtpTransport: Transporter | null = null;
 
 function getResend(apiKey: string): Resend {
   resendClient ??= new Resend(apiKey);
   return resendClient;
+}
+
+function getSmtpTransport(smtpUrl: string): Transporter {
+  smtpTransport ??= nodemailer.createTransport(smtpUrl);
+  return smtpTransport;
+}
+
+type MailMessage = { to: string; subject: string; react: ReactNode };
+type MailDelivery = { data: unknown } | { error: unknown };
+
+async function deliverViaSmtp(
+  smtpUrl: string,
+  message: MailMessage,
+): Promise<MailDelivery> {
+  const html = await render(message.react);
+  const info = await getSmtpTransport(smtpUrl).sendMail({
+    from: env.EMAIL_FROM,
+    to: message.to,
+    subject: message.subject,
+    html,
+  });
+  return { data: { id: info.messageId } };
+}
+
+async function deliverViaResend(
+  apiKey: string,
+  message: MailMessage,
+): Promise<MailDelivery> {
+  const response = await getResend(apiKey).emails.send({
+    from: env.EMAIL_FROM,
+    to: [message.to],
+    subject: message.subject,
+    react: message.react,
+  });
+  return response.error ? { error: response.error } : { data: response.data };
 }
 
 function maskEmail(email: string): string {
@@ -38,30 +76,32 @@ async function sendTransactionalEmail({
   logContext: string;
   fallbackErrorMessage: string;
 }) {
+  const smtpUrl = env.SMTP_URL;
   const apiKey = env.RESEND_API_KEY;
-  if (!apiKey) {
-    logger.info("[MAILER] RESEND_API_KEY not set, email not sent", {
-      to,
-      subject,
-    });
+  if (!smtpUrl && !apiKey) {
+    logger.info(
+      "[MAILER] SMTP_URL and RESEND_API_KEY not set, email not sent",
+      {
+        to,
+        subject,
+      },
+    );
     return { data: null };
   }
 
+  const message = { to, subject, react };
   try {
-    const response = await getResend(apiKey).emails.send({
-      from: env.EMAIL_FROM,
-      to: [to],
-      subject,
-      react,
-    });
-    if (response.error) {
+    const delivery = smtpUrl
+      ? await deliverViaSmtp(smtpUrl, message)
+      : await deliverViaResend(apiKey as string, message);
+    if ("error" in delivery) {
       logger.error(logContext, {
         toMasked: maskEmail(to),
-        err: response.error,
+        err: delivery.error,
       });
       return { error: fallbackErrorMessage };
     }
-    return { data: response.data };
+    return { data: delivery.data };
   } catch (error) {
     logger.error(logContext, {
       toMasked: maskEmail(to),

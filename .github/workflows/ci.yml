@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Generate + verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build wa CLI
+        run: npm run build -w @wa-kit/cli
+
+      - name: Regenerate wa files
+        run: npm run wa -- generate
+
+      - name: Generated files are up to date
+        run: git diff --exit-code
+
+      - name: Verify (lint, typecheck, test, build)
+        run: npm run verify

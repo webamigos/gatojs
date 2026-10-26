@@ -1,0 +1,83 @@
+# WA App
+
+Aplikacja Next.js zbudowana na **wa-kit**: logowanie i zaproszenia (better-auth), organizacje
+(`MULTI_ORG`), zarządzanie użytkownikami, konto, dashboard i moduły z rejestru `.wa/kit.json`.
+
+Stos: Next.js 16 · React 19 · TypeScript · Tailwind v4 · shadcn/ui (base-ui) · Prisma 7 + PostgreSQL ·
+better-auth · next-intl (pl/en) · Vitest · Playwright. Node 22 (`.nvmrc`).
+
+## Start
+
+Wymagania: Node 22, npm, Docker.
+
+```bash
+npm install
+docker compose up -d
+cp .env.example .env
+npx prisma migrate dev --name init
+npm run admin:create -- --email <email>
+npm run dev
+```
+
+1. `docker compose up -d` — PostgreSQL 16 (`localhost:5432`) i mailpit (UI `http://localhost:8025`, SMTP `localhost:1025`).
+   Zajęty port zmienisz przez `DB_PORT`, `MAILPIT_UI_PORT`, `MAILPIT_SMTP_PORT` (wtedy popraw też `DATABASE_URL` / `SMTP_URL` w `.env`).
+2. `cp .env.example .env` — ustaw `BETTER_AUTH_SECRET` (min. 32 znaki, np. `openssl rand -base64 32`).
+3. `npx prisma migrate dev --name init` — tworzy pierwszą migrację i schemat bazy.
+4. `npm run admin:create -- --email <email>` — tworzy administratora i pierwszą organizację.
+   Bez `--password` hasło jest generowane i wypisywane raz. Opcje: `--password`, `--name`, `--org-name`, `--yes`.
+5. `npm run dev` — aplikacja na `http://localhost:3000`. Maile (zaproszenia, reset hasła) zobaczysz w mailpit.
+
+## Zmienne środowiskowe
+
+| Zmienna | Opis |
+| --- | --- |
+| `DATABASE_URL` | Połączenie z PostgreSQL |
+| `BETTER_AUTH_SECRET` | Sekret better-auth, min. 32 znaki |
+| `BETTER_AUTH_URL` | Publiczny adres aplikacji |
+| `RESEND_API_KEY` | Klucz Resend; wymagany na produkcji |
+| `SMTP_URL` | SMTP (dev/e2e: mailpit); ma pierwszeństwo przed Resend |
+| `EMAIL_FROM` | Nadawca maili |
+| `AUTH_PUBLIC_SIGNUP` | `true` — publiczna rejestracja; domyślnie `false` (tylko z zaproszenia) |
+| `MULTI_ORG` | `true` — wiele organizacji i `OrgSwitcher`; domyślnie `false` |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Domyślne wartości dla `admin:create` (opcjonalne) |
+| `LOG_LEVEL` | Poziom logowania |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Eksport logów OpenTelemetry (opcjonalne) |
+
+Zmienne modułów są dopisywane przez `wa generate` w regionie `# wa:modules:start/end` pliku `.env.example`.
+
+## Komendy
+
+```bash
+npm run verify        # lint, typecheck, testy, build, testy CLI i hooków
+npm test              # Vitest
+npm run test:e2e      # build + Playwright (wymaga docker compose up -d)
+npm run build -w @wa-kit/cli && npm run wa -- generate   # odśwież pliki generowane przez wa
+```
+
+### E2E
+
+`npm run test:e2e` buduje aplikację i uruchamia dwa serwery standalone (`node .next/standalone/server.js`) z różnym env:
+
+- projekt `core-auth` — port `E2E_CORE_PORT` (3000), `MULTI_ORG=false`, `AUTH_PUBLIC_SIGNUP=false`;
+- projekt `multi-org` — port `E2E_MULTI_ORG_PORT` (3001), `MULTI_ORG=true`, `AUTH_PUBLIC_SIGNUP=true`.
+
+`globalSetup` **czyści bazę** wskazaną przez `DATABASE_URL` (domyślnie `postgresql://postgres:postgres@localhost:${DB_PORT:-5432}/wa_app_e2e`),
+uruchamia `admin:create --yes` i czyści skrzynkę mailpit (`MAILPIT_URL`, domyślnie `http://localhost:8025`).
+Nie uruchamiaj e2e z `DATABASE_URL` wskazującym na bazę deweloperską.
+
+## Railway
+
+1. Utwórz projekt z usługą PostgreSQL i usługą aplikacji z tego repozytorium. Build: `Dockerfile` (`railway.toml`).
+2. Ustaw zmienne: `DATABASE_URL` (referencja do Postgresa), `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
+   (publiczny adres), `RESEND_API_KEY`, `EMAIL_FROM`, `AUTH_PUBLIC_SIGNUP`, `MULTI_ORG`.
+3. Zacommituj katalog `prisma/migrations` — przed każdym wdrożeniem Railway uruchamia `npx prisma migrate deploy`.
+   Healthcheck: `/api/healthcheck`.
+4. Po pierwszym wdrożeniu utwórz administratora:
+
+   ```bash
+   railway run npm run admin:create -- --email <email>
+   ```
+
+## wa-kit
+
+Kod rdzenia i modułów pochodzi z wa-kit (`.wa/kit.json`); poprawki ogólne zgłaszaj do repo `webamigos/wa-kit`.
