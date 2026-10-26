@@ -173,9 +173,11 @@ Migracje: kit nie dostarcza katalogu `prisma/migrations`. Nowy projekt robi `pri
 
 ## 6. Repozytorium kitu
 
+> Zmiana przy planowaniu (2026-10-26): aplikacja referencyjna leży w katalogu głównym repo, nie w `app/` — ma identyczny układ jak wygenerowany projekt, a zagnieżdżone workspaces npm (`apps/worker` w `app/`) nie działają. Pliki tylko dla kitu (`packages/cli`, `kit/`, `docs/`) CLI pomija przy kopiowaniu.
+
 ```
 wa-kit/
-  app/                    # aplikacja referencyjna (rdzeń + wszystkie moduły), uruchamialna
+  (root)                  # aplikacja referencyjna (rdzeń + wszystkie moduły), uruchamialna
   kit/
     modules/*.json        # manifesty CLI (core + moduły)
     modules/*.compose.yml # fragmenty docker-compose
