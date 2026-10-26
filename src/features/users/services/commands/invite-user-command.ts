@@ -18,7 +18,7 @@ const INVITATION_TTL_MS = 48 * 60 * 60 * 1000;
 
 export async function inviteUserCommand(
   input: unknown,
-): Promise<OperationResult<{ userId: string }>> {
+): Promise<OperationResult<{ userId: string }> & { warning?: "mail-failed" }> {
   try {
     const admin = await getAdminUserOrNull();
     if (!admin) {
@@ -62,16 +62,18 @@ export async function inviteUserCommand(
       { name, email, invitationId: invitation.id },
       requestHeaders,
     );
-    if (!userId) {
-      await discardInvitation(invitation.id);
-      return { success: false, error: "Nie udało się utworzyć konta" };
-    }
 
     await markEmailVerified(userId);
-    await sendSetPasswordEmailBestEffort(email, userId, requestHeaders);
+    const mailSent = await sendSetPasswordEmailBestEffort(
+      email,
+      userId,
+      requestHeaders,
+    );
 
     revalidatePath("/users");
-    return { success: true, data: { userId } };
+    return mailSent
+      ? { success: true, data: { userId } }
+      : { success: true, data: { userId }, warning: "mail-failed" };
   } catch (error) {
     return handleCommandError(error, "Nie udało się zaprosić użytkownika");
   }
@@ -80,7 +82,7 @@ export async function inviteUserCommand(
 async function registerInvitedUser(
   data: { name: string; email: string; invitationId: string },
   requestHeaders: RequestHeaders,
-): Promise<string | null> {
+): Promise<string> {
   const { auth } = await import("@/shared/lib/auth");
   const body = {
     name: data.name,
@@ -90,17 +92,15 @@ async function registerInvitedUser(
   };
 
   try {
-    await auth.api.signUpEmail({ body, headers: requestHeaders });
+    const { user } = await auth.api.signUpEmail({
+      body,
+      headers: requestHeaders,
+    });
+    return user.id;
   } catch (error) {
     await discardInvitation(data.invitationId);
     throw error;
   }
-
-  const created = await prisma.user.findUnique({
-    where: { email: data.email },
-    select: { id: true },
-  });
-  return created?.id ?? null;
 }
 
 async function discardInvitation(invitationId: string): Promise<void> {
@@ -125,17 +125,19 @@ async function sendSetPasswordEmailBestEffort(
   email: string,
   userId: string,
   requestHeaders: RequestHeaders,
-): Promise<void> {
+): Promise<boolean> {
   try {
     const { auth } = await import("@/shared/lib/auth");
     await auth.api.requestPasswordReset({
       body: { email, redirectTo: WELCOME_SET_PASSWORD_PATH },
       headers: requestHeaders,
     });
+    return true;
   } catch (error) {
     logger.error("[USERS] Failed to send set-password email", {
       userId,
       err: error,
     });
+    return false;
   }
 }

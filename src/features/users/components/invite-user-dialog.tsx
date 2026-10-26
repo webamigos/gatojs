@@ -62,7 +62,11 @@ export function InviteUserDialog() {
   async function onSubmit(values: InviteUserValues) {
     const result = await inviteUserCommand(values);
     if (result.success) {
-      toast.success(t("toast-invited"));
+      if (result.warning === "mail-failed") {
+        toast.warning(t("toast-invite-mail-failed"));
+      } else {
+        toast.success(t("toast-invited"));
+      }
       handleOpenChange(false);
       router.refresh();
     } else {

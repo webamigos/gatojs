@@ -52,7 +52,7 @@ beforeEach(() => {
   mockPrisma.invitation.create.mockResolvedValue({ id: "inv-1" });
   mockPrisma.invitation.delete.mockResolvedValue({});
   mockPrisma.user.update.mockResolvedValue({});
-  mockAuthApi.signUpEmail.mockResolvedValue({});
+  mockAuthApi.signUpEmail.mockResolvedValue({ user: { id: "new-user-1" } });
   mockAuthApi.requestPasswordReset.mockResolvedValue({});
 });
 
@@ -94,9 +94,7 @@ describe("inviteUserCommand", () => {
   });
 
   it("tworzy zaproszenie do aktywnej organizacji, konto z zaproszeniem i wysyła mail set-password", async () => {
-    mockPrisma.user.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: "new-user-1" });
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
     const result = await inviteUserCommand(validInput);
 
@@ -134,6 +132,43 @@ describe("inviteUserCommand", () => {
     expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
   });
 
+  it("email z wielkimi literami: konto, zaproszenie i mail set-password na znormalizowanym adresie", async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+    const result = await inviteUserCommand({
+      ...validInput,
+      email: "  Jan@Firma.PL ",
+    });
+
+    expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { email: "jan@firma.pl" } }),
+    );
+    expect(mockPrisma.invitation.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ email: "jan@firma.pl" }),
+      }),
+    );
+    expect(mockAuthApi.signUpEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          email: "jan@firma.pl",
+          invitationId: "inv-1",
+        }),
+      }),
+    );
+    expect(mockPrisma.invitation.delete).not.toHaveBeenCalled();
+    expect(mockAuthApi.requestPasswordReset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: {
+          email: "jan@firma.pl",
+          redirectTo: WELCOME_SET_PASSWORD_PATH,
+        },
+      }),
+    );
+    expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
+  });
+
   it("usuwa zaproszenie, gdy rejestracja konta się nie powiedzie", async () => {
     mockPrisma.user.findUnique.mockResolvedValueOnce(null);
     mockAuthApi.signUpEmail.mockRejectedValue(new Error("signup failed"));
@@ -148,14 +183,16 @@ describe("inviteUserCommand", () => {
   });
 
   it("sukces mimo błędu wysyłki maila set-password", async () => {
-    mockPrisma.user.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: "new-user-1" });
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
     mockAuthApi.requestPasswordReset.mockRejectedValue(new Error("smtp down"));
 
     const result = await inviteUserCommand(validInput);
 
-    expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
+    expect(result).toEqual({
+      success: true,
+      data: { userId: "new-user-1" },
+      warning: "mail-failed",
+    });
     expect(mockLogger.error).toHaveBeenCalled();
   });
 });

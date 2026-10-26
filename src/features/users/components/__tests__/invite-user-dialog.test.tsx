@@ -4,13 +4,19 @@ import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { usersMessages } from "./messages";
 
-const { mockRefresh, mockInviteUserCommand, mockToastSuccess, mockToastError } =
-  vi.hoisted(() => ({
-    mockRefresh: vi.fn(),
-    mockInviteUserCommand: vi.fn(),
-    mockToastSuccess: vi.fn(),
-    mockToastError: vi.fn(),
-  }));
+const {
+  mockRefresh,
+  mockInviteUserCommand,
+  mockToastSuccess,
+  mockToastWarning,
+  mockToastError,
+} = vi.hoisted(() => ({
+  mockRefresh: vi.fn(),
+  mockInviteUserCommand: vi.fn(),
+  mockToastSuccess: vi.fn(),
+  mockToastWarning: vi.fn(),
+  mockToastError: vi.fn(),
+}));
 
 vi.mock("@/i18n/routing", () => ({
   useRouter: () => ({ refresh: mockRefresh }),
@@ -19,7 +25,11 @@ vi.mock("../../services/commands/invite-user-command", () => ({
   inviteUserCommand: mockInviteUserCommand,
 }));
 vi.mock("sonner", () => ({
-  toast: { success: mockToastSuccess, error: mockToastError },
+  toast: {
+    success: mockToastSuccess,
+    warning: mockToastWarning,
+    error: mockToastError,
+  },
 }));
 
 import { InviteUserDialog } from "../invite-user-dialog";
@@ -73,6 +83,25 @@ describe("InviteUserDialog", () => {
       expect(mockRefresh).toHaveBeenCalled();
     });
     expect(mockToastSuccess).toHaveBeenCalled();
+  });
+
+  it("ostrzeżenie mail-failed → toast ostrzegawczy zamiast sukcesu", async () => {
+    mockInviteUserCommand.mockResolvedValue({
+      success: true,
+      data: { userId: "new-1" },
+      warning: "mail-failed",
+    });
+    const user = userEvent.setup();
+    renderDialog();
+
+    const dialog = await openAndFill(user);
+    await user.click(
+      dialog.getByRole("button", { name: "Wyślij zaproszenie" }),
+    );
+
+    await waitFor(() => expect(mockToastWarning).toHaveBeenCalled());
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+    expect(mockRefresh).toHaveBeenCalled();
   });
 
   it("pozwala wybrać rolę administratora organizacji", async () => {

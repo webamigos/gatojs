@@ -3,6 +3,7 @@ import type { OrgRole } from "@/shared/lib/auth/roles";
 export interface ModuleNavItem {
   href: string;
   labelKey: string;
+  multiOrgLabelKey?: string;
   icon: string;
   order: number;
 }

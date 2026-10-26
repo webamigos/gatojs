@@ -1,5 +1,6 @@
 {
   "nav": "Users",
+  "nav-members": "Members",
   "title": "Users",
   "description": "Manage application user accounts. Visible to administrators only.",
   "invite-user": "Invite user",
@@ -25,6 +26,7 @@
   "submitting": "Sending...",
   "submit": "Send invitation",
   "toast-invited": "Invitation sent. The user received an email with a link to set a password.",
+  "toast-invite-mail-failed": "Invitation created, but the set-password email could not be sent. Ask the user to use password reset.",
   "toast-invite-error": "Could not invite the user",
   "action-impersonate": "Sign in as",
   "impersonate-error": "Could not sign in as this user",

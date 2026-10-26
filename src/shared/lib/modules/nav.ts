@@ -18,12 +18,17 @@ export function getNavEntries(
   context: AccessContext,
   modules: readonly ModuleDef[] = registry,
 ): NavEntry[] {
+  const showMembersLabel = context.multiOrg && context.userRole !== "admin";
   return modules
     .filter((moduleDef) => canAccessModule(moduleDef, context))
     .flatMap((moduleDef) =>
       moduleDef.nav.map((item) => ({
         href: item.href,
-        labelPath: `${moduleDef.key}.${item.labelKey}`,
+        labelPath: `${moduleDef.key}.${
+          showMembersLabel && item.multiOrgLabelKey
+            ? item.multiOrgLabelKey
+            : item.labelKey
+        }`,
         icon: item.icon,
         order: item.order,
       })),

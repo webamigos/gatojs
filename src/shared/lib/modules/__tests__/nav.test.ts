@@ -41,6 +41,29 @@ describe("getNavEntries (rejestr generowany)", () => {
   });
 });
 
+describe("etykieta Członkowie", () => {
+  const labelOf = (context: AccessContext) =>
+    getNavEntries(context).find((entry) => entry.href === "/users")?.labelPath;
+
+  it("MULTI_ORG i nie-globalny admin → users.nav-members", () => {
+    expect(
+      labelOf({ userRole: "user", orgRole: "owner", multiOrg: true }),
+    ).toBe("users.nav-members");
+  });
+
+  it("globalny admin zachowuje users.nav nawet przy MULTI_ORG", () => {
+    expect(
+      labelOf({ userRole: "admin", orgRole: "member", multiOrg: true }),
+    ).toBe("users.nav");
+  });
+
+  it("bez MULTI_ORG pozostaje users.nav", () => {
+    expect(
+      labelOf({ userRole: "admin", orgRole: "member", multiOrg: false }),
+    ).toBe("users.nav");
+  });
+});
+
 describe("getNavEntries (przekazane moduły)", () => {
   const custom = [
     defineModule({

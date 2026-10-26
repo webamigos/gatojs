@@ -1,5 +1,6 @@
 {
   "nav": "Użytkownicy",
+  "nav-members": "Członkowie",
   "title": "Użytkownicy",
   "description": "Zarządzaj kontami użytkowników aplikacji. Widoczne tylko dla administratorów.",
   "invite-user": "Zaproś użytkownika",
@@ -25,6 +26,7 @@
   "submitting": "Wysyłanie...",
   "submit": "Wyślij zaproszenie",
   "toast-invited": "Zaproszenie wysłane. Użytkownik dostał mail z linkiem do ustawienia hasła.",
+  "toast-invite-mail-failed": "Zaproszenie utworzone, ale nie udało się wysłać maila z linkiem do ustawienia hasła. Poproś użytkownika o reset hasła.",
   "toast-invite-error": "Nie udało się zaprosić użytkownika",
   "action-impersonate": "Zaloguj jako",
   "impersonate-error": "Nie udało się zalogować jako ten użytkownik",

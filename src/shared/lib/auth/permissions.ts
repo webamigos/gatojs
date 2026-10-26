@@ -20,6 +20,10 @@ export function moduleForPath(path: string): ModuleDef | null {
   return registry.find((moduleDef) => ownsPath(moduleDef, path)) ?? null;
 }
 
+export function moduleByKey(key: string): ModuleDef | null {
+  return registry.find((moduleDef) => moduleDef.key === key) ?? null;
+}
+
 export function canAccessModule(
   moduleDef: ModuleDef,
   context: AccessContext,
