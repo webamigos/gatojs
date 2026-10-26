@@ -1,0 +1,30 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "create": "Create",
+    "search": "Search",
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "all": "All",
+    "yes": "Yes",
+    "no": "No",
+    "clear-filters": "Clear filters",
+    "select": "Select...",
+    "columns": "Columns",
+    "columns-aria-label": "Show or hide table columns",
+    "columns-panel-title": "Visible columns",
+    "columns-reset": "Reset",
+    "search-placeholder": "Search...",
+    "no-results": "No results"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "connection": "Connection error. Please try again.",
+    "not-found": "Page not found.",
+    "forbidden": "Access denied."
+  }
+}

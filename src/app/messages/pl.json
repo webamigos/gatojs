@@ -1,0 +1,30 @@
+{
+  "common": {
+    "save": "Zapisz",
+    "cancel": "Anuluj",
+    "delete": "Usuń",
+    "edit": "Edytuj",
+    "add": "Dodaj",
+    "create": "Utwórz",
+    "search": "Szukaj",
+    "loading": "Ładowanie...",
+    "saving": "Zapisywanie...",
+    "all": "Wszystko",
+    "yes": "Tak",
+    "no": "Nie",
+    "clear-filters": "Wyczyść filtry",
+    "select": "Wybierz...",
+    "columns": "Kolumny",
+    "columns-aria-label": "Pokaż lub ukryj kolumny tabeli",
+    "columns-panel-title": "Widoczne kolumny",
+    "columns-reset": "Domyślne",
+    "search-placeholder": "Szukaj...",
+    "no-results": "Brak wyników"
+  },
+  "errors": {
+    "generic": "Wystąpił błąd. Spróbuj ponownie.",
+    "connection": "Wystąpił błąd połączenia. Spróbuj ponownie.",
+    "not-found": "Nie znaleziono strony.",
+    "forbidden": "Brak dostępu."
+  }
+}
