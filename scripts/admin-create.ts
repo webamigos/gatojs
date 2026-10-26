@@ -63,7 +63,13 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error: unknown) => {
+main().catch(async (error: unknown) => {
+  const { AdminCreateError } = await import("./lib/admin-create");
+  if (error instanceof AdminCreateError && error.generatedPassword) {
+    console.error(
+      `Użytkownik został utworzony. Wygenerowane hasło (pokazane raz): ${error.generatedPassword}`,
+    );
+  }
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);
 });

@@ -117,7 +117,7 @@ const { db, mockPrisma, mockAuth } = vi.hoisted(() => {
 vi.mock("@/shared/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/shared/lib/auth", () => ({ auth: mockAuth }));
 
-import { adminCreate, slugifyOrgName } from "../admin-create";
+import { AdminCreateError, adminCreate, slugifyOrgName } from "../admin-create";
 
 const yes = { yes: true, confirm: async () => true };
 
@@ -235,6 +235,38 @@ describe("adminCreate", () => {
       body: expect.objectContaining({ password: "my-password-1", name: "Ewa" }),
     });
     expect(db.orgs[0].slug).toBe("zazolc-gesla-jazn");
+  });
+});
+
+describe("adminCreate partial failure and slug fallback", () => {
+  beforeEach(() => {
+    db.users.length = 0;
+    db.orgs.length = 0;
+    db.members.length = 0;
+    db.seq = 0;
+  });
+
+  it("błąd organizacji po utworzeniu użytkownika ujawnia wygenerowane hasło", async () => {
+    mockPrisma.$transaction.mockRejectedValueOnce(new Error("db down"));
+    const error = await adminCreate({ email: "f@x.pl", ...yes }).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(AdminCreateError);
+    expect((error as AdminCreateError).message).toBe("db down");
+    expect((error as AdminCreateError).generatedPassword).toHaveLength(20);
+    expect(db.users).toHaveLength(1);
+  });
+
+  it("pusty slug wraca do project.slug", async () => {
+    await adminCreate({ email: "g@x.pl", orgName: "!!!", ...yes });
+    expect(db.orgs[0].slug).toBe("wa-app");
+  });
+
+  it("normalizuje email do małych liter", async () => {
+    await adminCreate({ email: "H@X.pl", ...yes });
+    const r = await adminCreate({ email: "h@x.pl", ...yes });
+    expect(r.createdUser).toBe(false);
+    expect(db.users).toHaveLength(1);
   });
 });
 

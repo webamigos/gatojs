@@ -21,6 +21,16 @@ export type AdminCreateResult = {
   generatedPassword: string | null;
 };
 
+export class AdminCreateError extends Error {
+  constructor(
+    message: string,
+    readonly generatedPassword: string | null,
+  ) {
+    super(message);
+    this.name = "AdminCreateError";
+  }
+}
+
 export function slugifyOrgName(name: string): string {
   return name
     .normalize("NFKD")
@@ -87,7 +97,7 @@ async function ensureOrganizationOwner(
       const organization = await tx.organization.create({
         data: {
           name: orgName,
-          slug: slugifyOrgName(orgName),
+          slug: slugifyOrgName(orgName) || project.slug,
           members: { create: { userId, role: ORG_ROLES.OWNER } },
         },
       });
@@ -111,18 +121,29 @@ async function ensureOrganizationOwner(
 }
 
 export async function adminCreate(
-  options: AdminCreateOptions,
+  rawOptions: AdminCreateOptions,
 ): Promise<AdminCreateResult> {
+  const options = { ...rawOptions, email: rawOptions.email.toLowerCase() };
   const user = await ensureUser(options);
-  const organization = await ensureOrganizationOwner(
-    user.userId,
-    options.orgName ?? project.name,
-  );
-  return {
-    userId: user.userId,
-    organizationId: organization.organizationId,
-    createdUser: user.created,
-    createdOrganization: organization.created,
-    generatedPassword: user.generatedPassword,
-  };
+  try {
+    const organization = await ensureOrganizationOwner(
+      user.userId,
+      options.orgName ?? project.name,
+    );
+    return {
+      userId: user.userId,
+      organizationId: organization.organizationId,
+      createdUser: user.created,
+      createdOrganization: organization.created,
+      generatedPassword: user.generatedPassword,
+    };
+  } catch (error) {
+    if (user.generatedPassword) {
+      throw new AdminCreateError(
+        error instanceof Error ? error.message : String(error),
+        user.generatedPassword,
+      );
+    }
+    throw error;
+  }
 }
