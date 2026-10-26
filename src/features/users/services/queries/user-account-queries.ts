@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 import { notFound } from "next/navigation";
 import { prisma } from "@/shared/lib/prisma";

@@ -29,19 +29,19 @@ npm run dev
 
 ## Zmienne środowiskowe
 
-| Zmienna | Opis |
-| --- | --- |
-| `DATABASE_URL` | Połączenie z PostgreSQL |
-| `BETTER_AUTH_SECRET` | Sekret better-auth, min. 32 znaki |
-| `BETTER_AUTH_URL` | Publiczny adres aplikacji |
-| `RESEND_API_KEY` | Klucz Resend; wymagany na produkcji |
-| `SMTP_URL` | SMTP (dev/e2e: mailpit); ma pierwszeństwo przed Resend |
-| `EMAIL_FROM` | Nadawca maili |
-| `AUTH_PUBLIC_SIGNUP` | `true` — publiczna rejestracja; domyślnie `false` (tylko z zaproszenia) |
-| `MULTI_ORG` | `true` — wiele organizacji i `OrgSwitcher`; domyślnie `false` |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Domyślne wartości dla `admin:create` (opcjonalne) |
-| `LOG_LEVEL` | Poziom logowania |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Eksport logów OpenTelemetry (opcjonalne) |
+| Zmienna                         | Opis                                                                    |
+| ------------------------------- | ----------------------------------------------------------------------- |
+| `DATABASE_URL`                  | Połączenie z PostgreSQL                                                 |
+| `BETTER_AUTH_SECRET`            | Sekret better-auth, min. 32 znaki                                       |
+| `BETTER_AUTH_URL`               | Publiczny adres aplikacji                                               |
+| `RESEND_API_KEY`                | Klucz Resend; wymagany na produkcji                                     |
+| `SMTP_URL`                      | SMTP (dev/e2e: mailpit); ma pierwszeństwo przed Resend                  |
+| `EMAIL_FROM`                    | Nadawca maili                                                           |
+| `AUTH_PUBLIC_SIGNUP`            | `true` — publiczna rejestracja; domyślnie `false` (tylko z zaproszenia) |
+| `MULTI_ORG`                     | `true` — wiele organizacji i `OrgSwitcher`; domyślnie `false`           |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Domyślne wartości dla `admin:create` (opcjonalne)                       |
+| `LOG_LEVEL`                     | Poziom logowania                                                        |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`   | Eksport logów OpenTelemetry (opcjonalne)                                |
 
 Zmienne modułów są dopisywane przez `wa generate` w regionie `# wa:modules:start/end` pliku `.env.example`.
 
@@ -64,7 +64,8 @@ npm run build -w @wa-kit/cli && npm run wa -- generate   # odśwież pliki gener
 `globalSetup` **czyści bazę** wskazaną przez `DATABASE_URL` (domyślnie `postgresql://postgres:postgres@localhost:${DB_PORT:-5432}/wa_app_e2e`),
 uruchamia `admin:create --yes` i czyści skrzynkę mailpit (`MAILPIT_URL`, domyślnie `http://localhost:8025`).
 Reset odbywa się tylko wtedy, gdy nazwa bazy kończy się na `_e2e` — inaczej `globalSetup` przerywa test.
-Baza `wa_app_e2e` powstaje automatycznie w kontenerze z `docker compose up -d`:
+`docker compose up -d` uruchamia tylko serwer Postgres (i mailpit) — nie zakłada bazy `wa_app_e2e`.
+Tworzy ją Prisma (`prisma db push` / `prisma migrate reset`) przy pierwszym uruchomieniu `globalSetup`:
 
 ```bash
 docker compose up -d

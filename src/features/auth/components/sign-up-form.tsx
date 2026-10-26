@@ -42,11 +42,12 @@ export function SignUpForm({ invitationId }: SignUpFormProps) {
       const result = await authClient.signUp.email(payload);
 
       if (result.error) {
-        toast.error(t("error-sign-up"));
+        toast.error(result.error.message || t("error-sign-up"));
         return;
       }
 
-      router.push("/dashboard");
+      toast.success(t("sign-up-success"));
+      router.push("/sign-in");
     } catch {
       toast.error(te("connection"));
     }

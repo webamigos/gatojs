@@ -32,6 +32,7 @@
   "set-password-expired-description": "This link is invalid or has expired. Request a new one using the sign in form.",
   "error-sign-in": "Could not sign in",
   "error-sign-up": "Could not create the account",
+  "sign-up-success": "Account created. Please sign in.",
   "error-send-reset": "Could not send the reset link",
   "error-reset-password": "Could not reset the password",
   "error-passwords-mismatch": "Passwords do not match",

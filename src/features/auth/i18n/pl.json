@@ -32,6 +32,7 @@
   "set-password-expired-description": "Ten link jest nieprawidłowy lub wygasł. Poproś o nowy przez formularz logowania.",
   "error-sign-in": "Nie udało się zalogować",
   "error-sign-up": "Nie udało się utworzyć konta",
+  "sign-up-success": "Konto zostało utworzone. Zaloguj się.",
   "error-send-reset": "Nie udało się wysłać linku resetującego",
   "error-reset-password": "Nie udało się zresetować hasła",
   "error-passwords-mismatch": "Hasła nie są identyczne",

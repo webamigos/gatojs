@@ -3,14 +3,6 @@ import { OperationResult } from "@/shared/types/common";
 
 export class DomainError extends Error {}
 
-export function rethrowAsUserFacing(error: unknown): never {
-  if (error instanceof DomainError) {
-    throw error;
-  }
-  const msg = error instanceof Error ? error.message : String(error);
-  throw new DomainError(msg);
-}
-
 function isNextRedirect(error: unknown): boolean {
   return (
     typeof error === "object" &&

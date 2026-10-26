@@ -4,11 +4,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderAuthForm } from "./helpers/render";
 import { AUTH_SUCCESS, AUTH_ERROR } from "./helpers/mocks";
 
-const { mockSignUp, mockPush, mockToastError } = vi.hoisted(() => ({
-  mockSignUp: vi.fn(),
-  mockPush: vi.fn(),
-  mockToastError: vi.fn(),
-}));
+const { mockSignUp, mockPush, mockToastError, mockToastSuccess } = vi.hoisted(
+  () => ({
+    mockSignUp: vi.fn(),
+    mockPush: vi.fn(),
+    mockToastError: vi.fn(),
+    mockToastSuccess: vi.fn(),
+  }),
+);
 
 vi.mock("@/shared/lib/auth/client", () => ({
   authClient: {
@@ -33,7 +36,7 @@ vi.mock("@/i18n/routing", () => ({
 }));
 
 vi.mock("sonner", () => ({
-  toast: { error: mockToastError, success: vi.fn() },
+  toast: { error: mockToastError, success: mockToastSuccess },
 }));
 
 import { SignUpForm } from "../sign-up-form";
@@ -71,7 +74,7 @@ describe("SignUpForm", () => {
     ).toBeInTheDocument();
   });
 
-  it("wywołuje authClient.signUp.email i przekierowuje na /dashboard po sukcesie", async () => {
+  it("wywołuje authClient.signUp.email, pokazuje toast sukcesu i przekierowuje na /sign-in", async () => {
     const user = userEvent.setup();
     mockSignUp.mockResolvedValue(AUTH_SUCCESS);
     renderAuthForm(<SignUpForm />);
@@ -87,13 +90,46 @@ describe("SignUpForm", () => {
         email: "test@example.com",
         password: "password123",
       });
-      expect(mockPush).toHaveBeenCalledWith("/dashboard");
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Konto zostało utworzone. Zaloguj się.",
+      );
+      expect(mockPush).toHaveBeenCalledWith("/sign-in");
     });
   });
 
-  it("pokazuje toast błędu gdy authClient zwraca error", async () => {
+  it("pokazuje komunikat serwera gdy authClient zwraca error z message", async () => {
     const user = userEvent.setup();
-    mockSignUp.mockResolvedValue(AUTH_ERROR);
+    mockSignUp.mockResolvedValue({
+      data: null,
+      error: {
+        message:
+          "Aplikacja nie jest skonfigurowana: uruchom npm run admin:create",
+        status: 500,
+        statusText: "Internal Server Error",
+      },
+    });
+    renderAuthForm(<SignUpForm />);
+
+    await user.type(screen.getByLabelText("Imię i nazwisko"), "Jan Kowalski");
+    await user.type(screen.getByLabelText("Email"), "test@example.com");
+    await user.type(screen.getByLabelText("Hasło"), "password123");
+    await user.click(screen.getByRole("button", { name: "Zarejestruj się" }));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Aplikacja nie jest skonfigurowana: uruchom npm run admin:create",
+      );
+    });
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("pokazuje ogólny toast błędu gdy error nie ma message", async () => {
+    const user = userEvent.setup();
+    mockSignUp.mockResolvedValue({
+      ...AUTH_ERROR,
+      error: { status: 400, statusText: "Bad Request" },
+    });
     renderAuthForm(<SignUpForm />);
 
     await user.type(screen.getByLabelText("Imię i nazwisko"), "Jan Kowalski");

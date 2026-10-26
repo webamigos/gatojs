@@ -1,4 +1,9 @@
-export function replaceRegion(content: string, file: string, marker: string, body: string): string {
+export function replaceRegion(
+  content: string,
+  file: string,
+  marker: string,
+  body: string,
+): string {
   const startToken = `wa:${marker}:start`;
   const endToken = `wa:${marker}:end`;
   const lines = content.split("\n");
@@ -11,12 +16,14 @@ export function replaceRegion(content: string, file: string, marker: string, bod
     ends.length !== 1 ||
     start === undefined ||
     end === undefined ||
-    end < start
+    end <= start
   ) {
     throw new Error(`${file}: uszkodzony region wa:${marker}`);
   }
   const bodyLines = body === "" ? [] : body.split("\n");
-  return [...lines.slice(0, start + 1), ...bodyLines, ...lines.slice(end)].join("\n");
+  return [...lines.slice(0, start + 1), ...bodyLines, ...lines.slice(end)].join(
+    "\n",
+  );
 }
 
 function indicesOf(lines: string[], token: string): number[] {

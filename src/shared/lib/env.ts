@@ -11,6 +11,9 @@ const optionalString = z.preprocess(
   z.string().min(1).optional(),
 );
 
+export const EXAMPLE_BETTER_AUTH_SECRET =
+  "change-me-to-a-random-string-of-at-least-32-chars";
+
 export const coreEnvSchema = z
   .object({
     NODE_ENV: z
@@ -32,7 +35,16 @@ export const coreEnvSchema = z
   .refine((value) => value.NODE_ENV !== "production" || value.RESEND_API_KEY, {
     path: ["RESEND_API_KEY"],
     message: "wymagana w produkcji",
-  });
+  })
+  .refine(
+    (value) =>
+      value.NODE_ENV !== "production" ||
+      value.BETTER_AUTH_SECRET !== EXAMPLE_BETTER_AUTH_SECRET,
+    {
+      path: ["BETTER_AUTH_SECRET"],
+      message: "w produkcji nie może być wartością z .env.example",
+    },
+  );
 
 export type CoreEnv = z.infer<typeof coreEnvSchema>;
 

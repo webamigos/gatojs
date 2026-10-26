@@ -1,16 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockGetOrgContext, mockNotFound, mockEnv } = vi.hoisted(() => ({
-  mockGetOrgContext: vi.fn(),
-  mockNotFound: vi.fn(() => {
-    throw new Error("NEXT_NOT_FOUND");
+const { mockGetOrgContext, mockNotFound, mockEnv, mockRedirect } = vi.hoisted(
+  () => ({
+    mockGetOrgContext: vi.fn(),
+    mockRedirect: vi.fn((args: unknown) => {
+      throw Object.assign(new Error("NEXT_REDIRECT"), { args });
+    }),
+    mockNotFound: vi.fn(() => {
+      throw new Error("NEXT_NOT_FOUND");
+    }),
+    mockEnv: { MULTI_ORG: false },
   }),
-  mockEnv: { MULTI_ORG: false },
-}));
+);
 
 vi.mock("next/navigation", () => ({ notFound: mockNotFound }));
 vi.mock("@/shared/lib/env", () => ({ env: mockEnv }));
-vi.mock("../org-context", () => ({ getOrgContext: mockGetOrgContext }));
+vi.mock("@/i18n/routing", () => ({ redirect: mockRedirect }));
+vi.mock("next-intl/server", () => ({ getLocale: async () => "en" }));
+vi.mock("../org-context", () => {
+  class NoOrganizationError extends Error {}
+  return { NoOrganizationError, getOrgContext: mockGetOrgContext };
+});
 vi.mock("@/modules.client.generated", () => ({
   clientModules: [
     { key: "open", nav: [], routePrefixes: ["/open"] },
@@ -24,6 +34,7 @@ vi.mock("@/modules.client.generated", () => ({
   ],
 }));
 
+import { NoOrganizationError } from "../org-context";
 import { requireModuleAccess } from "../require-module-access";
 
 function asContext(orgRole: string, userRole = "user") {
@@ -76,5 +87,23 @@ describe("requireModuleAccess", () => {
     await expect(requireModuleAccess("missing")).rejects.toThrow(
       "NEXT_NOT_FOUND",
     );
+  });
+
+  it("brak organizacji → przekierowanie na /no-organization w bieżącym języku", async () => {
+    mockGetOrgContext.mockRejectedValue(new NoOrganizationError());
+
+    await expect(requireModuleAccess("open")).rejects.toThrow("NEXT_REDIRECT");
+    expect(mockRedirect).toHaveBeenCalledWith({
+      href: "/no-organization",
+      locale: "en",
+    });
+    expect(mockNotFound).not.toHaveBeenCalled();
+  });
+
+  it("inny błąd kontekstu jest propagowany", async () => {
+    mockGetOrgContext.mockRejectedValue(new Error("db down"));
+
+    await expect(requireModuleAccess("open")).rejects.toThrow("db down");
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 });

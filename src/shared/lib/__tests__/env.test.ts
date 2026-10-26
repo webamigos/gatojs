@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import dotenv from "dotenv";
 import { describe, expect, it } from "vitest";
-import { parseEnv } from "@/shared/lib/env";
+import { EXAMPLE_BETTER_AUTH_SECRET, parseEnv } from "@/shared/lib/env";
 
 const validCore = {
   DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/wa",
@@ -76,5 +76,30 @@ describe("parseEnv", () => {
     expect(e.DATABASE_URL).toBe(example.DATABASE_URL);
     expect(e.RESEND_API_KEY).toBeUndefined();
     expect(e.AUTH_PUBLIC_SIGNUP).toBe(false);
+  });
+
+  it("produkcja z BETTER_AUTH_SECRET z .env.example → błąd z nazwą zmiennej", () => {
+    expect(() =>
+      parseEnv({
+        ...validCore,
+        NODE_ENV: "production",
+        RESEND_API_KEY: "re_live",
+        BETTER_AUTH_SECRET: EXAMPLE_BETTER_AUTH_SECRET,
+      }),
+    ).toThrow(/BETTER_AUTH_SECRET/);
+  });
+
+  it("placeholder BETTER_AUTH_SECRET dozwolony poza produkcją", () => {
+    expect(
+      parseEnv({ ...validCore, BETTER_AUTH_SECRET: EXAMPLE_BETTER_AUTH_SECRET })
+        .BETTER_AUTH_SECRET,
+    ).toBe(EXAMPLE_BETTER_AUTH_SECRET);
+  });
+
+  it("stała placeholdera odpowiada wartości w .env.example", () => {
+    const example = dotenv.parse(
+      readFileSync(join(process.cwd(), ".env.example"), "utf8"),
+    );
+    expect(example.BETTER_AUTH_SECRET).toBe(EXAMPLE_BETTER_AUTH_SECRET);
   });
 });
