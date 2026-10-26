@@ -1,0 +1,4 @@
+demo:
+  image: demo:latest
+  ports:
+    - "9000:9000"

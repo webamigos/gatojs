@@ -1,3 +1,4 @@
+import { compareCodePoint } from "../compare.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { kitStateSchema } from "./schema.js";
@@ -20,7 +21,7 @@ export async function readKitState(projectDir: string): Promise<KitState> {
 
 export async function writeKitState(projectDir: string, state: KitState): Promise<void> {
   const sortedModules = Object.fromEntries(
-    Object.entries(state.modules).sort(([a], [b]) => a.localeCompare(b)),
+    Object.entries(state.modules).sort(([a], [b]) => compareCodePoint(a, b)),
   );
   const target = join(projectDir, KIT_STATE_PATH);
   await mkdir(dirname(target), { recursive: true });
@@ -32,7 +33,7 @@ export function installedModules(state: KitState): ModuleManifest[] {
     .sort(([a], [b]) => {
       if (a === "core") return -1;
       if (b === "core") return 1;
-      return a.localeCompare(b);
+      return compareCodePoint(a, b);
     })
     .map(([, entry]) => entry.manifest);
 }
