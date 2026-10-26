@@ -1,7 +1,7 @@
 import { prisma } from "@/shared/lib/prisma";
 import { assertSignupAllowed } from "./signup-policy";
 
-function readString(body: unknown, key: string): string | undefined {
+export function readBodyString(body: unknown, key: string): string | undefined {
   if (typeof body !== "object" || body === null || !(key in body)) {
     return undefined;
   }
@@ -10,8 +10,8 @@ function readString(body: unknown, key: string): string | undefined {
 }
 
 async function hasPendingInvitation(body: unknown): Promise<boolean> {
-  const invitationId = readString(body, "invitationId");
-  const email = readString(body, "email");
+  const invitationId = readBodyString(body, "invitationId");
+  const email = readBodyString(body, "email");
   if (!invitationId || !email) {
     return false;
   }
