@@ -22,6 +22,8 @@ const eslintConfig = defineConfig([
     ".superpowers/**",
     ".claude/**",
     "src/generated/**",
+    "src/modules.generated.ts",
+    "src/modules.client.generated.ts",
   ]),
 ]);
 

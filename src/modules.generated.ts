@@ -4,10 +4,7 @@ export const modules: never[] = [];
 export const moduleEnvSchemas: never[] = [];
 export const authPlugins: never[] = [];
 
-export type MessageLoader = {
-  key: string;
-  load: () => Promise<Record<string, unknown>>;
-};
+export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };
 
 export const moduleMessages: Record<"pl" | "en", MessageLoader[]> = {
   pl: [],
