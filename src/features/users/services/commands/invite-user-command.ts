@@ -8,7 +8,8 @@ import { getAdminUserOrNull } from "@/shared/lib/auth/helpers";
 import { getOrgContext } from "@/shared/lib/auth/org-context";
 import { logger } from "@/shared/lib/logger";
 import { handleCommandError } from "@/shared/utils/error-handling";
-import { WELCOME_SET_PASSWORD_PATH } from "@/shared/lib/auth/reset-password-routing";
+import { createWelcomeSetPasswordUrl } from "@/shared/lib/auth/welcome-set-password";
+import { sendWelcomeSetPasswordEmail } from "@/shared/lib/mailer";
 import { inviteUserSchema } from "../../contracts/user-account.schemas";
 import type { OperationResult } from "@/shared/types/common";
 
@@ -64,11 +65,7 @@ export async function inviteUserCommand(
     );
 
     await markEmailVerified(userId);
-    const mailSent = await sendSetPasswordEmailBestEffort(
-      email,
-      userId,
-      requestHeaders,
-    );
+    const mailSent = await sendWelcomeEmailBestEffort({ name, email, userId });
 
     revalidatePath("/users");
     return mailSent
@@ -121,21 +118,29 @@ async function markEmailVerified(userId: string): Promise<void> {
   });
 }
 
-async function sendSetPasswordEmailBestEffort(
-  email: string,
-  userId: string,
-  requestHeaders: RequestHeaders,
-): Promise<boolean> {
+async function sendWelcomeEmailBestEffort(recipient: {
+  name: string;
+  email: string;
+  userId: string;
+}): Promise<boolean> {
   try {
-    const { auth } = await import("@/shared/lib/auth");
-    await auth.api.requestPasswordReset({
-      body: { email, redirectTo: WELCOME_SET_PASSWORD_PATH },
-      headers: requestHeaders,
+    const resetUrl = await createWelcomeSetPasswordUrl(recipient.userId);
+    const delivery = await sendWelcomeSetPasswordEmail({
+      to: recipient.email,
+      name: recipient.name,
+      resetUrl,
     });
+    if ("error" in delivery) {
+      logger.error("[USERS] Welcome set-password email not delivered", {
+        userId: recipient.userId,
+        err: delivery.error,
+      });
+      return false;
+    }
     return true;
   } catch (error) {
     logger.error("[USERS] Failed to send set-password email", {
-      userId,
+      userId: recipient.userId,
       err: error,
     });
     return false;

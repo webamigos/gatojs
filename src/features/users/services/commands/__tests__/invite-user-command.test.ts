@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { WELCOME_SET_PASSWORD_PATH } from "@/shared/lib/auth/reset-password-routing";
 
 const {
   mockPrisma,
@@ -7,6 +6,8 @@ const {
   mockGetOrgContext,
   mockAuthApi,
   mockLogger,
+  mockCreateWelcomeUrl,
+  mockSendWelcomeEmail,
 } = vi.hoisted(() => ({
   mockPrisma: {
     user: { findUnique: vi.fn(), update: vi.fn() },
@@ -14,8 +15,10 @@ const {
   },
   mockGetAdminUserOrNull: vi.fn(),
   mockGetOrgContext: vi.fn(),
-  mockAuthApi: { signUpEmail: vi.fn(), requestPasswordReset: vi.fn() },
+  mockAuthApi: { signUpEmail: vi.fn() },
   mockLogger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
+  mockCreateWelcomeUrl: vi.fn(),
+  mockSendWelcomeEmail: vi.fn(),
 }));
 
 vi.mock("@/shared/lib/prisma", () => ({ prisma: mockPrisma }));
@@ -27,6 +30,12 @@ vi.mock("@/shared/lib/auth/org-context", () => ({
 }));
 vi.mock("@/shared/lib/auth", () => ({ auth: { api: mockAuthApi } }));
 vi.mock("@/shared/lib/logger", () => ({ logger: mockLogger }));
+vi.mock("@/shared/lib/auth/welcome-set-password", () => ({
+  createWelcomeSetPasswordUrl: mockCreateWelcomeUrl,
+}));
+vi.mock("@/shared/lib/mailer", () => ({
+  sendWelcomeSetPasswordEmail: mockSendWelcomeEmail,
+}));
 vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
 }));
@@ -39,6 +48,9 @@ vi.mock("@/shared/utils/error-handling", () => ({
 }));
 
 import { inviteUserCommand } from "../invite-user-command";
+
+const WELCOME_URL =
+  "http://localhost:3000/api/auth/reset-password/tok?callbackURL=%2Fset-password";
 
 const validInput = {
   name: "Jan Kowalski",
@@ -53,7 +65,8 @@ beforeEach(() => {
   mockPrisma.invitation.delete.mockResolvedValue({});
   mockPrisma.user.update.mockResolvedValue({});
   mockAuthApi.signUpEmail.mockResolvedValue({ user: { id: "new-user-1" } });
-  mockAuthApi.requestPasswordReset.mockResolvedValue({});
+  mockCreateWelcomeUrl.mockResolvedValue(WELCOME_URL);
+  mockSendWelcomeEmail.mockResolvedValue({ data: { id: "mail-1" } });
 });
 
 describe("inviteUserCommand", () => {
@@ -121,14 +134,12 @@ describe("inviteUserCommand", () => {
       where: { id: "new-user-1" },
       data: { emailVerified: true },
     });
-    expect(mockAuthApi.requestPasswordReset).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: {
-          email: validInput.email,
-          redirectTo: WELCOME_SET_PASSWORD_PATH,
-        },
-      }),
-    );
+    expect(mockCreateWelcomeUrl).toHaveBeenCalledWith("new-user-1");
+    expect(mockSendWelcomeEmail).toHaveBeenCalledWith({
+      to: validInput.email,
+      name: validInput.name,
+      resetUrl: WELCOME_URL,
+    });
     expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
   });
 
@@ -158,13 +169,8 @@ describe("inviteUserCommand", () => {
       }),
     );
     expect(mockPrisma.invitation.delete).not.toHaveBeenCalled();
-    expect(mockAuthApi.requestPasswordReset).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: {
-          email: "jan@firma.pl",
-          redirectTo: WELCOME_SET_PASSWORD_PATH,
-        },
-      }),
+    expect(mockSendWelcomeEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "jan@firma.pl" }),
     );
     expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
   });
@@ -179,12 +185,15 @@ describe("inviteUserCommand", () => {
       where: { id: "inv-1" },
     });
     expect(result.success).toBe(false);
-    expect(mockAuthApi.requestPasswordReset).not.toHaveBeenCalled();
+    expect(mockCreateWelcomeUrl).not.toHaveBeenCalled();
+    expect(mockSendWelcomeEmail).not.toHaveBeenCalled();
   });
 
-  it("sukces mimo błędu wysyłki maila set-password", async () => {
+  it("mailer zwraca { error } → sukces z ostrzeżeniem mail-failed", async () => {
     mockPrisma.user.findUnique.mockResolvedValueOnce(null);
-    mockAuthApi.requestPasswordReset.mockRejectedValue(new Error("smtp down"));
+    mockSendWelcomeEmail.mockResolvedValue({
+      error: "Nie udało się wysłać emaila powitalnego",
+    });
 
     const result = await inviteUserCommand(validInput);
 
@@ -194,5 +203,28 @@ describe("inviteUserCommand", () => {
       warning: "mail-failed",
     });
     expect(mockLogger.error).toHaveBeenCalled();
+  });
+
+  it("błąd tworzenia tokenu → sukces z ostrzeżeniem mail-failed", async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+    mockCreateWelcomeUrl.mockRejectedValue(new Error("db down"));
+
+    const result = await inviteUserCommand(validInput);
+
+    expect(result).toEqual({
+      success: true,
+      data: { userId: "new-user-1" },
+      warning: "mail-failed",
+    });
+    expect(mockSendWelcomeEmail).not.toHaveBeenCalled();
+  });
+
+  it("mailer bez skonfigurowanego transportu ({ data: null }) → brak ostrzeżenia", async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+    mockSendWelcomeEmail.mockResolvedValue({ data: null });
+
+    const result = await inviteUserCommand(validInput);
+
+    expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
   });
 });

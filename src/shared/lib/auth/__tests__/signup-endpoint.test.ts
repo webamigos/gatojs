@@ -138,6 +138,42 @@ describe("auth.api.signUpEmail", () => {
     expect(mockPrisma.organization.findFirst).not.toHaveBeenCalled();
   });
 
+  it("publiczna rejestracja wyłączona: ważne zaproszenie przepuszcza bramkę", async () => {
+    mockPrisma.invitation.findFirst.mockResolvedValue({
+      id: "inv-1",
+      organizationId: "org-invited",
+      role: "member",
+    });
+
+    await expect(
+      auth.api.signUpEmail({
+        body: { ...signupBody, invitationId: "inv-1" } as typeof signupBody,
+      }),
+    ).resolves.toMatchObject({ user: { id: "user-new" } });
+
+    expect(mockPrisma.invitation.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: "inv-1",
+          email: { equals: signupBody.email, mode: "insensitive" },
+          status: "pending",
+        }),
+      }),
+    );
+    expect(mockPrisma.user.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("publiczna rejestracja wyłączona: nieważne zaproszenie → 403", async () => {
+    mockPrisma.invitation.findFirst.mockResolvedValue(null);
+
+    await expect(
+      auth.api.signUpEmail({
+        body: { ...signupBody, invitationId: "inv-x" } as typeof signupBody,
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(mockPrisma.user.create).not.toHaveBeenCalled();
+  });
+
   it("użytkownik tworzony przez admin createUser nie dostaje członkostwa", async () => {
     mockPrisma.organization.findFirst.mockResolvedValue({ id: "org-only" });
 

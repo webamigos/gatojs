@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { createAuthMiddleware } from "better-auth/api";
+import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { admin, organization } from "better-auth/plugins";
 import { authPlugins } from "@/modules.generated";
 import {
@@ -14,8 +14,11 @@ import {
 import { getDefaultActiveOrganizationId } from "@/features/organizations/services/queries/default-organization-query";
 import { env } from "@/shared/lib/env";
 import { prisma } from "@/shared/lib/prisma";
-import { isWelcomeSetPasswordUrl } from "./reset-password-routing";
 import { USER_ROLES } from "./roles";
+import {
+  assertGlobalAdmin,
+  requiresGlobalAdminInSingleOrg,
+} from "./single-org-guard";
 import { readSignupMembership } from "./signup-membership-context";
 
 export const auth = betterAuth({
@@ -30,19 +33,16 @@ export const auth = betterAuth({
     resetPasswordTokenExpiresIn: 60 * 60 * 48,
     async sendResetPassword({ user, url }) {
       const mailer = await import("@/shared/lib/mailer");
-      if (isWelcomeSetPasswordUrl(url)) {
-        await mailer.sendWelcomeSetPasswordEmail({
-          to: user.email,
-          name: user.name,
-          resetUrl: url,
-        });
-        return;
-      }
       await mailer.sendPasswordResetEmail({ to: user.email, resetUrl: url });
     },
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
+      if (requiresGlobalAdminInSingleOrg(ctx.path, env.MULTI_ORG)) {
+        const session = await getSessionFromCtx(ctx);
+        assertGlobalAdmin(session?.user.role);
+        return;
+      }
       if (ctx.path !== "/sign-up/email") {
         return;
       }
