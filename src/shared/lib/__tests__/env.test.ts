@@ -3,7 +3,7 @@ import { parseEnv } from "@/shared/lib/env";
 
 const validCore = {
   DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/wa",
-  BETTER_AUTH_SECRET: "secret",
+  BETTER_AUTH_SECRET: "s".repeat(32),
   BETTER_AUTH_URL: "http://localhost:3000",
   EMAIL_FROM: "WA App <noreply@example.com>",
 };
@@ -35,5 +35,11 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ ...validCore, NODE_ENV: "production" })).toThrow(
       /RESEND_API_KEY/,
     );
+  });
+
+  it("BETTER_AUTH_SECRET krótszy niż 32 znaki → błąd z nazwą zmiennej", () => {
+    expect(() =>
+      parseEnv({ ...validCore, BETTER_AUTH_SECRET: "s".repeat(31) }),
+    ).toThrow(/BETTER_AUTH_SECRET/);
   });
 });
