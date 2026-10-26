@@ -1,0 +1,6 @@
+{
+  "nav": "Dashboard",
+  "title": "Dashboard",
+  "welcome": "Welcome, {name}",
+  "placeholder": "Your application content will appear here."
+}

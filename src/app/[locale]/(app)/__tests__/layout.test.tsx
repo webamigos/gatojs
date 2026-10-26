@@ -1,26 +1,75 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
 
-const { mockGetOrgContext, mockRedirect } = vi.hoisted(() => ({
+const {
+  mockGetOrgContext,
+  mockRedirect,
+  mockGetCurrentUserWithImpersonation,
+  mockEnv,
+  sidebarProps,
+  bannerProps,
+} = vi.hoisted(() => ({
   mockGetOrgContext: vi.fn(),
   mockRedirect: vi.fn((args: unknown) => {
     throw Object.assign(new Error("NEXT_REDIRECT"), { args });
   }),
+  mockGetCurrentUserWithImpersonation: vi.fn(),
+  mockEnv: { MULTI_ORG: false },
+  sidebarProps: vi.fn(),
+  bannerProps: vi.fn(),
 }));
 
 vi.mock("@/i18n/routing", () => ({ redirect: mockRedirect }));
+vi.mock("@/shared/lib/env", () => ({ env: mockEnv }));
+vi.mock("@/shared/lib/auth/helpers", () => ({
+  getCurrentUserWithImpersonation: mockGetCurrentUserWithImpersonation,
+}));
 vi.mock("@/shared/lib/auth/org-context", async () => {
   class NoOrganizationError extends Error {}
   return { NoOrganizationError, getOrgContext: mockGetOrgContext };
 });
+vi.mock("@/shared/components/app-sidebar", () => ({
+  SidebarProvider: ({ children }: { children: React.ReactNode }) => children,
+  MobileHeader: () => null,
+  AppSidebar: (props: unknown) => {
+    sidebarProps(props);
+    return <nav>sidebar</nav>;
+  },
+}));
+vi.mock("@/features/users/components/impersonation-banner", () => ({
+  ImpersonationBanner: (props: unknown) => {
+    bannerProps(props);
+    return null;
+  },
+}));
+vi.mock("@/features/users/services/commands/impersonation-commands", () => ({
+  logImpersonationStopCommand: vi.fn(),
+}));
+vi.mock("@/features/organizations/components/org-switcher", () => ({
+  OrgSwitcher: ({ multiOrg }: { multiOrg: boolean }) => (
+    <div>{`switcher:${multiOrg}`}</div>
+  ),
+}));
 
 import { NoOrganizationError } from "@/shared/lib/auth/org-context";
 import AppLayout from "../layout";
 
 const params = Promise.resolve({ locale: "en" });
+const MEMBER_CONTEXT = {
+  userId: "u1",
+  organizationId: "org-1",
+  orgRole: "member",
+  userRole: "user",
+};
 
 describe("(app) layout", () => {
   beforeEach(() => {
-    mockGetOrgContext.mockReset();
+    mockEnv.MULTI_ORG = false;
+    mockGetOrgContext.mockResolvedValue(MEMBER_CONTEXT);
+    mockGetCurrentUserWithImpersonation.mockResolvedValue({
+      user: { id: "u1", name: "Jan", email: "jan@firma.pl" },
+      impersonatedBy: null,
+    });
   });
 
   it("użytkownik bez członkostwa → przekierowanie na /no-organization, nie 500", async () => {
@@ -44,16 +93,55 @@ describe("(app) layout", () => {
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
-  it("członek organizacji widzi zawartość", async () => {
-    mockGetOrgContext.mockResolvedValue({
-      userId: "u1",
-      organizationId: "org-1",
-      orgRole: "member",
-      userRole: "user",
+  it("brak użytkownika w sesji → przekierowanie na /sign-in", async () => {
+    mockGetCurrentUserWithImpersonation.mockResolvedValue({
+      user: null,
+      impersonatedBy: null,
     });
 
-    await expect(AppLayout({ children: "treść", params })).resolves.toEqual(
-      "treść",
+    await expect(AppLayout({ children: "treść", params })).rejects.toThrow(
+      "NEXT_REDIRECT",
+    );
+    expect(mockRedirect).toHaveBeenCalledWith({
+      href: "/sign-in",
+      locale: "en",
+    });
+  });
+
+  it("członek widzi zawartość w powłoce z sidebarem", async () => {
+    render(await AppLayout({ children: <p>treść</p>, params }));
+
+    expect(screen.getByText("treść")).toBeInTheDocument();
+    expect(screen.getByText("sidebar")).toBeInTheDocument();
+  });
+
+  it("przekazuje do sidebara role z kontekstu organizacji i flagę MULTI_ORG", async () => {
+    mockEnv.MULTI_ORG = true;
+    mockGetOrgContext.mockResolvedValue({
+      ...MEMBER_CONTEXT,
+      orgRole: "owner",
+    });
+
+    render(await AppLayout({ children: null, params }));
+
+    expect(sidebarProps).toHaveBeenCalledWith({
+      accessContext: { userRole: "user", orgRole: "owner", multiOrg: true },
+      userName: "Jan",
+      userEmail: "jan@firma.pl",
+    });
+    expect(screen.getByText("switcher:true")).toBeInTheDocument();
+  });
+
+  it("baner impersonacji jest aktywny tylko dla sesji impersonowanej", async () => {
+    mockGetCurrentUserWithImpersonation.mockResolvedValue({
+      user: { id: "u2", name: "", email: "u2@firma.pl" },
+      impersonatedBy: "admin-1",
+    });
+
+    render(await AppLayout({ children: null, params }));
+
+    expect(bannerProps).toHaveBeenCalledWith(
+      expect.objectContaining({ active: true, userName: "u2@firma.pl" }),
     );
   });
 });

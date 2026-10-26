@@ -1,23 +1,70 @@
 import { redirect } from "@/i18n/routing";
+import { env } from "@/shared/lib/env";
+import { getCurrentUserWithImpersonation } from "@/shared/lib/auth/helpers";
 import {
   getOrgContext,
   NoOrganizationError,
+  type OrgContext,
 } from "@/shared/lib/auth/org-context";
+import {
+  AppSidebar,
+  MobileHeader,
+  SidebarProvider,
+} from "@/shared/components/app-sidebar";
+import { ImpersonationBanner } from "@/features/users/components/impersonation-banner";
+import { logImpersonationStopCommand } from "@/features/users/services/commands/impersonation-commands";
+import { OrgSwitcher } from "@/features/organizations/components/org-switcher";
 
 interface AppLayoutProps {
   children: React.ReactNode;
   params: Promise<{ locale: string }>;
 }
 
-export default async function AppLayout({ children, params }: AppLayoutProps) {
-  const { locale } = await params;
+async function resolveOrgContext(locale: string): Promise<OrgContext> {
   try {
-    await getOrgContext();
+    return await getOrgContext();
   } catch (error) {
     if (error instanceof NoOrganizationError) {
-      redirect({ href: "/no-organization", locale });
+      return redirect({ href: "/no-organization", locale });
     }
     throw error;
   }
-  return children;
+}
+
+export default async function AppLayout({ children, params }: AppLayoutProps) {
+  const { locale } = await params;
+  const orgContext = await resolveOrgContext(locale);
+  const { user, impersonatedBy } = await getCurrentUserWithImpersonation();
+  if (!user) {
+    return redirect({ href: "/sign-in", locale });
+  }
+  const multiOrg = env.MULTI_ORG;
+
+  return (
+    <SidebarProvider>
+      <ImpersonationBanner
+        active={impersonatedBy !== null}
+        userName={user.name || user.email}
+        onStopLogged={logImpersonationStopCommand}
+      />
+      <div className="flex min-h-screen">
+        <AppSidebar
+          accessContext={{
+            userRole: orgContext.userRole,
+            orgRole: orgContext.orgRole,
+            multiOrg,
+          }}
+          userName={user.name}
+          userEmail={user.email}
+        />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <MobileHeader />
+          <main className="flex-1 space-y-4 p-4 md:p-6">
+            <OrgSwitcher multiOrg={multiOrg} />
+            {children}
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
+  );
 }

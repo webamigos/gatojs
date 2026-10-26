@@ -1,0 +1,141 @@
+"use server";
+
+import { randomBytes } from "node:crypto";
+import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
+import { prisma } from "@/shared/lib/prisma";
+import { getAdminUserOrNull } from "@/shared/lib/auth/helpers";
+import { getOrgContext } from "@/shared/lib/auth/org-context";
+import { logger } from "@/shared/lib/logger";
+import { handleCommandError } from "@/shared/utils/error-handling";
+import { WELCOME_SET_PASSWORD_PATH } from "@/shared/lib/auth/reset-password-routing";
+import { inviteUserSchema } from "../../contracts/user-account.schemas";
+import type { OperationResult } from "@/shared/types/common";
+
+type RequestHeaders = Awaited<ReturnType<typeof headers>>;
+
+const INVITATION_TTL_MS = 48 * 60 * 60 * 1000;
+
+export async function inviteUserCommand(
+  input: unknown,
+): Promise<OperationResult<{ userId: string }>> {
+  try {
+    const admin = await getAdminUserOrNull();
+    if (!admin) {
+      return { success: false, error: "Brak uprawnień" };
+    }
+
+    const parsed = inviteUserSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.issues[0]?.message ?? "Nieprawidłowe dane",
+      };
+    }
+    const { name, email, role } = parsed.data;
+
+    const existing = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (existing) {
+      return {
+        success: false,
+        error: "Użytkownik z tym adresem już istnieje",
+      };
+    }
+
+    const { organizationId } = await getOrgContext();
+    const invitation = await prisma.invitation.create({
+      data: {
+        organizationId,
+        email,
+        role,
+        inviterId: admin.id,
+        expiresAt: new Date(Date.now() + INVITATION_TTL_MS),
+      },
+      select: { id: true },
+    });
+
+    const requestHeaders = await headers();
+    const userId = await registerInvitedUser(
+      { name, email, invitationId: invitation.id },
+      requestHeaders,
+    );
+    if (!userId) {
+      await discardInvitation(invitation.id);
+      return { success: false, error: "Nie udało się utworzyć konta" };
+    }
+
+    await markEmailVerified(userId);
+    await sendSetPasswordEmailBestEffort(email, userId, requestHeaders);
+
+    revalidatePath("/users");
+    return { success: true, data: { userId } };
+  } catch (error) {
+    return handleCommandError(error, "Nie udało się zaprosić użytkownika");
+  }
+}
+
+async function registerInvitedUser(
+  data: { name: string; email: string; invitationId: string },
+  requestHeaders: RequestHeaders,
+): Promise<string | null> {
+  const { auth } = await import("@/shared/lib/auth");
+  const body = {
+    name: data.name,
+    email: data.email,
+    password: randomBytes(24).toString("base64url"),
+    invitationId: data.invitationId,
+  };
+
+  try {
+    await auth.api.signUpEmail({ body, headers: requestHeaders });
+  } catch (error) {
+    await discardInvitation(data.invitationId);
+    throw error;
+  }
+
+  const created = await prisma.user.findUnique({
+    where: { email: data.email },
+    select: { id: true },
+  });
+  return created?.id ?? null;
+}
+
+async function discardInvitation(invitationId: string): Promise<void> {
+  try {
+    await prisma.invitation.delete({ where: { id: invitationId } });
+  } catch (error) {
+    logger.error("[USERS] Failed to discard invitation", {
+      invitationId,
+      err: error,
+    });
+  }
+}
+
+async function markEmailVerified(userId: string): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { emailVerified: true },
+  });
+}
+
+async function sendSetPasswordEmailBestEffort(
+  email: string,
+  userId: string,
+  requestHeaders: RequestHeaders,
+): Promise<void> {
+  try {
+    const { auth } = await import("@/shared/lib/auth");
+    await auth.api.requestPasswordReset({
+      body: { email, redirectTo: WELCOME_SET_PASSWORD_PATH },
+      headers: requestHeaders,
+    });
+  } catch (error) {
+    logger.error("[USERS] Failed to send set-password email", {
+      userId,
+      err: error,
+    });
+  }
+}

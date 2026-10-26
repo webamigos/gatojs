@@ -1,0 +1,103 @@
+"use client";
+
+import { useCallback, useMemo, useState } from "react";
+import { pl, enUS } from "date-fns/locale";
+import type { Locale as DateFnsLocale } from "date-fns";
+import { Users as UsersIcon } from "lucide-react";
+import { toast } from "sonner";
+import { useTranslations, useLocale } from "next-intl";
+import { DataTable } from "@/components/ui/data-table";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardAction,
+  CardContent,
+} from "@/components/ui/card";
+import { useRouter } from "@/i18n/routing";
+import { authClient } from "@/shared/lib/auth/client";
+import { logImpersonationStartCommand } from "../services/commands/impersonation-commands";
+import { InviteUserDialog } from "./invite-user-dialog";
+import type { UserAccountListItem } from "../contracts/user-account.types";
+import { buildUserAccountColumns } from "./user-account-columns";
+
+const DATE_FNS_LOCALES: Record<string, DateFnsLocale> = { pl, en: enUS };
+
+interface UsersManagerProps {
+  users: UserAccountListItem[];
+  currentUserId: string;
+}
+
+export function UsersManager({ users, currentUserId }: UsersManagerProps) {
+  const t = useTranslations("users");
+  const router = useRouter();
+  const dateLocale = DATE_FNS_LOCALES[useLocale()] ?? pl;
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  const handleImpersonate = useCallback(
+    async (userId: string) => {
+      setPendingId(userId);
+      try {
+        const { error } = await authClient.admin.impersonateUser({ userId });
+        if (error) {
+          toast.error(t("impersonate-error"));
+          return;
+        }
+        const loggingResult = await logImpersonationStartCommand();
+        if (!loggingResult.success) {
+          console.error(
+            "Impersonation-start logging failed:",
+            loggingResult.error,
+          );
+        }
+        router.push("/dashboard");
+        router.refresh();
+      } finally {
+        setPendingId(null);
+      }
+    },
+    [t, router],
+  );
+
+  const columns = useMemo(
+    () =>
+      buildUserAccountColumns(
+        t,
+        dateLocale,
+        currentUserId,
+        pendingId,
+        handleImpersonate,
+      ),
+    [t, dateLocale, currentUserId, pendingId, handleImpersonate],
+  );
+
+  return (
+    <Card>
+      <CardHeader className="border-b">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+            <UsersIcon className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <CardTitle>{t("title")}</CardTitle>
+            <CardDescription>{t("description")}</CardDescription>
+          </div>
+        </div>
+        <CardAction>
+          <InviteUserDialog />
+        </CardAction>
+      </CardHeader>
+      <CardContent className="space-y-4 pt-6">
+        {users.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground">
+            <UsersIcon className="mx-auto mb-2 h-8 w-8" />
+            {t("no-users")}
+          </div>
+        ) : (
+          <DataTable columns={columns} data={users} />
+        )}
+      </CardContent>
+    </Card>
+  );
+}

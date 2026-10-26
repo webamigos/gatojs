@@ -13,6 +13,21 @@ vi.mock("@/shared/lib/auth/client", () => ({
   authClient: { requestPasswordReset: mockRequestPasswordReset },
 }));
 
+vi.mock("@/i18n/routing", () => ({
+  Link: ({
+    href,
+    children,
+    ...rest
+  }: {
+    href: string;
+    children: React.ReactNode;
+  }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
 vi.mock("sonner", () => ({
   toast: { error: mockToastError, success: vi.fn() },
 }));

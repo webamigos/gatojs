@@ -16,8 +16,20 @@ vi.mock("@/shared/lib/auth/client", () => ({
   },
 }));
 
-vi.mock("next/navigation", () => ({
+vi.mock("@/i18n/routing", () => ({
   useRouter: () => ({ push: mockPush }),
+  Link: ({
+    href,
+    children,
+    ...rest
+  }: {
+    href: string;
+    children: React.ReactNode;
+  }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock("sonner", () => ({

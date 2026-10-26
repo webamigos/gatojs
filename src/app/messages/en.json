@@ -26,5 +26,14 @@
     "connection": "Connection error. Please try again.",
     "not-found": "Page not found.",
     "forbidden": "Access denied."
+  },
+  "sidebar": {
+    "open-menu": "Open menu",
+    "close-menu": "Close menu",
+    "collapse": "Collapse menu",
+    "expand": "Expand menu",
+    "logout": "Sign out",
+    "user-fallback": "User",
+    "account": "Account"
   }
 }

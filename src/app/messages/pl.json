@@ -26,5 +26,14 @@
     "connection": "Wystąpił błąd połączenia. Spróbuj ponownie.",
     "not-found": "Nie znaleziono strony.",
     "forbidden": "Brak dostępu."
+  },
+  "sidebar": {
+    "open-menu": "Otwórz menu",
+    "close-menu": "Zamknij menu",
+    "collapse": "Zwiń menu",
+    "expand": "Rozwiń menu",
+    "logout": "Wyloguj",
+    "user-fallback": "Użytkownik",
+    "account": "Konto"
   }
 }

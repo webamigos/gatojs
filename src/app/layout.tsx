@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { getLocale } from "next-intl/server";
 import { project } from "@/shared/config/project";
 import "./globals.css";
 
@@ -14,14 +15,15 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
   return (
     <html
-      lang="pl"
+      lang={locale}
       className={`${inter.variable} antialiased`}
       suppressHydrationWarning
     >
