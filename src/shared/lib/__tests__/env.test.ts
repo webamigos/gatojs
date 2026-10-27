@@ -18,14 +18,100 @@ describe("parseEnv", () => {
     expect(e.MULTI_ORG).toBe(false);
   });
 
-  it("flagi true tylko dla napisu true", () => {
-    const e = parseEnv({
-      ...validCore,
-      AUTH_PUBLIC_SIGNUP: "true",
-      MULTI_ORG: "1",
-    });
-    expect(e.AUTH_PUBLIC_SIGNUP).toBe(true);
-    expect(e.MULTI_ORG).toBe(false);
+  it.each(["AUTH_PUBLIC_SIGNUP", "MULTI_ORG"] as const)(
+    "%s pusty → false",
+    (name) => {
+      expect(parseEnv({ ...validCore, [name]: "" })[name]).toBe(false);
+    },
+  );
+
+  it.each([
+    ["AUTH_PUBLIC_SIGNUP", "true"],
+    ["AUTH_PUBLIC_SIGNUP", "TRUE"],
+    ["AUTH_PUBLIC_SIGNUP", "True"],
+    ["AUTH_PUBLIC_SIGNUP", " true "],
+    ["MULTI_ORG", "true"],
+    ["MULTI_ORG", "TRUE"],
+    ["MULTI_ORG", "True"],
+    ["MULTI_ORG", " true "],
+  ] as const)("%s=%j → true", (name, value) => {
+    expect(parseEnv({ ...validCore, [name]: value })[name]).toBe(true);
+  });
+
+  it.each([
+    ["AUTH_PUBLIC_SIGNUP", "false"],
+    ["AUTH_PUBLIC_SIGNUP", "FALSE"],
+    ["AUTH_PUBLIC_SIGNUP", " false"],
+    ["MULTI_ORG", "false"],
+    ["MULTI_ORG", "FALSE"],
+    ["MULTI_ORG", " false"],
+  ] as const)("%s=%j → false", (name, value) => {
+    expect(parseEnv({ ...validCore, [name]: value })[name]).toBe(false);
+  });
+
+  it.each([
+    ["AUTH_PUBLIC_SIGNUP", "1"],
+    ["AUTH_PUBLIC_SIGNUP", "0"],
+    ["AUTH_PUBLIC_SIGNUP", "yes"],
+    ["AUTH_PUBLIC_SIGNUP", "no"],
+    ["AUTH_PUBLIC_SIGNUP", "on"],
+    ["AUTH_PUBLIC_SIGNUP", "tru"],
+    ["MULTI_ORG", "1"],
+    ["MULTI_ORG", "0"],
+    ["MULTI_ORG", "yes"],
+    ["MULTI_ORG", "no"],
+    ["MULTI_ORG", "on"],
+    ["MULTI_ORG", "tru"],
+  ] as const)("%s=%j → błąd z nazwą zmiennej", (name, value) => {
+    expect(() => parseEnv({ ...validCore, [name]: value })).toThrow(
+      new RegExp(name),
+    );
+  });
+
+  it.each([
+    "http://localhost:3000",
+    "https://app.example.com",
+    "https://app.example.com/",
+  ])("APP_URL %j akceptowany bez zmian", (value) => {
+    expect(parseEnv({ ...validCore, APP_URL: value }).APP_URL).toBe(value);
+  });
+
+  it.each([
+    "localhost:3000",
+    "app.example.com",
+    "ftp://example.com",
+    "/relative",
+    "http//x",
+    "git+https://example.com",
+    "httpx://example.com",
+  ])("APP_URL %j → błąd z nazwą zmiennej", (value) => {
+    expect(() => parseEnv({ ...validCore, APP_URL: value })).toThrow(/APP_URL/);
+  });
+
+  it.each([
+    ["32 spacje", " ".repeat(32)],
+    ["31 znaków i spacje do 40", "a".repeat(31) + " ".repeat(9)],
+  ])(
+    "BETTER_AUTH_SECRET %s → błąd z nazwą zmiennej (długość po trim)",
+    (_, value) => {
+      expect(() =>
+        parseEnv({ ...validCore, BETTER_AUTH_SECRET: value }),
+      ).toThrow(/BETTER_AUTH_SECRET/);
+    },
+  );
+
+  it("BETTER_AUTH_SECRET o 32 znakach akceptowany bez zmian", () => {
+    expect(
+      parseEnv({ ...validCore, BETTER_AUTH_SECRET: "s".repeat(32) })
+        .BETTER_AUTH_SECRET,
+    ).toBe("s".repeat(32));
+  });
+
+  it("BETTER_AUTH_SECRET ze spacjami na brzegach nie jest przycinany", () => {
+    expect(
+      parseEnv({ ...validCore, BETTER_AUTH_SECRET: ` ${"s".repeat(32)} ` })
+        .BETTER_AUTH_SECRET,
+    ).toBe(` ${"s".repeat(32)} `);
   });
 
   it("brak DATABASE_URL → błąd z nazwą zmiennej", () => {
