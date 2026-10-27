@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type ColumnDef } from "@/components/ui/data-table";
+import { canImpersonate } from "@/shared/lib/auth/impersonation-policy";
 import { USER_ROLES, type UserRole } from "@/shared/lib/auth/roles";
 import type { UserAccountListItem } from "../contracts/user-account.types";
 
@@ -20,10 +21,16 @@ const ROLE_BADGES: Record<
   [USER_ROLES.SUPERADMIN]: { labelKey: "role-superadmin", variant: "warning" },
 };
 
+export interface UserAccountViewer {
+  userId: string;
+  role: UserRole;
+  adminImpersonation: boolean;
+}
+
 export function buildUserAccountColumns(
   t: ReturnType<typeof useTranslations<"users">>,
   dateLocale: DateFnsLocale,
-  currentUserId: string,
+  viewer: UserAccountViewer,
   pendingId: string | null,
   onImpersonate: (userId: string) => void,
 ): ColumnDef<UserAccountListItem>[] {
@@ -71,20 +78,31 @@ export function buildUserAccountColumns(
       id: "actions",
       enableSorting: false,
       enableHiding: false,
-      cell: ({ row }) => (
-        <div className="flex justify-end">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onImpersonate(row.original.id)}
-            disabled={row.original.id === currentUserId || pendingId !== null}
-            aria-label={t("action-impersonate")}
-            title={t("action-impersonate")}
-          >
-            <UserCog className="h-4 w-4" />
-          </Button>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const showImpersonate =
+          row.original.id !== viewer.userId &&
+          canImpersonate({
+            actorRole: viewer.role,
+            targetRole: row.original.role,
+            adminImpersonation: viewer.adminImpersonation,
+          });
+        return (
+          <div className="flex justify-end">
+            {showImpersonate && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onImpersonate(row.original.id)}
+                disabled={pendingId !== null}
+                aria-label={t("action-impersonate")}
+                title={t("action-impersonate")}
+              >
+                <UserCog className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        );
+      },
     },
   ];
 }

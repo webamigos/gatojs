@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { useRouter } from "@/i18n/routing";
 import { authClient } from "@/shared/lib/auth/client";
+import type { UserRole } from "@/shared/lib/auth/roles";
 import { logImpersonationStartCommand } from "../services/commands/impersonation-commands";
 import { InviteUserDialog } from "./invite-user-dialog";
 import type { UserAccountListItem } from "../contracts/user-account.types";
@@ -27,9 +28,16 @@ const DATE_FNS_LOCALES: Record<string, DateFnsLocale> = { pl, en: enUS };
 interface UsersManagerProps {
   users: UserAccountListItem[];
   currentUserId: string;
+  currentUserRole: UserRole;
+  adminImpersonation: boolean;
 }
 
-export function UsersManager({ users, currentUserId }: UsersManagerProps) {
+export function UsersManager({
+  users,
+  currentUserId,
+  currentUserRole,
+  adminImpersonation,
+}: UsersManagerProps) {
   const t = useTranslations("users");
   const router = useRouter();
   const dateLocale = DATE_FNS_LOCALES[useLocale()] ?? pl;
@@ -65,11 +73,19 @@ export function UsersManager({ users, currentUserId }: UsersManagerProps) {
       buildUserAccountColumns(
         t,
         dateLocale,
-        currentUserId,
+        { userId: currentUserId, role: currentUserRole, adminImpersonation },
         pendingId,
         handleImpersonate,
       ),
-    [t, dateLocale, currentUserId, pendingId, handleImpersonate],
+    [
+      t,
+      dateLocale,
+      currentUserId,
+      currentUserRole,
+      adminImpersonation,
+      pendingId,
+      handleImpersonate,
+    ],
   );
 
   return (

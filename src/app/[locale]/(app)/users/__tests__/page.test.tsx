@@ -7,15 +7,18 @@ const {
   mockGetOrganizationMembersQuery,
   usersManagerProps,
   organizationMembersProps,
+  mockEnv,
 } = vi.hoisted(() => ({
   mockRequireModuleAccess: vi.fn(),
   mockGetUserAccountsQuery: vi.fn(),
   mockGetOrganizationMembersQuery: vi.fn(),
   usersManagerProps: vi.fn(),
   organizationMembersProps: vi.fn(),
+  mockEnv: { ADMIN_IMPERSONATION: false },
 }));
 
 vi.mock("next-intl/server", () => ({ setRequestLocale: vi.fn() }));
+vi.mock("@/shared/lib/env", () => ({ env: mockEnv }));
 vi.mock("@/shared/lib/auth/require-module-access", () => ({
   requireModuleAccess: mockRequireModuleAccess,
 }));
@@ -62,6 +65,7 @@ function contextFor(userRole: string, orgRole: string | null = "member") {
 
 describe("/users", () => {
   beforeEach(() => {
+    mockEnv.ADMIN_IMPERSONATION = false;
     mockGetUserAccountsQuery.mockResolvedValue(ACCOUNTS);
     mockGetOrganizationMembersQuery.mockResolvedValue(MEMBERS_DATA);
   });
@@ -89,6 +93,29 @@ describe("/users", () => {
         expect.objectContaining({ users: ACCOUNTS, currentUserId: "u1" }),
       );
       expect(mockGetOrganizationMembersQuery).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["superadmin", false],
+    ["superadmin", true],
+    ["admin", false],
+    ["admin", true],
+  ] as const)(
+    "%s przy ADMIN_IMPERSONATION=%s → UsersManager dostaje rolę bieżącego użytkownika i flagę impersonacji",
+    async (userRole, adminImpersonation) => {
+      mockEnv.ADMIN_IMPERSONATION = adminImpersonation;
+      mockRequireModuleAccess.mockResolvedValue(contextFor(userRole));
+
+      render(await UsersPage({ params }));
+
+      expect(usersManagerProps).toHaveBeenCalledWith(
+        expect.objectContaining({
+          currentUserId: "u1",
+          currentUserRole: userRole,
+          adminImpersonation,
+        }),
+      );
     },
   );
 
