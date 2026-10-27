@@ -24,7 +24,8 @@ npm run dev
 2. `cp .env.example .env` — ustaw `BETTER_AUTH_SECRET` (min. 32 znaki, np. `openssl rand -base64 32`).
 3. `npx prisma migrate dev --name init` — tworzy pierwszą migrację i schemat bazy.
 4. `npm run admin:create -- --email <email>` — tworzy administratora i pierwszą organizację.
-   Bez `--password` hasło jest generowane i wypisywane raz. Opcje: `--password`, `--name`, `--org-name`, `--yes`.
+   Bez `--password` hasło jest generowane i wypisywane raz. Opcje: `--password`, `--name`, `--org-name`, `--yes`,
+   `--role admin|superadmin` (domyślnie `admin`; `superadmin` to konto serwisowe Web Amigos). Skrypt nigdy nie obniża roli.
 5. `npm run dev` — aplikacja na `http://localhost:3000`. Maile (zaproszenia, reset hasła) zobaczysz w mailpit.
 
 ## Zmienne środowiskowe
@@ -39,6 +40,7 @@ npm run dev
 | `EMAIL_FROM`                    | Nadawca maili                                                           |
 | `AUTH_PUBLIC_SIGNUP`            | `true` — publiczna rejestracja; domyślnie `false` (tylko z zaproszenia) |
 | `MULTI_ORG`                     | `true` — wiele organizacji i `OrgSwitcher`; domyślnie `false`           |
+| `ADMIN_IMPERSONATION`           | `true` — admin klienta może podszyć się pod zwykłego użytkownika        |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Domyślne wartości dla `admin:create` (opcjonalne)                       |
 | `LOG_LEVEL`                     | Poziom logowania                                                        |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`   | Eksport logów OpenTelemetry (opcjonalne)                                |
@@ -92,6 +94,9 @@ npm run test:e2e
    ```bash
    railway run sh -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" npm run admin:create -- --email <email>'
    ```
+
+5. Konta przy przekazaniu aplikacji: Web Amigos dostaje `--role superadmin`, zleceniodawca domyślne `admin`.
+   Konta superadmina może zmienić lub usunąć tylko superadmin, więc po okresie wsparcia usuwamy je sami.
 
 ## wa-kit
 

@@ -1,6 +1,7 @@
 import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";
 import dotenv from "dotenv";
+import type { AdminCreateOptions } from "./lib/admin-create";
 
 dotenv.config({ path: [".env.local", ".env"] });
 
@@ -21,6 +22,7 @@ async function main(): Promise<void> {
       password: { type: "string" },
       name: { type: "string" },
       "org-name": { type: "string" },
+      role: { type: "string" },
       yes: { type: "boolean", default: false },
     },
   });
@@ -40,6 +42,7 @@ async function main(): Promise<void> {
       password: values.password ?? process.env.ADMIN_PASSWORD,
       name: values.name,
       orgName: values["org-name"],
+      role: values.role as AdminCreateOptions["role"],
       yes: values.yes,
       confirm,
     });

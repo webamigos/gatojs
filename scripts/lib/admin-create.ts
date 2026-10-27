@@ -2,10 +2,14 @@ import { randomBytes } from "node:crypto";
 import { project } from "@/shared/config/project";
 import { auth } from "@/shared/lib/auth";
 import { ORG_ROLES, USER_ROLES } from "@/shared/lib/auth/roles";
+import { roleFromStored } from "@/shared/lib/auth/admin-guard";
 import { prisma } from "@/shared/lib/prisma";
+
+export type GlobalAdminRole = "admin" | "superadmin";
 
 export type AdminCreateOptions = {
   email: string;
+  role?: GlobalAdminRole;
   password?: string;
   name?: string;
   orgName?: string;
@@ -42,7 +46,27 @@ export function slugifyOrgName(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-async function ensureUser(options: AdminCreateOptions): Promise<{
+const GLOBAL_ADMIN_ROLES: readonly string[] = [
+  USER_ROLES.ADMIN,
+  USER_ROLES.SUPERADMIN,
+];
+
+const ROLE_RANK: Record<string, number> = {
+  [USER_ROLES.ADMIN]: 1,
+  [USER_ROLES.SUPERADMIN]: 2,
+};
+
+function assertKnownRole(role: string): asserts role is GlobalAdminRole {
+  if (!GLOBAL_ADMIN_ROLES.includes(role)) {
+    throw new Error(
+      `Nieznana rola: ${role} (dozwolone: ${GLOBAL_ADMIN_ROLES.join(", ")})`,
+    );
+  }
+}
+
+async function ensureUser(
+  options: AdminCreateOptions & { role: GlobalAdminRole },
+): Promise<{
   userId: string;
   created: boolean;
   generatedPassword: string | null;
@@ -60,25 +84,27 @@ async function ensureUser(options: AdminCreateOptions): Promise<{
         email: options.email,
         password: (options.password ?? generatedPassword) as string,
         name: options.name ?? options.email.split("@")[0],
-        role: USER_ROLES.ADMIN,
+        role: options.role,
         data: { emailVerified: true },
       },
     });
     return { userId: user.id, created: true, generatedPassword };
   }
 
-  if (existing.role !== USER_ROLES.ADMIN) {
+  if (
+    (ROLE_RANK[roleFromStored(existing.role)] ?? 0) < ROLE_RANK[options.role]
+  ) {
     const approved =
       options.yes ||
       (await options.confirm(
-        `Użytkownik ${options.email} istnieje. Nadać rolę admin? [t/N]`,
+        `Użytkownik ${options.email} istnieje. Nadać rolę ${options.role}? [t/N]`,
       ));
     if (!approved) {
       throw new Error("Przerwano");
     }
     await prisma.user.update({
       where: { id: existing.id },
-      data: { role: USER_ROLES.ADMIN },
+      data: { role: options.role },
     });
   }
   return { userId: existing.id, created: false, generatedPassword: null };
@@ -123,7 +149,13 @@ async function ensureOrganizationOwner(
 export async function adminCreate(
   rawOptions: AdminCreateOptions,
 ): Promise<AdminCreateResult> {
-  const options = { ...rawOptions, email: rawOptions.email.toLowerCase() };
+  const role = rawOptions.role ?? USER_ROLES.ADMIN;
+  assertKnownRole(role);
+  const options = {
+    ...rawOptions,
+    role,
+    email: rawOptions.email.toLowerCase(),
+  };
   const user = await ensureUser(options);
   try {
     const organization = await ensureOrganizationOwner(
