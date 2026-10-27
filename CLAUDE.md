@@ -26,6 +26,14 @@ Zapytania do danych domenowych zawsze przez `getOrgContext()` i filtr `organizat
   Uruchom `npm run build -w @wa-kit/cli && npm run wa -- generate`.
 - Moduł nie edytuje plików rdzenia.
 
+## Testy
+
+- Testy zadania pisze inny agent (`test-writer`) niż kod, przed implementacją; implementer ich nie zmienia
+  (`.superpowers/phase` = `implement` włącza hook `.claude/hooks/protect-tests.mjs`).
+- Wartość oczekiwana to literał albo wartość ze specyfikacji, nigdy wynik kodu produkcyjnego.
+- Recenzent (`test-reviewer`) uruchamia `npm run test:mutation:task -- <pliki>`; przeżyły mutant w logice
+  bezpieczeństwa blokuje zadanie.
+
 ## Bramka
 
 `npm run verify` przed oddaniem pracy. Commity: Conventional Commits, temat małymi literami.

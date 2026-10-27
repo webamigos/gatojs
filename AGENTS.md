@@ -23,6 +23,10 @@ npm run dev                  # serwer deweloperski (port 3000)
 npm run build                # build produkcyjny (output: standalone)
 npm test                     # Vitest (src/**, scripts/**)
 npm run test:e2e             # build + Playwright (wymaga docker compose up -d)
+npm run test:integration     # Vitest na prawdziwym Postgresie (INTEGRATION_DATABASE_URL, baza *_test)
+npm run test:mutation        # Stryker na logice (incremental), raport w reports/mutation/
+npm run test:mutation:integration   # Stryker pod testami integracyjnymi (wymaga bazy)
+npm run test:mutation:task -- src/a.ts,src/b.ts   # mutacje tylko w plikach zadania
 npm run admin:create -- --email <email>   # pierwszy admin + pierwsza organizacja
 npm run build -w @wa-kit/cli && npm run wa -- generate   # odśwież pliki generowane
 npx prisma migrate dev --name <nazwa>     # nowa migracja
@@ -108,6 +112,46 @@ src/app/[locale]/(auth|app)
   `multi-org` (port 3001, `MULTI_ORG=true`, `AUTH_PUBLIC_SIGNUP=true`).
   `globalSetup` resetuje bazę (tylko gdy jej nazwa kończy się na `_e2e`) i uruchamia `admin:create`. Maile czyta `getLastMail(to)` z API mailpit.
 - Bugfix = test, który bez poprawki nie przechodzi.
+- Integracyjne: `*.integration.test.ts`, uruchamiane przez `npm run test:integration` (osobny config
+  `vitest.integration.config.ts`, nie wchodzą do `npm test`). Baza z `INTEGRATION_DATABASE_URL`
+  (domyślnie `postgresql://postgres:postgres@localhost:5432/wa_app_test`); nazwa musi kończyć się
+  na `_test`, bo `resetDatabase()` czyści tabele. Lokalnie: `docker compose up -d db`. Pomocniki w
+  `src/test/integration/`. Każde nowe query lub komenda na danych domenowych dostaje test izolacji:
+  dwie organizacje, odczyt i zapis z kontekstem jednej nie dotyka danych drugiej.
+- Test architektury `src/__tests__/server-entrypoints-guard.test.ts` wymaga, żeby każda eksportowana
+  funkcja w pliku `"use server"` i w `services/queries/` wywołała guard sesji (`getOrgContext`,
+  `requireModuleAccess`, `getAdminUserOrNull`, …) przed dostępem do Prismy. Wyjątek dopisujemy do
+  `UNGUARDED_ALLOWED` z uzasadnieniem.
+
+### Testy, które próbują złamać kod
+
+Test napisany przez autora kodu, po kodzie, odtwarza jego założenia i przechodzi trywialnie
+(uzasadnienie i źródła: `docs/superpowers/notes/2026-10-27-adversarial-testing-research.md`).
+
+- **Plan:** każde zadanie ma sekcje „Zachowania” (wejście → oczekiwany wynik jako literał) i
+  „Mutacje do zabicia” (np. „usunięcie filtra `organizationId`”, „rola `member` dostaje dostęp”).
+- **Tester ≠ implementer.** Testy zadania pisze subagent `test-writer` (`.claude/agents/test-writer.md`)
+  z planu i sygnatur, przed implementacją; widać ich czerwony przebieg.
+- **Testy są tylko do odczytu dla implementera.** Przed jego uruchomieniem orkiestrator zapisuje
+  `implement` do `.superpowers/phase`, a hook `.claude/hooks/protect-tests.mjs` blokuje edycję
+  `__tests__/`, `*.test.*`, `*.spec.*` i `e2e/`. Po implementacji orkiestrator usuwa plik.
+  Błędny test implementer zgłasza, zamiast go poprawiać.
+- **Wartość oczekiwana to literał** albo wartość ze specyfikacji. Nie liczymy jej kodem produkcyjnym,
+  kopią jego algorytmu, pętlą ani helperem.
+- **Granice mają testy negatywne:** niepoprawne wejście, brak sesji, cudza organizacja, za niska rola,
+  awaria zależności.
+- **Mockujemy tylko I/O.** Nie mockujemy modułu, który zawiera testowaną regułę bezpieczeństwa,
+  i nie asertujemy na samym mocku.
+- **Czyste funkcje z niezmiennikiem** (parsery, serializacja, normalizacja, slug) dostają `test.prop`
+  z `@fast-check/vitest`.
+- **Recenzent testów** (`.claude/agents/test-reviewer.md`) uruchamia
+  `npm run test:mutation:task -- <pliki zadania>`. Każdy przeżyły mutant w zmienionych liniach to luka
+  (wraca do testera), mutant równoważny (z uzasadnieniem) albo tekst komunikatu/logu. Logika
+  bezpieczeństwa (auth, organizacje, role, guardy, rejestracja) nie może mieć luk.
+- Pełny przebieg: `npm run test:mutation` (Stryker, tryb incremental, raport w `reports/mutation/`).
+  Nie jest częścią `npm run verify`; w CI działa osobny job (`.github/workflows/mutation.yml`), który
+  pada poniżej progu `thresholds.break` (75%, wynik bazowy 77%). Progu nie obniżamy, żeby przepuścić zmianę. Wyjątki od mutacji ustawiamy w `mutate`
+  w `stryker.config.json`, nie komentarzem `// Stryker disable`.
 
 ## Commity
 
