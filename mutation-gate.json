@@ -190,13 +190,6 @@
       "reason": "konfiguracja: cookie cache 5 min (decyzja z planu 1); zmiana wartości jest świadoma, nie testujemy stałej"
     },
     {
-      "file": "src/shared/lib/auth/index.ts",
-      "mutator": "ObjectLiteral",
-      "original": "{\n      defaultRole: USER_ROLES.USER,\n      adminRoles: [USER_ROLES.ADMIN],\n    }",
-      "replacement": "{}",
-      "reason": "równoważny: wartości defaultRole i adminRoles są równe domyślnym better-auth; role admina testuje auth-config.test.ts"
-    },
-    {
       "file": "src/shared/lib/auth/org-context.ts",
       "mutator": "StringLiteral",
       "original": "\"Użytkownik nie należy do aktywnej organizacji\"",
@@ -223,6 +216,62 @@
       "original": "context.options.emailAndPassword?.resetPasswordTokenExpiresIn",
       "replacement": "context.options.emailAndPassword.resetPasswordTokenExpiresIn",
       "reason": "równoważny: fallback nieosiągalny, resetPasswordTokenExpiresIn jest ustawione w auth/index.ts"
+    },
+    {
+      "file": "src/shared/lib/auth/admin-access.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ message }",
+      "replacement": "{}",
+      "reason": "tylko komunikat: test sprawdza status 403 i brak zmian w bazie, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/shared/lib/auth/admin-access.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Rolę superadmin może nadać tylko superadmin\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: test sprawdza status 403, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/shared/lib/auth/admin-access.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Brak uprawnień do podszycia się pod tego użytkownika\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: test sprawdza status 403, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/shared/lib/auth/admin-access.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Konto serwisowe może zmieniać tylko superadmin\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: test sprawdza status 403, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/shared/lib/auth/admin-guard.ts",
+      "mutator": "StringLiteral",
+      "original": "\"\"",
+      "replacement": "\"Stryker was here!\"",
+      "reason": "równoważny: oba napisy nie zawierają admin/superadmin, roleFromStored zwraca user"
+    },
+    {
+      "file": "src/shared/lib/auth/admin-guard.ts",
+      "mutator": "ConditionalExpression",
+      "original": "value === undefined",
+      "replacement": "false",
+      "reason": "równoważny: undefined nie przechodzi przez JSON; String(undefined) nie wskazuje żadnego użytkownika ani sesji, wynik i tak null"
+    },
+    {
+      "file": "src/shared/lib/auth/admin-guard.ts",
+      "mutator": "EqualityOperator",
+      "original": "ROLE_PRIVILEGE[role] > ROLE_PRIVILEGE[highest]",
+      "replacement": "ROLE_PRIVILEGE[role] >= ROLE_PRIVILEGE[highest]",
+      "reason": "równoważny: przywilej jest bijekcją z rolą, przy remisie obie role są identyczne"
+    },
+    {
+      "file": "src/shared/lib/auth/index.ts",
+      "mutator": "ArrayDeclaration",
+      "original": "[USER_ROLES.ADMIN, USER_ROLES.SUPERADMIN]",
+      "replacement": "[]",
+      "reason": "równoważny: adminRoles używa tylko impersonate-user (impersonate-admins), a hook before odrzuca impersonację admina przez admina i superadmina przez kogokolwiek wcześniej; superadmin ma impersonate-admins"
     }
   ]
 }

@@ -35,6 +35,7 @@ export const coreEnvSchema = z
     EMAIL_FROM: z.string().min(1),
     AUTH_PUBLIC_SIGNUP: flag,
     MULTI_ORG: flag,
+    ADMIN_IMPERSONATION: flag,
     ADMIN_EMAIL: optionalString,
     ADMIN_PASSWORD: optionalString,
     LOG_LEVEL: optionalString,

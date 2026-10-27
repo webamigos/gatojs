@@ -68,6 +68,51 @@ describe("parseEnv", () => {
     );
   });
 
+  it("ADMIN_IMPERSONATION brak → false", () => {
+    expect(parseEnv({ ...validCore }).ADMIN_IMPERSONATION).toBe(false);
+  });
+
+  it("ADMIN_IMPERSONATION pusty → false", () => {
+    expect(
+      parseEnv({ ...validCore, ADMIN_IMPERSONATION: "" }).ADMIN_IMPERSONATION,
+    ).toBe(false);
+  });
+
+  it.each(["true", "TRUE", " true "])(
+    "ADMIN_IMPERSONATION=%j → true",
+    (value) => {
+      expect(
+        parseEnv({ ...validCore, ADMIN_IMPERSONATION: value })
+          .ADMIN_IMPERSONATION,
+      ).toBe(true);
+    },
+  );
+
+  it.each(["false", "FALSE", " false"])(
+    "ADMIN_IMPERSONATION=%j → false",
+    (value) => {
+      expect(
+        parseEnv({ ...validCore, ADMIN_IMPERSONATION: value })
+          .ADMIN_IMPERSONATION,
+      ).toBe(false);
+    },
+  );
+
+  it.each(["1", "0", "yes", "on", "tru"])(
+    "ADMIN_IMPERSONATION=%j → błąd z nazwą zmiennej",
+    (value) => {
+      expect(() =>
+        parseEnv({ ...validCore, ADMIN_IMPERSONATION: value }),
+      ).toThrow(/ADMIN_IMPERSONATION/);
+    },
+  );
+
+  it("ADMIN_IMPERSONATION nie zmienia AUTH_PUBLIC_SIGNUP ani MULTI_ORG", () => {
+    const e = parseEnv({ ...validCore, ADMIN_IMPERSONATION: "true" });
+    expect(e.AUTH_PUBLIC_SIGNUP).toBe(false);
+    expect(e.MULTI_ORG).toBe(false);
+  });
+
   it.each([
     "http://localhost:3000",
     "https://app.example.com",
@@ -192,6 +237,13 @@ describe("parseEnv", () => {
     expect(e.DATABASE_URL).toBe(example.DATABASE_URL);
     expect(e.RESEND_API_KEY).toBeUndefined();
     expect(e.AUTH_PUBLIC_SIGNUP).toBe(false);
+  });
+
+  it(".env.example deklaruje ADMIN_IMPERSONATION=false poza regionem modułów", () => {
+    const source = readFileSync(join(process.cwd(), ".env.example"), "utf8");
+    const coreSection = source.split("# wa:modules:start")[0];
+    expect(dotenv.parse(coreSection).ADMIN_IMPERSONATION).toBe("false");
+    expect(parseEnv(dotenv.parse(source)).ADMIN_IMPERSONATION).toBe(false);
   });
 
   it("produkcja z BETTER_AUTH_SECRET z .env.example → błąd z nazwą zmiennej", () => {
