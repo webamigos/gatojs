@@ -8,6 +8,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateOrganizationForm } from "@/features/organizations/components/create-organization-form";
 import { SignOutButton } from "@/features/organizations/components/sign-out-button";
+import { EnterOrganizationList } from "@/features/organizations/components/enter-organization-list";
+import { getSwitchableOrganizationsQuery } from "@/features/organizations/services/queries/switchable-organizations-query";
 
 interface NoOrganizationPageProps {
   params: Promise<{ locale: string }>;
@@ -37,6 +39,7 @@ export default async function NoOrganizationPage({
 
   const t = await getTranslations("organizations");
   const multiOrg = env.MULTI_ORG;
+  const enterableOrganizations = await getSwitchableOrganizationsQuery();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
@@ -50,6 +53,9 @@ export default async function NoOrganizationPage({
               ? t("no-organization-multi-org-description")
               : t("no-organization-description")}
           </p>
+          {enterableOrganizations.length > 0 && (
+            <EnterOrganizationList organizations={enterableOrganizations} />
+          )}
           {multiOrg && <CreateOrganizationForm />}
           <SignOutButton />
         </CardContent>

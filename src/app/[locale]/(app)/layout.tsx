@@ -14,6 +14,7 @@ import {
 import { ImpersonationBanner } from "@/features/users/components/impersonation-banner";
 import { logImpersonationStopCommand } from "@/features/users/services/commands/impersonation-commands";
 import { OrgSwitcher } from "@/features/organizations/components/org-switcher";
+import { getSwitchableOrganizationsQuery } from "@/features/organizations/services/queries/switchable-organizations-query";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -39,6 +40,7 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
     return redirect({ href: "/sign-in", locale });
   }
   const multiOrg = env.MULTI_ORG;
+  const switchableOrganizations = await getSwitchableOrganizationsQuery();
 
   return (
     <SidebarProvider>
@@ -60,7 +62,11 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
         <div className="flex min-w-0 flex-1 flex-col">
           <MobileHeader />
           <main className="flex-1 space-y-4 p-4 md:p-6">
-            <OrgSwitcher multiOrg={multiOrg} />
+            <OrgSwitcher
+              organizations={switchableOrganizations}
+              activeOrganizationId={orgContext.organizationId}
+              canCreateOrganization={multiOrg}
+            />
             {children}
           </main>
         </div>

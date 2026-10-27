@@ -8,6 +8,8 @@ const {
   mockEnv,
   sidebarProps,
   bannerProps,
+  switcherProps,
+  mockGetSwitchableOrganizations,
 } = vi.hoisted(() => ({
   mockGetOrgContext: vi.fn(),
   mockRedirect: vi.fn((args: unknown) => {
@@ -17,6 +19,8 @@ const {
   mockEnv: { MULTI_ORG: false },
   sidebarProps: vi.fn(),
   bannerProps: vi.fn(),
+  switcherProps: vi.fn(),
+  mockGetSwitchableOrganizations: vi.fn(),
 }));
 
 vi.mock("@/i18n/routing", () => ({ redirect: mockRedirect }));
@@ -46,10 +50,15 @@ vi.mock("@/features/users/services/commands/impersonation-commands", () => ({
   logImpersonationStopCommand: vi.fn(),
 }));
 vi.mock("@/features/organizations/components/org-switcher", () => ({
-  OrgSwitcher: ({ multiOrg }: { multiOrg: boolean }) => (
-    <div>{`switcher:${multiOrg}`}</div>
-  ),
+  OrgSwitcher: (props: unknown) => {
+    switcherProps(props);
+    return <div>switcher</div>;
+  },
 }));
+vi.mock(
+  "@/features/organizations/services/queries/switchable-organizations-query",
+  () => ({ getSwitchableOrganizationsQuery: mockGetSwitchableOrganizations }),
+);
 
 import { NoOrganizationError } from "@/shared/lib/auth/org-context";
 import AppLayout from "../layout";
@@ -60,12 +69,18 @@ const MEMBER_CONTEXT = {
   organizationId: "org-1",
   orgRole: "member",
   userRole: "user",
+  serviceMode: false,
 };
+const SWITCHABLE_ORGANIZATIONS = [
+  { id: "org-1", name: "Pierwsza", isMember: true },
+  { id: "org-2", name: "Druga", isMember: true },
+];
 
 describe("(app) layout", () => {
   beforeEach(() => {
     mockEnv.MULTI_ORG = false;
     mockGetOrgContext.mockResolvedValue(MEMBER_CONTEXT);
+    mockGetSwitchableOrganizations.mockResolvedValue(SWITCHABLE_ORGANIZATIONS);
     mockGetCurrentUserWithImpersonation.mockResolvedValue({
       user: { id: "u1", name: "Jan", email: "jan@firma.pl" },
       impersonatedBy: null,
@@ -129,7 +144,65 @@ describe("(app) layout", () => {
       userName: "Jan",
       userEmail: "jan@firma.pl",
     });
-    expect(screen.getByText("switcher:true")).toBeInTheDocument();
+    expect(screen.getByText("switcher")).toBeInTheDocument();
+  });
+
+  it("przełącznik dostaje aktywną organizację z kontekstu i listę z query", async () => {
+    mockEnv.MULTI_ORG = true;
+    mockGetOrgContext.mockResolvedValue({
+      ...MEMBER_CONTEXT,
+      organizationId: "org-2",
+    });
+
+    render(await AppLayout({ children: null, params }));
+
+    expect(switcherProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizations: [
+          { id: "org-1", name: "Pierwsza", isMember: true },
+          { id: "org-2", name: "Druga", isMember: true },
+        ],
+        activeOrganizationId: "org-2",
+        canCreateOrganization: true,
+      }),
+    );
+  });
+
+  it("MULTI_ORG=false → przełącznik bez tworzenia organizacji", async () => {
+    render(await AppLayout({ children: null, params }));
+
+    expect(switcherProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeOrganizationId: "org-1",
+        canCreateOrganization: false,
+      }),
+    );
+  });
+
+  it("superadmin w trybie serwisowym dostaje w przełączniku organizację serwisowaną", async () => {
+    mockGetOrgContext.mockResolvedValue({
+      userId: "sa-1",
+      organizationId: "org-9",
+      orgRole: "owner",
+      userRole: "superadmin",
+      serviceMode: true,
+    });
+    mockGetSwitchableOrganizations.mockResolvedValue([
+      { id: "org-1", name: "Pierwsza", isMember: false },
+      { id: "org-9", name: "Klient", isMember: false },
+    ]);
+
+    render(await AppLayout({ children: null, params }));
+
+    expect(switcherProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizations: [
+          { id: "org-1", name: "Pierwsza", isMember: false },
+          { id: "org-9", name: "Klient", isMember: false },
+        ],
+        activeOrganizationId: "org-9",
+      }),
+    );
   });
 
   it("baner impersonacji jest aktywny tylko dla sesji impersonowanej", async () => {

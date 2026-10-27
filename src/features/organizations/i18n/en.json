@@ -37,5 +37,6 @@
   "no-organization-title": "No organization",
   "no-organization-description": "Your account does not belong to any organization. Ask an administrator for an invitation.",
   "no-organization-multi-org-description": "Your account does not belong to any organization. Create your own or ask for an invitation.",
-  "sign-out": "Sign out"
+  "sign-out": "Sign out",
+  "enter-organization-title": "Enter an organization"
 }

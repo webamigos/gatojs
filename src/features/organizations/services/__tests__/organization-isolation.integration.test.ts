@@ -1,13 +1,31 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { currentSession } = vi.hoisted(() => ({
-  currentSession: {
+const { currentSession, readMockedSession } = vi.hoisted(() => {
+  const currentSession = {
     value: null as null | {
       user: { id: string; role: string };
-      session: { activeOrganizationId: string | null };
+      session: { id: string; activeOrganizationId: string | null };
     },
-  },
-}));
+  };
+  async function readMockedSession(args?: {
+    query?: { disableCookieCache?: boolean };
+  }) {
+    const cached = currentSession.value;
+    if (!cached || !args?.query?.disableCookieCache) {
+      return cached;
+    }
+    const { readActiveOrganizationId } =
+      await import("@/test/integration/database");
+    return {
+      user: cached.user,
+      session: {
+        ...cached.session,
+        activeOrganizationId: await readActiveOrganizationId(cached.session.id),
+      },
+    };
+  }
+  return { currentSession, readMockedSession };
+});
 
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 vi.mock("next-intl/server", () => ({ getLocale: vi.fn(async () => "pl") }));
@@ -22,7 +40,7 @@ vi.mock("@/i18n/routing", () => ({
   }),
 }));
 vi.mock("@/shared/lib/auth", () => ({
-  auth: { api: { getSession: vi.fn(async () => currentSession.value) } },
+  auth: { api: { getSession: vi.fn(readMockedSession) } },
 }));
 
 import { prisma } from "@/shared/lib/prisma";
@@ -36,10 +54,14 @@ import { getOrganizationMembersQuery } from "../queries/organization-queries";
 import { getDefaultActiveOrganizationId } from "../queries/default-organization-query";
 import { resolveSignupMembership } from "../signup-membership";
 import { joinOrganizationCommand } from "../commands/member-commands";
+import { enterOrganizationCommand } from "../commands/enter-organization-command";
+import { getSwitchableOrganizationsQuery } from "../queries/switchable-organizations-query";
 import {
   createInvitation,
   createOrganization,
+  createSession,
   createUser,
+  readActiveOrganizationId,
   resetDatabase,
 } from "@/test/integration/database";
 
@@ -59,15 +81,21 @@ interface World {
 
 let world: World;
 
-function signInAs(
+async function signInAs(
   user: { id: string },
   organization: { id: string } | null,
   role = "user",
-) {
+): Promise<{ id: string }> {
+  const activeOrganizationId = organization?.id ?? null;
+  const session = await createSession({
+    userId: user.id,
+    activeOrganizationId,
+  });
   currentSession.value = {
     user: { id: user.id, role },
-    session: { activeOrganizationId: organization?.id ?? null },
+    session: { id: session.id, activeOrganizationId },
   };
+  return session;
 }
 
 beforeEach(async () => {
@@ -120,7 +148,7 @@ afterAll(async () => {
 
 describe("izolacja organizacji na prawdziwej bazie", () => {
   it("lista członków organizacji A zawiera tylko jej członków i oczekujące zaproszenia", async () => {
-    signInAs(world.alice, world.orgA);
+    await signInAs(world.alice, world.orgA);
 
     const data = await getOrganizationMembersQuery();
 
@@ -136,7 +164,7 @@ describe("izolacja organizacji na prawdziwej bazie", () => {
   });
 
   it("lista członków organizacji B nie widzi niczego z organizacji A", async () => {
-    signInAs(world.bob, world.orgB);
+    await signInAs(world.bob, world.orgB);
 
     const data = await getOrganizationMembersQuery();
 
@@ -149,7 +177,7 @@ describe("izolacja organizacji na prawdziwej bazie", () => {
   });
 
   it("aktywna organizacja, do której użytkownik nie należy → NoOrganizationError", async () => {
-    signInAs(world.alice, world.orgB);
+    await signInAs(world.alice, world.orgB);
 
     await expect(getOrgContext()).rejects.toBeInstanceOf(NoOrganizationError);
     await expect(getOrganizationMembersQuery()).rejects.toBeInstanceOf(
@@ -158,18 +186,19 @@ describe("izolacja organizacji na prawdziwej bazie", () => {
   });
 
   it("rola w kontekście pochodzi z członkostwa w aktywnej organizacji", async () => {
-    signInAs(world.admin, world.orgA, "admin");
+    await signInAs(world.admin, world.orgA, "admin");
 
     await expect(getOrgContext()).resolves.toEqual({
       userId: world.admin.id,
       organizationId: world.orgA.id,
       orgRole: "admin",
       userRole: "admin",
+      serviceMode: false,
     });
   });
 
   it("MULTI_ORG=false: członek bez roli globalnej nie dostaje modułu users", async () => {
-    signInAs(world.carol, world.orgA);
+    await signInAs(world.carol, world.orgA);
 
     await expect(requireModuleAccess("users")).rejects.toThrow(
       "NEXT_NOT_FOUND",
@@ -177,7 +206,7 @@ describe("izolacja organizacji na prawdziwej bazie", () => {
   });
 
   it("MULTI_ORG=false: owner organizacji bez roli globalnej nie dostaje modułu users", async () => {
-    signInAs(world.alice, world.orgA);
+    await signInAs(world.alice, world.orgA);
 
     await expect(requireModuleAccess("users")).rejects.toThrow(
       "NEXT_NOT_FOUND",
@@ -185,10 +214,10 @@ describe("izolacja organizacji na prawdziwej bazie", () => {
   });
 
   it("lista wszystkich kont tylko dla globalnego admina", async () => {
-    signInAs(world.alice, world.orgA);
+    await signInAs(world.alice, world.orgA);
     await expect(getUserAccountsQuery()).rejects.toThrow("NEXT_NOT_FOUND");
 
-    signInAs(world.admin, world.orgA, "admin");
+    await signInAs(world.admin, world.orgA, "admin");
     const accounts = await getUserAccountsQuery();
     expect(accounts).toHaveLength(4);
   });
@@ -227,7 +256,7 @@ describe("izolacja organizacji na prawdziwej bazie", () => {
   });
 
   it("globalny admin dostaje moduł users z kontekstem aktywnej organizacji", async () => {
-    signInAs(world.admin, world.orgA, "admin");
+    await signInAs(world.admin, world.orgA, "admin");
 
     await expect(requireModuleAccess("users")).resolves.toMatchObject({
       userId: world.admin.id,
@@ -236,7 +265,7 @@ describe("izolacja organizacji na prawdziwej bazie", () => {
   });
 
   it("lista kont zwraca tylko jawnie wybrane pola", async () => {
-    signInAs(world.admin, world.orgA, "admin");
+    await signInAs(world.admin, world.orgA, "admin");
 
     const [account] = await getUserAccountsQuery();
 
@@ -421,5 +450,277 @@ describe("dołączanie do organizacji: atomowość i współbieżność", () => 
         where: { organizationId: world.orgA.id, userId: newcomer.id },
       }),
     ).resolves.toBe(1);
+  });
+});
+
+const ACCESS_DENIED = { success: false, error: "Brak dostępu do organizacji" };
+
+async function createSuperadmin(): Promise<{ id: string }> {
+  return createUser({ email: "serwis@webamigos.example", role: "superadmin" });
+}
+
+describe("superadmin wchodzi do organizacji na prawdziwej bazie", () => {
+  it("superadmin bez członkostwa wchodzi do B → sesja w bazie wskazuje B, a lista członków to członkowie B", async () => {
+    const superadmin = await createSuperadmin();
+    const session = await signInAs(superadmin, world.orgA, "superadmin");
+
+    await expect(
+      enterOrganizationCommand(world.orgB.id),
+    ).resolves.toMatchObject({ success: true });
+
+    await expect(readActiveOrganizationId(session.id)).resolves.toBe(
+      world.orgB.id,
+    );
+    const data = await getOrganizationMembersQuery();
+    expect(data.organizationName).toBe("Org B");
+    expect(data.members.map((member) => member.email)).toEqual([
+      "bob@b.example",
+    ]);
+    expect(data.invitations.map((invitation) => invitation.email)).toEqual([
+      "new-b@example.com",
+    ]);
+  });
+
+  it("cookie cache trzyma jeszcze A → getOrgContext superadmina od razu zwraca B w trybie serwisowym", async () => {
+    const superadmin = await createSuperadmin();
+    await signInAs(superadmin, world.orgA, "superadmin");
+
+    await enterOrganizationCommand(world.orgB.id);
+
+    expect(currentSession.value?.session.activeOrganizationId).toBe(
+      world.orgA.id,
+    );
+    await expect(getOrgContext()).resolves.toEqual({
+      userId: superadmin.id,
+      organizationId: world.orgB.id,
+      orgRole: "owner",
+      userRole: "superadmin",
+      serviceMode: true,
+    });
+  });
+
+  it("wejście superadmina zmienia tylko jego sesję", async () => {
+    const aliceSession = await signInAs(world.alice, world.orgA);
+    const superadmin = await createSuperadmin();
+    await signInAs(superadmin, world.orgA, "superadmin");
+
+    await enterOrganizationCommand(world.orgB.id);
+
+    await expect(readActiveOrganizationId(aliceSession.id)).resolves.toBe(
+      world.orgA.id,
+    );
+  });
+
+  it("owner organizacji A podaje id B ręcznie → odmowa, sesja bez zmian", async () => {
+    const session = await signInAs(world.alice, world.orgA);
+
+    await expect(enterOrganizationCommand(world.orgB.id)).resolves.toEqual(
+      ACCESS_DENIED,
+    );
+
+    await expect(readActiveOrganizationId(session.id)).resolves.toBe(
+      world.orgA.id,
+    );
+    await expect(getOrgContext()).resolves.toMatchObject({
+      organizationId: world.orgA.id,
+      serviceMode: false,
+    });
+  });
+
+  it("globalny admin bez członkostwa w B → odmowa, sesja bez zmian", async () => {
+    const session = await signInAs(world.admin, world.orgA, "admin");
+
+    await expect(enterOrganizationCommand(world.orgB.id)).resolves.toEqual(
+      ACCESS_DENIED,
+    );
+
+    await expect(readActiveOrganizationId(session.id)).resolves.toBe(
+      world.orgA.id,
+    );
+  });
+
+  it("superadmin → nieistniejąca organizacja → odmowa, sesja bez zmian", async () => {
+    const superadmin = await createSuperadmin();
+    const session = await signInAs(superadmin, world.orgA, "superadmin");
+
+    await expect(enterOrganizationCommand("nie-istnieje")).resolves.toEqual(
+      ACCESS_DENIED,
+    );
+
+    await expect(readActiveOrganizationId(session.id)).resolves.toBe(
+      world.orgA.id,
+    );
+  });
+
+  it("członek obu organizacji przełącza się na B", async () => {
+    await prisma.member.create({
+      data: {
+        organizationId: world.orgB.id,
+        userId: world.carol.id,
+        role: "member",
+      },
+    });
+    const session = await signInAs(world.carol, world.orgA);
+
+    await expect(
+      enterOrganizationCommand(world.orgB.id),
+    ).resolves.toMatchObject({ success: true });
+
+    await expect(readActiveOrganizationId(session.id)).resolves.toBe(
+      world.orgB.id,
+    );
+  });
+
+  it("członek A i B przełącza się na B, a cookie cache trzyma A → getOrgContext od razu zwraca B bez trybu serwisowego", async () => {
+    await prisma.member.create({
+      data: {
+        organizationId: world.orgB.id,
+        userId: world.carol.id,
+        role: "admin",
+      },
+    });
+    await signInAs(world.carol, world.orgA);
+    await expect(getOrgContext()).resolves.toMatchObject({
+      organizationId: world.orgA.id,
+    });
+
+    await expect(
+      enterOrganizationCommand(world.orgB.id),
+    ).resolves.toMatchObject({ success: true });
+
+    expect(currentSession.value?.session.activeOrganizationId).toBe(
+      world.orgA.id,
+    );
+    await expect(getOrgContext()).resolves.toEqual({
+      userId: world.carol.id,
+      organizationId: world.orgB.id,
+      orgRole: "admin",
+      userRole: "user",
+      serviceMode: false,
+    });
+    const data = await getOrganizationMembersQuery();
+    expect(data.organizationName).toBe("Org B");
+  });
+
+  it("superadmin z aktywną organizacją, której nie ma w bazie → NoOrganizationError", async () => {
+    const superadmin = await createSuperadmin();
+    await signInAs(superadmin, { id: "nie-istnieje" }, "superadmin");
+
+    await expect(getOrgContext()).rejects.toBeInstanceOf(NoOrganizationError);
+    await expect(getOrganizationMembersQuery()).rejects.toBeInstanceOf(
+      NoOrganizationError,
+    );
+  });
+
+  it("superadmin bez aktywnej organizacji → NoOrganizationError, nigdy dane wszystkich organizacji", async () => {
+    const superadmin = await createSuperadmin();
+    await signInAs(superadmin, null, "superadmin");
+
+    await expect(getOrgContext()).rejects.toBeInstanceOf(NoOrganizationError);
+    await expect(getOrganizationMembersQuery()).rejects.toBeInstanceOf(
+      NoOrganizationError,
+    );
+  });
+
+  it("superadmin z członkostwem w B → zwykły kontekst członka", async () => {
+    const superadmin = await createSuperadmin();
+    await prisma.member.create({
+      data: {
+        organizationId: world.orgB.id,
+        userId: superadmin.id,
+        role: "admin",
+      },
+    });
+    await signInAs(superadmin, world.orgB, "superadmin");
+
+    await expect(getOrgContext()).resolves.toEqual({
+      userId: superadmin.id,
+      organizationId: world.orgB.id,
+      orgRole: "admin",
+      userRole: "superadmin",
+      serviceMode: false,
+    });
+  });
+});
+
+describe("organizacje do przełączenia na prawdziwej bazie", () => {
+  it("superadmin widzi wszystkie organizacje po nazwie z oznaczeniem członkostwa", async () => {
+    const superadmin = await createSuperadmin();
+    await prisma.member.create({
+      data: {
+        organizationId: world.orgB.id,
+        userId: superadmin.id,
+        role: "member",
+      },
+    });
+    const orgC = await createOrganization({
+      name: "Org C",
+      createdAt: new Date("2025-01-01T00:00:00.000Z"),
+      members: [],
+    });
+    await signInAs(superadmin, null, "superadmin");
+
+    await expect(getSwitchableOrganizationsQuery()).resolves.toEqual([
+      { id: world.orgA.id, name: "Org A", isMember: false },
+      { id: world.orgB.id, name: "Org B", isMember: true },
+      { id: orgC.id, name: "Org C", isMember: false },
+    ]);
+  });
+
+  it("członek widzi tylko swoje organizacje", async () => {
+    await signInAs(world.carol, world.orgA);
+
+    await expect(getSwitchableOrganizationsQuery()).resolves.toEqual([
+      { id: world.orgA.id, name: "Org A", isMember: true },
+    ]);
+  });
+
+  it("globalny admin widzi tylko swoje organizacje", async () => {
+    await signInAs(world.admin, world.orgA, "admin");
+
+    await expect(getSwitchableOrganizationsQuery()).resolves.toEqual([
+      { id: world.orgA.id, name: "Org A", isMember: true },
+    ]);
+  });
+});
+
+describe("domyślna organizacja superadmina na prawdziwej bazie", () => {
+  it("superadmin bez członkostwa → najstarsza organizacja, nawet zapisana później", async () => {
+    const superadmin = await createSuperadmin();
+    const oldest = await createOrganization({
+      name: "Org Old",
+      createdAt: new Date("2025-01-01T00:00:00.000Z"),
+      members: [],
+    });
+
+    await expect(getDefaultActiveOrganizationId(superadmin.id)).resolves.toBe(
+      oldest.id,
+    );
+  });
+
+  it("superadmin z członkostwem → organizacja z członkostwa, nie najstarsza", async () => {
+    const superadmin = await createSuperadmin();
+    await prisma.member.create({
+      data: {
+        organizationId: world.orgB.id,
+        userId: superadmin.id,
+        role: "member",
+      },
+    });
+
+    await expect(getDefaultActiveOrganizationId(superadmin.id)).resolves.toBe(
+      world.orgB.id,
+    );
+  });
+
+  it("globalny admin bez członkostwa → null", async () => {
+    const outsiderAdmin = await createUser({
+      email: "admin@klient.example",
+      role: "admin",
+    });
+
+    await expect(
+      getDefaultActiveOrganizationId(outsiderAdmin.id),
+    ).resolves.toBeNull();
   });
 });

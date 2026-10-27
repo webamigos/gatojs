@@ -272,6 +272,13 @@
       "original": "[USER_ROLES.ADMIN, USER_ROLES.SUPERADMIN]",
       "replacement": "[]",
       "reason": "równoważny: adminRoles używa tylko impersonate-user (impersonate-admins), a hook before odrzuca impersonację admina przez admina i superadmina przez kogokolwiek wcześniej; superadmin ma impersonate-admins"
+    },
+    {
+      "file": "src/features/organizations/services/queries/switchable-organizations-query.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ select: { id: true, name: true } }",
+      "replacement": "{}",
+      "reason": "równoważny: wynik mapowany jawnie na id i name, zbiór wybranych pól nie wpływa na zachowanie"
     }
   ]
 }
