@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:hooks": "node --test .claude/hooks/block-comments.test.mjs",
+    "test:hooks": "node --test .claude/hooks/block-comments.test.mjs .claude/hooks/protect-tests.test.mjs",
     "test:mutation": "stryker run",
     "test:mutation:task": "stryker run --force --mutate",
     "db:generate": "prisma generate",
