@@ -106,6 +106,23 @@ describe("inviteUserCommand", () => {
     expect(mockPrisma.invitation.create).not.toHaveBeenCalled();
   });
 
+  it("zaproszenie wygasa dokładnie 48 godzin po utworzeniu", async () => {
+    vi.useFakeTimers({
+      toFake: ["Date"],
+      now: new Date("2026-03-10T08:00:00.000Z"),
+    });
+    try {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+      await inviteUserCommand(validInput);
+
+      const { expiresAt } = mockPrisma.invitation.create.mock.calls[0][0].data;
+      expect(expiresAt).toEqual(new Date("2026-03-12T08:00:00.000Z"));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("tworzy zaproszenie do aktywnej organizacji, konto z zaproszeniem i wysyła mail set-password", async () => {
     mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 

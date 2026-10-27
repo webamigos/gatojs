@@ -68,6 +68,25 @@ describe("getOrgContext", () => {
     );
   });
 
+  it("aktywna organizacja w cache → jeden odczyt sesji, bez omijania cookie cache", async () => {
+    mockSession({ userId: "u1", activeOrganizationId: "org-1" });
+    mockMemberFindFirst.mockResolvedValue({ role: "member" });
+
+    await getOrgContext();
+
+    expect(mockGetSession).toHaveBeenCalledTimes(1);
+    expect(mockGetSession).not.toHaveBeenCalledWith(
+      expect.objectContaining({ query: { disableCookieCache: true } }),
+    );
+  });
+
+  it("brak sesji → bez ponownego odczytu z pominięciem cache", async () => {
+    mockGetSession.mockResolvedValue(null);
+
+    await expect(getOrgContext()).rejects.toThrow("NEXT_REDIRECT");
+    expect(mockGetSession).toHaveBeenCalledTimes(1);
+  });
+
   it("aktywna organizacja bez członkostwa → NoOrganizationError", async () => {
     mockSession({ userId: "u1", activeOrganizationId: "org-1" });
     mockMemberFindFirst.mockResolvedValue(null);

@@ -52,6 +52,30 @@ describe("parseEnv", () => {
     ).toThrow(/BETTER_AUTH_SECRET/);
   });
 
+  it("opcjonalne zmienne z wartością zachowują ją bez zmian", () => {
+    const e = parseEnv({
+      ...validCore,
+      SMTP_URL: "smtp://localhost:1025",
+      ADMIN_EMAIL: "admin@example.com",
+      LOG_LEVEL: "debug",
+    });
+    expect(e.SMTP_URL).toBe("smtp://localhost:1025");
+    expect(e.ADMIN_EMAIL).toBe("admin@example.com");
+    expect(e.LOG_LEVEL).toBe("debug");
+  });
+
+  it("poprawna konfiguracja produkcyjna przechodzi", () => {
+    const e = parseEnv({
+      ...validCore,
+      NODE_ENV: "production",
+      RESEND_API_KEY: "re_live",
+      BETTER_AUTH_SECRET: "p".repeat(48),
+    });
+    expect(e.NODE_ENV).toBe("production");
+    expect(e.RESEND_API_KEY).toBe("re_live");
+    expect(e.BETTER_AUTH_SECRET).toBe("p".repeat(48));
+  });
+
   it("puste opcjonalne zmienne traktuje jak brak", () => {
     const e = parseEnv({
       ...validCore,
