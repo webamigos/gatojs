@@ -6,7 +6,8 @@ export function replaceRegion(
 ): string {
   const startToken = `wa:${marker}:start`;
   const endToken = `wa:${marker}:end`;
-  const lines = content.split("\n");
+  const eol = content.includes("\r\n") ? "\r\n" : "\n";
+  const lines = content.split(/\r?\n/);
   const starts = indicesOf(lines, startToken);
   const ends = indicesOf(lines, endToken);
   const [start] = starts;
@@ -20,9 +21,21 @@ export function replaceRegion(
   ) {
     throw new Error(`${file}: uszkodzony region wa:${marker}`);
   }
-  const bodyLines = body === "" ? [] : body.split("\n");
+  const bodyLines =
+    body === ""
+      ? []
+      : body.split(/\r?\n/).map((line) => line.replace(/\r$/, ""));
+  if (
+    bodyLines.some(
+      (line) => line.includes(startToken) || line.includes(endToken),
+    )
+  ) {
+    throw new Error(
+      `${file}: treść regionu wa:${marker} zawiera znacznik regionu`,
+    );
+  }
   return [...lines.slice(0, start + 1), ...bodyLines, ...lines.slice(end)].join(
-    "\n",
+    eol,
   );
 }
 
