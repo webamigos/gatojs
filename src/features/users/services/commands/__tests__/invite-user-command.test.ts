@@ -47,6 +47,7 @@ vi.mock("@/shared/utils/error-handling", () => ({
   }),
 }));
 
+import { revalidatePath } from "next/cache";
 import { inviteUserCommand } from "../invite-user-command";
 
 const WELCOME_URL =
@@ -243,5 +244,28 @@ describe("inviteUserCommand", () => {
     const result = await inviteUserCommand(validInput);
 
     expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
+  });
+
+  it("udane zaproszenie odświeża listę użytkowników", async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+    const result = await inviteUserCommand(validInput);
+
+    expect(result.success).toBe(true);
+    expect(vi.mocked(revalidatePath)).toHaveBeenCalledWith("/users");
+  });
+
+  it("zaproszenie bez uprawnień nie odświeża listy użytkowników", async () => {
+    mockGetAdminUserOrNull.mockResolvedValue(null);
+
+    await inviteUserCommand(validInput);
+
+    expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled();
+  });
+
+  it("zaproszenie z błędem walidacji nie odświeża listy użytkowników", async () => {
+    await inviteUserCommand({ name: "", email: "x" });
+
+    expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled();
   });
 });
