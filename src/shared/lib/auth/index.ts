@@ -23,7 +23,7 @@ import { readSignupMembership } from "./signup-membership-context";
 
 export const auth = betterAuth({
   secret: env.BETTER_AUTH_SECRET,
-  baseURL: env.BETTER_AUTH_URL,
+  baseURL: env.APP_URL,
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
@@ -100,7 +100,7 @@ export const auth = betterAuth({
           to: data.email,
           organizationName: data.organization.name,
           inviterName: data.inviter.user.name,
-          acceptUrl: `${env.BETTER_AUTH_URL.replace(/\/$/, "")}/accept-invitation/${data.id}`,
+          acceptUrl: `${env.APP_URL.replace(/\/$/, "")}/accept-invitation/${data.id}`,
         });
       },
     }),

@@ -7,7 +7,7 @@ import { EXAMPLE_BETTER_AUTH_SECRET, parseEnv } from "@/shared/lib/env";
 const validCore = {
   DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/wa",
   BETTER_AUTH_SECRET: "s".repeat(32),
-  BETTER_AUTH_URL: "http://localhost:3000",
+  APP_URL: "http://localhost:3000",
   EMAIL_FROM: "WA App <noreply@example.com>",
 };
 
@@ -31,6 +31,12 @@ describe("parseEnv", () => {
   it("brak DATABASE_URL → błąd z nazwą zmiennej", () => {
     expect(() => parseEnv({ ...validCore, DATABASE_URL: undefined })).toThrow(
       /DATABASE_URL/,
+    );
+  });
+
+  it("brak APP_URL → błąd z nazwą zmiennej", () => {
+    expect(() => parseEnv({ ...validCore, APP_URL: undefined })).toThrow(
+      /APP_URL/,
     );
   });
 

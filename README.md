@@ -33,7 +33,7 @@ npm run dev
 | ------------------------------- | ----------------------------------------------------------------------- |
 | `DATABASE_URL`                  | Połączenie z PostgreSQL                                                 |
 | `BETTER_AUTH_SECRET`            | Sekret better-auth, min. 32 znaki                                       |
-| `BETTER_AUTH_URL`               | Publiczny adres aplikacji                                               |
+| `APP_URL`                       | Publiczny adres aplikacji (better-auth, linki w mailach)                |
 | `RESEND_API_KEY`                | Klucz Resend; wymagany na produkcji                                     |
 | `SMTP_URL`                      | SMTP (dev/e2e: mailpit); ma pierwszeństwo przed Resend                  |
 | `EMAIL_FROM`                    | Nadawca maili                                                           |
@@ -75,7 +75,7 @@ npm run test:e2e
 ## Railway
 
 1. Utwórz projekt z usługą PostgreSQL i usługą aplikacji z tego repozytorium. Build: `Dockerfile` (`railway.toml`).
-2. Ustaw zmienne: `DATABASE_URL` (referencja do Postgresa), `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
+2. Ustaw zmienne: `DATABASE_URL` (referencja do Postgresa), `BETTER_AUTH_SECRET`, `APP_URL`
    (publiczny adres), `RESEND_API_KEY`, `EMAIL_FROM`, `AUTH_PUBLIC_SIGNUP`, `MULTI_ORG`.
 3. Zacommituj katalog `prisma/migrations` — przed każdym wdrożeniem Railway uruchamia `npx prisma migrate deploy`.
    W wygenerowanym projekcie najpierw usuń linię `prisma/migrations/` z `.gitignore` (kit jej używa, bo sam nie

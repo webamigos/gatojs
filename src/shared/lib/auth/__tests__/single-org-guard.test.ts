@@ -23,7 +23,7 @@ const { mockPrisma, mockEnv, mockMailer } = vi.hoisted(() => ({
   },
   mockEnv: {
     BETTER_AUTH_SECRET: "s".repeat(32),
-    BETTER_AUTH_URL: "http://localhost:3000",
+    APP_URL: "http://localhost:3000",
     AUTH_PUBLIC_SIGNUP: false,
     MULTI_ORG: false,
   },
