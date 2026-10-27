@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "checkers": ["typescript"],
+  "tsconfigFile": "tsconfig.json",
+  "mutate": [
+    "src/shared/lib/**/*.ts",
+    "src/shared/utils/**/*.ts",
+    "src/features/**/services/**/*.ts",
+    "src/features/**/contracts/**/*.ts",
+    "src/i18n/**/*.ts",
+    "src/app/api/**/*.ts",
+    "scripts/lib/**/*.ts",
+    "!**/__tests__/**",
+    "!src/shared/lib/prisma.ts",
+    "!src/shared/lib/logger.ts"
+  ],
+  "incremental": true,
+  "incrementalFile": "reports/stryker-incremental.json",
+  "reporters": ["html", "json", "clear-text", "progress"],
+  "thresholds": { "high": 85, "low": 75, "break": 75 },
+  "timeoutMS": 15000,
+  "tempDirName": ".stryker-tmp"
+}

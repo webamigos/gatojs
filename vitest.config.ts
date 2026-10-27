@@ -29,6 +29,7 @@ export default defineConfig({
       "kit/**",
       "docs/**",
       ".superpowers/**",
+      ".stryker-tmp/**",
     ],
     clearMocks: true,
   },

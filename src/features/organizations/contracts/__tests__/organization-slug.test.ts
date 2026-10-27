@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { fc, test } from "@fast-check/vitest";
 import { slugifyOrganizationName } from "../organization-slug";
 
 describe("slugifyOrganizationName", () => {
@@ -17,4 +18,13 @@ describe("slugifyOrganizationName", () => {
       slugifyOrganizationName("Firma"),
     );
   });
+
+  test.prop([fc.string({ unit: "grapheme", maxLength: 80 })])(
+    "dowolna nazwa → slug bezpieczny w URL z 8-znakowym sufiksem hex",
+    (name) => {
+      expect(slugifyOrganizationName(name)).toMatch(
+        /^[a-z0-9]+(?:-[a-z0-9]+)*-[a-f0-9]{8}$/,
+      );
+    },
+  );
 });
