@@ -40,18 +40,33 @@ vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/shared/utils/error-handling", () => ({
-  handleCommandError: (_error: unknown, message: string) => ({
-    success: false,
-    error: message,
-  }),
-}));
 
 import { revalidatePath } from "next/cache";
 import { inviteUserCommand } from "../invite-user-command";
 
 const WELCOME_URL =
   "http://localhost:3000/api/auth/reset-password/tok?callbackURL=%2Fset-password";
+
+const MEMBER_CONTEXT = {
+  userId: "admin-1",
+  organizationId: "org-1",
+  orgRole: "admin",
+  userRole: "admin",
+  serviceMode: false,
+};
+
+const SERVICE_CONTEXT = {
+  userId: "super-1",
+  organizationId: "org-1",
+  orgRole: "owner",
+  userRole: "superadmin",
+  serviceMode: true,
+};
+
+const SERVICE_MODE_ERROR = {
+  success: false,
+  error: "Potwierdź zmianę w trybie serwisowym",
+};
 
 const validInput = {
   name: "Jan Kowalski",
@@ -61,7 +76,7 @@ const validInput = {
 
 beforeEach(() => {
   mockGetAdminUserOrNull.mockResolvedValue({ id: "admin-1", role: "admin" });
-  mockGetOrgContext.mockResolvedValue({ organizationId: "org-1" });
+  mockGetOrgContext.mockResolvedValue(MEMBER_CONTEXT);
   mockPrisma.invitation.create.mockResolvedValue({ id: "inv-1" });
   mockPrisma.invitation.delete.mockResolvedValue({});
   mockPrisma.user.update.mockResolvedValue({});
@@ -69,6 +84,16 @@ beforeEach(() => {
   mockCreateWelcomeUrl.mockResolvedValue(WELCOME_URL);
   mockSendWelcomeEmail.mockResolvedValue({ data: { id: "mail-1" } });
 });
+
+function expectNoDatabaseAccess() {
+  expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+  expect(mockPrisma.user.update).not.toHaveBeenCalled();
+  expect(mockPrisma.invitation.create).not.toHaveBeenCalled();
+  expect(mockPrisma.invitation.delete).not.toHaveBeenCalled();
+  expect(mockAuthApi.signUpEmail).not.toHaveBeenCalled();
+  expect(mockSendWelcomeEmail).not.toHaveBeenCalled();
+  expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled();
+}
 
 describe("inviteUserCommand", () => {
   it("odrzuca wywołującego bez roli admin", async () => {
@@ -267,5 +292,114 @@ describe("inviteUserCommand", () => {
     await inviteUserCommand({ name: "", email: "x" });
 
     expect(vi.mocked(revalidatePath)).not.toHaveBeenCalled();
+  });
+
+  describe("tryb serwisowy", () => {
+    beforeEach(() => {
+      mockGetAdminUserOrNull.mockResolvedValue({
+        id: "super-1",
+        role: "superadmin",
+      });
+      mockGetOrgContext.mockResolvedValue(SERVICE_CONTEXT);
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+    });
+
+    it("bez potwierdzenia → błąd trybu serwisowego i brak dostępu do bazy", async () => {
+      const result = await inviteUserCommand(validInput);
+
+      expect(result).toEqual(SERVICE_MODE_ERROR);
+      expectNoDatabaseAccess();
+    });
+
+    it("potwierdzenie innej organizacji → błąd trybu serwisowego i brak dostępu do bazy", async () => {
+      const result = await inviteUserCommand(validInput, {
+        serviceModeConfirmed: true,
+        organizationId: "org-2",
+      });
+
+      expect(result).toEqual(SERVICE_MODE_ERROR);
+      expectNoDatabaseAccess();
+    });
+
+    it("serviceModeConfirmed: false → błąd trybu serwisowego i brak dostępu do bazy", async () => {
+      const result = await inviteUserCommand(validInput, {
+        serviceModeConfirmed: false,
+        organizationId: "org-1",
+      });
+
+      expect(result).toEqual(SERVICE_MODE_ERROR);
+      expectNoDatabaseAccess();
+    });
+
+    it("potwierdzenie w postaci napisu → błąd trybu serwisowego", async () => {
+      const result = await inviteUserCommand(validInput, "yes");
+
+      expect(result).toEqual(SERVICE_MODE_ERROR);
+      expectNoDatabaseAccess();
+    });
+
+    it("potwierdzenie aktywnej organizacji → zaproszenie utworzone w tej organizacji", async () => {
+      const result = await inviteUserCommand(validInput, {
+        serviceModeConfirmed: true,
+        organizationId: "org-1",
+      });
+
+      expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
+      expect(mockPrisma.invitation.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            organizationId: "org-1",
+            email: validInput.email,
+            inviterId: "super-1",
+          }),
+        }),
+      );
+      expect(vi.mocked(revalidatePath)).toHaveBeenCalledWith("/users");
+    });
+  });
+
+  describe("poza trybem serwisowym", () => {
+    beforeEach(() => {
+      mockGetOrgContext.mockResolvedValue({
+        ...MEMBER_CONTEXT,
+        orgRole: "owner",
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+    });
+
+    it("owner organizacji A z potwierdzeniem dla organizacji B → błąd trybu serwisowego i brak dostępu do bazy", async () => {
+      const result = await inviteUserCommand(validInput, {
+        serviceModeConfirmed: true,
+        organizationId: "org-2",
+      });
+
+      expect(result).toEqual(SERVICE_MODE_ERROR);
+      expectNoDatabaseAccess();
+    });
+
+    it("potwierdzenie aktywnej organizacji → zaproszenie utworzone w tej organizacji", async () => {
+      const result = await inviteUserCommand(validInput, {
+        serviceModeConfirmed: true,
+        organizationId: "org-1",
+      });
+
+      expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
+      expect(mockPrisma.invitation.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ organizationId: "org-1" }),
+        }),
+      );
+    });
+
+    it("bez potwierdzenia → zaproszenie utworzone jak dotąd", async () => {
+      const result = await inviteUserCommand(validInput);
+
+      expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
+      expect(mockPrisma.invitation.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ organizationId: "org-1" }),
+        }),
+      );
+    });
   });
 });

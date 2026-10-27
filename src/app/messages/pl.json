@@ -35,5 +35,12 @@
     "logout": "Wyloguj",
     "user-fallback": "Użytkownik",
     "account": "Konto"
+  },
+  "serviceMode": {
+    "banner": "Tryb serwisowy: {name}",
+    "dialog-title": "Tryb serwisowy",
+    "dialog-description": "Zmieniasz dane organizacji {name} jako serwis Web Amigos.",
+    "dialog-cancel": "Anuluj",
+    "dialog-confirm": "Zmień"
   }
 }
