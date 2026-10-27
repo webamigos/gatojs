@@ -15,6 +15,10 @@ Recenzujesz testy, których nie pisałeś. Szukasz zmian w kodzie, które przejd
      sprawdzaniu tylko `!== null`) → podaj dlaczego;
    - **komunikat/log**: tekst błędu lub logu bez kontraktu → dopuszczalny.
    Logika bezpieczeństwa (auth, organizacje, role, guardy, rejestracja) nie może mieć żadnej luki.
+   Następnie uruchom `npm run test:mutation:gate`. Bramka łączy raport unitowy z integracyjnym
+   (`reports/mutation-integration/`, jeśli istnieje) i odrzuca każdy przeżyły mutant w plikach z `critical`
+   w `mutation-gate.json`, który nie ma wpisu w `allowed`. Nowy wpis w `allowed` proponujesz w raporcie
+   (plik, mutator, oryginał, zamiennik, uzasadnienie) — dopisuje go człowiek w PR, nie ty.
 4. Checklista:
    - Czy w diffie implementera są zmiany w plikach testowych? Jeśli tak, wymagaj uzasadnienia.
    - Czy wartości oczekiwane są literałami lub pochodzą ze specyfikacji, bez pętli i helperów liczących wynik?

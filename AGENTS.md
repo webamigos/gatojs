@@ -26,6 +26,7 @@ npm run test:e2e             # build + Playwright (wymaga docker compose up -d)
 npm run test:integration     # Vitest na prawdziwym Postgresie (INTEGRATION_DATABASE_URL, baza *_test)
 npm run test:mutation        # Stryker na logice (incremental), raport w reports/mutation/
 npm run test:mutation:integration   # Stryker pod testami integracyjnymi (wymaga bazy)
+npm run test:mutation:gate   # bramka plików krytycznych (mutation-gate.json) na raportach Strykera
 npm run test:mutation:task -- src/a.ts,src/b.ts   # mutacje tylko w plikach zadania
 npm run admin:create -- --email <email>   # pierwszy admin + pierwsza organizacja
 npm run build -w @wa-kit/cli && npm run wa -- generate   # odśwież pliki generowane
@@ -150,7 +151,12 @@ Test napisany przez autora kodu, po kodzie, odtwarza jego założenia i przechod
   bezpieczeństwa (auth, organizacje, role, guardy, rejestracja) nie może mieć luk.
 - Pełny przebieg: `npm run test:mutation` (Stryker, tryb incremental, raport w `reports/mutation/`).
   Nie jest częścią `npm run verify`; w CI działa osobny job (`.github/workflows/mutation.yml`), który
-  pada poniżej progu `thresholds.break` (75%, wynik bazowy 77%). Progu nie obniżamy, żeby przepuścić zmianę. Wyjątki od mutacji ustawiamy w `mutate`
+  pada poniżej progu `thresholds.break` (75%, wynik bazowy 77%). Progu nie obniżamy, żeby przepuścić zmianę.
+- **Bramka plików krytycznych** (`npm run test:mutation:gate`, `mutation-gate.json`): w plikach z listy `critical`
+  (auth, organizacje, użytkownicy, bramka) każdy przeżyły mutant musi być zabity albo mieć wpis w `allowed`
+  z uzasadnieniem: mutant równoważny, tylko komunikat/log albo świadoma stała konfiguracyjna. Wpisy dopisuje
+  i zatwierdza człowiek w PR; agent je tylko proponuje. Nieaktualny wpis (mutant już zabity) też zatrzymuje bramkę.
+  Raport integracyjny łączy się z unitowym: mutant zabity w którymkolwiek liczy się jako zabity. Wyjątki od mutacji ustawiamy w `mutate`
   w `stryker.config.json`, nie komentarzem `// Stryker disable`.
 
 ## Commity

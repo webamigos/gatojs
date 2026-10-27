@@ -1,0 +1,50 @@
+import { existsSync, readFileSync } from "node:fs";
+import {
+  checkMutationGate,
+  mergeReports,
+  type GateConfig,
+  type MutationReport,
+} from "./lib/mutation-gate";
+
+const DEFAULT_REPORTS = [
+  "reports/mutation/mutation.json",
+  "reports/mutation-integration/mutation.json",
+];
+
+const requested = process.argv.slice(2);
+const reportPaths =
+  requested.length > 0
+    ? requested
+    : DEFAULT_REPORTS.filter((path) => existsSync(path));
+
+if (reportPaths.length === 0) {
+  console.error(
+    "Brak raportu mutacji. Uruchom najpierw npm run test:mutation.",
+  );
+  process.exit(1);
+}
+
+const report = mergeReports(
+  reportPaths.map(
+    (path) => JSON.parse(readFileSync(path, "utf8")) as MutationReport,
+  ),
+);
+const config = JSON.parse(
+  readFileSync("mutation-gate.json", "utf8"),
+) as GateConfig;
+const { violations, stale } = checkMutationGate(report, config);
+
+for (const violation of violations) {
+  console.error(`Nieobjęty testami mutant w pliku krytycznym: ${violation}`);
+}
+for (const entry of stale) {
+  console.error(`Nieaktualny wpis w mutation-gate.json: ${entry}`);
+}
+
+if (violations.length > 0 || stale.length > 0) {
+  console.error(
+    "Dopisz test, który zabija mutanta, albo dodaj wpis do mutation-gate.json z uzasadnieniem (równoważny / tylko komunikat).",
+  );
+  process.exit(1);
+}
+console.log(`Bramka mutacji: OK (raporty: ${reportPaths.join(", ")}).`);

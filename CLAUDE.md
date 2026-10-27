@@ -31,8 +31,8 @@ Zapytania do danych domenowych zawsze przez `getOrgContext()` i filtr `organizat
 - Testy zadania pisze inny agent (`test-writer`) niż kod, przed implementacją; implementer ich nie zmienia
   (`.superpowers/phase` = `implement` włącza hook `.claude/hooks/protect-tests.mjs`).
 - Wartość oczekiwana to literał albo wartość ze specyfikacji, nigdy wynik kodu produkcyjnego.
-- Recenzent (`test-reviewer`) uruchamia `npm run test:mutation:task -- <pliki>`; przeżyły mutant w logice
-  bezpieczeństwa blokuje zadanie.
+- Recenzent (`test-reviewer`) uruchamia `npm run test:mutation:task -- <pliki>` i `npm run test:mutation:gate`;
+  przeżyły mutant w pliku krytycznym bez wpisu w `mutation-gate.json` blokuje zadanie. Wpisy dopisuje człowiek.
 
 ## Bramka
 

@@ -15,10 +15,24 @@
     "!src/shared/lib/prisma.ts",
     "!src/shared/lib/logger.ts"
   ],
+  "ignorePatterns": [
+    "volumes",
+    "reports",
+    ".next",
+    "playwright-report",
+    "test-results",
+    "docs",
+    ".superpowers",
+    ".worktrees"
+  ],
   "incremental": true,
   "incrementalFile": "reports/stryker-incremental.json",
   "reporters": ["html", "json", "clear-text", "progress"],
-  "thresholds": { "high": 85, "low": 75, "break": 75 },
+  "thresholds": {
+    "high": 85,
+    "low": 75,
+    "break": 75
+  },
   "timeoutMS": 15000,
   "tempDirName": ".stryker-tmp"
 }
