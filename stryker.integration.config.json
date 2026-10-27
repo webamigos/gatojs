@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "vitest": { "configFile": "vitest.integration.config.ts" },
+  "checkers": ["typescript"],
+  "tsconfigFile": "tsconfig.json",
+  "mutate": [
+    "src/features/organizations/services/**/*.ts",
+    "src/shared/lib/auth/org-context.ts",
+    "src/shared/lib/auth/require-module-access.ts",
+    "src/features/users/services/queries/**/*.ts",
+    "!**/__tests__/**"
+  ],
+  "concurrency": 1,
+  "incremental": true,
+  "incrementalFile": "reports/stryker-integration-incremental.json",
+  "htmlReporter": { "fileName": "reports/mutation-integration/mutation.html" },
+  "jsonReporter": { "fileName": "reports/mutation-integration/mutation.json" },
+  "reporters": ["html", "json", "clear-text", "progress"],
+  "thresholds": { "high": 80, "low": 70, "break": null },
+  "timeoutMS": 30000,
+  "tempDirName": ".stryker-tmp"
+}

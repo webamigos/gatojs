@@ -25,6 +25,7 @@ export default defineConfig({
     ],
     exclude: [
       "**/node_modules/**",
+      "**/*.integration.test.ts",
       "packages/**",
       "kit/**",
       "docs/**",
