@@ -40,14 +40,28 @@ describe("getAdminUserOrNull", () => {
     });
   });
 
-  it.each([["user"], [null], [undefined], ["Admin"], ["owner"]])(
-    "rola %j → null",
-    async (role) => {
-      mockUser(role);
+  it("superadmin → zwraca użytkownika", async () => {
+    mockUser("superadmin");
 
-      await expect(getAdminUserOrNull()).resolves.toBeNull();
-    },
-  );
+    await expect(getAdminUserOrNull()).resolves.toMatchObject({
+      id: "u1",
+      role: "superadmin",
+    });
+  });
+
+  it.each([
+    ["user"],
+    [null],
+    [undefined],
+    ["Admin"],
+    ["owner"],
+    ["SuperAdmin"],
+    ["root"],
+  ])("rola %j → null", async (role) => {
+    mockUser(role);
+
+    await expect(getAdminUserOrNull()).resolves.toBeNull();
+  });
 
   it("brak sesji → przekierowanie na /sign-in", async () => {
     mockGetSession.mockResolvedValue(null);

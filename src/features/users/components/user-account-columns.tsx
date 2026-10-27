@@ -5,8 +5,20 @@ import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type ColumnDef } from "@/components/ui/data-table";
-import { USER_ROLES } from "@/shared/lib/auth/roles";
+import { USER_ROLES, type UserRole } from "@/shared/lib/auth/roles";
 import type { UserAccountListItem } from "../contracts/user-account.types";
+
+const ROLE_BADGES: Record<
+  UserRole,
+  {
+    labelKey: "role-user" | "role-admin" | "role-superadmin";
+    variant: "outline" | "info" | "warning";
+  }
+> = {
+  [USER_ROLES.USER]: { labelKey: "role-user", variant: "outline" },
+  [USER_ROLES.ADMIN]: { labelKey: "role-admin", variant: "info" },
+  [USER_ROLES.SUPERADMIN]: { labelKey: "role-superadmin", variant: "warning" },
+};
 
 export function buildUserAccountColumns(
   t: ReturnType<typeof useTranslations<"users">>,
@@ -38,12 +50,10 @@ export function buildUserAccountColumns(
       accessorKey: "role",
       header: t("col-role"),
       meta: { label: t("col-role") },
-      cell: ({ row }) =>
-        row.original.role === USER_ROLES.ADMIN ? (
-          <Badge variant="info">{t("role-admin")}</Badge>
-        ) : (
-          <Badge variant="outline">{t("role-user")}</Badge>
-        ),
+      cell: ({ row }) => {
+        const badge = ROLE_BADGES[row.original.role];
+        return <Badge variant={badge.variant}>{t(badge.labelKey)}</Badge>;
+      },
     },
     {
       accessorKey: "createdAt",

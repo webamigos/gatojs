@@ -1,6 +1,7 @@
 export const USER_ROLES = {
   USER: "user",
   ADMIN: "admin",
+  SUPERADMIN: "superadmin",
 } as const;
 
 export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES];
@@ -19,6 +20,12 @@ export function toOrgRole(role: string): OrgRole {
   return ORG_ROLE_VALUES.includes(role) ? (role as OrgRole) : ORG_ROLES.MEMBER;
 }
 
+const USER_ROLE_VALUES: readonly unknown[] = Object.values(USER_ROLES);
+
 export function toUserRole(role: unknown): UserRole {
-  return role === USER_ROLES.ADMIN ? USER_ROLES.ADMIN : USER_ROLES.USER;
+  return USER_ROLE_VALUES.includes(role) ? (role as UserRole) : USER_ROLES.USER;
+}
+
+export function isGlobalAdmin(role: unknown): boolean {
+  return role === USER_ROLES.ADMIN || role === USER_ROLES.SUPERADMIN;
 }

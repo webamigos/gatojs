@@ -3,6 +3,7 @@ import {
   canAccessModule,
   type AccessContext,
 } from "@/shared/lib/auth/permissions";
+import { isGlobalAdmin } from "@/shared/lib/auth/roles";
 import type { ModuleDef } from "./define-module";
 
 export interface NavEntry {
@@ -18,7 +19,7 @@ export function getNavEntries(
   context: AccessContext,
   modules: readonly ModuleDef[] = registry,
 ): NavEntry[] {
-  const showMembersLabel = context.multiOrg && context.userRole !== "admin";
+  const showMembersLabel = context.multiOrg && !isGlobalAdmin(context.userRole);
   return modules
     .filter((moduleDef) => canAccessModule(moduleDef, context))
     .flatMap((moduleDef) =>

@@ -1,6 +1,6 @@
 import { setRequestLocale } from "next-intl/server";
 import { requireModuleAccess } from "@/shared/lib/auth/require-module-access";
-import { USER_ROLES } from "@/shared/lib/auth/roles";
+import { isGlobalAdmin } from "@/shared/lib/auth/roles";
 import { UsersManager } from "@/features/users/components/users-manager";
 import { getUserAccountsQuery } from "@/features/users/services/queries/user-account-queries";
 import { OrganizationMembers } from "@/features/organizations/components/organization-members";
@@ -16,7 +16,7 @@ export default async function UsersPage({ params }: UsersPageProps) {
 
   const { userId, userRole } = await requireModuleAccess("users");
 
-  if (userRole === USER_ROLES.ADMIN) {
+  if (isGlobalAdmin(userRole)) {
     const users = await getUserAccountsQuery();
     return <UsersManager users={users} currentUserId={userId} />;
   }

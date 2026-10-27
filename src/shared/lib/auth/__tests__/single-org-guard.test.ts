@@ -45,7 +45,10 @@ const PASSWORD = "password123";
 const INVITEE_EMAIL = "new@example.com";
 const now = new Date();
 
-type Caller = { globalRole: "admin" | "user"; orgRole: "owner" | "admin" };
+type Caller = {
+  globalRole: "superadmin" | "admin" | "user";
+  orgRole: "owner" | "admin";
+};
 
 async function stubCaller({ globalRole, orgRole }: Caller) {
   const context = await auth.$context;
@@ -177,6 +180,17 @@ describe("single-org guard on organization endpoints", () => {
     expect(mockPrisma.invitation.create).toHaveBeenCalledTimes(1);
   });
 
+  it("MULTI_ORG=false: superadmin może zaprosić", async () => {
+    await stubCaller({ globalRole: "superadmin", orgRole: "admin" });
+    const headers = await signInHeaders();
+
+    await expect(inviteMember(headers)).resolves.toMatchObject({
+      email: INVITEE_EMAIL,
+      organizationId: "org-1",
+    });
+    expect(mockPrisma.invitation.create).toHaveBeenCalledTimes(1);
+  });
+
   it("MULTI_ORG=true: admin organizacji może zaprosić", async () => {
     mockEnv.MULTI_ORG = true;
     await stubCaller({ globalRole: "user", orgRole: "admin" });
@@ -260,7 +274,7 @@ describe("requiresGlobalAdminInSingleOrg", () => {
 });
 
 describe("assertGlobalAdmin", () => {
-  it.each([["user"], [undefined], [null], ["owner"]])(
+  it.each([["user"], [undefined], [null], ["owner"], ["SuperAdmin"], ["root"]])(
     "rola %j → 403 z komunikatem",
     (role) => {
       expect(() => assertGlobalAdmin(role)).toThrow(
@@ -274,5 +288,9 @@ describe("assertGlobalAdmin", () => {
 
   it("globalny admin przechodzi", () => {
     expect(() => assertGlobalAdmin("admin")).not.toThrow();
+  });
+
+  it("superadmin przechodzi", () => {
+    expect(() => assertGlobalAdmin("superadmin")).not.toThrow();
   });
 });

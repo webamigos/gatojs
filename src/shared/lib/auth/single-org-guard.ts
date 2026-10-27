@@ -1,5 +1,5 @@
 import { APIError } from "better-auth/api";
-import { USER_ROLES } from "./roles";
+import { isGlobalAdmin } from "./roles";
 
 const SINGLE_ORG_GLOBAL_ADMIN_PATHS: ReadonlySet<string> = new Set([
   "/organization/create",
@@ -27,7 +27,7 @@ export function requiresGlobalAdminInSingleOrg(
 }
 
 export function assertGlobalAdmin(role: unknown): void {
-  if (role !== USER_ROLES.ADMIN) {
+  if (!isGlobalAdmin(role)) {
     throw new APIError("FORBIDDEN", {
       message: "Zarządzanie organizacją wymaga roli administratora",
     });
