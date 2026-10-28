@@ -37,5 +37,6 @@
   "no-organization-title": "Brak organizacji",
   "no-organization-description": "Twoje konto nie należy do żadnej organizacji. Poproś administratora o zaproszenie.",
   "no-organization-multi-org-description": "Twoje konto nie należy do żadnej organizacji. Utwórz własną albo poproś o zaproszenie.",
-  "sign-out": "Wyloguj się"
+  "sign-out": "Wyloguj się",
+  "enter-organization-title": "Wejdź do organizacji"
 }

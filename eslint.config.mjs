@@ -21,6 +21,8 @@ const eslintConfig = defineConfig([
     "docs/**",
     ".superpowers/**",
     ".claude/**",
+    ".stryker-tmp/**",
+    "reports/**",
     "src/generated/**",
     "src/modules.generated.ts",
     "src/modules.client.generated.ts",

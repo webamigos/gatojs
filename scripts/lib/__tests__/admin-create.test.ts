@@ -117,7 +117,12 @@ const { db, mockPrisma, mockAuth } = vi.hoisted(() => {
 vi.mock("@/shared/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/shared/lib/auth", () => ({ auth: mockAuth }));
 
-import { AdminCreateError, adminCreate, slugifyOrgName } from "../admin-create";
+import {
+  AdminCreateError,
+  adminCreate,
+  slugifyOrgName,
+  type AdminCreateOptions,
+} from "../admin-create";
 
 const yes = { yes: true, confirm: async () => true };
 
@@ -268,6 +273,319 @@ describe("adminCreate partial failure and slug fallback", () => {
     expect(r.createdUser).toBe(false);
     expect(db.users).toHaveLength(1);
   });
+});
+
+describe("adminCreate z rolą globalną", () => {
+  beforeEach(() => {
+    db.users.length = 0;
+    db.orgs.length = 0;
+    db.members.length = 0;
+    db.seq = 0;
+  });
+
+  function seedUser(email: string, role: string) {
+    db.users.push({
+      id: `u-${email}`,
+      email,
+      name: email.split("@")[0],
+      role,
+      emailVerified: true,
+    });
+  }
+
+  it("nowe konto bez roli dostaje rolę admin", async () => {
+    await adminCreate({ email: "n@x.pl", ...yes });
+    expect(mockAuth.api.createUser).toHaveBeenCalledWith({
+      body: expect.objectContaining({ role: "admin" }),
+    });
+    expect(db.users[0].role).toBe("admin");
+  });
+
+  it("nowe konto z rolą superadmin dostaje rolę superadmin", async () => {
+    await adminCreate({ email: "s@x.pl", role: "superadmin", ...yes });
+    expect(mockAuth.api.createUser).toHaveBeenCalledWith({
+      body: expect.objectContaining({ role: "superadmin" }),
+    });
+    expect(db.users[0].role).toBe("superadmin");
+  });
+
+  it("nowe konto z rolą admin dostaje rolę admin", async () => {
+    await adminCreate({ email: "a2@x.pl", role: "admin", ...yes });
+    expect(mockAuth.api.createUser).toHaveBeenCalledWith({
+      body: expect.objectContaining({ role: "admin" }),
+    });
+  });
+
+  it("istniejący user bez roli: pyta o rolę admin i ją nadaje", async () => {
+    seedUser("u1@x.pl", "user");
+    const confirm = vi.fn(async () => true);
+    await adminCreate({ email: "u1@x.pl", yes: false, confirm });
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveBeenCalledWith(
+      "Użytkownik u1@x.pl istnieje. Nadać rolę admin? [t/N]",
+    );
+    expect(db.users[0].role).toBe("admin");
+  });
+
+  it("istniejący user z rolą superadmin: pyta o rolę superadmin i ją nadaje", async () => {
+    seedUser("u2@x.pl", "user");
+    const confirm = vi.fn(async () => true);
+    await adminCreate({
+      email: "u2@x.pl",
+      role: "superadmin",
+      yes: false,
+      confirm,
+    });
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveBeenCalledWith(
+      "Użytkownik u2@x.pl istnieje. Nadać rolę superadmin? [t/N]",
+    );
+    expect(mockAuth.api.createUser).not.toHaveBeenCalled();
+    expect(db.users[0].role).toBe("superadmin");
+  });
+
+  it("istniejący admin z rolą superadmin: pyta i podnosi do superadmin", async () => {
+    seedUser("ad@x.pl", "admin");
+    const confirm = vi.fn(async () => true);
+    await adminCreate({
+      email: "ad@x.pl",
+      role: "superadmin",
+      yes: false,
+      confirm,
+    });
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveBeenCalledWith(
+      "Użytkownik ad@x.pl istnieje. Nadać rolę superadmin? [t/N]",
+    );
+    expect(db.users[0].role).toBe("superadmin");
+  });
+
+  it("odmowa podniesienia admina do superadmin → Przerwano, rola i organizacje bez zmian", async () => {
+    seedUser("ad2@x.pl", "admin");
+    await expect(
+      adminCreate({
+        email: "ad2@x.pl",
+        role: "superadmin",
+        yes: false,
+        confirm: async () => false,
+      }),
+    ).rejects.toThrow("Przerwano");
+    expect(db.users[0].role).toBe("admin");
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    expect(db.orgs).toHaveLength(0);
+    expect(db.members).toHaveLength(0);
+  });
+
+  it("odmowa nadania superadmin userowi → Przerwano, rola bez zmian", async () => {
+    seedUser("u3@x.pl", "user");
+    await expect(
+      adminCreate({
+        email: "u3@x.pl",
+        role: "superadmin",
+        yes: false,
+        confirm: async () => false,
+      }),
+    ).rejects.toThrow("Przerwano");
+    expect(db.users[0].role).toBe("user");
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    expect(db.members).toHaveLength(0);
+  });
+
+  it("yes: true nadaje rolę superadmin bez pytania", async () => {
+    seedUser("u4@x.pl", "user");
+    const confirm = vi.fn(async () => false);
+    await adminCreate({
+      email: "u4@x.pl",
+      role: "superadmin",
+      yes: true,
+      confirm,
+    });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(db.users[0].role).toBe("superadmin");
+  });
+
+  it("yes: true podnosi admina do superadmin bez pytania", async () => {
+    seedUser("ad3@x.pl", "admin");
+    const confirm = vi.fn(async () => false);
+    await adminCreate({
+      email: "ad3@x.pl",
+      role: "superadmin",
+      yes: true,
+      confirm,
+    });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(db.users[0].role).toBe("superadmin");
+  });
+
+  it.each([
+    ["bez roli", undefined],
+    ["z rolą admin", "admin" as const],
+  ])(
+    "istniejący superadmin %s: bez pytania i bez obniżenia roli",
+    async (_label, role) => {
+      seedUser("sa@x.pl", "superadmin");
+      const confirm = vi.fn(async () => true);
+      const r = await adminCreate({
+        email: "sa@x.pl",
+        role,
+        yes: true,
+        confirm,
+      });
+      expect(confirm).not.toHaveBeenCalled();
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockAuth.api.createUser).not.toHaveBeenCalled();
+      expect(db.users[0].role).toBe("superadmin");
+      expect(db.members).toEqual([
+        {
+          organizationId: r.organizationId,
+          userId: "u-sa@x.pl",
+          role: "owner",
+        },
+      ]);
+    },
+  );
+
+  it.each([
+    ["bez roli, z yes", undefined, true],
+    ["bez roli, bez yes", undefined, false],
+    ["z rolą admin, z yes", "admin" as const, true],
+    ["z rolą admin, bez yes", "admin" as const, false],
+  ])(
+    'istniejące konto z rolą "user,superadmin" %s: bez pytania i bez obniżenia roli',
+    async (_label, role, yesFlag) => {
+      seedUser("multi@x.pl", "user,superadmin");
+      const confirm = vi.fn(async () => true);
+      const r = await adminCreate({
+        email: "multi@x.pl",
+        role,
+        yes: yesFlag,
+        confirm,
+      });
+      expect(confirm).not.toHaveBeenCalled();
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockAuth.api.createUser).not.toHaveBeenCalled();
+      expect(db.users[0].role).toBe("user,superadmin");
+      expect(db.members).toEqual([
+        {
+          organizationId: r.organizationId,
+          userId: "u-multi@x.pl",
+          role: "owner",
+        },
+      ]);
+    },
+  );
+
+  it("istniejący superadmin bez roli i bez yes: nie pyta i nie obniża roli", async () => {
+    seedUser("sa2@x.pl", "superadmin");
+    const confirm = vi.fn(async () => true);
+    await adminCreate({ email: "sa2@x.pl", yes: false, confirm });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(db.users[0].role).toBe("superadmin");
+  });
+
+  it("istniejący superadmin z rolą superadmin: bez pytania, rola bez zmian", async () => {
+    seedUser("sa3@x.pl", "superadmin");
+    const confirm = vi.fn(async () => true);
+    await adminCreate({
+      email: "sa3@x.pl",
+      role: "superadmin",
+      yes: false,
+      confirm,
+    });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    expect(db.users[0].role).toBe("superadmin");
+  });
+
+  it("istniejący admin bez roli: bez pytania, rola bez zmian", async () => {
+    seedUser("ad4@x.pl", "admin");
+    const confirm = vi.fn(async () => true);
+    await adminCreate({ email: "ad4@x.pl", yes: false, confirm });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    expect(db.users[0].role).toBe("admin");
+  });
+
+  it.each([
+    ["nowego konta", null],
+    ["istniejącego usera", "user"],
+  ])(
+    "nieznana rola dla %s → błąd przed jakimkolwiek zapisem",
+    async (_label, existingRole) => {
+      if (existingRole) {
+        seedUser("r@x.pl", existingRole);
+      }
+      const confirm = vi.fn(async () => true);
+      await expect(
+        adminCreate({
+          email: "r@x.pl",
+          role: "root" as unknown as AdminCreateOptions["role"],
+          yes: true,
+          confirm,
+        }),
+      ).rejects.toThrow("Nieznana rola: root (dozwolone: admin, superadmin)");
+      expect(confirm).not.toHaveBeenCalled();
+      expect(mockAuth.api.createUser).not.toHaveBeenCalled();
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      expect(mockPrisma.organization.create).not.toHaveBeenCalled();
+      expect(mockPrisma.member.create).not.toHaveBeenCalled();
+      expect(db.users).toHaveLength(existingRole ? 1 : 0);
+      expect(db.orgs).toHaveLength(0);
+      expect(db.members).toHaveLength(0);
+    },
+  );
+
+  it("komunikat błędu nieznanej roli jest dokładny", async () => {
+    const error = await adminCreate({
+      email: "r2@x.pl",
+      role: "root" as unknown as AdminCreateOptions["role"],
+      ...yes,
+    }).catch((e: unknown) => e);
+    expect((error as Error).message).toBe(
+      "Nieznana rola: root (dozwolone: admin, superadmin)",
+    );
+  });
+
+  it.each([
+    ["admin", "admin" as const],
+    ["superadmin", "superadmin" as const],
+  ])(
+    "nowe konto z rolą %s zostaje ownerem nowej organizacji",
+    async (_label, role) => {
+      const r = await adminCreate({ email: "o@x.pl", role, ...yes });
+      expect(r.createdOrganization).toBe(true);
+      expect(db.orgs).toHaveLength(1);
+      expect(db.members).toEqual([
+        { organizationId: r.organizationId, userId: r.userId, role: "owner" },
+      ]);
+    },
+  );
+
+  it.each([
+    ["admin", "admin" as const],
+    ["superadmin", "superadmin" as const],
+  ])(
+    "rola %s zostaje ownerem najstarszej istniejącej organizacji",
+    async (_label, role) => {
+      db.orgs.push({
+        id: "org-first",
+        name: "Pierwsza",
+        slug: "pierwsza",
+        createdAt: new Date(0),
+      });
+      seedUser("o2@x.pl", "user");
+      const r = await adminCreate({ email: "o2@x.pl", role, ...yes });
+      expect(r).toMatchObject({
+        organizationId: "org-first",
+        createdOrganization: false,
+      });
+      expect(db.orgs).toHaveLength(1);
+      expect(db.members).toEqual([
+        { organizationId: "org-first", userId: "u-o2@x.pl", role: "owner" },
+      ]);
+    },
+  );
 });
 
 describe("slugifyOrgName", () => {

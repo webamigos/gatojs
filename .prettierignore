@@ -8,3 +8,5 @@ volumes
 .superpowers
 src/modules.generated.ts
 src/modules.client.generated.ts
+reports
+.stryker-tmp

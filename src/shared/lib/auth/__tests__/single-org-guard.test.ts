@@ -23,7 +23,7 @@ const { mockPrisma, mockEnv, mockMailer } = vi.hoisted(() => ({
   },
   mockEnv: {
     BETTER_AUTH_SECRET: "s".repeat(32),
-    BETTER_AUTH_URL: "http://localhost:3000",
+    APP_URL: "http://localhost:3000",
     AUTH_PUBLIC_SIGNUP: false,
     MULTI_ORG: false,
   },
@@ -34,13 +34,21 @@ vi.mock("@/shared/lib/env", () => ({ env: mockEnv }));
 vi.mock("@/shared/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/shared/lib/mailer", () => mockMailer);
 
+import { organization } from "better-auth/plugins";
 import { auth } from "../index";
+import {
+  assertGlobalAdmin,
+  requiresGlobalAdminInSingleOrg,
+} from "../single-org-guard";
 
 const PASSWORD = "password123";
 const INVITEE_EMAIL = "new@example.com";
 const now = new Date();
 
-type Caller = { globalRole: "admin" | "user"; orgRole: "owner" | "admin" };
+type Caller = {
+  globalRole: "superadmin" | "admin" | "user";
+  orgRole: "owner" | "admin";
+};
 
 async function stubCaller({ globalRole, orgRole }: Caller) {
   const context = await auth.$context;
@@ -172,6 +180,17 @@ describe("single-org guard on organization endpoints", () => {
     expect(mockPrisma.invitation.create).toHaveBeenCalledTimes(1);
   });
 
+  it("MULTI_ORG=false: superadmin może zaprosić", async () => {
+    await stubCaller({ globalRole: "superadmin", orgRole: "admin" });
+    const headers = await signInHeaders();
+
+    await expect(inviteMember(headers)).resolves.toMatchObject({
+      email: INVITEE_EMAIL,
+      organizationId: "org-1",
+    });
+    expect(mockPrisma.invitation.create).toHaveBeenCalledTimes(1);
+  });
+
   it("MULTI_ORG=true: admin organizacji może zaprosić", async () => {
     mockEnv.MULTI_ORG = true;
     await stubCaller({ globalRole: "user", orgRole: "admin" });
@@ -193,5 +212,85 @@ describe("single-org guard on organization endpoints", () => {
         body: { invitationId: "missing" },
       }),
     ).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
+const MEMBER_SELF_SERVICE_PATHS = [
+  "/organization/accept-invitation",
+  "/organization/reject-invitation",
+  "/organization/leave",
+  "/organization/set-active",
+  "/organization/set-active-team",
+  "/organization/check-slug",
+  "/organization/has-permission",
+];
+
+function mutatingOrganizationPaths(): string[] {
+  const plugin = organization({
+    teams: { enabled: true },
+    dynamicAccessControl: { enabled: true },
+  });
+  return Object.values(plugin.endpoints)
+    .filter((endpoint) => {
+      const methods = [endpoint.options.method].flat();
+      return typeof endpoint.path === "string" && !methods.includes("GET");
+    })
+    .map((endpoint) => endpoint.path as string);
+}
+
+describe("requiresGlobalAdminInSingleOrg", () => {
+  const adminPaths = mutatingOrganizationPaths().filter(
+    (path) => !MEMBER_SELF_SERVICE_PATHS.includes(path),
+  );
+
+  it("lista endpointów better-auth zawiera endpointy administracyjne", () => {
+    expect(adminPaths).toEqual(
+      expect.arrayContaining([
+        "/organization/update-member-role",
+        "/organization/delete",
+        "/organization/create-role",
+        "/organization/add-team-member",
+      ]),
+    );
+  });
+
+  it.each(adminPaths)(
+    "MULTI_ORG=false: %s wymaga globalnego admina",
+    (path) => {
+      expect(requiresGlobalAdminInSingleOrg(path, false)).toBe(true);
+    },
+  );
+
+  it.each(adminPaths)("MULTI_ORG=true: %s bez guardu", (path) => {
+    expect(requiresGlobalAdminInSingleOrg(path, true)).toBe(false);
+  });
+
+  it.each(MEMBER_SELF_SERVICE_PATHS)(
+    "MULTI_ORG=false: %s dostępne bez globalnego admina",
+    (path) => {
+      expect(requiresGlobalAdminInSingleOrg(path, false)).toBe(false);
+    },
+  );
+});
+
+describe("assertGlobalAdmin", () => {
+  it.each([["user"], [undefined], [null], ["owner"], ["SuperAdmin"], ["root"]])(
+    "rola %j → 403 z komunikatem",
+    (role) => {
+      expect(() => assertGlobalAdmin(role)).toThrow(
+        expect.objectContaining({
+          statusCode: 403,
+          message: "Zarządzanie organizacją wymaga roli administratora",
+        }),
+      );
+    },
+  );
+
+  it("globalny admin przechodzi", () => {
+    expect(() => assertGlobalAdmin("admin")).not.toThrow();
+  });
+
+  it("superadmin przechodzi", () => {
+    expect(() => assertGlobalAdmin("superadmin")).not.toThrow();
   });
 });

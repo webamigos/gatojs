@@ -11,9 +11,12 @@ import {
   MobileHeader,
   SidebarProvider,
 } from "@/shared/components/app-sidebar";
+import { ServiceModeProvider } from "@/shared/components/service-mode/service-mode-provider";
+import { ServiceModeBanner } from "@/shared/components/service-mode/service-mode-banner";
 import { ImpersonationBanner } from "@/features/users/components/impersonation-banner";
 import { logImpersonationStopCommand } from "@/features/users/services/commands/impersonation-commands";
 import { OrgSwitcher } from "@/features/organizations/components/org-switcher";
+import { getSwitchableOrganizationsQuery } from "@/features/organizations/services/queries/switchable-organizations-query";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -39,32 +42,48 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
     return redirect({ href: "/sign-in", locale });
   }
   const multiOrg = env.MULTI_ORG;
+  const switchableOrganizations = await getSwitchableOrganizationsQuery();
+  const activeOrganizationName =
+    switchableOrganizations.find(
+      (organization) => organization.id === orgContext.organizationId,
+    )?.name ?? "";
 
   return (
-    <SidebarProvider>
-      <ImpersonationBanner
-        active={impersonatedBy !== null}
-        userName={user.name || user.email}
-        onStopLogged={logImpersonationStopCommand}
-      />
-      <div className="flex min-h-screen">
-        <AppSidebar
-          accessContext={{
-            userRole: orgContext.userRole,
-            orgRole: orgContext.orgRole,
-            multiOrg,
-          }}
-          userName={user.name}
-          userEmail={user.email}
+    <ServiceModeProvider
+      active={orgContext.serviceMode}
+      organizationId={orgContext.organizationId}
+      organizationName={activeOrganizationName}
+    >
+      <SidebarProvider>
+        <ServiceModeBanner />
+        <ImpersonationBanner
+          active={impersonatedBy !== null}
+          userName={user.name || user.email}
+          onStopLogged={logImpersonationStopCommand}
         />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <MobileHeader />
-          <main className="flex-1 space-y-4 p-4 md:p-6">
-            <OrgSwitcher multiOrg={multiOrg} />
-            {children}
-          </main>
+        <div className="flex min-h-screen">
+          <AppSidebar
+            accessContext={{
+              userRole: orgContext.userRole,
+              orgRole: orgContext.orgRole,
+              multiOrg,
+            }}
+            userName={user.name}
+            userEmail={user.email}
+          />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <MobileHeader />
+            <main className="flex-1 space-y-4 p-4 md:p-6">
+              <OrgSwitcher
+                organizations={switchableOrganizations}
+                activeOrganizationId={orgContext.organizationId}
+                canCreateOrganization={multiOrg}
+              />
+              {children}
+            </main>
+          </div>
         </div>
-      </div>
-    </SidebarProvider>
+      </SidebarProvider>
+    </ServiceModeProvider>
   );
 }

@@ -23,6 +23,36 @@ describe("canAccessPath", () => {
     ).toBe(true);
   });
 
+  it("superadmin ma dostęp do /users jako member organizacji", () => {
+    expect(
+      canAccessPath(
+        "/users",
+        ctx({ userRole: "superadmin", orgRole: "member" }),
+      ),
+    ).toBe(true);
+  });
+
+  it("superadmin ma dostęp także bez członkostwa i do nieznanej ścieżki", () => {
+    expect(
+      canAccessPath(
+        "/nie-istnieje",
+        ctx({ userRole: "superadmin", orgRole: null }),
+      ),
+    ).toBe(true);
+  });
+
+  it.each([[false], [true]])(
+    "superadmin ma dostęp do /users przy MULTI_ORG=%j niezależnie od roli w organizacji",
+    (multiOrg) => {
+      expect(
+        canAccessPath(
+          "/users",
+          ctx({ userRole: "superadmin", orgRole: "member", multiOrg }),
+        ),
+      ).toBe(true);
+    },
+  );
+
   it("member nie ma dostępu do /users", () => {
     expect(canAccessPath("/users", ctx({}))).toBe(false);
   });

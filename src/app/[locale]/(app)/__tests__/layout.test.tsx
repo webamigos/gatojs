@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import plMessages from "@/app/messages/pl.json";
 
 const {
   mockGetOrgContext,
@@ -8,6 +10,8 @@ const {
   mockEnv,
   sidebarProps,
   bannerProps,
+  switcherProps,
+  mockGetSwitchableOrganizations,
 } = vi.hoisted(() => ({
   mockGetOrgContext: vi.fn(),
   mockRedirect: vi.fn((args: unknown) => {
@@ -17,6 +21,8 @@ const {
   mockEnv: { MULTI_ORG: false },
   sidebarProps: vi.fn(),
   bannerProps: vi.fn(),
+  switcherProps: vi.fn(),
+  mockGetSwitchableOrganizations: vi.fn(),
 }));
 
 vi.mock("@/i18n/routing", () => ({ redirect: mockRedirect }));
@@ -46,26 +52,53 @@ vi.mock("@/features/users/services/commands/impersonation-commands", () => ({
   logImpersonationStopCommand: vi.fn(),
 }));
 vi.mock("@/features/organizations/components/org-switcher", () => ({
-  OrgSwitcher: ({ multiOrg }: { multiOrg: boolean }) => (
-    <div>{`switcher:${multiOrg}`}</div>
-  ),
+  OrgSwitcher: (props: unknown) => {
+    switcherProps(props);
+    return <div>switcher</div>;
+  },
 }));
+vi.mock(
+  "@/features/organizations/services/queries/switchable-organizations-query",
+  () => ({ getSwitchableOrganizationsQuery: mockGetSwitchableOrganizations }),
+);
 
 import { NoOrganizationError } from "@/shared/lib/auth/org-context";
 import AppLayout from "../layout";
 
 const params = Promise.resolve({ locale: "en" });
+
+function renderLayout(layout: React.ReactNode) {
+  return render(
+    <NextIntlClientProvider locale="pl" messages={plMessages}>
+      {layout}
+    </NextIntlClientProvider>,
+  );
+}
+
+const SERVICE_CONTEXT = {
+  userId: "sa-1",
+  organizationId: "org-9",
+  orgRole: "owner",
+  userRole: "superadmin",
+  serviceMode: true,
+};
 const MEMBER_CONTEXT = {
   userId: "u1",
   organizationId: "org-1",
   orgRole: "member",
   userRole: "user",
+  serviceMode: false,
 };
+const SWITCHABLE_ORGANIZATIONS = [
+  { id: "org-1", name: "Pierwsza", isMember: true },
+  { id: "org-2", name: "Druga", isMember: true },
+];
 
 describe("(app) layout", () => {
   beforeEach(() => {
     mockEnv.MULTI_ORG = false;
     mockGetOrgContext.mockResolvedValue(MEMBER_CONTEXT);
+    mockGetSwitchableOrganizations.mockResolvedValue(SWITCHABLE_ORGANIZATIONS);
     mockGetCurrentUserWithImpersonation.mockResolvedValue({
       user: { id: "u1", name: "Jan", email: "jan@firma.pl" },
       impersonatedBy: null,
@@ -109,7 +142,7 @@ describe("(app) layout", () => {
   });
 
   it("członek widzi zawartość w powłoce z sidebarem", async () => {
-    render(await AppLayout({ children: <p>treść</p>, params }));
+    renderLayout(await AppLayout({ children: <p>treść</p>, params }));
 
     expect(screen.getByText("treść")).toBeInTheDocument();
     expect(screen.getByText("sidebar")).toBeInTheDocument();
@@ -122,14 +155,72 @@ describe("(app) layout", () => {
       orgRole: "owner",
     });
 
-    render(await AppLayout({ children: null, params }));
+    renderLayout(await AppLayout({ children: null, params }));
 
     expect(sidebarProps).toHaveBeenCalledWith({
       accessContext: { userRole: "user", orgRole: "owner", multiOrg: true },
       userName: "Jan",
       userEmail: "jan@firma.pl",
     });
-    expect(screen.getByText("switcher:true")).toBeInTheDocument();
+    expect(screen.getByText("switcher")).toBeInTheDocument();
+  });
+
+  it("przełącznik dostaje aktywną organizację z kontekstu i listę z query", async () => {
+    mockEnv.MULTI_ORG = true;
+    mockGetOrgContext.mockResolvedValue({
+      ...MEMBER_CONTEXT,
+      organizationId: "org-2",
+    });
+
+    renderLayout(await AppLayout({ children: null, params }));
+
+    expect(switcherProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizations: [
+          { id: "org-1", name: "Pierwsza", isMember: true },
+          { id: "org-2", name: "Druga", isMember: true },
+        ],
+        activeOrganizationId: "org-2",
+        canCreateOrganization: true,
+      }),
+    );
+  });
+
+  it("MULTI_ORG=false → przełącznik bez tworzenia organizacji", async () => {
+    renderLayout(await AppLayout({ children: null, params }));
+
+    expect(switcherProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeOrganizationId: "org-1",
+        canCreateOrganization: false,
+      }),
+    );
+  });
+
+  it("superadmin w trybie serwisowym dostaje w przełączniku organizację serwisowaną", async () => {
+    mockGetOrgContext.mockResolvedValue({
+      userId: "sa-1",
+      organizationId: "org-9",
+      orgRole: "owner",
+      userRole: "superadmin",
+      serviceMode: true,
+    });
+    mockGetSwitchableOrganizations.mockResolvedValue([
+      { id: "org-1", name: "Pierwsza", isMember: false },
+      { id: "org-9", name: "Klient", isMember: false },
+    ]);
+
+    renderLayout(await AppLayout({ children: null, params }));
+
+    expect(switcherProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizations: [
+          { id: "org-1", name: "Pierwsza", isMember: false },
+          { id: "org-9", name: "Klient", isMember: false },
+        ],
+        activeOrganizationId: "org-9",
+      }),
+    );
   });
 
   it("baner impersonacji jest aktywny tylko dla sesji impersonowanej", async () => {
@@ -138,10 +229,82 @@ describe("(app) layout", () => {
       impersonatedBy: "admin-1",
     });
 
-    render(await AppLayout({ children: null, params }));
+    renderLayout(await AppLayout({ children: null, params }));
 
     expect(bannerProps).toHaveBeenCalledWith(
       expect.objectContaining({ active: true, userName: "u2@firma.pl" }),
     );
+  });
+
+  describe("pasek trybu serwisowego", () => {
+    it("serviceMode: true → pasek z nazwą aktywnej organizacji z listy przełącznika", async () => {
+      mockGetOrgContext.mockResolvedValue(SERVICE_CONTEXT);
+      mockGetSwitchableOrganizations.mockResolvedValue([
+        { id: "org-1", name: "Pierwsza", isMember: false },
+        { id: "org-9", name: "Klient", isMember: false },
+        { id: "org-5", name: "Ostatnia", isMember: false },
+      ]);
+
+      renderLayout(await AppLayout({ children: null, params }));
+
+      expect(screen.getByText("Tryb serwisowy: Klient")).toBeInTheDocument();
+      expect(
+        screen.queryByText("Tryb serwisowy: Pierwsza"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Tryb serwisowy: Ostatnia"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("nazwa paska idzie za organizationId z kontekstu", async () => {
+      mockGetOrgContext.mockResolvedValue({
+        ...SERVICE_CONTEXT,
+        organizationId: "org-1",
+      });
+      mockGetSwitchableOrganizations.mockResolvedValue([
+        { id: "org-1", name: "Pierwsza", isMember: false },
+        { id: "org-9", name: "Klient", isMember: false },
+      ]);
+
+      renderLayout(await AppLayout({ children: null, params }));
+
+      expect(screen.getByText("Tryb serwisowy: Pierwsza")).toBeInTheDocument();
+      expect(
+        screen.queryByText("Tryb serwisowy: Klient"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("serviceMode: false → brak paska trybu serwisowego", async () => {
+      mockGetOrgContext.mockResolvedValue({
+        ...SERVICE_CONTEXT,
+        serviceMode: false,
+      });
+      mockGetSwitchableOrganizations.mockResolvedValue([
+        { id: "org-9", name: "Klient", isMember: true },
+      ]);
+
+      renderLayout(await AppLayout({ children: null, params }));
+
+      expect(screen.queryByText(/Tryb serwisowy/)).not.toBeInTheDocument();
+    });
+
+    it("członek organizacji nie widzi paska trybu serwisowego", async () => {
+      renderLayout(await AppLayout({ children: null, params }));
+
+      expect(screen.queryByText(/Tryb serwisowy/)).not.toBeInTheDocument();
+    });
+
+    it("aktywnej organizacji brak na liście przełącznika → pasek bez nazwy innej organizacji", async () => {
+      mockGetOrgContext.mockResolvedValue(SERVICE_CONTEXT);
+      mockGetSwitchableOrganizations.mockResolvedValue([
+        { id: "org-1", name: "Pierwsza", isMember: false },
+      ]);
+
+      renderLayout(await AppLayout({ children: null, params }));
+
+      const banner = screen.getByText(/^Tryb serwisowy:/);
+      expect(banner.textContent?.trim()).toBe("Tryb serwisowy:");
+      expect(screen.queryByText(/Pierwsza/)).not.toBeInTheDocument();
+    });
   });
 });

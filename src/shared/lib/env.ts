@@ -4,7 +4,11 @@ import { moduleEnvSchemas } from "@/modules.generated";
 const flag = z
   .string()
   .optional()
+  .transform((value) => value?.trim().toLowerCase() ?? "")
+  .pipe(z.enum(["", "true", "false"]))
   .transform((value) => value === "true");
+
+const SECRET_MIN_LENGTH = 32;
 
 const optionalString = z.preprocess(
   (value) => (value === "" ? undefined : value),
@@ -20,13 +24,18 @@ export const coreEnvSchema = z
       .enum(["development", "test", "production"])
       .default("development"),
     DATABASE_URL: z.string().min(1),
-    BETTER_AUTH_SECRET: z.string().min(32),
-    BETTER_AUTH_URL: z.string().min(1),
+    BETTER_AUTH_SECRET: z
+      .string()
+      .refine((value) => value.trim().length >= SECRET_MIN_LENGTH, {
+        message: `co najmniej ${SECRET_MIN_LENGTH} znaki bez spacji na brzegach`,
+      }),
+    APP_URL: z.url({ protocol: /^https?$/ }),
     RESEND_API_KEY: optionalString,
     SMTP_URL: optionalString,
     EMAIL_FROM: z.string().min(1),
     AUTH_PUBLIC_SIGNUP: flag,
     MULTI_ORG: flag,
+    ADMIN_IMPERSONATION: flag,
     ADMIN_EMAIL: optionalString,
     ADMIN_PASSWORD: optionalString,
     LOG_LEVEL: optionalString,

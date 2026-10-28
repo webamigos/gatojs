@@ -6,7 +6,7 @@ vi.mock("@/shared/lib/prisma", () => ({
   prisma: { invitation: { findFirst: mockFindFirst } },
 }));
 
-import { enforceSignupPolicy } from "../signup-gate";
+import { enforceSignupPolicy, readBodyString } from "../signup-gate";
 
 const validBody = { email: "Jan@Example.com", invitationId: "inv-1" };
 
@@ -76,4 +76,30 @@ describe("enforceSignupPolicy", () => {
     ).resolves.toBeUndefined();
     expect(mockFindFirst).not.toHaveBeenCalled();
   });
+});
+
+describe("readBodyString", () => {
+  it("zwraca niepusty napis", () => {
+    expect(readBodyString({ email: "a@b.pl" }, "email")).toBe("a@b.pl");
+  });
+
+  it.each([
+    [{ email: "" }],
+    [{ email: 5 }],
+    [{ email: { equals: "a@b.pl" } }],
+    [{ email: ["a@b.pl"] }],
+    [{ email: null }],
+    [{}],
+    [null],
+    ["email"],
+  ])("body %j → undefined", (body) => {
+    expect(readBodyString(body, "email")).toBeUndefined();
+  });
+
+  it.each([["toString"], ["constructor"], ["__proto__"]])(
+    "nie czyta odziedziczonego klucza %s",
+    (key) => {
+      expect(readBodyString({}, key)).toBeUndefined();
+    },
+  );
 });

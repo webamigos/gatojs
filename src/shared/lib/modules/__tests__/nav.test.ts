@@ -26,6 +26,15 @@ describe("getNavEntries (rejestr generowany)", () => {
     ]);
   });
 
+  it("superadmin widzi też użytkowników przy MULTI_ORG=false", () => {
+    const entries = getNavEntries({ ...member, userRole: "superadmin" });
+    expect(entries.map((entry) => entry.href)).toEqual([
+      "/dashboard",
+      "/users",
+      "/account",
+    ]);
+  });
+
   it("owner organizacji widzi użytkowników tylko przy MULTI_ORG", () => {
     const owner: AccessContext = { ...member, orgRole: "owner" };
     expect(getNavEntries(owner).map((entry) => entry.href)).not.toContain(
@@ -56,6 +65,15 @@ describe("etykieta Członkowie", () => {
       labelOf({ userRole: "admin", orgRole: "member", multiOrg: true }),
     ).toBe("users.nav");
   });
+
+  it.each([["owner"], ["admin"], ["member"]] as const)(
+    "superadmin z rolą %s w organizacji zachowuje users.nav przy MULTI_ORG",
+    (orgRole) => {
+      expect(labelOf({ userRole: "superadmin", orgRole, multiOrg: true })).toBe(
+        "users.nav",
+      );
+    },
+  );
 
   it("bez MULTI_ORG pozostaje users.nav", () => {
     expect(

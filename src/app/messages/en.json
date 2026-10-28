@@ -35,5 +35,12 @@
     "logout": "Sign out",
     "user-fallback": "User",
     "account": "Account"
+  },
+  "serviceMode": {
+    "banner": "Service mode: {name}",
+    "dialog-title": "Service mode",
+    "dialog-description": "You are changing data of organization {name} as Web Amigos service.",
+    "dialog-cancel": "Cancel",
+    "dialog-confirm": "Change"
   }
 }

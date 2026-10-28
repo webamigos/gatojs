@@ -37,6 +37,8 @@
     "kit/**",
     "docs/**",
     ".superpowers/**",
-    ".claude/**"
+    ".claude/**",
+    ".stryker-tmp/**",
+    "reports/**"
   ]
 }

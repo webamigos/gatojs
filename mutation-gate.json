@@ -1,0 +1,284 @@
+{
+  "critical": [
+    "src/shared/lib/auth/",
+    "src/features/auth/services/",
+    "src/features/organizations/services/",
+    "src/features/users/services/",
+    "scripts/lib/mutation-gate.ts"
+  ],
+  "allowed": [
+    {
+      "file": "src/features/auth/services/signup-gate.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ id: true }",
+      "replacement": "{}",
+      "reason": "równoważny: wynik zapytania jest sprawdzany tylko na null/obecność, zbiór wybranych pól nie wpływa na zachowanie"
+    },
+    {
+      "file": "src/features/auth/services/signup-gate.ts",
+      "mutator": "BooleanLiteral",
+      "original": "true",
+      "replacement": "false",
+      "reason": "równoważny: wynik zapytania jest sprawdzany tylko na null/obecność, zbiór wybranych pól nie wpływa na zachowanie"
+    },
+    {
+      "file": "src/features/auth/services/signup-gate.ts",
+      "mutator": "BooleanLiteral",
+      "original": "false",
+      "replacement": "true",
+      "reason": "równoważny: przy publicznej rejestracji assertSignupAllowed przepuszcza niezależnie od hasInvitation"
+    },
+    {
+      "file": "src/features/organizations/services/queries/default-organization-query.ts",
+      "mutator": "StringLiteral",
+      "original": "\"[AUTH] Failed to resolve active organization\"",
+      "replacement": "\"\"",
+      "reason": "tylko log: treść i payload logu bez kontraktu"
+    },
+    {
+      "file": "src/features/organizations/services/queries/default-organization-query.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{\n      err: error,\n    }",
+      "replacement": "{}",
+      "reason": "tylko log: treść i payload logu bez kontraktu"
+    },
+    {
+      "file": "src/features/organizations/services/queries/organization-queries.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ createdAt: \"asc\" }",
+      "replacement": "{}",
+      "reason": "kolejność prezentacji listy w UI; spec nie definiuje kolejności"
+    },
+    {
+      "file": "src/features/organizations/services/queries/organization-queries.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ select: { id: true, name: true, email: true } }",
+      "replacement": "{}",
+      "reason": "równoważny: wynik zapytania jest sprawdzany tylko na null/obecność, zbiór wybranych pól nie wpływa na zachowanie"
+    },
+    {
+      "file": "src/features/organizations/services/queries/organization-queries.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ createdAt: \"desc\" }",
+      "replacement": "{}",
+      "reason": "kolejność prezentacji listy w UI; spec nie definiuje kolejności"
+    },
+    {
+      "file": "src/features/organizations/services/signup-membership.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{\n    message: \"Zaproszenie jest nieprawidłowe lub wygasło\",\n  }",
+      "replacement": "{}",
+      "reason": "tylko komunikat: test sprawdza status/typ błędu, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/features/organizations/services/signup-membership.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Zaproszenie jest nieprawidłowe lub wygasło\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: test sprawdza status/typ błędu, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/features/users/services/commands/impersonation-commands.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Nie udało się zapisać zdarzenia impersonacji\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: test sprawdza status/typ błędu, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/features/users/services/commands/invite-user-command.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Nieprawidłowe dane\"",
+      "replacement": "\"\"",
+      "reason": "równoważny: safeParse z błędem zawsze ma co najmniej jedno issue z komunikatem"
+    },
+    {
+      "file": "src/features/users/services/commands/invite-user-command.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Nie udało się zaprosić użytkownika\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: test sprawdza status/typ błędu, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/features/users/services/commands/invite-user-command.ts",
+      "mutator": "BlockStatement",
+      "original": "{\n    logger.error(\"[USERS] Failed to discard invitation\", {\n      invitationId,\n      err: error,\n    });\n  }",
+      "replacement": "{}",
+      "reason": "tylko log: treść i payload logu bez kontraktu"
+    },
+    {
+      "file": "src/features/users/services/commands/invite-user-command.ts",
+      "mutator": "StringLiteral",
+      "original": "\"[USERS] Failed to discard invitation\"",
+      "replacement": "\"\"",
+      "reason": "tylko log: treść i payload logu bez kontraktu"
+    },
+    {
+      "file": "src/features/users/services/commands/invite-user-command.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{\n      invitationId,\n      err: error,\n    }",
+      "replacement": "{}",
+      "reason": "tylko log: treść i payload logu bez kontraktu"
+    },
+    {
+      "file": "src/features/users/services/commands/invite-user-command.ts",
+      "mutator": "StringLiteral",
+      "original": "\"[USERS] Welcome set-password email not delivered\"",
+      "replacement": "\"\"",
+      "reason": "tylko log: treść i payload logu bez kontraktu"
+    },
+    {
+      "file": "src/features/users/services/commands/invite-user-command.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{\n        userId: recipient.userId,\n        err: delivery.error,\n      }",
+      "replacement": "{}",
+      "reason": "tylko log: treść i payload logu bez kontraktu"
+    },
+    {
+      "file": "src/features/users/services/commands/invite-user-command.ts",
+      "mutator": "StringLiteral",
+      "original": "\"[USERS] Failed to send set-password email\"",
+      "replacement": "\"\"",
+      "reason": "tylko log: treść i payload logu bez kontraktu"
+    },
+    {
+      "file": "src/features/users/services/commands/invite-user-command.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{\n      userId: recipient.userId,\n      err: error,\n    }",
+      "replacement": "{}",
+      "reason": "tylko log: treść i payload logu bez kontraktu"
+    },
+    {
+      "file": "src/features/users/services/commands/invite-user-command.ts",
+      "mutator": "OptionalChaining",
+      "original": "parsed.error.issues[0]?.message",
+      "replacement": "parsed.error.issues[0].message",
+      "reason": "równoważny: safeParse z błędem zawsze ma co najmniej jedno issue z komunikatem"
+    },
+    {
+      "file": "src/features/users/services/commands/invite-user-command.ts",
+      "mutator": "LogicalOperator",
+      "original": "parsed.error.issues[0]?.message ?? \"Nieprawidłowe dane\"",
+      "replacement": "parsed.error.issues[0]?.message && \"Nieprawidłowe dane\"",
+      "reason": "równoważny: safeParse z błędem zawsze ma co najmniej jedno issue z komunikatem"
+    },
+    {
+      "file": "src/features/users/services/commands/invite-user-command.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ id: true }",
+      "replacement": "{}",
+      "reason": "równoważny: wynik zapytania jest sprawdzany tylko na null/obecność, zbiór wybranych pól nie wpływa na zachowanie"
+    },
+    {
+      "file": "src/features/users/services/commands/invite-user-command.ts",
+      "mutator": "BooleanLiteral",
+      "original": "true",
+      "replacement": "false",
+      "reason": "równoważny: wynik zapytania jest sprawdzany tylko na null/obecność, zbiór wybranych pól nie wpływa na zachowanie"
+    },
+    {
+      "file": "src/shared/lib/auth/index.ts",
+      "mutator": "StringLiteral",
+      "original": "\"\"",
+      "replacement": "\"Stryker was here!\"",
+      "reason": "równoważny: better-auth waliduje name jako wymagany string przed hookiem"
+    },
+    {
+      "file": "src/shared/lib/auth/index.ts",
+      "mutator": "ArithmeticOperator",
+      "original": "60 * 5",
+      "replacement": "60 / 5",
+      "reason": "konfiguracja: cookie cache 5 min (decyzja z planu 1); zmiana wartości jest świadoma, nie testujemy stałej"
+    },
+    {
+      "file": "src/shared/lib/auth/org-context.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Użytkownik nie należy do aktywnej organizacji\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: NoOrganizationError rozpoznajemy przez instanceof, nie przez name/message"
+    },
+    {
+      "file": "src/shared/lib/auth/org-context.ts",
+      "mutator": "StringLiteral",
+      "original": "\"NoOrganizationError\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: NoOrganizationError rozpoznajemy przez instanceof, nie przez name/message"
+    },
+    {
+      "file": "src/shared/lib/auth/welcome-set-password.ts",
+      "mutator": "ArithmeticOperator",
+      "original": "60 * 60",
+      "replacement": "60 / 60",
+      "reason": "równoważny: fallback nieosiągalny, resetPasswordTokenExpiresIn jest ustawione w auth/index.ts"
+    },
+    {
+      "file": "src/shared/lib/auth/welcome-set-password.ts",
+      "mutator": "OptionalChaining",
+      "original": "context.options.emailAndPassword?.resetPasswordTokenExpiresIn",
+      "replacement": "context.options.emailAndPassword.resetPasswordTokenExpiresIn",
+      "reason": "równoważny: fallback nieosiągalny, resetPasswordTokenExpiresIn jest ustawione w auth/index.ts"
+    },
+    {
+      "file": "src/shared/lib/auth/admin-access.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ message }",
+      "replacement": "{}",
+      "reason": "tylko komunikat: test sprawdza status 403 i brak zmian w bazie, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/shared/lib/auth/admin-access.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Rolę superadmin może nadać tylko superadmin\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: test sprawdza status 403, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/shared/lib/auth/admin-access.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Brak uprawnień do podszycia się pod tego użytkownika\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: test sprawdza status 403, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/shared/lib/auth/admin-access.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Konto serwisowe może zmieniać tylko superadmin\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: test sprawdza status 403, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/shared/lib/auth/admin-guard.ts",
+      "mutator": "StringLiteral",
+      "original": "\"\"",
+      "replacement": "\"Stryker was here!\"",
+      "reason": "równoważny: oba napisy nie zawierają admin/superadmin, roleFromStored zwraca user"
+    },
+    {
+      "file": "src/shared/lib/auth/admin-guard.ts",
+      "mutator": "ConditionalExpression",
+      "original": "value === undefined",
+      "replacement": "false",
+      "reason": "równoważny: undefined nie przechodzi przez JSON; String(undefined) nie wskazuje żadnego użytkownika ani sesji, wynik i tak null"
+    },
+    {
+      "file": "src/shared/lib/auth/admin-guard.ts",
+      "mutator": "EqualityOperator",
+      "original": "ROLE_PRIVILEGE[role] > ROLE_PRIVILEGE[highest]",
+      "replacement": "ROLE_PRIVILEGE[role] >= ROLE_PRIVILEGE[highest]",
+      "reason": "równoważny: przywilej jest bijekcją z rolą, przy remisie obie role są identyczne"
+    },
+    {
+      "file": "src/shared/lib/auth/index.ts",
+      "mutator": "ArrayDeclaration",
+      "original": "[USER_ROLES.ADMIN, USER_ROLES.SUPERADMIN]",
+      "replacement": "[]",
+      "reason": "równoważny: adminRoles używa tylko impersonate-user (impersonate-admins), a hook before odrzuca impersonację admina przez admina i superadmina przez kogokolwiek wcześniej; superadmin ma impersonate-admins"
+    },
+    {
+      "file": "src/features/organizations/services/queries/switchable-organizations-query.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ select: { id: true, name: true } }",
+      "replacement": "{}",
+      "reason": "równoważny: wynik mapowany jawnie na id i name, zbiór wybranych pól nie wpływa na zachowanie"
+    }
+  ]
+}

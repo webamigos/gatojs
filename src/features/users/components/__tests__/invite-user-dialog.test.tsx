@@ -32,6 +32,7 @@ vi.mock("sonner", () => ({
   },
 }));
 
+import { ServiceModeProvider } from "@/shared/components/service-mode/service-mode-provider";
 import { InviteUserDialog } from "../invite-user-dialog";
 
 function renderDialog() {
@@ -41,6 +42,35 @@ function renderDialog() {
     </NextIntlClientProvider>,
   );
 }
+
+function renderDialogInServiceMode(active: boolean) {
+  return render(
+    <NextIntlClientProvider locale="pl" messages={usersMessages}>
+      <ServiceModeProvider
+        active={active}
+        organizationId="org-7"
+        organizationName="Acme Sp. z o.o."
+      >
+        <InviteUserDialog />
+      </ServiceModeProvider>
+    </NextIntlClientProvider>,
+  );
+}
+
+async function findServiceModeDialog() {
+  const heading = await screen.findByText("Tryb serwisowy");
+  const dialog = heading.closest('[role="alertdialog"],[role="dialog"]');
+  if (!(dialog instanceof HTMLElement)) {
+    throw new Error("Brak okna potwierdzenia trybu serwisowego");
+  }
+  return within(dialog);
+}
+
+const INVITED = {
+  name: "Anna Nowak",
+  email: "anna@firma.pl",
+  role: "member",
+};
 
 async function openAndFill(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Zaproś użytkownika" }));
@@ -150,5 +180,80 @@ describe("InviteUserDialog", () => {
       dialog.getByRole("heading", { name: "Zaproś użytkownika" }),
     ).toBeInTheDocument();
     expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  describe("w trybie serwisowym", () => {
+    it("wysłanie formularza otwiera okno potwierdzenia z nazwą organizacji, bez wywołania komendy", async () => {
+      const user = userEvent.setup();
+      renderDialogInServiceMode(true);
+
+      const dialog = await openAndFill(user);
+      await user.click(
+        dialog.getByRole("button", { name: "Wyślij zaproszenie" }),
+      );
+
+      const confirmation = await findServiceModeDialog();
+      expect(
+        confirmation.getByText(
+          "Zmieniasz dane organizacji Acme Sp. z o.o. jako serwis Web Amigos.",
+        ),
+      ).toBeInTheDocument();
+      expect(mockInviteUserCommand).not.toHaveBeenCalled();
+    });
+
+    it("„Anuluj” w oknie potwierdzenia → komenda nie wywołana, widok nie odświeżony", async () => {
+      const user = userEvent.setup();
+      renderDialogInServiceMode(true);
+
+      const dialog = await openAndFill(user);
+      await user.click(
+        dialog.getByRole("button", { name: "Wyślij zaproszenie" }),
+      );
+      const confirmation = await findServiceModeDialog();
+      await user.click(confirmation.getByRole("button", { name: "Anuluj" }));
+
+      await waitFor(() =>
+        expect(screen.queryByText("Tryb serwisowy")).not.toBeInTheDocument(),
+      );
+      expect(mockInviteUserCommand).not.toHaveBeenCalled();
+      expect(mockRefresh).not.toHaveBeenCalled();
+      expect(mockToastSuccess).not.toHaveBeenCalled();
+    });
+
+    it("„Zmień” → komenda wywołana z potwierdzeniem aktywnej organizacji i widok odświeżony", async () => {
+      const user = userEvent.setup();
+      renderDialogInServiceMode(true);
+
+      const dialog = await openAndFill(user);
+      await user.click(
+        dialog.getByRole("button", { name: "Wyślij zaproszenie" }),
+      );
+      const confirmation = await findServiceModeDialog();
+      await user.click(confirmation.getByRole("button", { name: "Zmień" }));
+
+      await waitFor(() => expect(mockRefresh).toHaveBeenCalled());
+      expect(mockInviteUserCommand).toHaveBeenCalledTimes(1);
+      expect(mockInviteUserCommand).toHaveBeenCalledWith(INVITED, {
+        serviceModeConfirmed: true,
+        organizationId: "org-7",
+      });
+      expect(mockToastSuccess).toHaveBeenCalled();
+    });
+
+    it("nieaktywny tryb serwisowy → komenda wywołana od razu, bez okna potwierdzenia", async () => {
+      const user = userEvent.setup();
+      renderDialogInServiceMode(false);
+
+      const dialog = await openAndFill(user);
+      await user.click(
+        dialog.getByRole("button", { name: "Wyślij zaproszenie" }),
+      );
+
+      await waitFor(() =>
+        expect(mockInviteUserCommand).toHaveBeenCalledTimes(1),
+      );
+      expect(mockInviteUserCommand.mock.calls[0][0]).toEqual(INVITED);
+      expect(screen.queryByText("Tryb serwisowy")).not.toBeInTheDocument();
+    });
   });
 });

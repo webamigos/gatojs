@@ -6,6 +6,8 @@ Aplikacja Next.js zbudowana na **wa-kit**: logowanie i zaproszenia (better-auth)
 Stos: Next.js 16 · React 19 · TypeScript · Tailwind v4 · shadcn/ui (base-ui) · Prisma 7 + PostgreSQL ·
 better-auth · next-intl (pl/en) · Vitest · Playwright. Node 22 (`.nvmrc`).
 
+Dokumentacja kitu: `docs/README.md` w repo `webamigos/wa-kit`. Opisuje najnowszą wersję kitu; wersję projektu podaje `.wa/kit.json`.
+
 ## Start
 
 Wymagania: Node 22, npm, Docker.
@@ -24,7 +26,8 @@ npm run dev
 2. `cp .env.example .env` — ustaw `BETTER_AUTH_SECRET` (min. 32 znaki, np. `openssl rand -base64 32`).
 3. `npx prisma migrate dev --name init` — tworzy pierwszą migrację i schemat bazy.
 4. `npm run admin:create -- --email <email>` — tworzy administratora i pierwszą organizację.
-   Bez `--password` hasło jest generowane i wypisywane raz. Opcje: `--password`, `--name`, `--org-name`, `--yes`.
+   Bez `--password` hasło jest generowane i wypisywane raz. Opcje: `--password`, `--name`, `--org-name`, `--yes`,
+   `--role admin|superadmin` (domyślnie `admin`; `superadmin` to konto serwisowe Web Amigos). Skrypt nigdy nie obniża roli.
 5. `npm run dev` — aplikacja na `http://localhost:3000`. Maile (zaproszenia, reset hasła) zobaczysz w mailpit.
 
 ## Zmienne środowiskowe
@@ -33,12 +36,13 @@ npm run dev
 | ------------------------------- | ----------------------------------------------------------------------- |
 | `DATABASE_URL`                  | Połączenie z PostgreSQL                                                 |
 | `BETTER_AUTH_SECRET`            | Sekret better-auth, min. 32 znaki                                       |
-| `BETTER_AUTH_URL`               | Publiczny adres aplikacji                                               |
+| `APP_URL`                       | Publiczny adres aplikacji (better-auth, linki w mailach)                |
 | `RESEND_API_KEY`                | Klucz Resend; wymagany na produkcji                                     |
 | `SMTP_URL`                      | SMTP (dev/e2e: mailpit); ma pierwszeństwo przed Resend                  |
 | `EMAIL_FROM`                    | Nadawca maili                                                           |
 | `AUTH_PUBLIC_SIGNUP`            | `true` — publiczna rejestracja; domyślnie `false` (tylko z zaproszenia) |
 | `MULTI_ORG`                     | `true` — wiele organizacji i `OrgSwitcher`; domyślnie `false`           |
+| `ADMIN_IMPERSONATION`           | `true` — admin klienta może podszyć się pod zwykłego użytkownika        |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Domyślne wartości dla `admin:create` (opcjonalne)                       |
 | `LOG_LEVEL`                     | Poziom logowania                                                        |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`   | Eksport logów OpenTelemetry (opcjonalne)                                |
@@ -75,7 +79,7 @@ npm run test:e2e
 ## Railway
 
 1. Utwórz projekt z usługą PostgreSQL i usługą aplikacji z tego repozytorium. Build: `Dockerfile` (`railway.toml`).
-2. Ustaw zmienne: `DATABASE_URL` (referencja do Postgresa), `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
+2. Ustaw zmienne: `DATABASE_URL` (referencja do Postgresa), `BETTER_AUTH_SECRET`, `APP_URL`
    (publiczny adres), `RESEND_API_KEY`, `EMAIL_FROM`, `AUTH_PUBLIC_SIGNUP`, `MULTI_ORG`.
 3. Zacommituj katalog `prisma/migrations` — przed każdym wdrożeniem Railway uruchamia `npx prisma migrate deploy`.
    W wygenerowanym projekcie najpierw usuń linię `prisma/migrations/` z `.gitignore` (kit jej używa, bo sam nie
@@ -92,6 +96,9 @@ npm run test:e2e
    ```bash
    railway run sh -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" npm run admin:create -- --email <email>'
    ```
+
+5. Konta przy przekazaniu aplikacji: Web Amigos dostaje `--role superadmin`, zleceniodawca domyślne `admin`.
+   Konta superadmina może zmienić lub usunąć tylko superadmin, więc po okresie wsparcia usuwamy je sami.
 
 ## wa-kit
 

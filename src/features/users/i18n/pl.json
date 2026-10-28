@@ -11,6 +11,7 @@
   "col-created": "Utworzone",
   "role-admin": "Administrator",
   "role-user": "Użytkownik",
+  "role-superadmin": "Serwis (Web Amigos)",
   "org-role-admin": "Administrator organizacji",
   "org-role-member": "Członek",
   "dialog-invite-title": "Zaproś użytkownika",

@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/lib/prisma";
 import { getAdminUserOrNull } from "@/shared/lib/auth/helpers";
 import { getOrgContext } from "@/shared/lib/auth/org-context";
+import { assertServiceModeConfirmed } from "@/shared/lib/auth/service-mode";
 import { logger } from "@/shared/lib/logger";
 import { handleCommandError } from "@/shared/utils/error-handling";
 import { createWelcomeSetPasswordUrl } from "@/shared/lib/auth/welcome-set-password";
@@ -19,6 +20,7 @@ const INVITATION_TTL_MS = 48 * 60 * 60 * 1000;
 
 export async function inviteUserCommand(
   input: unknown,
+  confirmation?: unknown,
 ): Promise<OperationResult<{ userId: string }> & { warning?: "mail-failed" }> {
   try {
     const admin = await getAdminUserOrNull();
@@ -35,6 +37,9 @@ export async function inviteUserCommand(
     }
     const { name, email, role } = parsed.data;
 
+    const context = await getOrgContext();
+    assertServiceModeConfirmed(context, confirmation);
+
     const existing = await prisma.user.findUnique({
       where: { email },
       select: { id: true },
@@ -46,10 +51,9 @@ export async function inviteUserCommand(
       };
     }
 
-    const { organizationId } = await getOrgContext();
     const invitation = await prisma.invitation.create({
       data: {
-        organizationId,
+        organizationId: context.organizationId,
         email,
         role,
         inviterId: admin.id,

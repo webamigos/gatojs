@@ -3,7 +3,7 @@ import "server-only";
 import { headers } from "next/headers";
 import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/routing";
-import { USER_ROLES } from "@/shared/lib/auth/roles";
+import { isGlobalAdmin } from "@/shared/lib/auth/roles";
 
 async function readSession() {
   const { auth } = await import("@/shared/lib/auth");
@@ -25,7 +25,7 @@ export async function requireUser() {
 
 export async function getAdminUserOrNull() {
   const user = await requireUser();
-  return user.role === USER_ROLES.ADMIN ? user : null;
+  return isGlobalAdmin(user.role) ? user : null;
 }
 
 export async function getImpersonatedByUserId(): Promise<string | null> {

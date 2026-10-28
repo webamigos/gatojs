@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 import { PlusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "@/i18n/routing";
-import { authClient } from "@/shared/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,35 +19,41 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
+import { enterOrganizationCommand } from "../services/commands/enter-organization-command";
+import type { SwitchableOrganization } from "../contracts/organization-switcher.types";
 import { CreateOrganizationForm } from "./create-organization-form";
 
 interface OrgSwitcherProps {
-  multiOrg: boolean;
+  organizations: SwitchableOrganization[];
+  activeOrganizationId: string;
+  canCreateOrganization?: boolean;
 }
 
-export function OrgSwitcher({ multiOrg }: OrgSwitcherProps) {
-  if (!multiOrg) {
-    return null;
-  }
-  return <MultiOrgSwitcher />;
-}
-
-function MultiOrgSwitcher() {
+export function OrgSwitcher({
+  organizations,
+  activeOrganizationId,
+  canCreateOrganization = false,
+}: OrgSwitcherProps) {
   const t = useTranslations("organizations");
   const router = useRouter();
-  const { data: organizations } = authClient.useListOrganizations();
-  const { data: activeOrganization } = authClient.useActiveOrganization();
   const [switching, setSwitching] = useState(false);
   const [creating, setCreating] = useState(false);
+  const canSwitch = organizations.length > 1;
+
+  if (!canSwitch && !canCreateOrganization) {
+    return null;
+  }
+
+  const activeOrganization = organizations.find(
+    (organization) => organization.id === activeOrganizationId,
+  );
 
   async function onSwitch(organizationId: string) {
     setSwitching(true);
     try {
-      const result = await authClient.organization.setActive({
-        organizationId,
-      });
-      if (result.error) {
-        toast.error(result.error.message ?? t("toast-generic-error"));
+      const result = await enterOrganizationCommand(organizationId);
+      if (!result.success) {
+        toast.error(result.error ?? t("toast-generic-error"));
         return;
       }
       router.refresh();
@@ -65,11 +70,11 @@ function MultiOrgSwitcher() {
       aria-label={t("switcher-label")}
       className="flex items-center gap-2"
     >
-      {organizations && organizations.length > 1 && (
+      {canSwitch && (
         <Select
-          value={activeOrganization?.id ?? ""}
+          value={activeOrganizationId}
           onValueChange={(value) => {
-            if (value && value !== activeOrganization?.id) {
+            if (value && value !== activeOrganizationId) {
               onSwitch(value);
             }
           }}
@@ -89,25 +94,29 @@ function MultiOrgSwitcher() {
           </SelectContent>
         </Select>
       )}
-      <Button
-        variant="outline"
-        size="icon"
-        aria-label={t("create-organization")}
-        onClick={() => setCreating(true)}
-      >
-        <PlusIcon />
-      </Button>
-      <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("create-organization")}</DialogTitle>
-            <DialogDescription>
-              {t("create-organization-description")}
-            </DialogDescription>
-          </DialogHeader>
-          <CreateOrganizationForm onCreated={() => setCreating(false)} />
-        </DialogContent>
-      </Dialog>
+      {canCreateOrganization && (
+        <>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label={t("create-organization")}
+            onClick={() => setCreating(true)}
+          >
+            <PlusIcon />
+          </Button>
+          <Dialog open={creating} onOpenChange={setCreating}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{t("create-organization")}</DialogTitle>
+                <DialogDescription>
+                  {t("create-organization-description")}
+                </DialogDescription>
+              </DialogHeader>
+              <CreateOrganizationForm onCreated={() => setCreating(false)} />
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
     </div>
   );
 }

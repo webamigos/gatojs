@@ -1,6 +1,6 @@
 import { clientModules } from "@/modules.client.generated";
 import type { ModuleDef } from "@/shared/lib/modules/define-module";
-import { USER_ROLES, type OrgRole, type UserRole } from "./roles";
+import { isGlobalAdmin, type OrgRole, type UserRole } from "./roles";
 
 export interface AccessContext {
   userRole: UserRole;
@@ -28,7 +28,7 @@ export function canAccessModule(
   moduleDef: ModuleDef,
   context: AccessContext,
 ): boolean {
-  if (context.userRole === USER_ROLES.ADMIN || moduleDef.public) {
+  if (isGlobalAdmin(context.userRole) || moduleDef.public) {
     return true;
   }
   const { orgRole } = context;
@@ -44,7 +44,7 @@ export function canAccessModule(
 }
 
 export function canAccessPath(path: string, context: AccessContext): boolean {
-  if (context.userRole === USER_ROLES.ADMIN) {
+  if (isGlobalAdmin(context.userRole)) {
     return true;
   }
   const moduleDef = moduleForPath(path);

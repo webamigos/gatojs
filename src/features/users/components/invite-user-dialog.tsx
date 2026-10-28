@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ORG_ROLES } from "@/shared/lib/auth/roles";
+import { useServiceModeAction } from "@/shared/components/service-mode/use-service-mode-action";
 import { inviteUserCommand } from "../services/commands/invite-user-command";
 import {
   inviteUserSchema,
@@ -40,6 +41,7 @@ export function InviteUserDialog() {
   const t = useTranslations("users");
   const tc = useTranslations("common");
   const [open, setOpen] = useState(false);
+  const serviceModeAction = useServiceModeAction();
 
   const {
     register,
@@ -60,7 +62,10 @@ export function InviteUserDialog() {
   }
 
   async function onSubmit(values: InviteUserValues) {
-    const result = await inviteUserCommand(values);
+    const result = await serviceModeAction.run(inviteUserCommand, values);
+    if (result === null) {
+      return;
+    }
     if (result.success) {
       if (result.warning === "mail-failed") {
         toast.warning(t("toast-invite-mail-failed"));
@@ -181,6 +186,7 @@ export function InviteUserDialog() {
           </form>
         </DialogContent>
       </Dialog>
+      {serviceModeAction.dialog}
     </>
   );
 }

@@ -35,7 +35,7 @@ export function appEnv(options: {
     BETTER_AUTH_SECRET:
       process.env.BETTER_AUTH_SECRET ??
       "e2e-secret-key-at-least-32-characters-long",
-    BETTER_AUTH_URL: baseUrlFor(options.port),
+    APP_URL: baseUrlFor(options.port),
     // WHY: production mode requires RESEND_API_KEY; SMTP_URL takes precedence, so this key is never used.
     RESEND_API_KEY: "re_e2e_unused",
     SMTP_URL: process.env.SMTP_URL ?? `smtp://localhost:${mailpitSmtpPort}`,
