@@ -1,7 +1,7 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { compareCodePoint } from "../compare.js";
-import { installedModules, readKitState } from "../manifest/kit-state.js";
+import { readKitState, registeredModules } from "../manifest/kit-state.js";
 import { renderLocales, renderRegistry } from "./registry.js";
 import type { RegistryModule } from "./registry.js";
 import { regionTargets, renderRegionTarget } from "./targets.js";
@@ -70,7 +70,7 @@ export async function generate(
   projectDir: string,
 ): Promise<{ changed: string[] }> {
   const state = await readKitState(projectDir);
-  const manifests = installedModules(state);
+  const manifests = registeredModules(state);
   const features = await featureEntries(
     projectDir,
     manifests.map((m) => m.files),

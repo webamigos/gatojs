@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { readKitConfig, readKitManifests } from "../kit/kit-config.js";
 import { writeKitState } from "../manifest/kit-state.js";
+import { kitStateSchema } from "../manifest/schema.js";
 import type { KitState } from "../manifest/schema.js";
 
 async function readExisting(kitDir: string): Promise<string | null> {
@@ -13,9 +14,18 @@ async function readExisting(kitDir: string): Promise<string | null> {
   }
 }
 
+async function readExistingProjectModules(
+  raw: string | null,
+): Promise<KitState["projectModules"]> {
+  return raw === null
+    ? {}
+    : kitStateSchema.parse(JSON.parse(raw)).projectModules;
+}
+
 export async function kitSync(kitDir: string): Promise<{ changed: boolean }> {
   const config = await readKitConfig(kitDir);
   const manifests = await readKitManifests(kitDir);
+  const before = await readExisting(kitDir);
   const state: KitState = {
     kitVersion: config.version,
     kitRepo: config.repo,
@@ -30,8 +40,8 @@ export async function kitSync(kitDir: string): Promise<{ changed: boolean }> {
         { version: manifest.version, manifest, files: {} },
       ]),
     ),
+    projectModules: await readExistingProjectModules(before),
   };
-  const before = await readExisting(kitDir);
   await writeKitState(kitDir, state);
   return { changed: before !== (await readExisting(kitDir)) };
 }

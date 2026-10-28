@@ -19779,7 +19779,8 @@ var kitStateSchema = external_exports.object({
       manifest: moduleManifestSchema,
       files: external_exports.record(external_exports.string(), external_exports.string())
     })
-  )
+  ),
+  projectModules: external_exports.record(external_exports.string(), external_exports.object({ manifest: moduleManifestSchema })).default({})
 });
 
 // src/kit/kit-config.ts
@@ -19844,11 +19845,44 @@ async function readKitState(projectDir) {
     }
     throw error62;
   }
-  return kitStateSchema.parse(JSON.parse(raw));
+  const state = kitStateSchema.parse(JSON.parse(raw));
+  validateProjectModules(state);
+  return state;
+}
+function validateProjectModules(state) {
+  for (const [key, { manifest }] of Object.entries(state.projectModules)) {
+    if (manifest.name !== key) {
+      throw new Error(
+        `projectModules.${key}: name "${manifest.name}" nie zgadza si\u0119 z kluczem`
+      );
+    }
+    if (key in state.modules) {
+      throw new Error(
+        `Modu\u0142 ${key} jest jednocze\u015Bnie modu\u0142em kitu i modu\u0142em projektu`
+      );
+    }
+    for (const required2 of manifest.requires) {
+      if (!(required2 in state.modules) && !(required2 in state.projectModules)) {
+        throw new Error(
+          `Modu\u0142 projektu ${key} wymaga niezainstalowanego modu\u0142u: ${required2}`
+        );
+      }
+    }
+    if (!manifest.files.some((glob) => glob.startsWith(`src/features/${key}/`))) {
+      throw new Error(
+        `Modu\u0142 projektu ${key}: files musi obejmowa\u0107 src/features/${key}/**`
+      );
+    }
+  }
 }
 async function writeKitState(projectDir, state) {
   const sortedModules = Object.fromEntries(
     Object.entries(state.modules).sort(([a], [b]) => compareCodePoint(a, b))
+  );
+  const sortedProjectModules = Object.fromEntries(
+    Object.entries(state.projectModules).sort(
+      ([a], [b]) => compareCodePoint(a, b)
+    )
   );
   const target = join2(projectDir, KIT_STATE_PATH);
   await mkdir(dirname(target), { recursive: true });
@@ -19860,7 +19894,8 @@ async function writeKitState(projectDir, state) {
         kitRepo: state.kitRepo,
         project: state.project,
         locales: state.locales,
-        modules: sortedModules
+        modules: sortedModules,
+        projectModules: sortedProjectModules
       },
       null,
       2
@@ -19870,6 +19905,12 @@ async function writeKitState(projectDir, state) {
 }
 function installedModules(state) {
   return Object.entries(state.modules).sort(([a], [b]) => compareModuleNames(a, b)).map(([, entry]) => entry.manifest);
+}
+function projectModuleManifests(state) {
+  return Object.entries(state.projectModules).sort(([a], [b]) => compareCodePoint(a, b)).map(([, entry]) => entry.manifest);
+}
+function registeredModules(state) {
+  return [...installedModules(state), ...projectModuleManifests(state)];
 }
 
 // src/commands/kit-sync.ts
@@ -19881,9 +19922,13 @@ async function readExisting(kitDir) {
     throw error62;
   }
 }
+async function readExistingProjectModules(raw) {
+  return raw === null ? {} : kitStateSchema.parse(JSON.parse(raw)).projectModules;
+}
 async function kitSync(kitDir) {
   const config2 = await readKitConfig(kitDir);
   const manifests = await readKitManifests(kitDir);
+  const before = await readExisting(kitDir);
   const state = {
     kitVersion: config2.version,
     kitRepo: config2.repo,
@@ -19897,9 +19942,9 @@ async function kitSync(kitDir) {
         manifest.name,
         { version: manifest.version, manifest, files: {} }
       ])
-    )
+    ),
+    projectModules: await readExistingProjectModules(before)
   };
-  const before = await readExisting(kitDir);
   await writeKitState(kitDir, state);
   return { changed: before !== await readExisting(kitDir) };
 }
@@ -20142,7 +20187,7 @@ async function featureEntries(projectDir, files, configuredLocales) {
 }
 async function generate(projectDir) {
   const state = await readKitState(projectDir);
-  const manifests = installedModules(state);
+  const manifests = registeredModules(state);
   const features = await featureEntries(
     projectDir,
     manifests.map((m) => m.files),

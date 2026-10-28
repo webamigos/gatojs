@@ -53,6 +53,9 @@ export const kitStateSchema = z.object({
       files: z.record(z.string(), z.string()),
     }),
   ),
+  projectModules: z
+    .record(z.string(), z.object({ manifest: moduleManifestSchema }))
+    .default({}),
 });
 
 export type KitState = z.infer<typeof kitStateSchema>;
