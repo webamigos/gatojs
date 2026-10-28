@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,4 +29,53 @@ export async function removeTempDirs(): Promise<void> {
   await Promise.all(
     created.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
   );
+}
+
+export const IGNORE = [".git", "node_modules", ".env"];
+
+export async function snapshotDir(
+  dir: string,
+  ignore: string[],
+): Promise<Record<string, string>> {
+  const snapshot: Record<string, string> = {};
+  async function walk(relative: string): Promise<void> {
+    const entries = await readdir(join(dir, relative), { withFileTypes: true });
+    for (const entry of entries) {
+      if (ignore.includes(entry.name)) continue;
+      const path = relative === "" ? entry.name : `${relative}/${entry.name}`;
+      if (entry.isDirectory()) await walk(path);
+      else snapshot[path] = await readFile(join(dir, path), "utf8");
+    }
+  }
+  await walk("");
+  return snapshot;
+}
+
+export async function createProject(
+  name: string,
+  modules: string[],
+  parent?: string,
+): Promise<string> {
+  const { create } = await import("../commands/create.js");
+  const kitDir = await makeKitRepo("kit");
+  const target = join(parent ?? (await makeTempDir()), name);
+  await create({
+    target,
+    kitDir,
+    modules,
+    locales: null,
+    title: null,
+    adminEmail: null,
+    yes: true,
+    setup: false,
+    install: false,
+    git: false,
+    runner: async () => {},
+    prompter: {
+      ask: async (_question, fallback) => fallback,
+      confirm: async (_question, fallback) => fallback,
+    },
+    log: () => {},
+  });
+  return target;
 }

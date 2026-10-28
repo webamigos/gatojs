@@ -1,0 +1,5 @@
+model Organization {
+  id String @id
+  // wa:relations:start
+  // wa:relations:end
+}

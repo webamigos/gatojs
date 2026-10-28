@@ -2,5 +2,20 @@
   "name": "core",
   "version": "0.2.0",
   "description": "Rdzen fixture",
-  "files": ["src/features/auth/**"]
+  "files": [
+    "src/features/auth/**",
+    "src/shared/**",
+    "src/i18n/config.ts",
+    "prisma/schema/**",
+    "package.json",
+    "package-lock.json",
+    ".env.example",
+    "docker-compose.yml",
+    ".wa/bin/**",
+    "docs/**",
+    "src/modules.generated.ts"
+  ],
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
 }
