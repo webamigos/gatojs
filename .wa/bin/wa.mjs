@@ -19775,7 +19775,9 @@ async function readKitState(projectDir) {
     raw = await readFile(join(projectDir, KIT_STATE_PATH), "utf8");
   } catch (error62) {
     if (error62.code === "ENOENT") {
-      throw new Error(`Brak .wa/kit.json w ${projectDir} \u2014 to nie jest projekt wa-kit`);
+      throw new Error(
+        `Brak .wa/kit.json w ${projectDir} \u2014 to nie jest projekt wa-kit`
+      );
     }
     throw error62;
   }
@@ -19915,7 +19917,9 @@ function relationsBody(model) {
   return async (modules) => modules.flatMap((m) => m.schemaRelations).filter((relation) => relation.model === model).map((relation) => `${INDENT}${relation.field}`).join("\n");
 }
 async function envBody(modules) {
-  return modules.filter((m) => m.name !== "core" && m.env.length > 0).map((m) => [`# ${m.name}`, ...m.env.map((v) => `${v.name}=${v.example}`)].join("\n")).join("\n\n");
+  return modules.filter((m) => m.name !== "core" && m.env.length > 0).map(
+    (m) => [`# ${m.name}`, ...m.env.map((v) => `${v.name}=${v.example}`)].join("\n")
+  ).join("\n\n");
 }
 async function composeBody(modules, projectDir) {
   const parts = [];
@@ -19927,8 +19931,16 @@ async function composeBody(modules, projectDir) {
   return parts.join("\n");
 }
 var regionTargets = [
-  { file: "prisma/schema/auth.prisma", marker: "relations", body: relationsBody("User") },
-  { file: "prisma/schema/organizations.prisma", marker: "relations", body: relationsBody("Organization") },
+  {
+    file: "prisma/schema/auth.prisma",
+    marker: "relations",
+    body: relationsBody("User")
+  },
+  {
+    file: "prisma/schema/organizations.prisma",
+    marker: "relations",
+    body: relationsBody("Organization")
+  },
   { file: ".env.example", marker: "modules", body: envBody },
   { file: "docker-compose.yml", marker: "services", body: composeBody }
 ];
@@ -19941,7 +19953,11 @@ async function renderRegionTarget(target, modules, projectDir) {
     throw error62;
   }
   const body = await target.body(modules, projectDir);
-  return { file: target.file, current, next: replaceRegion(current, target.file, target.marker, body) };
+  return {
+    file: target.file,
+    current,
+    next: replaceRegion(current, target.file, target.marker, body)
+  };
 }
 
 // src/generate/index.ts
@@ -19961,7 +19977,8 @@ async function detectFeature(projectDir, name) {
   const base = join3(projectDir, "src", "features", name);
   const locales = [];
   for (const locale of LOCALES) {
-    if (await exists(join3(base, "i18n", `${locale}.json`))) locales.push(locale);
+    if (await exists(join3(base, "i18n", `${locale}.json`)))
+      locales.push(locale);
   }
   return {
     name,
@@ -19977,7 +19994,9 @@ async function featureEntries(projectDir, files) {
   const entries = [];
   for (const globs of files) {
     const names = [
-      ...new Set(globs.map((glob) => FEATURE_GLOB.exec(glob)?.[1]).filter((n) => !!n))
+      ...new Set(
+        globs.map((glob) => FEATURE_GLOB.exec(glob)?.[1]).filter((n) => !!n)
+      )
     ].sort(compareCodePoint);
     for (const name of names) {
       if (seen.has(name)) continue;
@@ -20002,10 +20021,12 @@ async function generate(projectDir) {
     [SERVER_REGISTRY, registry2.server],
     [CLIENT_REGISTRY, registry2.client]
   ]) {
-    const current = await readFile3(join3(projectDir, file2), "utf8").catch((error62) => {
-      if (error62.code === "ENOENT") return null;
-      throw error62;
-    });
+    const current = await readFile3(join3(projectDir, file2), "utf8").catch(
+      (error62) => {
+        if (error62.code === "ENOENT") return null;
+        throw error62;
+      }
+    );
     pending.push({ file: file2, current, next });
   }
   for (const target of regionTargets) {
