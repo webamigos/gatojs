@@ -81,6 +81,25 @@ describe("copyFiles", () => {
     expect(hashes).toEqual({ "package.json": "managed" });
   });
 
+  it("plik binarny spoza placeholderow kopiuje bajt w bajt i hashuje surowe bajty", async () => {
+    const kitDir = await makeTempDir();
+    const projectDir = await makeTempDir();
+    const bytes = Buffer.from([0xff, 0xfe, 0x00, 0x89, 0x50, 0x4e, 0x47]);
+    await writeFile(join(kitDir, "logo.bin"), bytes);
+    const hashes = await copyFiles({
+      kitDir,
+      projectDir,
+      files: ["logo.bin"],
+      config: testConfig,
+      names,
+    });
+    expect(await readFile(join(projectDir, "logo.bin"))).toEqual(bytes);
+    expect(hashes).toEqual({
+      "logo.bin":
+        "6a6e6599d88a9a8c7831b7de8a5451e9a2ccab385dafe8dfcf0a2db44894128c",
+    });
+  });
+
   it("pusta lista plikow daje pusty wynik", async () => {
     const kitDir = await makeTempDir();
     const projectDir = await makeTempDir();
