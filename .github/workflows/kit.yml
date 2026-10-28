@@ -35,3 +35,115 @@ jobs:
 
       - name: Bundle is up to date
         run: git diff --exit-code -- .wa/bin/wa.mjs
+
+  assemble:
+    name: Assemble (${{ matrix.combo.name }})
+    runs-on: ubuntu-latest
+    needs: cli
+    strategy:
+      fail-fast: false
+      matrix:
+        combo:
+          - name: core
+            modules: ""
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: matrix_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create project from the checked-out kit
+        run: node .wa/bin/wa.mjs create "$RUNNER_TEMP/matrix-app" --yes --kit "$GITHUB_WORKSPACE" --modules "${{ matrix.combo.modules }}"
+
+      - name: Test gates are in the project
+        working-directory: ${{ runner.temp }}/matrix-app
+        run: test -f stryker.config.json && test -f mutation-gate.json && test -f .claude/hooks/protect-tests.mjs && test -f .claude/agents/test-writer.md && test -f .claude/agents/test-reviewer.md
+
+      - name: No placeholders left in the project
+        working-directory: ${{ runner.temp }}/matrix-app
+        run: |
+          if git grep -nE "WA App|wa-app|wa_app" -- . ':!**/__tests__/**' ':!**/*.test.*' ':!package-lock.json' ':!.wa/bin/**'; then
+            echo "Placeholders left in the project"
+            exit 1
+          fi
+
+      - name: Validate schema
+        working-directory: ${{ runner.temp }}/matrix-app
+        run: npx prisma validate
+
+      - name: Migrate
+        working-directory: ${{ runner.temp }}/matrix-app
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/matrix_e2e
+        run: npx prisma migrate dev --name init
+
+      - name: Generated files are up to date
+        working-directory: ${{ runner.temp }}/matrix-app
+        run: npm run wa -- generate && git diff --exit-code
+
+      - name: Verify project
+        working-directory: ${{ runner.temp }}/matrix-app
+        run: npm run verify
+
+      - name: Integration tests
+        working-directory: ${{ runner.temp }}/matrix-app
+        env:
+          INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/matrix_app_test
+        run: npm run test:integration
+
+      - name: Project module is registered without editing core tests
+        working-directory: ${{ runner.temp }}/matrix-app
+        run: |
+          cp -R "$GITHUB_WORKSPACE/kit/cli/src/__tests__/fixtures/project-module/." .
+          node -e '
+            const fs = require("node:fs");
+            const state = JSON.parse(fs.readFileSync(".wa/kit.json", "utf8"));
+            state.projectModules = {
+              ...state.projectModules,
+              notes: {
+                manifest: {
+                  name: "notes",
+                  version: "0.1.0",
+                  description: "Notatki",
+                  requires: [],
+                  files: ["src/features/notes/**", "prisma/schema/notes.prisma"],
+                  dependencies: {},
+                  devDependencies: {},
+                  env: [{ name: "NOTES_LIMIT", example: "10" }],
+                  schemaRelations: [{ model: "Organization", field: "notes Note[]" }],
+                  compose: null,
+                  workspaces: [],
+                },
+              },
+            };
+            fs.writeFileSync(".wa/kit.json", JSON.stringify(state, null, 2) + "\n");
+          '
+          npm run wa -- generate
+          npm test
+
+      - name: Docker image builds
+        if: matrix.combo.name == 'core'
+        working-directory: ${{ runner.temp }}/matrix-app
+        run: docker build .

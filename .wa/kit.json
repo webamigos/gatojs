@@ -11,10 +11,10 @@
   ],
   "modules": {
     "core": {
-      "version": "0.0.0",
+      "version": "0.1.0",
       "manifest": {
         "name": "core",
-        "version": "0.0.0",
+        "version": "0.1.0",
         "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
         "requires": [],
         "files": [
