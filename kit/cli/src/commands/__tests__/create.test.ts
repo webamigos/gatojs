@@ -590,6 +590,33 @@ describe("create: polecenia", () => {
     await create(opts({ yes: true, install: true, git: true }));
     expect(logs.join("\n")).not.toContain("nie utworzono commita");
   });
+
+  it.each([
+    ["nieistniejący", false],
+    ["pusty", true],
+  ])(
+    "plik z pytań w katalogu (%s) przerywa create bez zapisu i kasowania",
+    async (_nazwa, istniejacy) => {
+      const dir = join(tmp, "acme-shop");
+      if (istniejacy) await mkdir(dir);
+      const prompter: Prompter = {
+        ask: vi.fn(async (_question: string, fallback: string) => {
+          await mkdir(dir, { recursive: true });
+          await writeFile(join(dir, "obcy.txt"), "cudze");
+          return fallback;
+        }),
+        confirm: vi.fn(
+          async (_question: string, fallback: boolean) => fallback,
+        ),
+      };
+      await expect(
+        create(opts({ target: dir, modules: null, prompter })),
+      ).rejects.toThrow(`Katalog ${dir} istnieje i nie jest pusty`);
+      expect(await readdir(dir)).toEqual(["obcy.txt"]);
+      expect(await read(dir, "obcy.txt")).toBe("cudze");
+      expect(runner).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("create: pytania", () => {
