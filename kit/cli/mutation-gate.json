@@ -78,13 +78,6 @@
       "reason": "równoważny: git ls-files zwraca ścieżki już posortowane"
     },
     {
-      "file": "src/kit/ownership.ts",
-      "mutator": "MethodExpression",
-      "original": "Object.entries({\n      ...manifest.dependencies,\n      ...manifest.devDependencies,\n    }).sort(([a], [b]) => compareCodePoint(a, b))",
-      "replacement": "Object.entries({\n  ...manifest.dependencies,\n  ...manifest.devDependencies\n})",
-      "reason": "równoważny: końcowe sortowanie dependencyMismatch porządkuje wynik"
-    },
-    {
       "file": "src/generate/index.ts",
       "mutator": "ArrayDeclaration",
       "original": "[]",

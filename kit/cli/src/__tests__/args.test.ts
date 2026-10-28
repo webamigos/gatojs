@@ -174,3 +174,120 @@ describe("parseListArgs", () => {
     expect(() => parseListArgs(["x"])).toThrow("Nieoczekiwany argument: x");
   });
 });
+
+describe("nadmiarowe argumenty pozycyjne", () => {
+  it("parseAddArgs zgłasza pierwszy nadmiarowy argument", () => {
+    expect(() => parseAddArgs(["auth", "extra"])).toThrow(
+      "Nieoczekiwany argument: extra",
+    );
+  });
+
+  it("parseRemoveArgs zgłasza pierwszy nadmiarowy argument", () => {
+    expect(() => parseRemoveArgs(["auth", "extra"])).toThrow(
+      "Nieoczekiwany argument: extra",
+    );
+  });
+
+  it("parseCreateArgs zgłasza nadmiarowy argument", () => {
+    expect(() => parseCreateArgs(["acme", "extra"])).toThrow(
+      "Nieoczekiwany argument: extra",
+    );
+  });
+
+  it("parseCreateArgs przy dwóch nadmiarowych zgłasza pierwszy z nich", () => {
+    expect(() => parseCreateArgs(["acme", "b", "c"])).toThrow(
+      "Nieoczekiwany argument: b",
+    );
+  });
+
+  it("parseAddArgs i parseRemoveArgs przy dwóch nadmiarowych zgłaszają pierwszy z nich", () => {
+    expect(() => parseAddArgs(["auth", "b", "c"])).toThrow(
+      "Nieoczekiwany argument: b",
+    );
+    expect(() => parseRemoveArgs(["auth", "b", "c"])).toThrow(
+      "Nieoczekiwany argument: b",
+    );
+  });
+
+  it("flaga przed celem nie zmienia liczenia nadmiarowych argumentów w create", () => {
+    expect(() => parseCreateArgs(["--yes", "acme", "extra"])).toThrow(
+      "Nieoczekiwany argument: extra",
+    );
+  });
+});
+
+function messageOf(run: () => unknown): string {
+  try {
+    run();
+  } catch (error) {
+    return (error as Error).message;
+  }
+  throw new Error("Oczekiwano błędu");
+}
+
+describe("błędy opcji po polsku", () => {
+  it("nieznana długa opcja", () => {
+    expect(() => parseAddArgs(["auth", "--foo"])).toThrow(
+      "Nieznana opcja: --foo",
+    );
+    expect(messageOf(() => parseAddArgs(["auth", "--foo"]))).toBe(
+      "Nieznana opcja: --foo",
+    );
+  });
+
+  it("nieznana krótka opcja", () => {
+    expect(messageOf(() => parseAddArgs(["auth", "-x"]))).toBe(
+      "Nieznana opcja: -x",
+    );
+  });
+
+  it("nieznana opcja w list, create i remove", () => {
+    expect(messageOf(() => parseListArgs(["--foo"]))).toBe(
+      "Nieznana opcja: --foo",
+    );
+    expect(messageOf(() => parseCreateArgs(["acme", "--foo"]))).toBe(
+      "Nieznana opcja: --foo",
+    );
+    expect(messageOf(() => parseRemoveArgs(["auth", "--foo"]))).toBe(
+      "Nieznana opcja: --foo",
+    );
+  });
+
+  it("opcja z wartością bez wartości", () => {
+    expect(messageOf(() => parseAddArgs(["auth", "--kit"]))).toBe(
+      "Opcja --kit wymaga wartości",
+    );
+    expect(messageOf(() => parseCreateArgs(["acme", "--title"]))).toBe(
+      "Opcja --title wymaga wartości",
+    );
+  });
+
+  it("opcja z wartością, po której stoi inna opcja", () => {
+    expect(
+      messageOf(() => parseAddArgs(["auth", "--kit", "--no-install"])),
+    ).toBe("Opcja --kit wymaga wartości");
+  });
+
+  it("flaga z wartością", () => {
+    expect(messageOf(() => parseRemoveArgs(["auth", "--force=1"]))).toBe(
+      "Opcja --force nie przyjmuje wartości",
+    );
+  });
+
+  it.each([
+    () => parseAddArgs(["auth", "--foo"]),
+    () => parseAddArgs(["auth", "-x"]),
+    () => parseAddArgs(["auth", "--kit"]),
+    () => parseAddArgs(["auth", "--kit", "--no-install"]),
+    () => parseRemoveArgs(["auth", "--force=1"]),
+    () => parseListArgs(["--foo"]),
+    () => parseCreateArgs(["acme", "--title"]),
+  ])("komunikat nie zawiera angielskiego tekstu Node", (run) => {
+    const message = messageOf(run);
+    expect(message).not.toContain("Unknown option");
+    expect(message).not.toContain("argument missing");
+    expect(message).not.toContain("ambiguous");
+    expect(message).not.toContain("does not take");
+    expect(message).not.toContain("Option '");
+  });
+});

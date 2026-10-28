@@ -63,7 +63,9 @@ async function composeBody({
 }: RegionContext): Promise<string> {
   const parts: string[] = [];
   for (const m of modules) {
-    if (m.compose === null) continue;
+    if (m.compose === null) {
+      continue;
+    }
     const content = await readFile(join(projectDir, m.compose), "utf8");
     parts.push(indent(content.replace(/\n+$/, "")));
   }
@@ -97,7 +99,9 @@ export async function renderRegionTarget(
   try {
     current = await readFile(join(context.projectDir, target.file), "utf8");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
     throw error;
   }
   const body = await target.body(context);

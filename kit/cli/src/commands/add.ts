@@ -1,9 +1,12 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdtemp, readFile, rm, rmdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { compareCodePoint } from "../compare.js";
 import { copyFiles } from "../assemble/copy.js";
-import { addDependencies } from "../assemble/package-json.js";
+import {
+  addDependencies,
+  dependencyConflicts,
+} from "../assemble/package-json.js";
 import { moduleFiles, resolveModules } from "../assemble/resolve-modules.js";
 import { generate } from "../generate/index.js";
 import { assemblableFiles } from "../kit/files.js";
@@ -20,6 +23,60 @@ export type AddOptions = {
   runner: Runner;
   log: (line: string) => void;
 };
+
+function missingDirectories(projectDir: string, files: string[]): string[] {
+  const missing = new Set<string>();
+  for (const file of files) {
+    let directory = dirname(file);
+    while (!existsSync(join(projectDir, directory))) {
+      missing.add(directory);
+      directory = dirname(directory);
+    }
+  }
+  return [...missing].sort((a, b) => b.length - a.length);
+}
+
+const PACKAGE_JSON = "package.json";
+
+type CleanupStep = { path: string; run: () => Promise<void> };
+
+async function rollbackAdd(input: {
+  projectDir: string;
+  files: string[];
+  createdDirectories: string[];
+  packageJsonOverwritten: boolean;
+  originalPackageJson: string;
+  log: (line: string) => void;
+}): Promise<void> {
+  const { projectDir, log } = input;
+  const steps: CleanupStep[] = [
+    ...input.files.map((file) => ({
+      path: file,
+      run: () => rm(join(projectDir, file), { force: true }),
+    })),
+    ...input.createdDirectories
+      .filter((directory) => existsSync(join(projectDir, directory)))
+      .map((directory) => ({
+        path: directory,
+        run: () => rmdir(join(projectDir, directory)),
+      })),
+  ];
+  if (input.packageJsonOverwritten) {
+    steps.push({
+      path: PACKAGE_JSON,
+      run: () =>
+        writeFile(join(projectDir, PACKAGE_JSON), input.originalPackageJson),
+    });
+  }
+  for (const step of steps) {
+    try {
+      await step.run();
+    } catch (error) {
+      const { code } = error as NodeJS.ErrnoException;
+      log(`Nie udało się posprzątać: ${step.path} (${code})`);
+    }
+  }
+}
 
 export async function add(options: AddOptions): Promise<{ added: string[] }> {
   const { projectDir, module, kitDir, runner, log } = options;
@@ -59,25 +116,47 @@ export async function add(options: AddOptions): Promise<{ added: string[] }> {
     snake: state.project.slug.replaceAll("-", "_"),
   };
   const modules = { ...state.modules };
-  const packageJsonPath = join(projectDir, "package.json");
-  let packageJson = await readFile(packageJsonPath, "utf8");
-  for (const { manifest, files } of filesByModule) {
-    const hashes = await copyFiles({
-      kitDir,
+  const packageJsonPath = join(projectDir, PACKAGE_JSON);
+  const originalPackageJson = await readFile(packageJsonPath, "utf8");
+  const plannedFiles = filesByModule.flatMap(({ files }) => files);
+  const createdDirectories = missingDirectories(projectDir, plannedFiles);
+  let packageJsonOverwritten = false;
+  try {
+    let packageJson = originalPackageJson;
+    for (const { manifest, files } of filesByModule) {
+      const hashes = await copyFiles({
+        kitDir,
+        projectDir,
+        files,
+        config,
+        names,
+      });
+      modules[manifest.name] = {
+        version: manifest.version,
+        manifest,
+        files: hashes,
+      };
+      for (const conflict of dependencyConflicts(packageJson, manifest)) {
+        log(
+          `Uwaga: ${conflict.name} (${conflict.section}) ma w projekcie ${conflict.project}, moduł ${manifest.name} wymaga ${conflict.module}; zostaje wersja projektu`,
+        );
+      }
+      packageJson = addDependencies(packageJson, manifest);
+    }
+    await writeFile(packageJsonPath, packageJson);
+    packageJsonOverwritten = true;
+    await writeKitState(projectDir, { ...state, modules });
+  } catch (error) {
+    await rollbackAdd({
       projectDir,
-      files,
-      config,
-      names,
+      files: plannedFiles,
+      createdDirectories,
+      packageJsonOverwritten,
+      originalPackageJson,
+      log,
     });
-    modules[manifest.name] = {
-      version: manifest.version,
-      manifest,
-      files: hashes,
-    };
-    packageJson = addDependencies(packageJson, manifest);
+    throw error;
   }
-  await writeFile(packageJsonPath, packageJson);
-  await writeKitState(projectDir, { ...state, modules });
   await generate(projectDir);
 
   if (options.install) {

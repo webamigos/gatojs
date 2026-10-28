@@ -53,7 +53,9 @@ const DEFAULT_LOCALES = "pl,en";
 const SETUP_QUESTION = "Uruchomić bazę, migrację i admin:create teraz? [t/N]";
 
 async function isNonEmptyDirectory(dir: string): Promise<boolean> {
-  if (!existsSync(dir)) return false;
+  if (!existsSync(dir)) {
+    return false;
+  }
   return (await readdir(dir)).length > 0;
 }
 
@@ -103,8 +105,11 @@ async function removeDirectoryContents(dir: string): Promise<void> {
 }
 
 async function discardAssembly(dir: string, existed: boolean): Promise<void> {
-  if (existed) await removeDirectoryContents(dir);
-  else await rm(dir, { recursive: true });
+  if (existed) {
+    await removeDirectoryContents(dir);
+  } else {
+    await rm(dir, { recursive: true });
+  }
 }
 
 async function assemble(input: {
@@ -270,7 +275,9 @@ export async function create(
   }
   await writeEnvFile(projectDir, answers.adminEmail);
 
-  if (options.git) await options.runner("git", ["init", "-q"], projectDir);
+  if (options.git) {
+    await options.runner("git", ["init", "-q"], projectDir);
+  }
   if (options.install) {
     try {
       await options.runner("npm", ["install"], projectDir);
@@ -280,8 +287,12 @@ export async function create(
       );
     }
   }
-  if (options.git) await commitInitial(options, projectDir, config.version);
-  if (runSetupSteps) await runSetup(options, projectDir, answers.adminEmail);
+  if (options.git) {
+    await commitInitial(options, projectDir, config.version);
+  }
+  if (runSetupSteps) {
+    await runSetup(options, projectDir, answers.adminEmail);
+  }
   logNextSteps(options.log, projectDir, runSetupSteps, answers.adminEmail);
   return { projectDir, modules: resolved.map((manifest) => manifest.name) };
 }

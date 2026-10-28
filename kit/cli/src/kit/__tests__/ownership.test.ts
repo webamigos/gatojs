@@ -44,7 +44,9 @@ describe("checkOwnership na fixture ownership-broken", () => {
 
   it("wykrywa zależność bez właściciela", async () => {
     const report = await checkOwnership(await makeKitRepo("ownership-broken"));
-    expect(report.unownedDependencies).toEqual(["lonely-dep"]);
+    expect(report.unownedDependencies).toEqual([
+      { section: "devDependencies", name: "lonely-dep" },
+    ]);
   });
 
   it("wykrywa różną wersję i zależność manifestu bez package.json", async () => {
@@ -52,12 +54,14 @@ describe("checkOwnership na fixture ownership-broken", () => {
     expect(report.dependencyMismatch).toEqual([
       {
         module: "demo",
+        section: "dependencies",
         name: "ghost",
         manifest: "1.0.0",
         packageJson: "<brak>",
       },
       {
         module: "demo",
+        section: "dependencies",
         name: "left-pad",
         manifest: "^1.3.0",
         packageJson: "^1.2.0",
@@ -84,31 +88,42 @@ describe("checkOwnership na fixture ownership-order", () => {
     expect(report.dependencyMismatch).toEqual([
       {
         module: "alpha",
+        section: "dependencies",
         name: "beta-lib",
         manifest: "2.0.0",
         packageJson: "2.1.0",
       },
       {
         module: "alpha",
+        section: "dependencies",
         name: "mid",
         manifest: "1.0.0",
         packageJson: "<brak>",
       },
       {
         module: "core",
+        section: "dependencies",
         name: "axios",
         manifest: "^1.0.0",
         packageJson: "^1.1.0",
       },
       {
         module: "core",
+        section: "dependencies",
         name: "zod",
         manifest: "^3.0.0",
         packageJson: "^3.1.0",
       },
-      { module: "zeta", name: "ant", manifest: "1.0.0", packageJson: "<brak>" },
       {
         module: "zeta",
+        section: "dependencies",
+        name: "ant",
+        manifest: "1.0.0",
+        packageJson: "<brak>",
+      },
+      {
+        module: "zeta",
+        section: "dependencies",
         name: "yarn-x",
         manifest: "1.0.0",
         packageJson: "1.1.0",
@@ -116,13 +131,13 @@ describe("checkOwnership na fixture ownership-order", () => {
     ]);
   });
 
-  it("sortuje zależności bez właściciela rosnąco", async () => {
+  it("sortuje zależności bez właściciela po sekcji, potem po nazwie", async () => {
     const report = await checkOwnership(await makeKitRepo("ownership-order"));
     expect(report.unownedDependencies).toEqual([
-      "unowned-a",
-      "unowned-b",
-      "unowned-m",
-      "unowned-z",
+      { section: "dependencies", name: "unowned-b" },
+      { section: "dependencies", name: "unowned-m" },
+      { section: "dependencies", name: "unowned-z" },
+      { section: "devDependencies", name: "unowned-a" },
     ]);
   });
 
@@ -147,6 +162,69 @@ describe("checkOwnership na fixture ownership-order", () => {
     const report = await checkOwnership(await makeKitRepo("ownership-order"));
     expect(report.unowned).toEqual([]);
     expect(report.multiOwned).toEqual([]);
+  });
+});
+
+describe("checkOwnership na fixture ownership-sections", () => {
+  it("porównuje zależności osobno dla każdej sekcji i sortuje po sekcji, potem po nazwie", async () => {
+    const report = await checkOwnership(
+      await makeKitRepo("ownership-sections"),
+    );
+    expect(report.dependencyMismatch).toEqual([
+      {
+        module: "core",
+        section: "dependencies",
+        name: "diff",
+        manifest: "2.0.0",
+        packageJson: "2.1.0",
+      },
+      {
+        module: "core",
+        section: "dependencies",
+        name: "wrongdev",
+        manifest: "^4.0.0",
+        packageJson: "<brak>",
+      },
+      {
+        module: "core",
+        section: "devDependencies",
+        name: "aaa-wrongdeps",
+        manifest: "3.0.0",
+        packageJson: "<brak>",
+      },
+      {
+        module: "core",
+        section: "devDependencies",
+        name: "devdiff",
+        manifest: "2.0.0",
+        packageJson: "2.1.0",
+      },
+    ]);
+  });
+
+  it("nazwa w sekcji, której żaden moduł w niej nie deklaruje, jest bez właściciela mimo deklaracji w drugiej sekcji", async () => {
+    const report = await checkOwnership(
+      await makeKitRepo("ownership-sections"),
+    );
+    expect(report.unownedDependencies).toEqual([
+      { section: "dependencies", name: "aaa-wrongdeps" },
+      { section: "dependencies", name: "zz-free" },
+      { section: "devDependencies", name: "aa-free" },
+      { section: "devDependencies", name: "twin" },
+      { section: "devDependencies", name: "wrongdev" },
+    ]);
+  });
+
+  it("ta sama nazwa w obu sekcjach z zgodnymi wersjami nie daje rozbieżności", async () => {
+    const report = await checkOwnership(
+      await makeKitRepo("ownership-sections"),
+    );
+    expect(
+      report.dependencyMismatch.filter((entry) => entry.name === "dual"),
+    ).toEqual([]);
+    expect(
+      report.unownedDependencies.filter((entry) => entry.name === "dual"),
+    ).toEqual([]);
   });
 });
 

@@ -8,7 +8,9 @@ export type Prompter = {
 const YES_ANSWERS = ["t", "tak", "y", "yes"];
 
 async function readAnswer(question: string): Promise<string> {
-  if (!process.stdin.isTTY) throw new Error("Brak terminala: użyj --yes");
+  if (!process.stdin.isTTY) {
+    throw new Error("Brak terminala: użyj --yes");
+  }
   const lines = createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -28,7 +30,9 @@ export const readlinePrompter: Prompter = {
   },
   async confirm(question, fallback) {
     const answer = await readAnswer(`${question} `);
-    if (answer === "") return fallback;
+    if (answer === "") {
+      return fallback;
+    }
     return YES_ANSWERS.includes(answer.toLowerCase());
   },
 };

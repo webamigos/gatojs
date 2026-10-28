@@ -33,7 +33,9 @@ export type RemoveOptions = {
 const HASH_CONFIG = { managedFiles: [] };
 
 function assertRemovable(state: KitState, module: string): void {
-  if (module === "core") throw new Error("Nie można usunąć rdzenia");
+  if (module === "core") {
+    throw new Error("Nie można usunąć rdzenia");
+  }
   if (module in state.projectModules) {
     throw new Error(
       `Moduł ${module} należy do projektu; wa remove usuwa tylko moduły kitu. Usuń jego pliki i wpis w projectModules ręcznie`,
@@ -62,7 +64,9 @@ async function realpathOfDeepestAncestor(path: string): Promise<string> {
     try {
       return join(await realpath(current), relative(current, path));
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw error;
+      }
       current = dirname(current);
     }
   }
@@ -85,7 +89,9 @@ async function readIfExists(path: string): Promise<Buffer | null> {
   try {
     return await readFile(path);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
     throw error;
   }
 }
@@ -97,8 +103,12 @@ async function changedFiles(
   const changed: string[] = [];
   for (const [file, savedHash] of Object.entries(files)) {
     const content = await readIfExists(await insideProject(projectDir, file));
-    if (content === null) continue;
-    if (fileHash(file, content, HASH_CONFIG) !== savedHash) changed.push(file);
+    if (content === null) {
+      continue;
+    }
+    if (fileHash(file, content, HASH_CONFIG) !== savedHash) {
+      changed.push(file);
+    }
   }
   return changed.sort(compareCodePoint);
 }
@@ -107,7 +117,9 @@ async function lstatIfExists(path: string): Promise<Stats | null> {
   try {
     return await lstat(path);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
     throw error;
   }
 }
@@ -121,8 +133,12 @@ async function removeEmptyParents(
   while (current.startsWith(root + sep)) {
     const stats = await lstatIfExists(current);
     if (stats !== null) {
-      if (!stats.isDirectory()) return;
-      if ((await readdir(current)).length > 0) return;
+      if (!stats.isDirectory()) {
+        return;
+      }
+      if ((await readdir(current)).length > 0) {
+        return;
+      }
       await rmdir(current);
     }
     current = dirname(current);

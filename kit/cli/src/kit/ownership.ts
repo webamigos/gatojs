@@ -4,13 +4,18 @@ import { compareCodePoint } from "../compare.js";
 import { assemblableFiles, matchFiles } from "./files.js";
 import { readKitConfig, readKitManifests } from "./kit-config.js";
 
+const SECTIONS = ["dependencies", "devDependencies"] as const;
+
+type DependencySection = (typeof SECTIONS)[number];
+
 export type OwnershipReport = {
   unowned: string[];
   multiOwned: { file: string; owners: string[] }[];
   globErrors: { module: string; glob: string; reason: "empty" | "brace" }[];
-  unownedDependencies: string[];
+  unownedDependencies: { section: DependencySection; name: string }[];
   dependencyMismatch: {
     module: string;
+    section: DependencySection;
     name: string;
     manifest: string;
     packageJson: string;
@@ -40,7 +45,9 @@ export async function checkOwnership(kitDir: string): Promise<OwnershipReport> {
       if (matched.length === 0) {
         globErrors.push({ module: manifest.name, glob, reason: "empty" });
       }
-      for (const file of matched) ownFiles.add(file);
+      for (const file of matched) {
+        ownFiles.add(file);
+      }
     }
     for (const file of ownFiles) {
       ownersByFile.set(file, [
@@ -60,43 +67,42 @@ export async function checkOwnership(kitDir: string): Promise<OwnershipReport> {
 
   const packageJson = JSON.parse(
     await readFile(join(kitDir, "package.json"), "utf8"),
-  ) as {
-    dependencies?: Record<string, string>;
-    devDependencies?: Record<string, string>;
+  ) as Partial<Record<DependencySection, Record<string, string>>>;
+  const declared: Record<DependencySection, Set<string>> = {
+    dependencies: new Set(),
+    devDependencies: new Set(),
   };
-  const installed: Record<string, string> = {
-    ...packageJson.dependencies,
-    ...packageJson.devDependencies,
-  };
-
-  const declared = new Set<string>();
   const dependencyMismatch: OwnershipReport["dependencyMismatch"] = [];
   for (const manifest of manifests) {
-    const entries = Object.entries({
-      ...manifest.dependencies,
-      ...manifest.devDependencies,
-    }).sort(([a], [b]) => compareCodePoint(a, b));
-    for (const [name, version] of entries) {
-      declared.add(name);
-      const installedVersion = installed[name];
-      if (installedVersion !== version) {
-        dependencyMismatch.push({
-          module: manifest.name,
-          name,
-          manifest: version,
-          packageJson: installedVersion ?? MISSING_IN_PACKAGE_JSON,
-        });
+    for (const section of SECTIONS) {
+      for (const [name, version] of Object.entries(manifest[section])) {
+        declared[section].add(name);
+        const installedVersion = packageJson[section]?.[name];
+        if (installedVersion !== version) {
+          dependencyMismatch.push({
+            module: manifest.name,
+            section,
+            name,
+            manifest: version,
+            packageJson: installedVersion ?? MISSING_IN_PACKAGE_JSON,
+          });
+        }
       }
     }
   }
   dependencyMismatch.sort(
     (a, b) =>
-      compareCodePoint(a.module, b.module) || compareCodePoint(a.name, b.name),
+      compareCodePoint(a.module, b.module) ||
+      SECTIONS.indexOf(a.section) - SECTIONS.indexOf(b.section) ||
+      compareCodePoint(a.name, b.name),
   );
 
-  const unownedDependencies = Object.keys(installed)
-    .filter((name) => !declared.has(name))
-    .sort(compareCodePoint);
+  const unownedDependencies = SECTIONS.flatMap((section) =>
+    Object.keys(packageJson[section] ?? {})
+      .filter((name) => !declared[section].has(name))
+      .sort(compareCodePoint)
+      .map((name) => ({ section, name })),
+  );
 
   globErrors.sort(
     (a, b) =>

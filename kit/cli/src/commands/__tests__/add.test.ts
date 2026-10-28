@@ -1,6 +1,15 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import {
+  chmod,
+  cp,
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -702,4 +711,401 @@ describe("addFromSource", () => {
     expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
     expect(await readdir(tmpRoot)).toEqual([]);
   });
+});
+
+async function addModuleToKit(
+  kitCopy: string,
+  manifest: Record<string, unknown>,
+): Promise<void> {
+  const name = manifest["name"] as string;
+  await writeFile(
+    join(kitCopy, `kit/modules/${name}.json`),
+    JSON.stringify({
+      version: "1.0.0",
+      description: name,
+      files: [`src/features/${name}/**`],
+      ...manifest,
+    }),
+  );
+  await writeProjectFile(
+    kitCopy,
+    `src/features/${name}/module.ts`,
+    `export default { key: "${name}" };\n`,
+  );
+  await runCommand("git", ["-C", kitCopy, "add", "-A"]);
+}
+
+async function setProjectDependencies(
+  dir: string,
+  sections: Record<string, Record<string, string>>,
+): Promise<void> {
+  const packagePath = join(dir, "package.json");
+  const parsed = JSON.parse(await readFile(packagePath, "utf8"));
+  for (const [section, dependencies] of Object.entries(sections)) {
+    parsed[section] = { ...parsed[section], ...dependencies };
+  }
+  await writeFile(packagePath, `${JSON.stringify(parsed, null, 2)}\n`);
+}
+
+function cleanupWarnings(): string[] {
+  return log.mock.calls
+    .map(([line]) => line)
+    .filter((line) => line.includes("Nie udało się posprzątać"));
+}
+
+function warnings(): string[] {
+  return log.mock.calls
+    .map(([line]) => line)
+    .filter((line) => line.startsWith("Uwaga:"));
+}
+
+describe("add: ostrzeżenie o innej wersji zależności", () => {
+  it("projekt ma zod ^3, moduł wymaga ^4: ostrzega, a package.json zostaje przy ^3", async () => {
+    const kitCopy = await makeKitRepo("kit");
+    await addModuleToKit(kitCopy, {
+      name: "zodder",
+      dependencies: { zod: "^4" },
+    });
+    const dir = await createProject("app", []);
+    await setProjectDependencies(dir, { dependencies: { zod: "^3" } });
+    await add({
+      projectDir: dir,
+      module: "zodder",
+      kitDir: kitCopy,
+      install: false,
+      runner,
+      log,
+    });
+    expect(warnings()).toEqual([
+      "Uwaga: zod (dependencies) ma w projekcie ^3, moduł zodder wymaga ^4; zostaje wersja projektu",
+    ]);
+    const after = JSON.parse(await readFile(join(dir, "package.json"), "utf8"));
+    expect(after.dependencies["zod"]).toBe("^3");
+  });
+
+  it("ostrzeżenie pojawia się przed ostatnią linią z migracją", async () => {
+    const kitCopy = await makeKitRepo("kit");
+    await addModuleToKit(kitCopy, {
+      name: "zodder",
+      dependencies: { zod: "^4" },
+    });
+    const dir = await createProject("app", []);
+    await setProjectDependencies(dir, { dependencies: { zod: "^3" } });
+    await add({
+      projectDir: dir,
+      module: "zodder",
+      kitDir: kitCopy,
+      install: false,
+      runner,
+      log,
+    });
+    expect(log.mock.calls.at(-1)).toEqual([
+      "npx prisma migrate dev --name add-zodder",
+    ]);
+    expect(
+      log.mock.calls.findIndex(([line]) => line.startsWith("Uwaga:")),
+    ).toBeGreaterThanOrEqual(0);
+  });
+
+  it("ta sama wersja nie daje ostrzeżenia", async () => {
+    const kitCopy = await makeKitRepo("kit");
+    await addModuleToKit(kitCopy, {
+      name: "zodder",
+      dependencies: { zod: "^4" },
+    });
+    const dir = await createProject("app", []);
+    await setProjectDependencies(dir, { dependencies: { zod: "^4" } });
+    await add({
+      projectDir: dir,
+      module: "zodder",
+      kitDir: kitCopy,
+      install: false,
+      runner,
+      log,
+    });
+    expect(warnings()).toEqual([]);
+  });
+
+  it("brak zależności w projekcie: bez ostrzeżenia, zależność dopisana", async () => {
+    const dir = await createProject("app", []);
+    await add({
+      projectDir: dir,
+      module: "demo",
+      kitDir,
+      install: false,
+      runner,
+      log,
+    });
+    expect(warnings()).toEqual([]);
+    const after = JSON.parse(await readFile(join(dir, "package.json"), "utf8"));
+    expect(after.dependencies["left-pad"]).toBe("^1.3.0");
+  });
+
+  it("zależność projektu w devDependencies, moduł w dependencies: bez ostrzeżenia, dopisana do dependencies", async () => {
+    const dir = await createProject("app", []);
+    await setProjectDependencies(dir, {
+      devDependencies: { "left-pad": "^1.0.0" },
+    });
+    await add({
+      projectDir: dir,
+      module: "demo",
+      kitDir,
+      install: false,
+      runner,
+      log,
+    });
+    expect(warnings()).toEqual([]);
+    const after = JSON.parse(await readFile(join(dir, "package.json"), "utf8"));
+    expect(after.dependencies["left-pad"]).toBe("^1.3.0");
+    expect(after.devDependencies["left-pad"]).toBe("^1.0.0");
+  });
+
+  it("zależność projektu w dependencies, moduł w devDependencies: bez ostrzeżenia", async () => {
+    const kitCopy = await makeKitRepo("kit");
+    await addModuleToKit(kitCopy, {
+      name: "tooling",
+      devDependencies: { zod: "^3" },
+    });
+    const dir = await createProject("app", []);
+    await add({
+      projectDir: dir,
+      module: "tooling",
+      kitDir: kitCopy,
+      install: false,
+      runner,
+      log,
+    });
+    expect(warnings()).toEqual([]);
+  });
+
+  it("kilka konfliktów jest wypisanych po sekcji, potem po nazwie, z nazwą sekcji", async () => {
+    const kitCopy = await makeKitRepo("kit");
+    await addModuleToKit(kitCopy, {
+      name: "multi",
+      dependencies: { zeta: "^2", alpha: "^2" },
+      devDependencies: { tsx: "^4.0.0" },
+    });
+    const dir = await createProject("app", []);
+    await setProjectDependencies(dir, {
+      dependencies: { zeta: "^1", alpha: "^1" },
+      devDependencies: { tsx: "^3.0.0" },
+    });
+    await add({
+      projectDir: dir,
+      module: "multi",
+      kitDir: kitCopy,
+      install: false,
+      runner,
+      log,
+    });
+    expect(warnings()).toEqual([
+      "Uwaga: alpha (dependencies) ma w projekcie ^1, moduł multi wymaga ^2; zostaje wersja projektu",
+      "Uwaga: zeta (dependencies) ma w projekcie ^1, moduł multi wymaga ^2; zostaje wersja projektu",
+      "Uwaga: tsx (devDependencies) ma w projekcie ^3.0.0, moduł multi wymaga ^4.0.0; zostaje wersja projektu",
+    ]);
+  });
+
+  it("przy kilku modułach porównuje z package.json po dodaniu poprzednich", async () => {
+    const kitCopy = await makeKitRepo("kit");
+    await addModuleToKit(kitCopy, {
+      name: "base",
+      dependencies: { foo: "^1" },
+    });
+    await addModuleToKit(kitCopy, {
+      name: "extra",
+      requires: ["base"],
+      dependencies: { foo: "^2" },
+    });
+    const dir = await createProject("app", []);
+    const result = await add({
+      projectDir: dir,
+      module: "extra",
+      kitDir: kitCopy,
+      install: false,
+      runner,
+      log,
+    });
+    expect(result.added).toEqual(["base", "extra"]);
+    expect(warnings()).toEqual([
+      "Uwaga: foo (dependencies) ma w projekcie ^1, moduł extra wymaga ^2; zostaje wersja projektu",
+    ]);
+    const after = JSON.parse(await readFile(join(dir, "package.json"), "utf8"));
+    expect(after.dependencies["foo"]).toBe("^1");
+  });
+});
+
+const DEMO_FILES = [
+  "src/features/demo/compose.yml",
+  "src/features/demo/env.ts",
+  "src/features/demo/i18n/pl.json",
+  "src/features/demo/module.ts",
+];
+
+describe("add: sprzątanie po błędzie I/O", () => {
+  async function kitWithMissingFile(relative: string): Promise<string> {
+    const kitCopy = await makeKitRepo("kit");
+    await rm(join(kitCopy, relative));
+    return kitCopy;
+  }
+
+  async function expectCleanFailure(
+    dir: string,
+    kitCopy: string,
+    module: string,
+  ): Promise<void> {
+    const snapshot = await snapshotDir(dir, IGNORE);
+    const packageBefore = await readFile(join(dir, "package.json"), "utf8");
+    const stateBefore = await readFile(join(dir, ".wa/kit.json"), "utf8");
+    const featuresBefore = await readdir(join(dir, "src/features"));
+    const error = await add({
+      projectDir: dir,
+      module,
+      kitDir: kitCopy,
+      install: true,
+      runner,
+      log,
+    }).then(
+      () => null,
+      (caught: unknown) => caught,
+    );
+    expect(error).toMatchObject({ code: "ENOENT" });
+    expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
+    expect(await readFile(join(dir, "package.json"), "utf8")).toBe(
+      packageBefore,
+    );
+    expect(await readFile(join(dir, ".wa/kit.json"), "utf8")).toBe(stateBefore);
+    expect(await readdir(join(dir, "src/features"))).toEqual(featuresBefore);
+    expect(runner).not.toHaveBeenCalled();
+    expect(cleanupWarnings()).toEqual([]);
+  }
+
+  it("brakujący na dysku drugi plik modułu: ENOENT, żaden plik ani katalog modułu nie zostaje", async () => {
+    const kitCopy = await kitWithMissingFile("src/features/demo/env.ts");
+    const dir = await createProject("app", []);
+    await expectCleanFailure(dir, kitCopy, "demo");
+    for (const file of DEMO_FILES) {
+      expect(existsSync(join(dir, file))).toBe(false);
+    }
+    expect(existsSync(join(dir, "src/features/demo"))).toBe(false);
+  });
+
+  it("błąd po utworzeniu podkatalogu usuwa też podkatalog i katalog modułu", async () => {
+    const kitCopy = await kitWithMissingFile("src/features/demo/module.ts");
+    const dir = await createProject("app", []);
+    await expectCleanFailure(dir, kitCopy, "demo");
+    for (const file of DEMO_FILES) {
+      expect(existsSync(join(dir, file))).toBe(false);
+    }
+    expect(existsSync(join(dir, "src/features/demo/i18n"))).toBe(false);
+    expect(existsSync(join(dir, "src/features/demo"))).toBe(false);
+  });
+
+  it("katalog istniejący przed add zostaje, nowe podkatalogi znikają", async () => {
+    const kitCopy = await kitWithMissingFile("src/features/demo/module.ts");
+    const dir = await createProject("app", []);
+    await mkdir(join(dir, "src/features/demo"), { recursive: true });
+    await expectCleanFailure(dir, kitCopy, "demo");
+    expect(existsSync(join(dir, "src/features/demo"))).toBe(true);
+    expect(await readdir(join(dir, "src/features/demo"))).toEqual([]);
+  });
+
+  it("istniejący wcześniej plik spoza modułu w katalogu modułu zostaje", async () => {
+    const kitCopy = await kitWithMissingFile("src/features/demo/module.ts");
+    const dir = await createProject("app", []);
+    await writeProjectFile(dir, "src/features/demo/notes.txt", "moje\n");
+    await expectCleanFailure(dir, kitCopy, "demo");
+    expect(
+      await readFile(join(dir, "src/features/demo/notes.txt"), "utf8"),
+    ).toBe("moje\n");
+    expect(await readdir(join(dir, "src/features/demo"))).toEqual([
+      "notes.txt",
+    ]);
+  });
+
+  it("błąd w drugim module usuwa także pliki pierwszego", async () => {
+    const kitCopy = await kitWithMissingFile(
+      "src/features/needs-demo/module.ts",
+    );
+    const dir = await createProject("app", []);
+    await expectCleanFailure(dir, kitCopy, "needs-demo");
+    for (const file of DEMO_FILES) {
+      expect(existsSync(join(dir, file))).toBe(false);
+    }
+    expect(existsSync(join(dir, "src/features/demo"))).toBe(false);
+    expect(existsSync(join(dir, "src/features/needs-demo"))).toBe(false);
+  });
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "błąd w zapisie .wa/kit.json przywraca package.json i usuwa pliki modułu, rzucając oryginalny błąd",
+    async () => {
+      const dir = await createProject("app", []);
+      const packageBefore = await readFile(join(dir, "package.json"), "utf8");
+      const stateBefore = await readFile(join(dir, ".wa/kit.json"), "utf8");
+      const snapshot = await snapshotDir(dir, IGNORE);
+      await chmod(join(dir, ".wa/kit.json"), 0o444);
+      let error: unknown = null;
+      try {
+        await add({
+          projectDir: dir,
+          module: "demo",
+          kitDir,
+          install: true,
+          runner,
+          log,
+        }).catch((caught: unknown) => {
+          error = caught;
+        });
+      } finally {
+        await chmod(join(dir, ".wa/kit.json"), 0o644);
+      }
+      expect(error).toMatchObject({ code: "EACCES" });
+      expect(await readFile(join(dir, "package.json"), "utf8")).toBe(
+        packageBefore,
+      );
+      expect(await readFile(join(dir, ".wa/kit.json"), "utf8")).toBe(
+        stateBefore,
+      );
+      expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
+      expect(existsSync(join(dir, "src/features/demo"))).toBe(false);
+      expect(runner).not.toHaveBeenCalled();
+      expect(cleanupWarnings()).toEqual([]);
+    },
+  );
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "package.json tylko do odczytu: EACCES, nic nie zostaje, brak ostrzeżeń o sprzątaniu",
+    async () => {
+      const dir = await createProject("app", []);
+      const packageBefore = await readFile(join(dir, "package.json"), "utf8");
+      const stateBefore = await readFile(join(dir, ".wa/kit.json"), "utf8");
+      const snapshot = await snapshotDir(dir, IGNORE);
+      await chmod(join(dir, "package.json"), 0o444);
+      let error: unknown = null;
+      try {
+        await add({
+          projectDir: dir,
+          module: "demo",
+          kitDir,
+          install: true,
+          runner,
+          log,
+        }).catch((caught: unknown) => {
+          error = caught;
+        });
+      } finally {
+        await chmod(join(dir, "package.json"), 0o644);
+      }
+      expect(error).toMatchObject({ code: "EACCES" });
+      expect(await readFile(join(dir, "package.json"), "utf8")).toBe(
+        packageBefore,
+      );
+      expect(await readFile(join(dir, ".wa/kit.json"), "utf8")).toBe(
+        stateBefore,
+      );
+      expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
+      expect(existsSync(join(dir, "src/features/demo"))).toBe(false);
+      expect(cleanupWarnings()).toEqual([]);
+      expect(runner).not.toHaveBeenCalled();
+    },
+  );
 });
