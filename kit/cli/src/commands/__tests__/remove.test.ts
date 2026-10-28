@@ -563,4 +563,51 @@ describe("remove", () => {
     expect(Object.keys((await readKitState(dir)).modules)).toEqual(["core"]);
     expect(existsSync(join(dir, "src/features/demo"))).toBe(false);
   });
+
+  it("plik modułu w brakujących katalogach nie blokuje remove i nie zostawia śladów", async () => {
+    const dir = await createProject("app", ["demo"]);
+    const state = await readKitState(dir);
+    const demo = state.modules.demo as NonNullable<
+      (typeof state.modules)["demo"]
+    >;
+    await setDemoFiles(dir, {
+      ...demo.files,
+      "src/features/demo/deep/a/b/missing.ts": sha256("dowolny"),
+    });
+    await expect(remove(removeOptions(dir, "demo"))).resolves.toEqual({
+      removed: ["demo"],
+    });
+    expect(existsSync(join(dir, "src/features/demo"))).toBe(false);
+    expect(existsSync(dir)).toBe(true);
+    expect(Object.keys((await readKitState(dir)).modules)).toEqual(["core"]);
+  });
+
+  it("brakujący plik w brakujących katalogach tuż pod korzeniem projektu nie blokuje remove", async () => {
+    const dir = await createProject("app", ["demo"]);
+    const state = await readKitState(dir);
+    const demo = state.modules.demo as NonNullable<
+      (typeof state.modules)["demo"]
+    >;
+    await setDemoFiles(dir, {
+      ...demo.files,
+      "nieistnieje/a/b/plik.ts": sha256("dowolny"),
+    });
+    await expect(remove(removeOptions(dir, "demo"))).resolves.toEqual({
+      removed: ["demo"],
+    });
+    expect(existsSync(join(dir, "nieistnieje"))).toBe(false);
+    expect(existsSync(dir)).toBe(true);
+  });
+
+  it("brakujące katalogi nie ukrywają ucieczki poza projekt przez ..", async () => {
+    const dir = await createProject("app", ["demo"]);
+    const entry = "src/features/demo/deep/../../../../../outside-x.txt";
+    await setDemoFiles(dir, { [entry]: sha256("x") });
+    const snapshot = await snapshotDir(dir, IGNORE);
+    await expect(remove(removeOptions(dir, "demo"))).rejects.toThrow(
+      `Ścieżka poza projektem: ${entry}`,
+    );
+    expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
+    expect(runner).not.toHaveBeenCalled();
+  });
 });
