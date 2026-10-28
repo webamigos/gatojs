@@ -202,6 +202,72 @@ describe("resolveKitSource", () => {
     },
   );
 
+  it.each(
+    [
+      "ext::sh -c touch% /tmp/x",
+      "ext::sh -c x ://",
+      "fd::3",
+      "git://host/repo.git",
+      "http://host/repo.git",
+    ].flatMap((value) =>
+      ["kitFlag", "envSource", "state.kitRepo"].map(
+        (origin) => [origin, value] as const,
+      ),
+    ),
+  )(
+    "źródło z %s o nieznanym transporcie (%s) jest odrzucone przed uruchomieniem runnera",
+    async (origin, value) => {
+      await expect(
+        resolveKitSource({
+          kitFlag: origin === "kitFlag" ? value : null,
+          envSource: origin === "envSource" ? value : undefined,
+          state:
+            origin === "state.kitRepo"
+              ? { ...baseState, kitRepo: value }
+              : baseState,
+          runner,
+          tmpDir,
+        }),
+      ).rejects.toThrow(`Nieprawidłowe źródło wa-kit: ${value}`);
+      expect(runner).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    "https://github.com/webamigos/wa-kit.git",
+    "ssh://git@github.com/webamigos/wa-kit.git",
+    "file:///tmp/wa-kit.git",
+    "git@github.com:webamigos/wa-kit.git",
+  ])(
+    "źródło %s ze znanym transportem jest klonowane jako zdalne",
+    async (url) => {
+      const source = await resolveKitSource({
+        kitFlag: url,
+        envSource: undefined,
+        state: baseState,
+        runner,
+        tmpDir,
+      });
+      expect(source).toBe(join(tmpDir, "wa-kit"));
+      expect(runner).toHaveBeenCalledTimes(1);
+      expect(runner).toHaveBeenCalledWith(
+        "git",
+        [
+          "clone",
+          "--depth",
+          "1",
+          "--branch",
+          "v0.1.0",
+          "--quiet",
+          "--",
+          url,
+          join(tmpDir, "wa-kit"),
+        ],
+        expect.any(String),
+      );
+    },
+  );
+
   it("tag w klonie wynika z wersji projektu", async () => {
     await resolveKitSource({
       kitFlag: "git@github.com:webamigos/wa-kit.git",
