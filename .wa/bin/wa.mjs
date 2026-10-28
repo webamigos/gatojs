@@ -19734,6 +19734,12 @@ function date4(params) {
 function compareCodePoint(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
+function compareModuleNames(a, b) {
+  if (a === b) return 0;
+  if (a === "core") return -1;
+  if (b === "core") return 1;
+  return compareCodePoint(a, b);
+}
 
 // src/manifest/schema.ts
 var moduleManifestSchema = external_exports.object({
@@ -19804,11 +19810,6 @@ async function readKitConfig(kitDir) {
   }
   return kitConfigSchema.parse(JSON.parse(raw));
 }
-function compareModuleNames(a, b) {
-  if (a === "core") return -1;
-  if (b === "core") return 1;
-  return compareCodePoint(a, b);
-}
 async function readKitManifests(kitDir) {
   const modulesDir = join(kitDir, "kit/modules");
   const fileNames = (await readdir(modulesDir)).filter((fileName) => fileName.endsWith(".json")).sort(
@@ -19870,11 +19871,7 @@ async function writeKitState(projectDir, state) {
   );
 }
 function installedModules(state) {
-  return Object.entries(state.modules).sort(([a], [b]) => {
-    if (a === "core") return -1;
-    if (b === "core") return 1;
-    return compareCodePoint(a, b);
-  }).map(([, entry]) => entry.manifest);
+  return Object.entries(state.modules).sort(([a], [b]) => compareModuleNames(a, b)).map(([, entry]) => entry.manifest);
 }
 
 // src/commands/kit-sync.ts

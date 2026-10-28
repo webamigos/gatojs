@@ -1,4 +1,4 @@
-import { compareCodePoint } from "../compare.js";
+import { compareCodePoint, compareModuleNames } from "../compare.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { kitStateSchema } from "./schema.js";
@@ -48,10 +48,6 @@ export async function writeKitState(
 
 export function installedModules(state: KitState): ModuleManifest[] {
   return Object.entries(state.modules)
-    .sort(([a], [b]) => {
-      if (a === "core") return -1;
-      if (b === "core") return 1;
-      return compareCodePoint(a, b);
-    })
+    .sort(([a], [b]) => compareModuleNames(a, b))
     .map(([, entry]) => entry.manifest);
 }

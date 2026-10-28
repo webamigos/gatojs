@@ -19,6 +19,41 @@
       "original": "end === undefined",
       "replacement": "false",
       "reason": "równoważny: ends.length !== 1 wyklucza wcześniej brak końca; warunek tylko zawęża typ dla TypeScript"
+    },
+    {
+      "file": "src/commands/kit-sync.ts",
+      "mutator": "ConditionalExpression",
+      "original": "(error as NodeJS.ErrnoException).code === \"ENOENT\"",
+      "replacement": "true",
+      "reason": "równoważny: przy błędzie innym niż ENOENT writeKitState rzuca ten sam błąd przy zapisie; zmienia się najwyżej miejsce błędu"
+    },
+    {
+      "file": "src/manifest/schema.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{\n    message: 'locales musi zawierać \"pl\"',\n  }",
+      "replacement": "{}",
+      "reason": "tylko komunikat: odrzucenie locales bez pl jest testowane, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/manifest/schema.ts",
+      "mutator": "StringLiteral",
+      "original": "'locales musi zawierać \"pl\"'",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: odrzucenie locales bez pl jest testowane, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/manifest/schema.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{\n    message: \"locales nie może zawierać duplikatów\",\n  }",
+      "replacement": "{}",
+      "reason": "tylko komunikat: odrzucenie duplikatów jest testowane, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/manifest/schema.ts",
+      "mutator": "StringLiteral",
+      "original": "\"locales nie może zawierać duplikatów\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: odrzucenie duplikatów jest testowane, treść komunikatu nie jest kontraktem"
     }
   ]
 }

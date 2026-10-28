@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { z } from "zod";
-import { compareCodePoint } from "../compare.js";
+import { compareModuleNames } from "../compare.js";
 import { moduleManifestSchema } from "../manifest/schema.js";
 import type { ModuleManifest } from "../manifest/schema.js";
 
@@ -34,12 +34,6 @@ export async function readKitConfig(kitDir: string): Promise<KitConfig> {
     throw error;
   }
   return kitConfigSchema.parse(JSON.parse(raw));
-}
-
-function compareModuleNames(a: string, b: string): number {
-  if (a === "core") return -1;
-  if (b === "core") return 1;
-  return compareCodePoint(a, b);
 }
 
 export async function readKitManifests(
