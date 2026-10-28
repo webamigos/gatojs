@@ -29,6 +29,7 @@ export function parseLocales(value: string): Locale[] {
   const locales = parseList(value);
   const valid =
     locales.includes("pl") &&
+    new Set(locales).size === locales.length &&
     locales.every((locale) => ALLOWED_LOCALES.includes(locale));
   if (!valid) throw new Error(LOCALES_ERROR);
   return locales as Locale[];

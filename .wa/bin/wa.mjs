@@ -20,7 +20,7 @@ function parseList(value) {
 }
 function parseLocales(value) {
   const locales = parseList(value);
-  const valid = locales.includes("pl") && locales.every((locale) => ALLOWED_LOCALES.includes(locale));
+  const valid = locales.includes("pl") && new Set(locales).size === locales.length && locales.every((locale) => ALLOWED_LOCALES.includes(locale));
   if (!valid) throw new Error(LOCALES_ERROR);
   return locales;
 }
@@ -20634,7 +20634,7 @@ async function addFromSource(options) {
 // src/commands/create.ts
 import { randomBytes } from "node:crypto";
 import { existsSync as existsSync2 } from "node:fs";
-import { mkdir as mkdir4, readdir as readdir2, readFile as readFile7, rm as rm2, writeFile as writeFile5 } from "node:fs/promises";
+import { chmod as chmod2, mkdir as mkdir4, readdir as readdir2, readFile as readFile7, rm as rm2, writeFile as writeFile5 } from "node:fs/promises";
 import { join as join8, resolve as resolve2 } from "node:path";
 
 // src/assemble/project-names.ts
@@ -20692,7 +20692,7 @@ async function collectAnswers(options, manifests, names) {
     adminEmail = answer === "" ? null : answer;
   }
   let setup = options.setup;
-  if (!setup && !yes) {
+  if (!setup && !yes && options.install) {
     setup = await prompter.confirm(SETUP_QUESTION, false);
   }
   return { modules, locales, title, adminEmail, setup };
@@ -20749,7 +20749,9 @@ async function writeEnvFile(projectDir, adminEmail) {
   if (adminEmail !== null) {
     env = env.replace(/^ADMIN_EMAIL=.*/m, () => `ADMIN_EMAIL=${adminEmail}`);
   }
-  await writeFile5(join8(projectDir, ".env"), env);
+  const envPath = join8(projectDir, ".env");
+  await writeFile5(envPath, env, { mode: 384 });
+  await chmod2(envPath, 384);
 }
 async function commitInitial(options, projectDir, version2) {
   const { runner, log } = options;

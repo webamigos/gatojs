@@ -1,6 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { parseList, parseLocales } from "../args.js";
 import type { Locale } from "../args.js";
@@ -83,7 +90,7 @@ async function collectAnswers(
     adminEmail = answer === "" ? null : answer;
   }
   let setup = options.setup;
-  if (!setup && !yes) {
+  if (!setup && !yes && options.install) {
     setup = await prompter.confirm(SETUP_QUESTION, false);
   }
   return { modules, locales, title, adminEmail, setup };
@@ -157,7 +164,9 @@ async function writeEnvFile(
   if (adminEmail !== null) {
     env = env.replace(/^ADMIN_EMAIL=.*/m, () => `ADMIN_EMAIL=${adminEmail}`);
   }
-  await writeFile(join(projectDir, ".env"), env);
+  const envPath = join(projectDir, ".env");
+  await writeFile(envPath, env, { mode: 0o600 });
+  await chmod(envPath, 0o600);
 }
 
 async function commitInitial(
