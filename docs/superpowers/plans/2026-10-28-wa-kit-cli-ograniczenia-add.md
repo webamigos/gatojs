@@ -60,7 +60,7 @@ Pliki: `kit/cli/src/commands/add.ts`, test `kit/cli/src/commands/__tests__/add.t
 
 - powrót do `existsSync` (wiszący symlink przechodzi).
 - `ABSENT_CODES` bez `ENOTDIR` (zadanie 3: błąd `ENOTDIR` z `lstat` zamiast `EEXIST` z kopiowania).
-- ciche połknięcie innych błędów `lstat` (wynik `false` dla każdego błędu) — zabija test zadania 3 i test z wiszącym symlinkiem.
+- ciche połknięcie innych błędów `lstat` (wynik `false` dla każdego błędu) — zabija test z `chmod 000` na `src/features/demo` (`EACCES`).
 
 ## Zadanie 3. `add.ts`: rollback po przerwanym zapisie, ciche brakujące pliki, log bez `code`
 
@@ -104,7 +104,7 @@ testy `kit/cli/src/commands/__tests__/add.test.ts`, `kit/cli/src/commands/__test
 - Mock `node:fs/promises` obejmuje `kit-state.ts` i `copy.ts` — test musi uzbrajać awarię tylko dla konkretnej ścieżki i tylko raz.
 - `lstat` na Windows: test symlinku pomijany na `win32`, jak testy `chmod`.
 - Wiszący symlink jako katalog modułu (`src/features/demo` → nic): `missingDirectories` używa `existsSync`; po zmianie `add` kończy się
-  `EEXIST` z `mkdir` bez linii sprzątania — test w zadaniu 3 nie jest wymagany, sprawdza recenzja.
+  `ENOENT` z `mkdir` bez linii sprzątania, symlink nietknięty (sprawdził recenzent skryptem) — test nie jest wymagany.
 
 ## Kolejność i proces
 
