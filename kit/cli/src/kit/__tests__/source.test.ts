@@ -142,6 +142,7 @@ describe("resolveKitSource", () => {
         "--branch",
         "v0.1.0",
         "--quiet",
+        "--",
         "https://example.com/org/wa-kit.git",
         join(tmpDir, "wa-kit"),
       ],
@@ -167,12 +168,39 @@ describe("resolveKitSource", () => {
         "--branch",
         "v0.1.0",
         "--quiet",
+        "--",
         "git@github.com:webamigos/wa-kit.git",
         join(tmpDir, "wa-kit"),
       ],
       expect.any(String),
     );
   });
+
+  it.each([
+    ["kitFlag", "--upload-pack=touch /tmp/x://"],
+    ["envSource", "--upload-pack=touch /tmp/x://"],
+    ["state.kitRepo", "--upload-pack=touch /tmp/x://"],
+    ["kitFlag", "-lokalny-katalog"],
+    ["envSource", "-lokalny-katalog"],
+    ["state.kitRepo", "-lokalny-katalog"],
+  ])(
+    "źródło z %s zaczynające się od myślnika (%s) jest odrzucone przed uruchomieniem runnera",
+    async (origin, value) => {
+      await expect(
+        resolveKitSource({
+          kitFlag: origin === "kitFlag" ? value : null,
+          envSource: origin === "envSource" ? value : undefined,
+          state:
+            origin === "state.kitRepo"
+              ? { ...baseState, kitRepo: value }
+              : baseState,
+          runner,
+          tmpDir,
+        }),
+      ).rejects.toThrow(`Nieprawidłowe źródło wa-kit: ${value}`);
+      expect(runner).not.toHaveBeenCalled();
+    },
+  );
 
   it("tag w klonie wynika z wersji projektu", async () => {
     await resolveKitSource({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCreateArgs } from "../args.js";
+import { parseAddArgs, parseCreateArgs } from "../args.js";
 
 describe("parseCreateArgs", () => {
   it("brak katalogu zgłasza Podaj katalog projektu", () => {
@@ -100,5 +100,27 @@ describe("parseCreateArgs", () => {
       target: "acme",
       yes: true,
     });
+  });
+});
+
+describe("parseAddArgs", () => {
+  it("sam moduł dostaje wartości domyślne", () => {
+    expect(parseAddArgs(["demo"])).toEqual({
+      module: "demo",
+      kit: null,
+      install: true,
+    });
+  });
+
+  it("czyta --no-install i --kit", () => {
+    expect(parseAddArgs(["demo", "--no-install", "--kit", "x"])).toEqual({
+      module: "demo",
+      kit: "x",
+      install: false,
+    });
+  });
+
+  it("brak modułu zgłasza Podaj nazwę modułu", () => {
+    expect(() => parseAddArgs([])).toThrow("Podaj nazwę modułu");
   });
 });

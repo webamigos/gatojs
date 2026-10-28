@@ -1,5 +1,7 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createProject,
@@ -12,6 +14,8 @@ import {
 import { readKitState, writeKitState } from "../../manifest/kit-state.js";
 import type { Runner } from "../../process/runner.js";
 import { add, addFromSource } from "../add.js";
+
+const runCommand = promisify(execFile);
 
 let kitDir: string;
 let runner: ReturnType<typeof vi.fn<Runner>>;
@@ -432,6 +436,74 @@ describe("add", () => {
   });
 });
 
+describe("add na zmodyfikowanej kopii kitu", () => {
+  it("projectSnake z projektu my-app zastępuje wa_app w pliku modułu jako my_app", async () => {
+    const kitCopy = await makeKitRepo("kit");
+    await writeFile(
+      join(kitCopy, "src/features/demo/module.ts"),
+      "export const prefix = 'wa_app';\n",
+    );
+    const kitJsonPath = join(kitCopy, "kit/kit.json");
+    const kitJson = JSON.parse(await readFile(kitJsonPath, "utf8"));
+    kitJson.placeholderFiles.push("src/features/demo/module.ts");
+    await writeFile(kitJsonPath, JSON.stringify(kitJson, null, 2));
+    await runCommand("git", ["-C", kitCopy, "add", "-A"]);
+    const dir = await createProject("my-app", []);
+    await add({
+      projectDir: dir,
+      module: "demo",
+      kitDir: kitCopy,
+      install: false,
+      runner,
+      log,
+    });
+    expect(
+      await readFile(join(dir, "src/features/demo/module.ts"), "utf8"),
+    ).toBe("export const prefix = 'my_app';\n");
+  });
+
+  it("kolizje są wypisane alfabetycznie, także gdy zależność alpha wymaga zeta", async () => {
+    const kitCopy = await makeKitRepo("kit");
+    await writeFile(
+      join(kitCopy, "kit/modules/alpha.json"),
+      JSON.stringify({
+        name: "alpha",
+        version: "1.0.0",
+        description: "alpha",
+        requires: ["zeta"],
+        files: ["src/features/alpha/**"],
+      }),
+    );
+    await writeFile(
+      join(kitCopy, "kit/modules/zeta.json"),
+      JSON.stringify({
+        name: "zeta",
+        version: "1.0.0",
+        description: "zeta",
+        files: ["src/features/zeta/**"],
+      }),
+    );
+    await writeProjectFile(kitCopy, "src/features/alpha/module.ts", "a\n");
+    await writeProjectFile(kitCopy, "src/features/zeta/module.ts", "z\n");
+    await runCommand("git", ["-C", kitCopy, "add", "-A"]);
+    const dir = await createProject("app", []);
+    await writeProjectFile(dir, "src/features/alpha/module.ts", "x\n");
+    await writeProjectFile(dir, "src/features/zeta/module.ts", "y\n");
+    await expect(
+      add({
+        projectDir: dir,
+        module: "alpha",
+        kitDir: kitCopy,
+        install: false,
+        runner,
+        log,
+      }),
+    ).rejects.toThrow(
+      "Pliki już istnieją, przerwano bez zmian:\n  src/features/alpha/module.ts\n  src/features/zeta/module.ts",
+    );
+  });
+});
+
 describe("addFromSource", () => {
   let tmpRoot: string;
 
@@ -495,17 +567,39 @@ describe("addFromSource", () => {
     });
     expect(result.added).toEqual(["demo"]);
     const cloneArgs = vi.mocked(cloning).mock.calls[0]?.[1] ?? [];
-    expect(cloneArgs.slice(0, 7)).toEqual([
+    expect(cloneArgs.slice(0, 8)).toEqual([
       "clone",
       "--depth",
       "1",
       "--branch",
       "v0.1.0",
       "--quiet",
+      "--",
       "https://example.com/org/wa-kit.git",
     ]);
-    expect(cloneArgs[7]?.startsWith(tmpRoot)).toBe(true);
-    expect(cloneArgs[7]?.endsWith("/wa-kit")).toBe(true);
+    expect(cloneArgs[8]?.startsWith(`${tmpRoot}/`)).toBe(true);
+    expect(cloneArgs[8]?.endsWith("/wa-kit")).toBe(true);
+    expect(await readdir(tmpRoot)).toEqual([]);
+  });
+
+  it("katalog tymczasowy leży wewnątrz tmpRoot i nie zostawia wpisów obok niego", async () => {
+    const dir = await createProject("app", []);
+    const parent = dirname(tmpRoot);
+    const prefix = basename(tmpRoot);
+    await addFromSource({
+      projectDir: dir,
+      module: "demo",
+      kitFlag: "https://example.com/org/wa-kit.git",
+      envSource: undefined,
+      install: false,
+      runner: cloneFromKit(),
+      log,
+      tmpRoot,
+    });
+    const siblings = (await readdir(parent)).filter(
+      (name) => name.startsWith(prefix) && name !== prefix,
+    );
+    expect(siblings).toEqual([]);
     expect(await readdir(tmpRoot)).toEqual([]);
   });
 
