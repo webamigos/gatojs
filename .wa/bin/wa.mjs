@@ -5,13 +5,372 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// src/commands/kit-sync.ts
-import { readFile as readFile3 } from "node:fs/promises";
-import { join as join3 } from "node:path";
+// src/bin.ts
+import { dirname as dirname4, resolve as resolve2 } from "node:path";
+import { fileURLToPath } from "node:url";
 
-// src/kit/kit-config.ts
-import { readdir, readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+// src/args.ts
+import { parseArgs } from "node:util";
+var LOCALES_ERROR = "--locales: dozwolone pl,en; pl jest wymagany";
+var ALLOWED_LOCALES = ["pl", "en"];
+function parseList(value) {
+  return value.split(",").map((item) => item.trim()).filter((item) => item !== "");
+}
+function parseLocales(value) {
+  const locales = parseList(value);
+  const valid = locales.includes("pl") && locales.every((locale) => ALLOWED_LOCALES.includes(locale));
+  if (!valid) throw new Error(LOCALES_ERROR);
+  return locales;
+}
+function parseCreateArgs(argv) {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    options: {
+      modules: { type: "string" },
+      locales: { type: "string" },
+      title: { type: "string" },
+      "admin-email": { type: "string" },
+      setup: { type: "boolean", default: false },
+      yes: { type: "boolean", default: false },
+      "no-install": { type: "boolean", default: false },
+      "no-git": { type: "boolean", default: false },
+      kit: { type: "string" }
+    }
+  });
+  const [target] = positionals;
+  if (target === void 0) throw new Error("Podaj katalog projektu");
+  if (values.setup && values["no-install"]) {
+    throw new Error("--setup wymaga instalacji zale\u017Cno\u015Bci (bez --no-install)");
+  }
+  return {
+    target,
+    modules: values.modules === void 0 ? null : parseList(values.modules),
+    locales: values.locales === void 0 ? null : parseLocales(values.locales),
+    title: values.title ?? null,
+    adminEmail: values["admin-email"] ?? null,
+    yes: values.yes,
+    setup: values.setup,
+    install: !values["no-install"],
+    git: !values["no-git"],
+    kit: values.kit ?? null
+  };
+}
+
+// src/commands/create.ts
+import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
+import { mkdir as mkdir4, readdir as readdir2, readFile as readFile6, rm, writeFile as writeFile4 } from "node:fs/promises";
+import { join as join6, resolve } from "node:path";
+
+// src/assemble/copy.ts
+import { chmod, mkdir, readFile as readFile2, stat, writeFile } from "node:fs/promises";
+import { dirname, join as join2 } from "node:path";
+
+// src/assemble/hash.ts
+import { createHash } from "node:crypto";
+
+// src/generate/targets.ts
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
+// src/compare.ts
+function compareCodePoint(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+function compareModuleNames(a, b) {
+  if (a === b) return 0;
+  if (a === "core") return -1;
+  if (b === "core") return 1;
+  return compareCodePoint(a, b);
+}
+
+// src/generate/regions.ts
+function replaceRegion(content, file2, marker, body) {
+  const startToken = `wa:${marker}:start`;
+  const endToken = `wa:${marker}:end`;
+  const eol = content.includes("\r\n") ? "\r\n" : "\n";
+  const lines = content.split(/\r?\n/);
+  const starts = indicesOf(lines, startToken);
+  const ends = indicesOf(lines, endToken);
+  const [start] = starts;
+  const [end] = ends;
+  if (starts.length !== 1 || ends.length !== 1 || start === void 0 || end === void 0 || end <= start) {
+    throw new Error(`${file2}: uszkodzony region wa:${marker}`);
+  }
+  const bodyLines = body === "" ? [] : body.split(/\r?\n/).map((line) => line.replace(/\r$/, ""));
+  if (bodyLines.some(
+    (line) => line.includes(startToken) || line.includes(endToken)
+  )) {
+    throw new Error(
+      `${file2}: tre\u015B\u0107 regionu wa:${marker} zawiera znacznik regionu`
+    );
+  }
+  return [...lines.slice(0, start + 1), ...bodyLines, ...lines.slice(end)].join(
+    eol
+  );
+}
+function indicesOf(lines, token) {
+  const found = [];
+  lines.forEach((line, index) => {
+    if (line.includes(token)) found.push(index);
+  });
+  return found;
+}
+
+// src/generate/targets.ts
+var INDENT = "  ";
+function indent(text) {
+  return text.split("\n").map((line) => line === "" ? line : `${INDENT}${line}`).join("\n");
+}
+function relationsBody(model) {
+  return async ({ modules }) => modules.flatMap((m) => m.schemaRelations).filter((relation) => relation.model === model).map((relation) => `${INDENT}${relation.field}`).join("\n");
+}
+function fillPlaceholders(text, project) {
+  return text.replaceAll("{{projectSlug}}", project.slug).replaceAll("{{projectName}}", project.name);
+}
+async function envBody({ modules, project }) {
+  return modules.filter((m) => m.name !== "core" && m.env.length > 0).map(
+    (m) => [
+      `# ${m.name}`,
+      ...m.env.map(
+        (v) => `${v.name}=${fillPlaceholders(v.example, project)}`
+      )
+    ].join("\n")
+  ).join("\n\n");
+}
+async function composeBody({
+  modules,
+  projectDir
+}) {
+  const parts = [];
+  for (const m of modules) {
+    if (m.compose === null) continue;
+    const content = await readFile(join(projectDir, m.compose), "utf8");
+    parts.push(indent(content.replace(/\n+$/, "")));
+  }
+  return parts.join("\n");
+}
+var regionTargets = [
+  {
+    file: "prisma/schema/auth.prisma",
+    marker: "relations",
+    body: relationsBody("User")
+  },
+  {
+    file: "prisma/schema/organizations.prisma",
+    marker: "relations",
+    body: relationsBody("Organization")
+  },
+  { file: ".env.example", marker: "modules", body: envBody },
+  { file: "docker-compose.yml", marker: "services", body: composeBody }
+];
+var REGION_FILES = regionTargets.map((target) => target.file).sort(compareCodePoint);
+async function renderRegionTarget(target, context) {
+  let current;
+  try {
+    current = await readFile(join(context.projectDir, target.file), "utf8");
+  } catch (error62) {
+    if (error62.code === "ENOENT") return null;
+    throw error62;
+  }
+  const body = await target.body(context);
+  return {
+    file: target.file,
+    current,
+    next: replaceRegion(current, target.file, target.marker, body)
+  };
+}
+
+// src/assemble/hash.ts
+var REGION_START = /wa:([^:\s]+):start/;
+function stripRegions(content) {
+  const lines = content.split("\n");
+  const kept = [];
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index];
+    kept.push(line);
+    index += 1;
+    const region = REGION_START.exec(line)?.[1];
+    if (region === void 0) continue;
+    const end = lines.findIndex(
+      (candidate, position) => position >= index && candidate.includes(`wa:${region}:end`)
+    );
+    if (end === -1) continue;
+    kept.push(lines[end]);
+    index = end + 1;
+  }
+  return kept.join("\n");
+}
+function sha256(data) {
+  return createHash("sha256").update(data).digest("hex");
+}
+function fileHash(file2, content, config2) {
+  if (config2.managedFiles.includes(file2)) return "managed";
+  if (REGION_FILES.includes(file2)) {
+    return sha256(stripRegions(content.toString("utf8")));
+  }
+  return sha256(content);
+}
+
+// src/assemble/placeholders.ts
+function applyPlaceholders(file2, content, config2, names) {
+  if (!config2.placeholderFiles.includes(file2)) return content;
+  return content.replaceAll(config2.placeholders.projectName, names.name).replaceAll(config2.placeholders.projectSlug, names.slug).replaceAll(config2.placeholders.projectSnake, names.snake);
+}
+
+// src/assemble/copy.ts
+var PERMISSION_BITS = 511;
+async function copyFiles(input2) {
+  const hashes = {};
+  for (const file2 of input2.files) {
+    const source = join2(input2.kitDir, file2);
+    const destination = join2(input2.projectDir, file2);
+    const original = await readFile2(source);
+    const text = original.toString("utf8");
+    const content = applyPlaceholders(file2, text, input2.config, input2.names);
+    await mkdir(dirname(destination), { recursive: true });
+    const written = content === text ? original : Buffer.from(content);
+    await writeFile(destination, written);
+    await chmod(destination, (await stat(source)).mode & PERMISSION_BITS);
+    hashes[file2] = fileHash(file2, written, input2.config);
+  }
+  return hashes;
+}
+
+// src/assemble/package-json.ts
+function sortedKeys(dependencies) {
+  return Object.fromEntries(
+    Object.entries(dependencies).sort(([a], [b]) => compareCodePoint(a, b))
+  );
+}
+function serialize(packageJson) {
+  return `${JSON.stringify(packageJson, null, 2)}
+`;
+}
+function sumDependencies(manifests, section) {
+  return sortedKeys(
+    Object.assign({}, ...manifests.map((manifest) => manifest[section]))
+  );
+}
+function projectPackageJson(kitPackageJson, manifests, names) {
+  const packageJson = JSON.parse(kitPackageJson);
+  packageJson.name = names.slug;
+  packageJson.version = "0.1.0";
+  packageJson.dependencies = sumDependencies(manifests, "dependencies");
+  packageJson.devDependencies = sumDependencies(manifests, "devDependencies");
+  return serialize(packageJson);
+}
+
+// src/assemble/project-names.ts
+import { basename } from "node:path";
+var SLUG_PATTERN = /^[a-z][a-z0-9-]{1,49}$/;
+function displayName(slug) {
+  return slug.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+}
+function projectNames(target, title) {
+  const slug = basename(target);
+  if (!SLUG_PATTERN.test(slug)) {
+    throw new Error(
+      `Nazwa projektu "${slug}": dozwolone ma\u0142e litery, cyfry i my\u015Blniki, pierwsza litera, 2\u201350 znak\xF3w`
+    );
+  }
+  return {
+    name: title ?? displayName(slug),
+    slug,
+    snake: slug.replaceAll("-", "_")
+  };
+}
+
+// src/kit/files.ts
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+var run = promisify(execFile);
+var GIT_FATAL_EXIT_CODE = 128;
+var REGEXP_SPECIAL = /[.*+?^${}()|[\]\\]/;
+function globToRegExp(glob) {
+  let source = "";
+  let index = 0;
+  while (index < glob.length) {
+    if (glob.startsWith("**/", index)) {
+      source += "(?:.*/)?";
+      index += 3;
+    } else if (glob.startsWith("**", index)) {
+      source += ".*";
+      index += 2;
+    } else if (glob[index] === "*") {
+      source += "[^/]*";
+      index += 1;
+    } else {
+      const char = glob[index];
+      source += REGEXP_SPECIAL.test(char) ? `\\${char}` : char;
+      index += 1;
+    }
+  }
+  return new RegExp(`^${source}$`);
+}
+function matchFiles(globs, files) {
+  const patterns = globs.map(globToRegExp);
+  return files.filter((file2) => patterns.some((pattern) => pattern.test(file2))).sort(compareCodePoint);
+}
+async function listKitFiles(kitDir) {
+  let stdout;
+  try {
+    ({ stdout } = await run("git", ["-C", kitDir, "ls-files", "-z"], {
+      maxBuffer: 64 * 1024 * 1024
+    }));
+  } catch (error62) {
+    if (error62.code === GIT_FATAL_EXIT_CODE) {
+      throw new Error(`${kitDir} nie jest repozytorium git`);
+    }
+    throw error62;
+  }
+  return stdout.split("\0").filter(Boolean).sort(compareCodePoint);
+}
+async function assemblableFiles(kitDir, config2) {
+  const files = await listKitFiles(kitDir);
+  const excluded = new Set(
+    matchFiles([...config2.kitOnly, ...config2.generatedFiles], files)
+  );
+  return files.filter((file2) => !excluded.has(file2));
+}
+
+// src/assemble/resolve-modules.ts
+var CORE = "core";
+function resolveModules(requested, available) {
+  const byName = new Map(
+    available.map((manifest) => [manifest.name, manifest])
+  );
+  const resolved = /* @__PURE__ */ new Map();
+  const pending = [...requested].reverse();
+  pending.push(CORE);
+  while (pending.length > 0) {
+    const name = pending.pop();
+    if (resolved.has(name)) continue;
+    const manifest = byName.get(name);
+    if (!manifest) {
+      const names = available.map((candidate) => candidate.name).filter((candidate) => candidate !== CORE).sort(compareModuleNames);
+      throw new Error(`Nieznany modu\u0142: ${name}. Dost\u0119pne: ${names.join(", ")}`);
+    }
+    resolved.set(name, manifest);
+    pending.push(...manifest.requires);
+  }
+  return [...resolved.values()].sort(
+    (a, b) => compareModuleNames(a.name, b.name)
+  );
+}
+function moduleFiles(manifest, files) {
+  return matchFiles(manifest.files, files);
+}
+
+// src/generate/index.ts
+import { mkdir as mkdir3, readFile as readFile4, stat as stat2, writeFile as writeFile3 } from "node:fs/promises";
+import { dirname as dirname3, join as join4 } from "node:path";
+
+// src/manifest/kit-state.ts
+import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile2 } from "node:fs/promises";
+import { dirname as dirname2, join as join3 } from "node:path";
 
 // node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -5080,7 +5439,7 @@ var recursive = /* @__PURE__ */ new WeakMap();
 var NONE = 0;
 var ASSUMED = 1;
 var PROVEN = 2;
-function isRecursive(inst, stack, resolve) {
+function isRecursive(inst, stack, resolve3) {
   const cached2 = recursive.get(inst);
   if (cached2 !== void 0)
     return cached2 ? PROVEN : NONE;
@@ -5090,7 +5449,7 @@ function isRecursive(inst, stack, resolve) {
   let result = NONE;
   const check2 = (child) => {
     if (result !== PROVEN && child?._zod) {
-      const answer = isRecursive(child, stack, resolve);
+      const answer = isRecursive(child, stack, resolve3);
       if (answer > result)
         result = answer;
     }
@@ -5101,7 +5460,7 @@ function isRecursive(inst, stack, resolve) {
       const desc = Object.getOwnPropertyDescriptor(sh, key);
       if (spread && !desc.enumerable)
         continue;
-      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve) : NONE;
+      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve3) : NONE;
       if (child > answer)
         answer = child;
     }
@@ -5165,7 +5524,7 @@ function isRecursive(inst, stack, resolve) {
       break;
     // `$ZodLazy` caches its inner on the def, so a resolved edge is followed exactly
     case "lazy": {
-      const inner = def._cachedInner ?? (resolve ? inst._zod.innerType : void 0);
+      const inner = def._cachedInner ?? (resolve3 ? inst._zod.innerType : void 0);
       merge2(inner ? isRecursive(inner, stack, false) : ASSUMED);
       break;
     }
@@ -19516,7 +19875,7 @@ function visit(schema, fnOrHandlers) {
     return h ? h(node2, rewritten) : node2;
   };
   const cache = /* @__PURE__ */ new Map();
-  function run(s) {
+  function run2(s) {
     const cached2 = cache.get(s);
     if (cached2 === RESOLVING) {
       return new $ZodLazy({
@@ -19542,21 +19901,21 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newShape = {};
         for (const k of keys) {
-          const mapped = run(oldShape[k]);
+          const mapped = run2(oldShape[k]);
           if (mapped !== oldShape[k])
             changed = true;
           newShape[k] = mapped;
         }
         let newCatchall = def.catchall;
         if (def.catchall) {
-          newCatchall = run(def.catchall);
+          newCatchall = run2(def.catchall);
           if (newCatchall !== def.catchall)
             changed = true;
         }
         return changed ? clone(s, { ...def, shape: newShape, catchall: newCatchall }) : s;
       }
       case "array": {
-        const mapped = run(def.element);
+        const mapped = run2(def.element);
         return mapped === def.element ? s : clone(s, { ...def, element: mapped });
       }
       case "tuple": {
@@ -19564,14 +19923,14 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newItems = [];
         for (const item of oldItems) {
-          const mapped = run(item);
+          const mapped = run2(item);
           if (mapped !== item)
             changed = true;
           newItems.push(mapped);
         }
         let newRest = def.rest;
         if (def.rest) {
-          newRest = run(def.rest);
+          newRest = run2(def.rest);
           if (newRest !== def.rest)
             changed = true;
         }
@@ -19579,12 +19938,12 @@ function visit(schema, fnOrHandlers) {
       }
       case "record":
       case "map": {
-        const newKey = run(def.keyType);
-        const newVal = run(def.valueType);
+        const newKey = run2(def.keyType);
+        const newVal = run2(def.valueType);
         return newKey === def.keyType && newVal === def.valueType ? s : clone(s, { ...def, keyType: newKey, valueType: newVal });
       }
       case "set": {
-        const newVal = run(def.valueType);
+        const newVal = run2(def.valueType);
         return newVal === def.valueType ? s : clone(s, { ...def, valueType: newVal });
       }
       case "union": {
@@ -19592,7 +19951,7 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newOptions = [];
         for (const opt of oldOptions) {
-          const mapped = run(opt);
+          const mapped = run2(opt);
           if (mapped !== opt)
             changed = true;
           newOptions.push(mapped);
@@ -19600,8 +19959,8 @@ function visit(schema, fnOrHandlers) {
         return changed ? clone(s, { ...def, options: newOptions }) : s;
       }
       case "intersection": {
-        const newLeft = run(def.left);
-        const newRight = run(def.right);
+        const newLeft = run2(def.left);
+        const newRight = run2(def.right);
         return newLeft === def.left && newRight === def.right ? s : clone(s, { ...def, left: newLeft, right: newRight });
       }
       case "optional":
@@ -19613,23 +19972,23 @@ function visit(schema, fnOrHandlers) {
       case "nonoptional":
       case "promise":
       case "success": {
-        const newInner = run(def.innerType);
+        const newInner = run2(def.innerType);
         return newInner === def.innerType ? s : clone(s, { ...def, innerType: newInner });
       }
       case "pipe": {
-        const newIn = run(def.in);
-        const newOut = run(def.out);
+        const newIn = run2(def.in);
+        const newOut = run2(def.out);
         return newIn === def.in && newOut === def.out ? s : clone(s, { ...def, in: newIn, out: newOut });
       }
       case "function": {
-        const newInput = run(def.input);
-        const newOutput = run(def.output);
+        const newInput = run2(def.input);
+        const newOutput = run2(def.output);
         return newInput === def.input && newOutput === def.output ? s : clone(s, { ...def, input: newInput, output: newOutput });
       }
       case "lazy": {
         const original = def.getter;
         const { _cachedInner, ...rest } = def;
-        return clone(s, { ...rest, getter: () => run(original()) });
+        return clone(s, { ...rest, getter: () => run2(original()) });
       }
       // A leaf by choice: `parts` are regex fragments, not data positions.
       case "template_literal":
@@ -19660,7 +20019,7 @@ function visit(schema, fnOrHandlers) {
       }
     }
   }
-  return run(schema);
+  return run2(schema);
 }
 
 // node_modules/zod/v4/classic/deep-partial.js
@@ -19730,17 +20089,6 @@ function date4(params) {
   return _coercedDate(ZodDate, params);
 }
 
-// src/compare.ts
-function compareCodePoint(a, b) {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-function compareModuleNames(a, b) {
-  if (a === b) return 0;
-  if (a === "core") return -1;
-  if (b === "core") return 1;
-  return compareCodePoint(a, b);
-}
-
 // src/manifest/schema.ts
 var moduleManifestSchema = external_exports.object({
   name: external_exports.string().min(1),
@@ -19783,60 +20131,12 @@ var kitStateSchema = external_exports.object({
   projectModules: external_exports.record(external_exports.string(), external_exports.object({ manifest: moduleManifestSchema })).default({})
 });
 
-// src/kit/kit-config.ts
-var kitConfigSchema = external_exports.object({
-  version: external_exports.string().min(1),
-  repo: external_exports.string().min(1),
-  kitOnly: external_exports.array(external_exports.string()),
-  placeholders: external_exports.object({
-    projectName: external_exports.string(),
-    projectSlug: external_exports.string(),
-    projectSnake: external_exports.string()
-  }),
-  placeholderFiles: external_exports.array(external_exports.string()),
-  generatedFiles: external_exports.array(external_exports.string()),
-  managedFiles: external_exports.array(external_exports.string())
-});
-async function readKitConfig(kitDir) {
-  let raw;
-  try {
-    raw = await readFile(join(kitDir, "kit/kit.json"), "utf8");
-  } catch (error62) {
-    if (error62.code === "ENOENT") {
-      throw new Error(
-        `Brak kit/kit.json w ${kitDir} \u2014 to nie jest repozytorium wa-kit`
-      );
-    }
-    throw error62;
-  }
-  return kitConfigSchema.parse(JSON.parse(raw));
-}
-async function readKitManifests(kitDir) {
-  const modulesDir = join(kitDir, "kit/modules");
-  const entries = (await readdir(modulesDir)).filter((fileName) => fileName.endsWith(".json")).map((fileName) => ({ fileName, name: basename(fileName, ".json") })).sort((a, b) => compareModuleNames(a.name, b.name));
-  const manifests = [];
-  for (const { fileName, name } of entries) {
-    const manifest = moduleManifestSchema.parse(
-      JSON.parse(await readFile(join(modulesDir, fileName), "utf8"))
-    );
-    if (manifest.name !== name) {
-      throw new Error(
-        `kit/modules/${fileName}: name "${manifest.name}" nie zgadza si\u0119 z nazw\u0105 pliku`
-      );
-    }
-    manifests.push(manifest);
-  }
-  return manifests;
-}
-
 // src/manifest/kit-state.ts
-import { mkdir, readFile as readFile2, writeFile } from "node:fs/promises";
-import { dirname, join as join2 } from "node:path";
 var KIT_STATE_PATH = ".wa/kit.json";
 async function readKitState(projectDir) {
   let raw;
   try {
-    raw = await readFile2(join2(projectDir, KIT_STATE_PATH), "utf8");
+    raw = await readFile3(join3(projectDir, KIT_STATE_PATH), "utf8");
   } catch (error62) {
     if (error62.code === "ENOENT") {
       throw new Error(
@@ -19884,9 +20184,9 @@ async function writeKitState(projectDir, state) {
       ([a], [b]) => compareCodePoint(a, b)
     )
   );
-  const target = join2(projectDir, KIT_STATE_PATH);
-  await mkdir(dirname(target), { recursive: true });
-  await writeFile(
+  const target = join3(projectDir, KIT_STATE_PATH);
+  await mkdir2(dirname2(target), { recursive: true });
+  await writeFile2(
     target,
     `${JSON.stringify(
       {
@@ -19912,46 +20212,6 @@ function projectModuleManifests(state) {
 function registeredModules(state) {
   return [...installedModules(state), ...projectModuleManifests(state)];
 }
-
-// src/commands/kit-sync.ts
-async function readExisting(kitDir) {
-  try {
-    return await readFile3(join3(kitDir, ".wa/kit.json"), "utf8");
-  } catch (error62) {
-    if (error62.code === "ENOENT") return null;
-    throw error62;
-  }
-}
-async function readExistingProjectModules(raw) {
-  return raw === null ? {} : kitStateSchema.parse(JSON.parse(raw)).projectModules;
-}
-async function kitSync(kitDir) {
-  const config2 = await readKitConfig(kitDir);
-  const manifests = await readKitManifests(kitDir);
-  const before = await readExisting(kitDir);
-  const state = {
-    kitVersion: config2.version,
-    kitRepo: config2.repo,
-    project: {
-      name: config2.placeholders.projectName,
-      slug: config2.placeholders.projectSlug
-    },
-    locales: ["pl", "en"],
-    modules: Object.fromEntries(
-      manifests.map((manifest) => [
-        manifest.name,
-        { version: manifest.version, manifest, files: {} }
-      ])
-    ),
-    projectModules: await readExistingProjectModules(before)
-  };
-  await writeKitState(kitDir, state);
-  return { changed: before !== await readExisting(kitDir) };
-}
-
-// src/generate/index.ts
-import { mkdir as mkdir2, readFile as readFile5, stat, writeFile as writeFile2 } from "node:fs/promises";
-import { dirname as dirname2, join as join5 } from "node:path";
 
 // src/generate/registry.ts
 var GENERATED_HEADER = "// generated by wa \u2014 nie edytuj. Uruchom: npm run wa -- generate";
@@ -20038,107 +20298,6 @@ function renderRegistry(modules, locales) {
   return { server, client };
 }
 
-// src/generate/targets.ts
-import { readFile as readFile4 } from "node:fs/promises";
-import { join as join4 } from "node:path";
-
-// src/generate/regions.ts
-function replaceRegion(content, file2, marker, body) {
-  const startToken = `wa:${marker}:start`;
-  const endToken = `wa:${marker}:end`;
-  const eol = content.includes("\r\n") ? "\r\n" : "\n";
-  const lines = content.split(/\r?\n/);
-  const starts = indicesOf(lines, startToken);
-  const ends = indicesOf(lines, endToken);
-  const [start] = starts;
-  const [end] = ends;
-  if (starts.length !== 1 || ends.length !== 1 || start === void 0 || end === void 0 || end <= start) {
-    throw new Error(`${file2}: uszkodzony region wa:${marker}`);
-  }
-  const bodyLines = body === "" ? [] : body.split(/\r?\n/).map((line) => line.replace(/\r$/, ""));
-  if (bodyLines.some(
-    (line) => line.includes(startToken) || line.includes(endToken)
-  )) {
-    throw new Error(
-      `${file2}: tre\u015B\u0107 regionu wa:${marker} zawiera znacznik regionu`
-    );
-  }
-  return [...lines.slice(0, start + 1), ...bodyLines, ...lines.slice(end)].join(
-    eol
-  );
-}
-function indicesOf(lines, token) {
-  const found = [];
-  lines.forEach((line, index) => {
-    if (line.includes(token)) found.push(index);
-  });
-  return found;
-}
-
-// src/generate/targets.ts
-var INDENT = "  ";
-function indent(text) {
-  return text.split("\n").map((line) => line === "" ? line : `${INDENT}${line}`).join("\n");
-}
-function relationsBody(model) {
-  return async ({ modules }) => modules.flatMap((m) => m.schemaRelations).filter((relation) => relation.model === model).map((relation) => `${INDENT}${relation.field}`).join("\n");
-}
-function fillPlaceholders(text, project) {
-  return text.replaceAll("{{projectSlug}}", project.slug).replaceAll("{{projectName}}", project.name);
-}
-async function envBody({ modules, project }) {
-  return modules.filter((m) => m.name !== "core" && m.env.length > 0).map(
-    (m) => [
-      `# ${m.name}`,
-      ...m.env.map(
-        (v) => `${v.name}=${fillPlaceholders(v.example, project)}`
-      )
-    ].join("\n")
-  ).join("\n\n");
-}
-async function composeBody({
-  modules,
-  projectDir
-}) {
-  const parts = [];
-  for (const m of modules) {
-    if (m.compose === null) continue;
-    const content = await readFile4(join4(projectDir, m.compose), "utf8");
-    parts.push(indent(content.replace(/\n+$/, "")));
-  }
-  return parts.join("\n");
-}
-var regionTargets = [
-  {
-    file: "prisma/schema/auth.prisma",
-    marker: "relations",
-    body: relationsBody("User")
-  },
-  {
-    file: "prisma/schema/organizations.prisma",
-    marker: "relations",
-    body: relationsBody("Organization")
-  },
-  { file: ".env.example", marker: "modules", body: envBody },
-  { file: "docker-compose.yml", marker: "services", body: composeBody }
-];
-var REGION_FILES = regionTargets.map((target) => target.file).sort(compareCodePoint);
-async function renderRegionTarget(target, context) {
-  let current;
-  try {
-    current = await readFile4(join4(context.projectDir, target.file), "utf8");
-  } catch (error62) {
-    if (error62.code === "ENOENT") return null;
-    throw error62;
-  }
-  const body = await target.body(context);
-  return {
-    file: target.file,
-    current,
-    next: replaceRegion(current, target.file, target.marker, body)
-  };
-}
-
 // src/generate/index.ts
 var SERVER_REGISTRY = "src/modules.generated.ts";
 var CLIENT_REGISTRY = "src/modules.client.generated.ts";
@@ -20146,25 +20305,25 @@ var LOCALES_FILE = "src/i18n/locales.generated.ts";
 var FEATURE_GLOB = /^src\/features\/([^/*]+)\//;
 async function exists(path) {
   try {
-    await stat(path);
+    await stat2(path);
     return true;
   } catch {
     return false;
   }
 }
 async function detectFeature(projectDir, name, configuredLocales) {
-  const base = join5(projectDir, "src", "features", name);
+  const base = join4(projectDir, "src", "features", name);
   const locales = [];
   for (const locale of configuredLocales) {
-    if (await exists(join5(base, "i18n", `${locale}.json`)))
+    if (await exists(join4(base, "i18n", `${locale}.json`)))
       locales.push(locale);
   }
   return {
     name,
-    hasModuleTs: await exists(join5(base, "module.ts")),
-    hasEnv: await exists(join5(base, "env.ts")),
-    hasAuth: await exists(join5(base, "auth.ts")),
-    hasAuthClient: await exists(join5(base, "auth-client.ts")),
+    hasModuleTs: await exists(join4(base, "module.ts")),
+    hasEnv: await exists(join4(base, "env.ts")),
+    hasAuth: await exists(join4(base, "auth.ts")),
+    hasAuthClient: await exists(join4(base, "auth-client.ts")),
     locales
   };
 }
@@ -20201,7 +20360,7 @@ async function generate(projectDir) {
     [CLIENT_REGISTRY, registry2.client],
     [LOCALES_FILE, renderLocales(state.locales)]
   ]) {
-    const current = await readFile5(join5(projectDir, file2), "utf8").catch(
+    const current = await readFile4(join4(projectDir, file2), "utf8").catch(
       (error62) => {
         if (error62.code === "ENOENT") return null;
         throw error62;
@@ -20219,20 +20378,350 @@ async function generate(projectDir) {
   }
   const changed = pending.filter((p) => p.current !== p.next);
   for (const { file: file2, next } of changed) {
-    const target = join5(projectDir, file2);
-    await mkdir2(dirname2(target), { recursive: true });
-    await writeFile2(target, next);
+    const target = join4(projectDir, file2);
+    await mkdir3(dirname3(target), { recursive: true });
+    await writeFile3(target, next);
   }
   return { changed: changed.map((p) => p.file) };
 }
 
+// src/kit/kit-config.ts
+import { readdir, readFile as readFile5 } from "node:fs/promises";
+import { basename as basename2, join as join5 } from "node:path";
+var kitConfigSchema = external_exports.object({
+  version: external_exports.string().min(1),
+  repo: external_exports.string().min(1),
+  kitOnly: external_exports.array(external_exports.string()),
+  placeholders: external_exports.object({
+    projectName: external_exports.string(),
+    projectSlug: external_exports.string(),
+    projectSnake: external_exports.string()
+  }),
+  placeholderFiles: external_exports.array(external_exports.string()),
+  generatedFiles: external_exports.array(external_exports.string()),
+  managedFiles: external_exports.array(external_exports.string())
+});
+async function readKitConfig(kitDir) {
+  let raw;
+  try {
+    raw = await readFile5(join5(kitDir, "kit/kit.json"), "utf8");
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      throw new Error(
+        `Brak kit/kit.json w ${kitDir} \u2014 to nie jest repozytorium wa-kit`
+      );
+    }
+    throw error62;
+  }
+  return kitConfigSchema.parse(JSON.parse(raw));
+}
+async function readKitManifests(kitDir) {
+  const modulesDir = join5(kitDir, "kit/modules");
+  const entries = (await readdir(modulesDir)).filter((fileName) => fileName.endsWith(".json")).map((fileName) => ({ fileName, name: basename2(fileName, ".json") })).sort((a, b) => compareModuleNames(a.name, b.name));
+  const manifests = [];
+  for (const { fileName, name } of entries) {
+    const manifest = moduleManifestSchema.parse(
+      JSON.parse(await readFile5(join5(modulesDir, fileName), "utf8"))
+    );
+    if (manifest.name !== name) {
+      throw new Error(
+        `kit/modules/${fileName}: name "${manifest.name}" nie zgadza si\u0119 z nazw\u0105 pliku`
+      );
+    }
+    manifests.push(manifest);
+  }
+  return manifests;
+}
+
+// src/commands/create.ts
+var DEFAULT_LOCALES = "pl,en";
+var SETUP_QUESTION = "Uruchomi\u0107 baz\u0119, migracj\u0119 i admin:create teraz? [t/N]";
+async function isNonEmptyDirectory(dir) {
+  if (!existsSync(dir)) return false;
+  return (await readdir2(dir)).length > 0;
+}
+function moduleQuestion(manifests) {
+  const lines = manifests.filter((manifest) => manifest.name !== "core").map((manifest) => `  ${manifest.name} \u2014 ${manifest.description}`);
+  return `Modu\u0142y (po przecinku, puste = \u017Caden):
+${lines.join("\n")}
+Wyb\xF3r`;
+}
+async function collectAnswers(options, manifests, names) {
+  const { prompter, yes } = options;
+  let modules = options.modules ?? [];
+  if (options.modules === null && !yes) {
+    modules = parseList(await prompter.ask(moduleQuestion(manifests), ""));
+  }
+  let locales = options.locales ?? parseLocales(DEFAULT_LOCALES);
+  if (options.locales === null && !yes) {
+    locales = parseLocales(
+      await prompter.ask("J\u0119zyki (pl,en)", DEFAULT_LOCALES)
+    );
+  }
+  let title = options.title;
+  if (title === null && !yes) {
+    title = await prompter.ask("Nazwa wy\u015Bwietlana", names.name);
+  }
+  let adminEmail = options.adminEmail;
+  if (adminEmail === null && !yes) {
+    const answer = await prompter.ask("Email admina (puste = pomi\u0144)", "");
+    adminEmail = answer === "" ? null : answer;
+  }
+  let setup = options.setup;
+  if (!setup && !yes) {
+    setup = await prompter.confirm(SETUP_QUESTION, false);
+  }
+  return { modules, locales, title, adminEmail, setup };
+}
+async function removeDirectoryContents(dir) {
+  for (const entry of await readdir2(dir)) {
+    await rm(join6(dir, entry), { recursive: true, force: true });
+  }
+}
+async function assemble(input2) {
+  const { options, projectDir, config: config2, manifests, names, locales } = input2;
+  const available = await assemblableFiles(options.kitDir, config2);
+  const modules = {};
+  for (const manifest of manifests) {
+    const files = await copyFiles({
+      kitDir: options.kitDir,
+      projectDir,
+      files: moduleFiles(manifest, available),
+      config: config2,
+      names
+    });
+    modules[manifest.name] = { version: manifest.version, manifest, files };
+  }
+  const packageJsonPath = join6(projectDir, "package.json");
+  await writeFile4(
+    packageJsonPath,
+    projectPackageJson(
+      await readFile6(packageJsonPath, "utf8"),
+      manifests,
+      names
+    )
+  );
+  await writeKitState(projectDir, {
+    kitVersion: config2.version,
+    kitRepo: config2.repo,
+    project: { name: names.name, slug: names.slug },
+    locales,
+    modules,
+    projectModules: {}
+  });
+  await generate(projectDir);
+}
+async function writeEnvFile(projectDir, adminEmail) {
+  const example = await readFile6(join6(projectDir, ".env.example"), "utf8");
+  const secret = randomBytes(32).toString("base64url");
+  let env = example.replace(
+    /^BETTER_AUTH_SECRET=.*$/m,
+    () => `BETTER_AUTH_SECRET=${secret}`
+  );
+  if (adminEmail !== null) {
+    env = env.replace(/^ADMIN_EMAIL=.*$/m, () => `ADMIN_EMAIL=${adminEmail}`);
+  }
+  await writeFile4(join6(projectDir, ".env"), env);
+}
+async function commitInitial(options, projectDir, version2) {
+  const { runner, log } = options;
+  try {
+    await runner("git", ["add", "-A"], projectDir);
+    await runner(
+      "git",
+      [
+        "commit",
+        "-q",
+        "--no-verify",
+        "-m",
+        `chore: initial commit from wa-kit v${version2}`
+      ],
+      projectDir
+    );
+  } catch (error62) {
+    const message = error62 instanceof Error ? error62.message : String(error62);
+    log(
+      `Uwaga: nie utworzono commita (${message}). Skonfiguruj git i zr\xF3b commit r\u0119cznie.`
+    );
+  }
+}
+async function runSetup(options, projectDir, adminEmail) {
+  const { runner } = options;
+  await runner("docker", ["compose", "up", "-d", "--wait"], projectDir);
+  await runner(
+    "npx",
+    ["prisma", "migrate", "dev", "--name", "init"],
+    projectDir
+  );
+  if (adminEmail !== null) {
+    await runner(
+      "npm",
+      ["run", "admin:create", "--", "--email", adminEmail],
+      projectDir
+    );
+  }
+}
+function logNextSteps(log, projectDir, setup, adminEmail) {
+  log(`cd ${projectDir}`);
+  if (!setup) {
+    log("docker compose up -d");
+    log("npx prisma migrate dev --name init");
+    log(`npm run admin:create -- --email ${adminEmail ?? "tw\xF3j-email"}`);
+  }
+  log("npm run dev");
+}
+async function create(options) {
+  const projectDir = resolve(options.target);
+  const names = projectNames(projectDir, options.title);
+  if (await isNonEmptyDirectory(projectDir)) {
+    throw new Error(`Katalog ${projectDir} istnieje i nie jest pusty`);
+  }
+  if (!existsSync(join6(options.kitDir, "kit/kit.json"))) {
+    throw new Error("Uruchom create z klonu wa-kit albo podaj --kit <\u015Bcie\u017Cka>");
+  }
+  const config2 = await readKitConfig(options.kitDir);
+  const available = await readKitManifests(options.kitDir);
+  const answers = await collectAnswers(options, available, names);
+  const runSetupSteps = options.install && answers.setup;
+  const resolved = resolveModules(answers.modules, available);
+  const finalNames = answers.title === null ? names : projectNames(projectDir, answers.title);
+  const existed = existsSync(projectDir);
+  await mkdir4(projectDir, { recursive: true });
+  try {
+    await assemble({
+      options,
+      projectDir,
+      config: config2,
+      manifests: resolved,
+      names: finalNames,
+      locales: answers.locales
+    });
+  } catch (error62) {
+    if (existed) await removeDirectoryContents(projectDir);
+    else await rm(projectDir, { recursive: true, force: true });
+    throw error62;
+  }
+  await writeEnvFile(projectDir, answers.adminEmail);
+  if (options.git) await options.runner("git", ["init", "-q"], projectDir);
+  if (options.install) {
+    try {
+      await options.runner("npm", ["install"], projectDir);
+    } catch {
+      throw new Error(
+        `Projekt utworzony w ${projectDir}, ale npm install si\u0119 nie powi\xF3d\u0142. Uruchom: cd ${projectDir} && npm install`
+      );
+    }
+  }
+  if (options.git) await commitInitial(options, projectDir, config2.version);
+  if (runSetupSteps) await runSetup(options, projectDir, answers.adminEmail);
+  logNextSteps(options.log, projectDir, runSetupSteps, answers.adminEmail);
+  return { projectDir, modules: resolved.map((manifest) => manifest.name) };
+}
+
+// src/process/prompter.ts
+import { createInterface } from "node:readline/promises";
+var YES_ANSWERS = ["t", "tak", "y", "yes"];
+async function readAnswer(question) {
+  if (!process.stdin.isTTY) throw new Error("Brak terminala: u\u017Cyj --yes");
+  const lines = createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  try {
+    return (await lines.question(question)).trim();
+  } finally {
+    lines.close();
+  }
+}
+var readlinePrompter = {
+  async ask(question, fallback) {
+    const suffix = fallback === "" ? "" : ` [${fallback}]`;
+    const answer = await readAnswer(`${question}${suffix}: `);
+    return answer === "" ? fallback : answer;
+  },
+  async confirm(question, fallback) {
+    const answer = await readAnswer(`${question} `);
+    if (answer === "") return fallback;
+    return YES_ANSWERS.includes(answer.toLowerCase());
+  }
+};
+
+// src/process/runner.ts
+import { spawn } from "node:child_process";
+var spawnRunner = (command, args, cwd) => new Promise((resolve3, reject) => {
+  const child = spawn(command, args, { cwd, stdio: "inherit" });
+  child.on("error", reject);
+  child.on("close", (code) => {
+    if (code === 0) {
+      resolve3();
+      return;
+    }
+    reject(
+      new Error(`${[command, ...args].join(" ")} zako\u0144czone kodem ${code}`)
+    );
+  });
+});
+
+// src/commands/kit-sync.ts
+import { readFile as readFile7 } from "node:fs/promises";
+import { join as join7 } from "node:path";
+async function readExisting(kitDir) {
+  try {
+    return await readFile7(join7(kitDir, ".wa/kit.json"), "utf8");
+  } catch (error62) {
+    if (error62.code === "ENOENT") return null;
+    throw error62;
+  }
+}
+async function readExistingProjectModules(raw) {
+  return raw === null ? {} : kitStateSchema.parse(JSON.parse(raw)).projectModules;
+}
+async function kitSync(kitDir) {
+  const config2 = await readKitConfig(kitDir);
+  const manifests = await readKitManifests(kitDir);
+  const before = await readExisting(kitDir);
+  const state = {
+    kitVersion: config2.version,
+    kitRepo: config2.repo,
+    project: {
+      name: config2.placeholders.projectName,
+      slug: config2.placeholders.projectSlug
+    },
+    locales: ["pl", "en"],
+    modules: Object.fromEntries(
+      manifests.map((manifest) => [
+        manifest.name,
+        { version: manifest.version, manifest, files: {} }
+      ])
+    ),
+    projectModules: await readExistingProjectModules(before)
+  };
+  await writeKitState(kitDir, state);
+  return { changed: before !== await readExisting(kitDir) };
+}
+
 // src/bin.ts
-var USAGE = "U\u017Cycie: wa generate | wa kit sync";
+var USAGE = "U\u017Cycie: wa generate | wa kit sync | wa create <katalog> [opcje]";
 async function main(argv) {
   const [command, subcommand] = argv;
   if (command === "kit" && subcommand === "sync") {
     const { changed: changed2 } = await kitSync(process.cwd());
     console.log(changed2 ? "Zaktualizowano .wa/kit.json" : "Bez zmian");
+    return 0;
+  }
+  if (command === "create") {
+    const { kit, ...parsed } = parseCreateArgs(argv.slice(1));
+    const defaultKit = resolve2(
+      dirname4(fileURLToPath(import.meta.url)),
+      "../.."
+    );
+    await create({
+      ...parsed,
+      kitDir: kit === null ? defaultKit : resolve2(kit),
+      runner: spawnRunner,
+      prompter: readlinePrompter,
+      log: console.log
+    });
     return 0;
   }
   if (command !== "generate") {
