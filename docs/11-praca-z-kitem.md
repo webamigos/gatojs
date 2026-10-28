@@ -74,7 +74,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | Edycja pliku przez agenta w Claude Code | Hooki `block-comments.mjs` i `protect-tests.mjs`. | Nowy komentarz w kodzie; zmianę testu w fazie implementacji. | Zapisu przez powłokę, zmian w innych narzędziach i w edytorze. | [Hooki Claude Code](#hooki) |
 | `git commit` | husky: lint-staged i commitlint. | Błąd ESLint, którego `--fix` nie naprawi; wiadomość niezgodną z Conventional Commits. | Plików spoza commitu. `git commit --no-verify` pomija oba hooki. | [Commity](#commity) |
-| Przed oddaniem pracy | `npm run verify`. | Błędy ESLint, typów, testów jednostkowych, buildu, testów CLI i hooków. | Testów integracyjnych, e2e i mutacyjnych; nieaktualnych plików generowanych. | [Bramka](#verify) |
+| Przed oddaniem pracy | `npm run verify`. | Błędy ESLint, typów, testów jednostkowych, buildu, testów pakietów workspace i hooków. | Testów integracyjnych, e2e i mutacyjnych; nieaktualnych plików generowanych. | [Bramka](#verify) |
 | Pull request i push do `main` | Workflowy z `.github/workflows/`, CodeRabbit. | To samo co `verify`, a do tego nieaktualne pliki generowane, testy integracyjne i e2e, sekrety w commitach (testy mutacyjne tylko lokalnie albo ręcznie); przy zmianie zależności także podatności, a przy zmianie workflowów ich błędy. | Wiadomości commitów i formatowania Prettierem. | [10-wdrozenie.md](10-wdrozenie.md#ci) |
 | Recenzja | Człowiek. | Reguły, których nie pilnuje żadne narzędzie. | — | [Jak czytać wpis](decyzje.md#jak-czytać-wpis) |
 
@@ -245,7 +245,7 @@ Konfiguracja lint-staged:
 `package.json`
 
 ```json
-"verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run test:hooks",
+"verify": "npm run lint && npm run typecheck && npm test && npm run build && turbo run test typecheck && npm run test:hooks",
 ```
 
 | Krok | Komenda | Co sprawdza |
@@ -254,6 +254,7 @@ Konfiguracja lint-staged:
 | `npm run typecheck` | `tsc --noEmit` | Typy aplikacji. |
 | `npm test` | `vitest run` | Testy jednostkowe i komponentowe, w tym test architektury ([D24](decyzje.md#d24)). |
 | `npm run build` | `next build` | Build produkcyjny. |
+| `turbo run test typecheck` | Skrypty `test` i `typecheck` pakietów w workspace `packages/*`. | Obecnie nic, bo katalog `packages/` jest pusty (CLI leży w `kit/cli` i ma własną bramkę). Zadania w `turbo.json` mają `dependsOn: ["^build"]`. |
 | `npm run test:hooks` | `node --test` na plikach `.claude/hooks/*.test.mjs`. | Hooki Claude Code ([Hooki](#hooki)). |
 
 Kroki są połączone `&&`, więc łańcuch kończy się na pierwszym błędzie i kolejne kroki się nie wykonują. `verify` nie uruchamia testów integracyjnych, e2e ani mutacyjnych, bo wymagają bazy albo przeglądarki albo trwają długo ([08-testy.md](08-testy.md#rodzaje)). Nie sprawdza też aktualności plików generowanych, formatowania ani wiadomości commitów. Job `verify` w CI przed `npm run verify` uruchamia generator i porównuje wynik z repozytorium. **Zalecenie:** zrób to samo lokalnie i sprawdź, że generator wypisuje `Bez zmian`:

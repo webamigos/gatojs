@@ -51,7 +51,7 @@ Każdy rodzaj testu zastępuje inną część systemu, więc każdy łapie inne 
 | Hooki Claude Code | Funkcje i skrypty hooków z `.claude/hooks/`, także uruchamiane jako osobne procesy. | `.claude/hooks/*.test.mjs` | `npm run test:hooks` | nie | tak |
 | Mutacyjne (Stryker) | Testy jednostkowe albo integracyjne uruchamiane na kodzie z celowo wstrzykniętymi błędami ([08b](08b-testy-adwersarialne.md#stryker)). | konfiguracja w katalogu głównym | `npm run test:mutation` i pokrewne | integracyjny: `_test`, czyści | nie |
 
-`npm run verify` to bramka `verify`, którą uruchamiasz przed oddaniem pracy: lint, typecheck, `npm test`, build oraz testy hooków (CLI ma własną bramkę, `npm run verify --prefix kit/cli`). Testów integracyjnych, e2e i mutacyjnych nie uruchamia, bo wymagają bazy albo przeglądarki, a pełny przebieg mutacyjny trwa kilkanaście minut. Integracyjne i e2e działają w osobnych jobach CI, a mutacyjne tylko lokalnie albo po ręcznym uruchomieniu workflowu ([CI](#ci)), więc przed oddaniem zmiany w query, komendzie albo przepływie logowania uruchom je sam.
+`npm run verify` to bramka `verify`, którą uruchamiasz przed oddaniem pracy: lint, typecheck, `npm test`, build, `turbo run test typecheck` (workspace `packages/*`, który jest pusty, bo CLI ma własną bramkę: `npm run verify --prefix kit/cli`) oraz testy hooków. Testów integracyjnych, e2e i mutacyjnych nie uruchamia, bo wymagają bazy albo przeglądarki, a pełny przebieg mutacyjny trwa kilkanaście minut. Integracyjne i e2e działają w osobnych jobach CI, a mutacyjne tylko lokalnie albo po ręcznym uruchomieniu workflowu ([CI](#ci)), więc przed oddaniem zmiany w query, komendzie albo przepływie logowania uruchom je sam.
 
 <a id="jednostkowe"></a>
 
@@ -473,12 +473,12 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 | `npm run test:integration` | `vitest run -c vitest.integration.config.ts` | `_test`, czyści | nie | `ci.yml`, `integration` |
 | `npm run test:e2e` | `npm run build && rm -rf .next/standalone/.next/static && cp -R .next/static .next/standalone/.next/static && playwright test` | `_e2e`, kasuje | nie | `e2e.yml` |
 | `npm run test:hooks` | `node --test .claude/hooks/block-comments.test.mjs .claude/hooks/protect-tests.test.mjs` | nie | tak | `ci.yml`, `verify` |
-| `npm test --prefix kit/cli` | `vitest run` w `kit/cli/package.json` | nie | nie (bramka `verify` kitu) | `ci.yml`, `verify` |
+| `npm test --prefix kit/cli` | `vitest run` w `kit/cli/package.json` | nie | nie (bramka `verify` kitu) | `kit.yml`, `cli` |
 | `npm run test:mutation` | `stryker run` | nie | nie | `mutation.yml`, tylko ręcznie |
 | `npm run test:mutation:task -- <pliki>` | `stryker run --force --mutate` | nie | nie | nie |
 | `npm run test:mutation:integration` | `stryker run stryker.integration.config.json` | `_test`, czyści | nie | `mutation.yml`, tylko ręcznie |
 | `npm run test:mutation:gate` | `tsx scripts/mutation-gate.ts` | nie | nie | `mutation.yml`, tylko ręcznie |
-| `npm run verify` | `npm run lint && npm run typecheck && npm test && npm run build && npm run test:hooks` | nie | — | `ci.yml`, `verify` |
+| `npm run verify` | `npm run lint && npm run typecheck && npm test && npm run build && turbo run test typecheck && npm run test:hooks` | nie | — | `ci.yml`, `verify` |
 
 <a id="referencja-pliki"></a>
 
@@ -500,7 +500,7 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 | `e2e/database-guard.ts` | `assertE2eDatabase`. |
 | `e2e/helpers.ts` | `LABELS`, logowanie, rejestracja, ustawienie hasła, API mailpit. |
 | `kit/cli/vitest.config.ts` | Testy CLI: `node`, `src/**/*.test.ts`. |
-| `turbo.json` | Zadania `build`, `lint`, `test` i `typecheck` w katalogu `kit/cli` (nieużywane przez bramkę); każde po `^build`. |
+| `turbo.json` | Zadania `build`, `lint`, `test` i `typecheck` w workspace `packages/*` (obecnie pusty); każde po `^build`. |
 | `stryker.config.json`, `stryker.integration.config.json`, `mutation-gate.json` | Mutation testing i bramka mutacji: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#referencja). |
 
 <a id="referencja-zmienne"></a>
