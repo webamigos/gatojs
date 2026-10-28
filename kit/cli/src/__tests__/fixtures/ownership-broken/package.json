@@ -1,0 +1,12 @@
+{
+  "name": "ownership-broken",
+  "private": true,
+  "dependencies": {
+    "left-pad": "^1.2.0",
+    "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "lonely-dep": "^1.0.0",
+    "vitest": "^4.0.0"
+  }
+}
