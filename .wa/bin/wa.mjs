@@ -20475,8 +20475,12 @@ async function collectAnswers(options, manifests, names) {
 }
 async function removeDirectoryContents(dir) {
   for (const entry of await readdir2(dir)) {
-    await rm(join6(dir, entry), { recursive: true, force: true });
+    await rm(join6(dir, entry), { recursive: true });
   }
+}
+async function discardAssembly(dir, existed) {
+  if (existed) await removeDirectoryContents(dir);
+  else await rm(dir, { recursive: true });
 }
 async function assemble(input2) {
   const { options, projectDir, config: config2, manifests, names, locales } = input2;
@@ -20515,11 +20519,11 @@ async function writeEnvFile(projectDir, adminEmail) {
   const example = await readFile6(join6(projectDir, ".env.example"), "utf8");
   const secret = randomBytes(32).toString("base64url");
   let env = example.replace(
-    /^BETTER_AUTH_SECRET=.*$/m,
+    /^BETTER_AUTH_SECRET=.*/m,
     () => `BETTER_AUTH_SECRET=${secret}`
   );
   if (adminEmail !== null) {
-    env = env.replace(/^ADMIN_EMAIL=.*$/m, () => `ADMIN_EMAIL=${adminEmail}`);
+    env = env.replace(/^ADMIN_EMAIL=.*/m, () => `ADMIN_EMAIL=${adminEmail}`);
   }
   await writeFile4(join6(projectDir, ".env"), env);
 }
@@ -20573,6 +20577,7 @@ function logNextSteps(log, projectDir, setup, adminEmail) {
 async function create(options) {
   const projectDir = resolve(options.target);
   const names = projectNames(projectDir, options.title);
+  const existed = existsSync(projectDir);
   if (await isNonEmptyDirectory(projectDir)) {
     throw new Error(`Katalog ${projectDir} istnieje i nie jest pusty`);
   }
@@ -20584,8 +20589,10 @@ async function create(options) {
   const answers = await collectAnswers(options, available, names);
   const runSetupSteps = options.install && answers.setup;
   const resolved = resolveModules(answers.modules, available);
-  const finalNames = answers.title === null ? names : projectNames(projectDir, answers.title);
-  const existed = existsSync(projectDir);
+  const finalNames = projectNames(projectDir, answers.title);
+  if (await isNonEmptyDirectory(projectDir)) {
+    throw new Error(`Katalog ${projectDir} istnieje i nie jest pusty`);
+  }
   await mkdir4(projectDir, { recursive: true });
   try {
     await assemble({
@@ -20597,8 +20604,7 @@ async function create(options) {
       locales: answers.locales
     });
   } catch (error62) {
-    if (existed) await removeDirectoryContents(projectDir);
-    else await rm(projectDir, { recursive: true, force: true });
+    await discardAssembly(projectDir, existed).catch(() => void 0);
     throw error62;
   }
   await writeEnvFile(projectDir, answers.adminEmail);
