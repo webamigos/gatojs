@@ -108,12 +108,13 @@ Testy nie potrzebują migracji. Testy integracyjne tworzą schemat przez `prisma
 
 Projekt klienta commituje migracje, bo produkcja stosuje tylko migracje zapisane w repozytorium. Przed każdym wdrożeniem Railway uruchamia `npx prisma migrate deploy` (`preDeployCommand` w `railway.toml` albo w ustawieniach usługi, bo nowa usługa nie czyta `railway.toml`, [10-wdrozenie.md](10-wdrozenie.md#config-as-code)). Ta komenda nie tworzy migracji ze schematu. Bez zacommitowanego katalogu nie ma czego zastosować i baza produkcyjna nie dostanie tabel.
 
-Root `.gitignore` nie ignoruje `prisma/migrations/`, więc w projekcie migracje trafiają do repozytorium bez dodatkowych kroków.
+Root `.gitignore` nie ignoruje `prisma/migrations/`, więc w projekcie złożonym przez `wa create` migracje trafiają do repozytorium bez dodatkowych kroków.
 
-1. Utwórz pierwszą migrację, jeśli katalog `prisma/migrations/` jest pusty: `npx prisma migrate dev --name init`. Migracje, które już w nim są (na przykład z kopii kitu), zostaw i zacommituj zamiast tworzyć nowe.
-2. Zacommituj cały katalog: podkatalogi migracji z plikami `migration.sql` i plik `prisma/migrations/migration_lock.toml`, który Prisma tworzy razem z pierwszą migracją.
-3. Przy każdej zmianie schematu, także po dodaniu modułu z własnym plikiem w `prisma/schema/`, uruchom `npx prisma migrate dev --name <nazwa>`, potem `npm run db:generate`, i zacommituj nową migrację razem ze zmianą schematu. Gdy zmiana może usunąć dane albo nie udać się na istniejących danych (na przykład nowe pole unikalne przy powtarzających się wartościach), Prisma wypisuje `Warnings for the current datasource:` z listą skutków i pyta `Are you sure you want to create and apply this migration?`. Jeśli skutek nie jest zamierzony, odpowiedz `n` i porównaj schemat z bazą. Zmiany, których nie da się wykonać, Prisma zgłasza jako `We found changes that cannot be executed:` i kończy się błędem bez pytania i bez tworzenia migracji.
-4. Nie zmieniaj migracji, które zastosowano już na jakiejkolwiek bazie. Poprawka to nowa migracja. Zmieniony plik zastosowanej migracji Prisma uzna za rozjazd historii.
+1. W projekcie powstałym z kopii repozytorium kitu sprawdź, czy root `.gitignore` nie ma linii `prisma/migrations/`, i usuń ją, jeśli jest. Komenda `git check-ignore -v prisma/migrations/migration_lock.toml` nic nie wypisuje, gdy katalog nie jest ignorowany.
+2. Utwórz pierwszą migrację, jeśli katalog `prisma/migrations/` jest pusty: `npx prisma migrate dev --name init`. Migracje, które już w nim są (na przykład z kopii kitu), zostaw i zacommituj zamiast tworzyć nowe.
+3. Zacommituj cały katalog: podkatalogi migracji z plikami `migration.sql` i plik `prisma/migrations/migration_lock.toml`, który Prisma tworzy razem z pierwszą migracją.
+4. Przy każdej zmianie schematu, także po dodaniu modułu z własnym plikiem w `prisma/schema/`, uruchom `npx prisma migrate dev --name <nazwa>`, potem `npm run db:generate`, i zacommituj nową migrację razem ze zmianą schematu. Gdy zmiana może usunąć dane albo nie udać się na istniejących danych (na przykład nowe pole unikalne przy powtarzających się wartościach), Prisma wypisuje `Warnings for the current datasource:` z listą skutków i pyta `Are you sure you want to create and apply this migration?`. Jeśli skutek nie jest zamierzony, odpowiedz `n` i porównaj schemat z bazą. Zmiany, których nie da się wykonać, Prisma zgłasza jako `We found changes that cannot be executed:` i kończy się błędem bez pytania i bez tworzenia migracji.
+5. Nie zmieniaj migracji, które zastosowano już na jakiejkolwiek bazie. Poprawka to nowa migracja. Zmieniony plik zastosowanej migracji Prisma uzna za rozjazd historii.
 
 Jak Railway wdraża aplikację, opisuje [10-wdrozenie.md](10-wdrozenie.md).
 
