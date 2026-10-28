@@ -267,7 +267,10 @@ describe("renderRegistry", () => {
         [{ name, ...base, hasModuleTs: true }],
         BOTH,
       );
-      const importLine = server.split("\n")[1] ?? "";
+      const importLine =
+        server
+          .split("\n")
+          .find((line) => /^import \w+ from "@\/features\//.test(line)) ?? "";
       expect(importLine).toMatch(/^import [A-Za-z0-9]+Module from "/);
     },
   );
