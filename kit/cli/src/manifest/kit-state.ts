@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { kitStateSchema } from "./schema.js";
 import type { KitState, ModuleManifest } from "./schema.js";
 
-const KIT_STATE_PATH = ".wa/kit.json";
+export const KIT_STATE_PATH = ".wa/kit.json";
 
 export async function readKitState(projectDir: string): Promise<KitState> {
   let raw: string;
