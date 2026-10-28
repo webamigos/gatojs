@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseAddArgs, parseCreateArgs } from "../args.js";
+import {
+  parseAddArgs,
+  parseCreateArgs,
+  parseListArgs,
+  parseRemoveArgs,
+} from "../args.js";
 
 describe("parseCreateArgs", () => {
   it("brak katalogu zgłasza Podaj katalog projektu", () => {
@@ -122,5 +127,41 @@ describe("parseAddArgs", () => {
 
   it("brak modułu zgłasza Podaj nazwę modułu", () => {
     expect(() => parseAddArgs([])).toThrow("Podaj nazwę modułu");
+  });
+});
+
+describe("parseRemoveArgs", () => {
+  it("sama nazwa modułu dostaje wartości domyślne", () => {
+    expect(parseRemoveArgs(["demo"])).toEqual({
+      module: "demo",
+      force: false,
+      install: true,
+    });
+  });
+
+  it("--force i --no-install zmieniają flagi", () => {
+    expect(parseRemoveArgs(["demo", "--force", "--no-install"])).toEqual({
+      module: "demo",
+      force: true,
+      install: false,
+    });
+  });
+
+  it("brak nazwy modułu zgłasza Podaj nazwę modułu", () => {
+    expect(() => parseRemoveArgs([])).toThrow("Podaj nazwę modułu");
+  });
+});
+
+describe("parseListArgs", () => {
+  it("bez argumentów kit jest null", () => {
+    expect(parseListArgs([])).toEqual({ kit: null });
+  });
+
+  it("--kit x przekazuje źródło kitu", () => {
+    expect(parseListArgs(["--kit", "x"])).toEqual({ kit: "x" });
+  });
+
+  it("argument pozycyjny jest odrzucany z komunikatem Nieoczekiwany argument", () => {
+    expect(() => parseListArgs(["x"])).toThrow("Nieoczekiwany argument: x");
   });
 });

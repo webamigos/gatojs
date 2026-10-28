@@ -241,4 +241,13 @@ describe("list", () => {
       "  demo 1.0.0 — Demo",
     ]);
   });
+
+  it("rdzeń nieobecny w stanie nie pojawia się w dostępnych", () => {
+    expect(
+      render({
+        state: stateWith([demo]),
+        available: [core, demo],
+      }),
+    ).toEqual(["Zainstalowane:", "  demo 1.0.0", "Dostępne: brak"]);
+  });
 });

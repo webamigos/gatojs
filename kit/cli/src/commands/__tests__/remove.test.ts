@@ -1,10 +1,13 @@
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import {
   appendFile,
+  lstat,
   mkdir,
   readFile,
   readdir,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -12,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createProject,
   IGNORE,
+  makeTempDir,
   removeTempDirs,
   snapshotDir,
 } from "../../__tests__/helpers.js";
@@ -71,6 +75,24 @@ async function writeProjectFile(
 ): Promise<void> {
   await mkdir(dirname(join(dir, relative)), { recursive: true });
   await writeFile(join(dir, relative), content);
+}
+
+function sha256(content: string): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+async function setDemoFiles(
+  dir: string,
+  files: Record<string, string>,
+): Promise<void> {
+  const state = await readKitState(dir);
+  const demo = state.modules.demo as NonNullable<
+    (typeof state.modules)["demo"]
+  >;
+  await writeKitState(dir, {
+    ...state,
+    modules: { ...state.modules, demo: { ...demo, files } },
+  });
 }
 
 function removeOptions(
@@ -401,5 +423,144 @@ describe("remove", () => {
     await expect(remove(removeOptions(dir, "demo"))).rejects.toThrow(
       "Moduł demo nie jest zainstalowany",
     );
+  });
+
+  describe("ścieżki spoza projektu", () => {
+    const victimContent = "ofiara\n";
+
+    async function victimOutside(): Promise<string> {
+      const outside = await makeTempDir("wa-kit-outside-");
+      const victim = join(outside, "outside.txt");
+      await writeFile(victim, victimContent);
+      return victim;
+    }
+
+    it.each(["../outside.txt", "a/../../outside.txt", "..", ".", "ABSOLUTE"])(
+      "wpis files %s odrzuca remove bez zmian w projekcie, także z --force",
+      async (entry) => {
+        for (const force of [false, true]) {
+          const dir = await createProject("app", ["demo"]);
+          const victim = await victimOutside();
+          const outsideDir = dirname(victim);
+          await writeFile(join(dirname(dir), "outside.txt"), victimContent);
+          const file = entry === "ABSOLUTE" ? victim : entry;
+          await setDemoFiles(dir, { [file]: sha256(victimContent) });
+          const snapshot = await snapshotDir(dir, IGNORE);
+          await expect(
+            remove(removeOptions(dir, "demo", { force })),
+          ).rejects.toThrow(`Ścieżka poza projektem: ${file}`);
+          expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
+          expect(await readFile(victim, "utf8")).toBe(victimContent);
+          expect(
+            await readFile(join(dirname(dir), "outside.txt"), "utf8"),
+          ).toBe(victimContent);
+          expect(existsSync(outsideDir)).toBe(true);
+          expect(runner).not.toHaveBeenCalled();
+        }
+      },
+    );
+
+    it("plik w katalogu o nazwie zaczynającej się od .. jest w projekcie i zostaje usunięty", async () => {
+      const dir = await createProject("app", ["demo"]);
+      await writeProjectFile(dir, "..foo/a.txt", "x\n");
+      await setDemoFiles(dir, { "..foo/a.txt": sha256("x\n") });
+      await expect(remove(removeOptions(dir, "demo"))).resolves.toEqual({
+        removed: ["demo"],
+      });
+      expect(existsSync(join(dir, "..foo/a.txt"))).toBe(false);
+      expect(existsSync(join(dir, "..foo"))).toBe(false);
+    });
+
+    it.each([false, true])(
+      "symlink prowadzący poza projekt jest odrzucany, plik-ofiara zostaje (force=%s)",
+      async (force) => {
+        const dir = await createProject("app", ["demo"]);
+        const outside = await makeTempDir("wa-kit-outside-");
+        await writeFile(join(outside, "victim.txt"), victimContent);
+        await symlink(outside, join(dir, "src/features/demo/link"));
+        await setDemoFiles(dir, {
+          "src/features/demo/link/victim.txt": sha256(victimContent),
+        });
+        const ignore = [...IGNORE, "link"];
+        const snapshot = await snapshotDir(dir, ignore);
+        await expect(
+          remove(removeOptions(dir, "demo", { force })),
+        ).rejects.toThrow(
+          "Ścieżka poza projektem: src/features/demo/link/victim.txt",
+        );
+        expect(await readFile(join(outside, "victim.txt"), "utf8")).toBe(
+          victimContent,
+        );
+        expect(
+          (await lstat(join(dir, "src/features/demo/link"))).isSymbolicLink(),
+        ).toBe(true);
+        expect(await snapshotDir(dir, ignore)).toEqual(snapshot);
+        expect(runner).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  it("zmienione pliki zapisane w stanie odwrotnie do alfabetycznej są wypisane alfabetycznie", async () => {
+    const dir = await createProject("app", ["demo"]);
+    await writeProjectFile(dir, "src/features/demo/zz.ts", "zmiana\n");
+    await writeProjectFile(dir, "src/features/demo/aa.ts", "zmiana\n");
+    await setDemoFiles(dir, {
+      "src/features/demo/zz.ts": sha256("stare\n"),
+      "src/features/demo/aa.ts": sha256("stare\n"),
+    });
+    await expect(remove(removeOptions(dir, "demo"))).rejects.toMatchObject({
+      message:
+        "Zmienione pliki modułu demo (użyj --force):\n  src/features/demo/aa.ts\n  src/features/demo/zz.ts",
+    });
+  });
+
+  it("błąd odczytu inny niż brak pliku (katalog w files) przerywa remove bez usuwania", async () => {
+    const dir = await createProject("app", ["demo"]);
+    const state = await readKitState(dir);
+    const demo = state.modules.demo as NonNullable<
+      (typeof state.modules)["demo"]
+    >;
+    await setDemoFiles(dir, {
+      ...demo.files,
+      "src/features/demo/i18n": sha256("x"),
+    });
+    const snapshot = await snapshotDir(dir, IGNORE);
+    await expect(
+      remove(removeOptions(dir, "demo", { force: true })),
+    ).rejects.toThrow("EISDIR");
+    expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("dwa pliki w jednym podkatalogu znikają razem z pustymi katalogami", async () => {
+    const dir = await createProject("app", ["demo"]);
+    await writeProjectFile(dir, "src/features/demo/sub/a.ts", "a\n");
+    await writeProjectFile(dir, "src/features/demo/sub/b.ts", "b\n");
+    const state = await readKitState(dir);
+    const demo = state.modules.demo as NonNullable<
+      (typeof state.modules)["demo"]
+    >;
+    await setDemoFiles(dir, {
+      ...demo.files,
+      "src/features/demo/sub/a.ts": sha256("a\n"),
+      "src/features/demo/sub/b.ts": sha256("b\n"),
+    });
+    await expect(remove(removeOptions(dir, "demo"))).resolves.toEqual({
+      removed: ["demo"],
+    });
+    expect(existsSync(join(dir, "src/features/demo/sub"))).toBe(false);
+    expect(existsSync(join(dir, "src/features/demo"))).toBe(false);
+  });
+
+  it("błąd npm install zgłasza komunikat, a moduł jest już usunięty ze stanu i z dysku", async () => {
+    const dir = await createProject("app", ["demo"]);
+    runner.mockRejectedValueOnce(new Error("npm padł"));
+    await expect(
+      remove(removeOptions(dir, "demo", { install: true })),
+    ).rejects.toThrow(
+      "Moduł usunięty, ale npm install się nie powiódł. Uruchom: npm install",
+    );
+    expect(Object.keys((await readKitState(dir)).modules)).toEqual(["core"]);
+    expect(existsSync(join(dir, "src/features/demo"))).toBe(false);
   });
 });
