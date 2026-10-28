@@ -98,4 +98,36 @@ describe("kit state", () => {
       '{\n  "kitVersion": "1.2.3",\n  "kitRepo": "https://example.com/kit.git",\n  "project": {\n    "name": "Moj",\n    "slug": "moj"\n  },\n  "locales": [\n    "pl"\n  ],\n  "modules": {}\n}\n',
     );
   });
+
+  it("writeKitState zapisuje te same klucze niezaleznie od kolejnosci w wejsciu", async () => {
+    await writeKitState(tmp, {
+      modules: {},
+      locales: ["pl"],
+      project: { name: "Moj", slug: "moj" },
+      kitRepo: "https://example.com/kit.git",
+      kitVersion: "1.2.3",
+    });
+    expect(await readFile(join(tmp, ".wa/kit.json"), "utf8")).toBe(
+      '{\n  "kitVersion": "1.2.3",\n  "kitRepo": "https://example.com/kit.git",\n  "project": {\n    "name": "Moj",\n    "slug": "moj"\n  },\n  "locales": [\n    "pl"\n  ],\n  "modules": {}\n}\n',
+    );
+  });
+
+  it("installedModules stawia core pierwszy, gdy w wejsciu jest po module alfabetycznie wczesniejszym", () => {
+    expect(
+      installedModules(stateWith(["core", "api-keys"])).map((m) => m.name),
+    ).toEqual(["core", "api-keys"]);
+    expect(
+      installedModules(stateWith(["api-keys", "core"])).map((m) => m.name),
+    ).toEqual(["core", "api-keys"]);
+  });
+
+  it("readKitState nie maskuje bledu innego niz brak pliku", async () => {
+    await mkdir(join(tmp, ".wa/kit.json"), { recursive: true });
+    const error = await readKitState(tmp).then(
+      () => null,
+      (e: Error) => e,
+    );
+    expect(error?.message).toContain("EISDIR");
+    expect(error?.message).not.toContain("Brak .wa/kit.json");
+  });
 });

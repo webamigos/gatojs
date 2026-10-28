@@ -72,12 +72,34 @@ describe("readKitConfig", () => {
     await expect(readKitConfig(tmp)).rejects.toThrow();
   });
 
+  it("blad inny niz brak pliku nie jest maskowany", async () => {
+    await mkdir(join(tmp, "kit/kit.json"), { recursive: true });
+    const error = await readKitConfig(tmp).then(
+      () => null,
+      (e: Error) => e,
+    );
+    expect(error?.message).toContain("EISDIR");
+    expect(error?.message).not.toContain("Brak kit/kit.json");
+  });
+
   it("niepoprawny typ wersji odrzucony przez kitConfigSchema", () => {
     expect(kitConfigSchema.safeParse({ version: 1 }).success).toBe(false);
   });
 });
 
 describe("readKitManifests", () => {
+  it("ignoruje pliki spoza .json w kit/modules", async () => {
+    const copy = join(tmp, "kit-copy");
+    await cp(fixtureKit, copy, { recursive: true });
+    await writeFile(join(copy, "kit/modules/README.md"), "# modules");
+    const manifests = await readKitManifests(copy);
+    expect(manifests.map((m) => m.name)).toEqual([
+      "core",
+      "demo",
+      "needs-demo",
+    ]);
+  });
+
   it("core pierwszy, potem alfabetycznie mimo innej kolejnosci plikow", async () => {
     expect((await readKitManifests(fixtureKit)).map((m) => m.name)).toEqual([
       "core",
