@@ -33,6 +33,17 @@ vi.mock("@/i18n/routing", () => ({
 vi.mock("@/shared/lib/auth/client", () => ({
   authClient: { signOut: mockSignOut },
 }));
+vi.mock("@/modules.client.generated", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/modules.client.generated")>();
+  const coreKeys = ["account", "auth", "dashboard", "organizations", "users"];
+  return {
+    ...original,
+    clientModules: original.clientModules.filter((moduleDef) =>
+      coreKeys.includes(moduleDef.key),
+    ),
+  };
+});
 vi.mock("lucide-react/dynamic", () => ({
   DynamicIcon: ({ name }: { name: string }) => <span data-icon={name} />,
 }));

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AccessContext } from "@/shared/lib/auth/permissions";
+import { coreClientModules } from "@/test/core-modules";
 import { defineModule } from "../define-module";
 import { getNavEntries, isActiveEntry } from "../nav";
 
@@ -11,14 +12,16 @@ const member: AccessContext = {
 
 describe("getNavEntries (rejestr generowany)", () => {
   it("member widzi dashboard i konto, w kolejności order, bez użytkowników", () => {
-    expect(getNavEntries(member).map((entry) => entry.href)).toEqual([
-      "/dashboard",
-      "/account",
-    ]);
+    expect(
+      getNavEntries(member, coreClientModules).map((entry) => entry.href),
+    ).toEqual(["/dashboard", "/account"]);
   });
 
   it("globalny admin widzi też użytkowników", () => {
-    const entries = getNavEntries({ ...member, userRole: "admin" });
+    const entries = getNavEntries(
+      { ...member, userRole: "admin" },
+      coreClientModules,
+    );
     expect(entries.map((entry) => entry.href)).toEqual([
       "/dashboard",
       "/users",
@@ -27,7 +30,10 @@ describe("getNavEntries (rejestr generowany)", () => {
   });
 
   it("superadmin widzi też użytkowników przy MULTI_ORG=false", () => {
-    const entries = getNavEntries({ ...member, userRole: "superadmin" });
+    const entries = getNavEntries(
+      { ...member, userRole: "superadmin" },
+      coreClientModules,
+    );
     expect(entries.map((entry) => entry.href)).toEqual([
       "/dashboard",
       "/users",
@@ -37,22 +43,28 @@ describe("getNavEntries (rejestr generowany)", () => {
 
   it("owner organizacji widzi użytkowników tylko przy MULTI_ORG", () => {
     const owner: AccessContext = { ...member, orgRole: "owner" };
-    expect(getNavEntries(owner).map((entry) => entry.href)).not.toContain(
-      "/users",
-    );
     expect(
-      getNavEntries({ ...owner, multiOrg: true }).map((entry) => entry.href),
+      getNavEntries(owner, coreClientModules).map((entry) => entry.href),
+    ).not.toContain("/users");
+    expect(
+      getNavEntries({ ...owner, multiOrg: true }, coreClientModules).map(
+        (entry) => entry.href,
+      ),
     ).toContain("/users");
   });
 
   it("etykieta wskazuje namespace modułu i labelKey", () => {
-    expect(getNavEntries(member)[0]?.labelPath).toBe("dashboard.nav");
+    expect(getNavEntries(member, coreClientModules)[0]?.labelPath).toBe(
+      "dashboard.nav",
+    );
   });
 });
 
 describe("etykieta Członkowie", () => {
   const labelOf = (context: AccessContext) =>
-    getNavEntries(context).find((entry) => entry.href === "/users")?.labelPath;
+    getNavEntries(context, coreClientModules).find(
+      (entry) => entry.href === "/users",
+    )?.labelPath;
 
   it("MULTI_ORG i nie-globalny admin → users.nav-members", () => {
     expect(

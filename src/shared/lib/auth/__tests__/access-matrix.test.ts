@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clientModules } from "@/modules.client.generated";
+import { CORE_MODULE_KEYS, coreClientModules } from "@/test/core-modules";
 import { canAccessModule } from "../permissions";
 import { getNavEntries } from "@/shared/lib/modules/nav";
 
@@ -278,7 +278,7 @@ const navCases = MODES.flatMap(({ mode, multiOrg }) =>
 );
 
 function registryModule(key: ModuleKey) {
-  const found = clientModules.find((moduleDef) => moduleDef.key === key);
+  const found = coreClientModules.find((moduleDef) => moduleDef.key === key);
   if (!found) {
     throw new Error(`Brak modułu ${key} w rejestrze`);
   }
@@ -286,8 +286,15 @@ function registryModule(key: ModuleKey) {
 }
 
 describe("macierz dostępu do modułów", () => {
-  it("rejestr zawiera dokładnie 5 modułów z macierzy", () => {
-    expect(clientModules.map((moduleDef) => moduleDef.key).sort()).toEqual([
+  it("moduły rdzenia to dokładnie 5 modułów z macierzy", () => {
+    expect(CORE_MODULE_KEYS).toEqual([
+      "account",
+      "auth",
+      "dashboard",
+      "organizations",
+      "users",
+    ]);
+    expect(coreClientModules.map((moduleDef) => moduleDef.key).sort()).toEqual([
       "account",
       "auth",
       "dashboard",
@@ -402,11 +409,10 @@ describe("nawigacja równa macierzy (decyzja 3)", () => {
   it.each(navCases)(
     "getNavEntries(userRole=$userRole, orgRole=$column, multiOrg=$multiOrg) zwraca dokładnie pozycje modułów z dostępem",
     ({ userRole, column, multiOrg, expected }) => {
-      const entries = getNavEntries({
-        userRole,
-        orgRole: MEMBERSHIP[column],
-        multiOrg,
-      });
+      const entries = getNavEntries(
+        { userRole, orgRole: MEMBERSHIP[column], multiOrg },
+        coreClientModules,
+      );
 
       expect(
         entries.map(({ href, labelPath }) => ({ href, labelPath })),
@@ -423,11 +429,10 @@ describe("nawigacja równa macierzy (decyzja 3)", () => {
   )(
     "etykieta Członkowie (users.nav-members) nie pojawia się dla $userRole (orgRole=$column, multiOrg=$multiOrg)",
     ({ userRole, column, multiOrg }) => {
-      const labels = getNavEntries({
-        userRole,
-        orgRole: MEMBERSHIP[column],
-        multiOrg,
-      }).map((entry) => entry.labelPath);
+      const labels = getNavEntries(
+        { userRole, orgRole: MEMBERSHIP[column], multiOrg },
+        coreClientModules,
+      ).map((entry) => entry.labelPath);
 
       expect(labels).not.toContain("users.nav-members");
       expect(labels).toContain("users.nav");
