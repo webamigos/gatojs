@@ -6,7 +6,7 @@ var __export = (target, all) => {
 };
 
 // src/bin.ts
-import { dirname as dirname5, join as join11, resolve as resolve4 } from "node:path";
+import { dirname as dirname6, join as join11, resolve as resolve4 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdtemp as mkdtemp2, rm as rm4 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -21,27 +21,61 @@ function parseList(value) {
 function parseLocales(value) {
   const locales = parseList(value);
   const valid = locales.includes("pl") && new Set(locales).size === locales.length && locales.every((locale) => ALLOWED_LOCALES.includes(locale));
-  if (!valid) throw new Error(LOCALES_ERROR);
+  if (!valid) {
+    throw new Error(LOCALES_ERROR);
+  }
   return locales;
 }
+var OPTION_NAME_IN_ERROR = /'(-{1,2}[^\s'=]+)/;
+function optionNameFromError(error62) {
+  return OPTION_NAME_IN_ERROR.exec(error62.message)?.[1] ?? "";
+}
+function translateParseError(error62, options) {
+  if (!(error62 instanceof Error) || !("code" in error62)) {
+    return error62;
+  }
+  const option = optionNameFromError(error62);
+  if (error62.code === "ERR_PARSE_ARGS_UNKNOWN_OPTION") {
+    return new Error(`Nieznana opcja: ${option}`);
+  }
+  if (error62.code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
+    const takesValue = options[option.replace(/^--/, "")]?.type === "string";
+    return new Error(
+      takesValue ? `Opcja ${option} wymaga warto\u015Bci` : `Opcja ${option} nie przyjmuje warto\u015Bci`
+    );
+  }
+  return error62;
+}
+function parseOptions(argv, options) {
+  try {
+    return parseArgs({ args: argv, allowPositionals: true, options });
+  } catch (error62) {
+    throw translateParseError(error62, options);
+  }
+}
+function assertMaxPositionals(positionals, allowed) {
+  const unexpected = positionals[allowed];
+  if (unexpected !== void 0) {
+    throw new Error(`Nieoczekiwany argument: ${unexpected}`);
+  }
+}
 function parseCreateArgs(argv) {
-  const { values, positionals } = parseArgs({
-    args: argv,
-    allowPositionals: true,
-    options: {
-      modules: { type: "string" },
-      locales: { type: "string" },
-      title: { type: "string" },
-      "admin-email": { type: "string" },
-      setup: { type: "boolean", default: false },
-      yes: { type: "boolean", default: false },
-      "no-install": { type: "boolean", default: false },
-      "no-git": { type: "boolean", default: false },
-      kit: { type: "string" }
-    }
+  const { values, positionals } = parseOptions(argv, {
+    modules: { type: "string" },
+    locales: { type: "string" },
+    title: { type: "string" },
+    "admin-email": { type: "string" },
+    setup: { type: "boolean", default: false },
+    yes: { type: "boolean", default: false },
+    "no-install": { type: "boolean", default: false },
+    "no-git": { type: "boolean", default: false },
+    kit: { type: "string" }
   });
   const [target] = positionals;
-  if (target === void 0) throw new Error("Podaj katalog projektu");
+  if (target === void 0) {
+    throw new Error("Podaj katalog projektu");
+  }
+  assertMaxPositionals(positionals, 1);
   if (values.setup && values["no-install"]) {
     throw new Error("--setup wymaga instalacji zale\u017Cno\u015Bci (bez --no-install)");
   }
@@ -59,16 +93,15 @@ function parseCreateArgs(argv) {
   };
 }
 function parseAddArgs(argv) {
-  const { values, positionals } = parseArgs({
-    args: argv,
-    allowPositionals: true,
-    options: {
-      kit: { type: "string" },
-      "no-install": { type: "boolean", default: false }
-    }
+  const { values, positionals } = parseOptions(argv, {
+    kit: { type: "string" },
+    "no-install": { type: "boolean", default: false }
   });
   const [module] = positionals;
-  if (module === void 0) throw new Error("Podaj nazw\u0119 modu\u0142u");
+  if (module === void 0) {
+    throw new Error("Podaj nazw\u0119 modu\u0142u");
+  }
+  assertMaxPositionals(positionals, 1);
   return {
     module,
     kit: values.kit ?? null,
@@ -76,44 +109,57 @@ function parseAddArgs(argv) {
   };
 }
 function parseRemoveArgs(argv) {
-  const { values, positionals } = parseArgs({
-    args: argv,
-    allowPositionals: true,
-    options: {
-      force: { type: "boolean", default: false },
-      "no-install": { type: "boolean", default: false }
-    }
+  const { values, positionals } = parseOptions(argv, {
+    force: { type: "boolean", default: false },
+    "no-install": { type: "boolean", default: false }
   });
   const [module] = positionals;
-  if (module === void 0) throw new Error("Podaj nazw\u0119 modu\u0142u");
+  if (module === void 0) {
+    throw new Error("Podaj nazw\u0119 modu\u0142u");
+  }
+  assertMaxPositionals(positionals, 1);
   return { module, force: values.force, install: !values["no-install"] };
 }
 function parseListArgs(argv) {
-  const { values, positionals } = parseArgs({
-    args: argv,
-    allowPositionals: true,
-    options: { kit: { type: "string" } }
+  const { values, positionals } = parseOptions(argv, {
+    kit: { type: "string" }
   });
-  const [unexpected] = positionals;
-  if (unexpected !== void 0) {
-    throw new Error(`Nieoczekiwany argument: ${unexpected}`);
-  }
+  assertMaxPositionals(positionals, 0);
   return { kit: values.kit ?? null };
 }
 
 // src/commands/add.ts
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile as readFile6, rm, writeFile as writeFile4 } from "node:fs/promises";
-import { join as join7 } from "node:path";
+import {
+  mkdtemp,
+  readdir as readdir2,
+  readFile as readFile6,
+  rm,
+  rmdir,
+  writeFile as writeFile4
+} from "node:fs/promises";
+import { dirname as dirname4, join as join7 } from "node:path";
 
 // src/compare.ts
 function compareCodePoint(a, b) {
-  return a < b ? -1 : a > b ? 1 : 0;
+  if (a < b) {
+    return -1;
+  }
+  if (a > b) {
+    return 1;
+  }
+  return 0;
 }
 function compareModuleNames(a, b) {
-  if (a === b) return 0;
-  if (a === "core") return -1;
-  if (b === "core") return 1;
+  if (a === b) {
+    return 0;
+  }
+  if (a === "core") {
+    return -1;
+  }
+  if (b === "core") {
+    return 1;
+  }
   return compareCodePoint(a, b);
 }
 
@@ -156,7 +202,9 @@ function replaceRegion(content, file2, marker, body) {
 function indicesOf(lines, token) {
   const found = [];
   lines.forEach((line, index) => {
-    if (line.includes(token)) found.push(index);
+    if (line.includes(token)) {
+      found.push(index);
+    }
   });
   return found;
 }
@@ -188,7 +236,9 @@ async function composeBody({
 }) {
   const parts = [];
   for (const m of modules) {
-    if (m.compose === null) continue;
+    if (m.compose === null) {
+      continue;
+    }
     const content = await readFile(join(projectDir, m.compose), "utf8");
     parts.push(indent(content.replace(/\n+$/, "")));
   }
@@ -214,7 +264,9 @@ async function renderRegionTarget(target, context) {
   try {
     current = await readFile(join(context.projectDir, target.file), "utf8");
   } catch (error62) {
-    if (error62.code === "ENOENT") return null;
+    if (error62.code === "ENOENT") {
+      return null;
+    }
     throw error62;
   }
   const body = await target.body(context);
@@ -236,11 +288,15 @@ function stripRegions(content) {
     kept.push(line);
     index += 1;
     const region = REGION_START.exec(line)?.[1];
-    if (region === void 0) continue;
+    if (region === void 0) {
+      continue;
+    }
     const end = lines.findIndex(
       (candidate, position) => position >= index && candidate.includes(`wa:${region}:end`)
     );
-    if (end === -1) continue;
+    if (end === -1) {
+      continue;
+    }
     kept.push(lines[end]);
     index = end + 1;
   }
@@ -250,7 +306,9 @@ function sha256(data) {
   return createHash("sha256").update(data).digest("hex");
 }
 function fileHash(file2, content, config2) {
-  if (config2.managedFiles.includes(file2)) return "managed";
+  if (config2.managedFiles.includes(file2)) {
+    return "managed";
+  }
   if (REGION_FILES.includes(file2)) {
     return sha256(stripRegions(content.toString("utf8")));
   }
@@ -259,7 +317,9 @@ function fileHash(file2, content, config2) {
 
 // src/assemble/placeholders.ts
 function applyPlaceholders(file2, content, config2, names) {
-  if (!config2.placeholderFiles.includes(file2)) return content;
+  if (!config2.placeholderFiles.includes(file2)) {
+    return content;
+  }
   return content.replaceAll(config2.placeholders.projectName, names.name).replaceAll(config2.placeholders.projectSlug, names.slug).replaceAll(config2.placeholders.projectSnake, names.snake);
 }
 
@@ -309,23 +369,43 @@ function projectPackageJson(kitPackageJson, manifests, names) {
 function addDependencies(packageJson, manifest) {
   const parsed = JSON.parse(packageJson);
   for (const section of SECTIONS) {
-    if (Object.keys(manifest[section]).length === 0) continue;
+    if (Object.keys(manifest[section]).length === 0) {
+      continue;
+    }
     const existing = parsed[section] ?? {};
     parsed[section] = sortedKeys({ ...manifest[section], ...existing });
   }
   return serialize(parsed);
 }
+function dependencyConflicts(packageJson, manifest) {
+  const parsed = JSON.parse(packageJson);
+  return SECTIONS.flatMap((section) => {
+    const existing = parsed[section] ?? {};
+    return Object.entries(manifest[section]).filter(
+      ([name, version2]) => existing[name] !== void 0 && existing[name] !== version2
+    ).sort(([a], [b]) => compareCodePoint(a, b)).map(([name, version2]) => ({
+      section,
+      name,
+      project: existing[name],
+      module: version2
+    }));
+  });
+}
 function removeDependencies(packageJson, removed, remaining) {
   const parsed = JSON.parse(packageJson);
   for (const section of SECTIONS) {
     const existing = parsed[section];
-    if (!existing) continue;
+    if (!existing) {
+      continue;
+    }
     const stillNeeded = new Set(
       remaining.flatMap((manifest) => Object.keys(manifest[section]))
     );
     const next = { ...existing };
     for (const name of Object.keys(removed[section])) {
-      if (!stillNeeded.has(name)) delete next[name];
+      if (!stillNeeded.has(name)) {
+        delete next[name];
+      }
     }
     parsed[section] = next;
   }
@@ -396,7 +476,9 @@ function resolveModules(requested, available) {
   pending.push(CORE);
   while (pending.length > 0) {
     const name = pending.pop();
-    if (resolved.has(name)) continue;
+    if (resolved.has(name)) {
+      continue;
+    }
     const manifest = byName.get(name);
     if (!manifest) {
       const names = available.map((candidate) => candidate.name).filter((candidate) => candidate !== CORE).sort(compareModuleNames);
@@ -20364,8 +20446,9 @@ async function detectFeature(projectDir, name, configuredLocales) {
   const base = join4(projectDir, "src", "features", name);
   const locales = [];
   for (const locale of configuredLocales) {
-    if (await exists(join4(base, "i18n", `${locale}.json`)))
+    if (await exists(join4(base, "i18n", `${locale}.json`))) {
       locales.push(locale);
+    }
   }
   return {
     name,
@@ -20386,7 +20469,9 @@ async function featureEntries(projectDir, files, configuredLocales) {
       )
     ].sort(compareCodePoint);
     for (const name of names) {
-      if (seen.has(name)) continue;
+      if (seen.has(name)) {
+        continue;
+      }
       seen.add(name);
       const entry = await detectFeature(projectDir, name, configuredLocales);
       entries.push(entry);
@@ -20411,7 +20496,9 @@ async function generate(projectDir) {
   ]) {
     const current = await readFile4(join4(projectDir, file2), "utf8").catch(
       (error62) => {
-        if (error62.code === "ENOENT") return null;
+        if (error62.code === "ENOENT") {
+          return null;
+        }
         throw error62;
       }
     );
@@ -20423,7 +20510,9 @@ async function generate(projectDir) {
       projectDir,
       project: state.project
     });
-    if (rendered) pending.push(rendered);
+    if (rendered) {
+      pending.push(rendered);
+    }
   }
   const changed = pending.filter((p) => p.current !== p.next);
   for (const { file: file2, next } of changed) {
@@ -20541,6 +20630,35 @@ async function resolveKitSource(input2) {
 }
 
 // src/commands/add.ts
+function missingDirectories(projectDir, files) {
+  const missing = /* @__PURE__ */ new Set();
+  for (const file2 of files) {
+    let directory = dirname4(file2);
+    while (directory !== "." && !existsSync(join7(projectDir, directory))) {
+      missing.add(directory);
+      directory = dirname4(directory);
+    }
+  }
+  return [...missing].sort((a, b) => b.length - a.length);
+}
+async function removeEmptyDirectory(path) {
+  if (!existsSync(path)) {
+    return;
+  }
+  if ((await readdir2(path)).length === 0) {
+    await rmdir(path);
+  }
+}
+async function rollbackAdd(input2) {
+  const { projectDir } = input2;
+  await writeFile4(input2.packageJsonPath, input2.originalPackageJson);
+  for (const file2 of input2.files) {
+    await rm(join7(projectDir, file2), { force: true });
+  }
+  for (const directory of input2.createdDirectories) {
+    await removeEmptyDirectory(join7(projectDir, directory));
+  }
+}
 async function add(options) {
   const { projectDir, module, kitDir, runner, log } = options;
   const state = await readKitState(projectDir);
@@ -20576,24 +20694,43 @@ ${collisions.map((file2) => `  ${file2}`).join("\n")}`
   };
   const modules = { ...state.modules };
   const packageJsonPath = join7(projectDir, "package.json");
-  let packageJson = await readFile6(packageJsonPath, "utf8");
-  for (const { manifest, files } of filesByModule) {
-    const hashes = await copyFiles({
-      kitDir,
+  const originalPackageJson = await readFile6(packageJsonPath, "utf8");
+  const plannedFiles = filesByModule.flatMap(({ files }) => files);
+  const createdDirectories = missingDirectories(projectDir, plannedFiles);
+  try {
+    let packageJson = originalPackageJson;
+    for (const { manifest, files } of filesByModule) {
+      const hashes = await copyFiles({
+        kitDir,
+        projectDir,
+        files,
+        config: config2,
+        names
+      });
+      modules[manifest.name] = {
+        version: manifest.version,
+        manifest,
+        files: hashes
+      };
+      for (const conflict of dependencyConflicts(packageJson, manifest)) {
+        log(
+          `Uwaga: ${conflict.name} (${conflict.section}) ma w projekcie ${conflict.project}, modu\u0142 ${manifest.name} wymaga ${conflict.module}; zostaje wersja projektu`
+        );
+      }
+      packageJson = addDependencies(packageJson, manifest);
+    }
+    await writeFile4(packageJsonPath, packageJson);
+    await writeKitState(projectDir, { ...state, modules });
+  } catch (error62) {
+    await rollbackAdd({
       projectDir,
-      files,
-      config: config2,
-      names
-    });
-    modules[manifest.name] = {
-      version: manifest.version,
-      manifest,
-      files: hashes
-    };
-    packageJson = addDependencies(packageJson, manifest);
+      files: plannedFiles,
+      createdDirectories,
+      packageJsonPath,
+      originalPackageJson
+    }).catch(() => void 0);
+    throw error62;
   }
-  await writeFile4(packageJsonPath, packageJson);
-  await writeKitState(projectDir, { ...state, modules });
   await generate(projectDir);
   if (options.install) {
     try {
@@ -20637,7 +20774,7 @@ import { existsSync as existsSync2 } from "node:fs";
 import {
   chmod as chmod2,
   mkdir as mkdir4,
-  readdir as readdir2,
+  readdir as readdir3,
   readFile as readFile7,
   rm as rm2,
   writeFile as writeFile5
@@ -20668,8 +20805,10 @@ function projectNames(target, title) {
 var DEFAULT_LOCALES = "pl,en";
 var SETUP_QUESTION = "Uruchomi\u0107 baz\u0119, migracj\u0119 i admin:create teraz? [t/N]";
 async function isNonEmptyDirectory(dir) {
-  if (!existsSync2(dir)) return false;
-  return (await readdir2(dir)).length > 0;
+  if (!existsSync2(dir)) {
+    return false;
+  }
+  return (await readdir3(dir)).length > 0;
 }
 function moduleQuestion(manifests) {
   const lines = manifests.filter((manifest) => manifest.name !== "core").map((manifest) => `  ${manifest.name} \u2014 ${manifest.description}`);
@@ -20705,13 +20844,16 @@ async function collectAnswers(options, manifests, names) {
   return { modules, locales, title, adminEmail, setup };
 }
 async function removeDirectoryContents(dir) {
-  for (const entry of await readdir2(dir)) {
+  for (const entry of await readdir3(dir)) {
     await rm2(join8(dir, entry), { recursive: true });
   }
 }
 async function discardAssembly(dir, existed) {
-  if (existed) await removeDirectoryContents(dir);
-  else await rm2(dir, { recursive: true });
+  if (existed) {
+    await removeDirectoryContents(dir);
+  } else {
+    await rm2(dir, { recursive: true });
+  }
 }
 async function assemble(input2) {
   const { options, projectDir, config: config2, manifests, names, locales } = input2;
@@ -20841,7 +20983,9 @@ async function create(options) {
     throw error62;
   }
   await writeEnvFile(projectDir, answers.adminEmail);
-  if (options.git) await options.runner("git", ["init", "-q"], projectDir);
+  if (options.git) {
+    await options.runner("git", ["init", "-q"], projectDir);
+  }
   if (options.install) {
     try {
       await options.runner("npm", ["install"], projectDir);
@@ -20851,8 +20995,12 @@ async function create(options) {
       );
     }
   }
-  if (options.git) await commitInitial(options, projectDir, config2.version);
-  if (runSetupSteps) await runSetup(options, projectDir, answers.adminEmail);
+  if (options.git) {
+    await commitInitial(options, projectDir, config2.version);
+  }
+  if (runSetupSteps) {
+    await runSetup(options, projectDir, answers.adminEmail);
+  }
   logNextSteps(options.log, projectDir, runSetupSteps, answers.adminEmail);
   return { projectDir, modules: resolved.map((manifest) => manifest.name) };
 }
@@ -20861,7 +21009,9 @@ async function create(options) {
 import { createInterface } from "node:readline/promises";
 var YES_ANSWERS = ["t", "tak", "y", "yes"];
 async function readAnswer(question) {
-  if (!process.stdin.isTTY) throw new Error("Brak terminala: u\u017Cyj --yes");
+  if (!process.stdin.isTTY) {
+    throw new Error("Brak terminala: u\u017Cyj --yes");
+  }
   const lines = createInterface({
     input: process.stdin,
     output: process.stdout
@@ -20880,7 +21030,9 @@ var readlinePrompter = {
   },
   async confirm(question, fallback) {
     const answer = await readAnswer(`${question} `);
-    if (answer === "") return fallback;
+    if (answer === "") {
+      return fallback;
+    }
     return YES_ANSWERS.includes(answer.toLowerCase());
   }
 };
@@ -20908,7 +21060,9 @@ async function readExisting(kitDir) {
   try {
     return await readFile8(join9(kitDir, ".wa/kit.json"), "utf8");
   } catch (error62) {
-    if (error62.code === "ENOENT") return null;
+    if (error62.code === "ENOENT") {
+      return null;
+    }
     throw error62;
   }
 }
@@ -20962,7 +21116,9 @@ function list(options) {
       log("Dost\u0119pne: brak");
     } else {
       log("Dost\u0119pne:");
-      for (const manifest of rest) log(availableLine(manifest));
+      for (const manifest of rest) {
+        log(availableLine(manifest));
+      }
     }
   }
   const projectEntries = Object.entries(state.projectModules).sort(
@@ -20980,16 +21136,18 @@ function list(options) {
 import {
   lstat,
   readFile as readFile9,
-  readdir as readdir3,
+  readdir as readdir4,
   realpath,
   rm as rm3,
-  rmdir,
+  rmdir as rmdir2,
   writeFile as writeFile6
 } from "node:fs/promises";
-import { dirname as dirname4, join as join10, relative, resolve as resolve3, sep } from "node:path";
+import { dirname as dirname5, join as join10, relative, resolve as resolve3, sep } from "node:path";
 var HASH_CONFIG = { managedFiles: [] };
 function assertRemovable(state, module) {
-  if (module === "core") throw new Error("Nie mo\u017Cna usun\u0105\u0107 rdzenia");
+  if (module === "core") {
+    throw new Error("Nie mo\u017Cna usun\u0105\u0107 rdzenia");
+  }
   if (module in state.projectModules) {
     throw new Error(
       `Modu\u0142 ${module} nale\u017Cy do projektu; wa remove usuwa tylko modu\u0142y kitu. Usu\u0144 jego pliki i wpis w projectModules r\u0119cznie`
@@ -21014,8 +21172,10 @@ async function realpathOfDeepestAncestor(path) {
     try {
       return join10(await realpath(current), relative(current, path));
     } catch (error62) {
-      if (error62.code !== "ENOENT") throw error62;
-      current = dirname4(current);
+      if (error62.code !== "ENOENT") {
+        throw error62;
+      }
+      current = dirname5(current);
     }
   }
 }
@@ -21032,7 +21192,9 @@ async function readIfExists(path) {
   try {
     return await readFile9(path);
   } catch (error62) {
-    if (error62.code === "ENOENT") return null;
+    if (error62.code === "ENOENT") {
+      return null;
+    }
     throw error62;
   }
 }
@@ -21040,8 +21202,12 @@ async function changedFiles(projectDir, files) {
   const changed = [];
   for (const [file2, savedHash] of Object.entries(files)) {
     const content = await readIfExists(await insideProject(projectDir, file2));
-    if (content === null) continue;
-    if (fileHash(file2, content, HASH_CONFIG) !== savedHash) changed.push(file2);
+    if (content === null) {
+      continue;
+    }
+    if (fileHash(file2, content, HASH_CONFIG) !== savedHash) {
+      changed.push(file2);
+    }
   }
   return changed.sort(compareCodePoint);
 }
@@ -21049,21 +21215,27 @@ async function lstatIfExists(path) {
   try {
     return await lstat(path);
   } catch (error62) {
-    if (error62.code === "ENOENT") return null;
+    if (error62.code === "ENOENT") {
+      return null;
+    }
     throw error62;
   }
 }
 async function removeEmptyParents(projectDir, start) {
   const root = resolve3(projectDir);
-  let current = dirname4(start);
+  let current = dirname5(start);
   while (current.startsWith(root + sep)) {
     const stats = await lstatIfExists(current);
     if (stats !== null) {
-      if (!stats.isDirectory()) return;
-      if ((await readdir3(current)).length > 0) return;
-      await rmdir(current);
+      if (!stats.isDirectory()) {
+        return;
+      }
+      if ((await readdir4(current)).length > 0) {
+        return;
+      }
+      await rmdir2(current);
     }
-    current = dirname4(current);
+    current = dirname5(current);
   }
 }
 async function remove(options) {
@@ -21179,7 +21351,7 @@ async function main(argv) {
   if (command === "create") {
     const { kit, ...parsed } = parseCreateArgs(argv.slice(1));
     const defaultKit = resolve4(
-      dirname5(fileURLToPath(import.meta.url)),
+      dirname6(fileURLToPath(import.meta.url)),
       "../.."
     );
     await create({
@@ -21199,7 +21371,9 @@ async function main(argv) {
   if (changed.length === 0) {
     console.log("Bez zmian");
   } else {
-    for (const file2 of changed) console.log(`zmieniono ${file2}`);
+    for (const file2 of changed) {
+      console.log(`zmieniono ${file2}`);
+    }
   }
   return 0;
 }

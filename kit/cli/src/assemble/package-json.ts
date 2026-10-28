@@ -45,11 +45,42 @@ export function addDependencies(
 ): string {
   const parsed = JSON.parse(packageJson) as PackageJson;
   for (const section of SECTIONS) {
-    if (Object.keys(manifest[section]).length === 0) continue;
+    if (Object.keys(manifest[section]).length === 0) {
+      continue;
+    }
     const existing = (parsed[section] ?? {}) as Dependencies;
     parsed[section] = sortedKeys({ ...manifest[section], ...existing });
   }
   return serialize(parsed);
+}
+
+export type DependencyConflict = {
+  section: (typeof SECTIONS)[number];
+  name: string;
+  project: string;
+  module: string;
+};
+
+export function dependencyConflicts(
+  packageJson: string,
+  manifest: ModuleManifest,
+): DependencyConflict[] {
+  const parsed = JSON.parse(packageJson) as PackageJson;
+  return SECTIONS.flatMap((section) => {
+    const existing = (parsed[section] ?? {}) as Dependencies;
+    return Object.entries(manifest[section])
+      .filter(
+        ([name, version]) =>
+          existing[name] !== undefined && existing[name] !== version,
+      )
+      .sort(([a], [b]) => compareCodePoint(a, b))
+      .map(([name, version]) => ({
+        section,
+        name,
+        project: existing[name] as string,
+        module: version,
+      }));
+  });
 }
 
 export function removeDependencies(
@@ -60,13 +91,17 @@ export function removeDependencies(
   const parsed = JSON.parse(packageJson) as PackageJson;
   for (const section of SECTIONS) {
     const existing = parsed[section] as Dependencies | undefined;
-    if (!existing) continue;
+    if (!existing) {
+      continue;
+    }
     const stillNeeded = new Set(
       remaining.flatMap((manifest) => Object.keys(manifest[section])),
     );
     const next = { ...existing };
     for (const name of Object.keys(removed[section])) {
-      if (!stillNeeded.has(name)) delete next[name];
+      if (!stillNeeded.has(name)) {
+        delete next[name];
+      }
     }
     parsed[section] = next;
   }

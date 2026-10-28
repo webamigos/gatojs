@@ -109,6 +109,18 @@ Pliki: `kit/cli/src/commands/add.ts`, `kit/cli/src/assemble/package-json.ts`.
   błąd z kodem `ENOENT`; w projekcie nie istnieje żaden plik modułu ani nowy katalog modułu; `package.json` i
   `.wa/kit.json` są bajt w bajt jak przed wywołaniem; katalogi istniejące wcześniej zostają.
 - Udane `add` bez zmian w zachowaniu (dotychczasowe testy).
+- Sprzątanie robi kroki niezależnie i w kolejności: pliki modułów, utworzone katalogi od najgłębszego (pominięte, gdy
+  nie istnieją), przywrócenie `package.json` tylko wtedy, gdy `add` go już nadpisał. Krok, który się nie uda, nie
+  przerywa pozostałych; `add` loguje go jako `Nie udało się posprzątać: <ścieżka względna> (<kod błędu>)`
+  i na końcu rzuca oryginalny błąd.
+- `package.json` tylko do odczytu (`chmod 0o444`) → `add` rzuca błąd z kodem `EACCES`; nie istnieje żaden plik
+  modułu ani `src/features/demo`; `package.json` i `.wa/kit.json` bajt w bajt jak przed; w logu brak linii
+  `Nie udało się posprzątać`.
+- Obcy plik w katalogu utworzonym przez `add` (np. `src/features/demo/i18n/obcy.txt` zapisany przez zamockowane
+  `copyFiles`, które potem rzuca) → plik modułu znikają, obcy plik zostaje, log zawiera dokładnie
+  `Nie udało się posprzątać: src/features/demo/i18n (ENOTEMPTY)` i `Nie udało się posprzątać: src/features/demo (ENOTEMPTY)`,
+  w tej kolejności; oryginalny błąd jest rzucony.
+- W dotychczasowych scenariuszach sprzątania (ENOENT, EACCES na `.wa/kit.json`) log nie zawiera `Nie udało się posprzątać`.
 
 ### Mutacje do zabicia
 
@@ -118,6 +130,10 @@ Pliki: `kit/cli/src/commands/add.ts`, `kit/cli/src/assemble/package-json.ts`.
 - sprzątanie tylko plików z ostatniego modułu (przy kilku modułach).
 - połknięcie błędu zamiast ponownego rzucenia.
 - usunięcie katalogu istniejącego przed `add`.
+- przywracanie `package.json` jako pierwszy krok, który przy błędzie przerywa resztę sprzątania.
+- przywracanie `package.json` także wtedy, gdy nie był nadpisany.
+- pominięcie sprawdzenia, czy katalog istnieje (ENOENT trafia do logu).
+- ciche połknięcie nieudanego kroku (brak linii w logu).
 
 ## Kolejność i proces
 
