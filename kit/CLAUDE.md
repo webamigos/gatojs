@@ -19,3 +19,10 @@ Zasady dla plików tylko kitu (`kit/`). Nie trafiają do projektów (`.dockerign
 
 - Zmieniasz pliki modułu: podbij jego `version` w manifeście (`kit/modules/<x>.json`).
 - `kit/modules/*.json` opisują moduły (pliki, schemat, env); `kit/kit.json` opisuje stan kitu. Oba są źródłem dla generatora i projektów.
+
+## Składanie i wydanie
+
+- Job `assemble` w `.github/workflows/kit.yml` składa projekt z kitu (`wa create`) dla każdej kombinacji modułów z macierzy `combo` i uruchamia w nim `verify`, testy integracyjne oraz `docker build`. Nowy moduł kitu dopisz do macierzy.
+- Fixture modułu projektu (`kit/cli/src/__tests__/fixtures/project-module/`) jest używane przez `assemble`; zmiana kontraktu `projectModules` wymaga jego aktualizacji.
+- Wydanie: podbij `version` zmienionych modułów, uruchom `npm run wa -- kit sync`, zmerguj do `main`; tag `v<version>` ustawia człowiek.
+- Opis dla użytkowników CLI: `kit/README.md`.

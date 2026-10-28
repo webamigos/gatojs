@@ -65,7 +65,7 @@ Repozytorium wa-kit (dalej: kit) to działająca aplikacja Next.js 16, z której
 - **Guard**: funkcja, która sprawdza sesję albo uprawnienia, zanim kod sięgnie do danych, na przykład `getOrgContext()` albo `requireModuleAccess()`.
 - **Kontekst organizacji** (`OrgContext`): wynik `getOrgContext()`, czyli `{ userId, organizationId, orgRole, userRole, serviceMode }` dla zalogowanego użytkownika i jego aktywnej organizacji. Szczegóły: [03-dane-i-organizacje.md](03-dane-i-organizacje.md).
 
-CLI kitu ma jedną komendę, `generate`. W kodzie nie ma narzędzia, które tworzy projekt z kitu albo przenosi poprawki między kitem a projektem: projekt powstaje z kopii repozytorium ([D02](decyzje.md#d02)). Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
+CLI kitu (`wa`) tworzy projekt z kitu (`create`), dodaje i usuwa moduły (`add`, `remove`), wypisuje je (`list`) i odświeża pliki generowane (`generate`). Opisuje go [kit/README.md](../kit/README.md). Nie przenosi poprawek między kitem a projektem: te wysyła się jako pull request ([D02](decyzje.md#d02)). Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
 
 <a id="zasady-kitu"></a>
 

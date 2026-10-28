@@ -52,7 +52,7 @@ Zmienne modułów są dopisywane przez `wa generate` w regionie `# wa:modules:st
 ## Komendy
 
 ```bash
-npm run verify        # lint, typecheck, testy, build, turbo (zadania `test` i `typecheck` w workspace; bez pakietów nic nie robi) i hooków
+npm run verify        # lint, typecheck, testy, build, turbo (zadania `test` i `typecheck` w workspace; bez pakietów nic nie robi) oraz testy hooków
 npm test              # Vitest
 npm run test:e2e      # build + Playwright (wymaga docker compose up -d)
 npm run wa -- generate   # odśwież pliki generowane przez wa
@@ -99,6 +99,19 @@ npm run test:e2e
 
 5. Konta przy przekazaniu aplikacji: Web Amigos dostaje `--role superadmin`, zleceniodawca domyślne `admin`.
    Konta superadmina może zmienić lub usunąć tylko superadmin, więc po okresie wsparcia usuwamy je sami.
+
+## Moduły wa-kit
+
+```bash
+npm run wa -- list                       # zainstalowane moduły i dostępne w kicie
+npm run wa -- add <moduł>                # dodaj moduł z kitu
+npm run wa -- remove <moduł> [--force]   # usuń moduł (--force: także pliki zmienione lokalnie)
+```
+
+- `add` i `list` pobierają kit z repozytorium `webamigos/wa-kit`, więc wymagają dostępu do niego (zalogowany `git`). Źródło można zmienić opcją `--kit <url|ścieżka>` albo zmienną `WA_KIT_SOURCE`: dozwolone są `https://`, `ssh://`, `file://`, `git@` i ścieżka lokalna.
+- `add` i `remove` domyślnie uruchamiają `npm install`; opcja `--no-install` to pomija.
+- Po `add` i `remove` zmienia się schemat bazy: utwórz i zacommituj migrację (`npx prisma migrate dev --name <nazwa>`).
+- Moduły projektu (funkcje napisane w projekcie) są w `projectModules` w `.wa/kit.json`; `remove` ich nie usuwa.
 
 ## wa-kit
 

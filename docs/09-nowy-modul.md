@@ -38,7 +38,7 @@ Tutorial dodaje do projektu klienta funkcję domenową: notatki organizacji. Pow
 
 Tutorial ma dwie części. Ten plik prowadzi przez kroki 1–6: rejestrację feature, schemat bazy, kontrakty i testy, które przed implementacją są czerwone. Kroki 7–9 (query, komenda, komponent, strona, bramki i commit) oraz how-to „Nowa funkcja w istniejącym module” są w [09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md).
 
-Przebieg wykonano naprawdę 2026-10-28 na kopii kitu z commita `4a6ffcb`, przygotowanej jak projekt klienta, aż przeszły `npm run verify` i testy integracyjne. Przebieg Strykera i jego kod wyjścia opisuje [krok 8](09b-implementacja-i-bramki.md#krok-8-stryker). Kod w blokach pochodzi z tego przebiegu. Plików feature `notes` nie ma w repozytorium kitu, więc to jedyne fragmenty dokumentacji, których nie znajdziesz w repo. Przy każdym pliku podany jest plik rdzenia, na którym się wzoruje. Komunikaty błędów i wyniki komend są dosłowne.
+Kroki zostały wykonane na kopii kitu przygotowanej jak projekt klienta, aż przeszły `npm run verify` i testy integracyjne; kod w blokach pochodzi z tego przebiegu. Przebieg Strykera i jego kod wyjścia opisuje [krok 8](09b-implementacja-i-bramki.md#krok-8-stryker). Pełnych plików feature `notes` nie ma w repozytorium kitu: w `kit/cli/src/__tests__/fixtures/project-module/` leży tylko jego minimalny szkielet (definicja modułu, tłumaczenia i model `Note`), którego CI używa do sprawdzenia, że moduł projektu rejestruje się bez edycji testów rdzenia. Przy każdym pliku podany jest plik rdzenia, na którym się wzoruje. Komunikaty błędów i wyniki komend są dosłowne.
 
 Pojęcia, których używa tutorial:
 
