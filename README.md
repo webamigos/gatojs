@@ -6,6 +6,8 @@ Aplikacja Next.js zbudowana na **wa-kit**: logowanie i zaproszenia (better-auth)
 Stos: Next.js 16 · React 19 · TypeScript · Tailwind v4 · shadcn/ui (base-ui) · Prisma 7 + PostgreSQL ·
 better-auth · next-intl (pl/en) · Vitest · Playwright. Node 22 (`.nvmrc`).
 
+Dokumentacja kitu: `docs/README.md` w repo `webamigos/wa-kit`. Opisuje najnowszą wersję kitu; wersję projektu podaje `.wa/kit.json`.
+
 ## Start
 
 Wymagania: Node 22, npm, Docker.

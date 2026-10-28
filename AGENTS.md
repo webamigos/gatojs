@@ -11,6 +11,8 @@ plus moduły. Stan kitu opisuje `.wa/kit.json`.
 **Kod rdzenia i modułów pochodzi z wa-kit (`.wa/kit.json`); poprawki ogólne zgłaszaj do repo `webamigos/wa-kit`.**
 Zmiany specyficzne dla projektu rób lokalnie; poprawki, które przydadzą się innym projektom, wysyłaj jako PR do kitu.
 
+Dokumentacja kitu: `docs/README.md` w repo `webamigos/wa-kit`. Opisuje najnowszą wersję kitu; wersję projektu podaje `.wa/kit.json`.
+
 ## Kolejność priorytetów
 
 poprawność → utrzymywalność → czytelność → spójność → wydajność → szybkość dostarczenia.
