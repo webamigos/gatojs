@@ -291,3 +291,90 @@ describe("błędy opcji po polsku", () => {
     expect(message).not.toContain("Option '");
   });
 });
+
+describe("pusta wartość --kit", () => {
+  it.each([
+    ["add --kit=", () => parseAddArgs(["demo", "--kit="])],
+    [
+      "add --kit z pustym argumentem",
+      () => parseAddArgs(["demo", "--kit", ""]),
+    ],
+    ["list --kit=", () => parseListArgs(["--kit="])],
+    ["list --kit z pustym argumentem", () => parseListArgs(["--kit", ""])],
+    ["create --kit=", () => parseCreateArgs(["acme", "--kit="])],
+    [
+      "create --kit z pustym argumentem",
+      () => parseCreateArgs(["acme", "--kit", ""]),
+    ],
+  ])("%s zgłasza Opcja --kit wymaga wartości", (_nazwa, run) => {
+    expect(messageOf(run)).toBe("Opcja --kit wymaga wartości");
+  });
+
+  it("niepusty --kit jest przekazywany w add, list i create", () => {
+    expect(parseAddArgs(["demo", "--kit", "x"]).kit).toBe("x");
+    expect(parseListArgs(["--kit=x"]).kit).toBe("x");
+    expect(parseCreateArgs(["acme", "--kit", "x"]).kit).toBe("x");
+  });
+
+  it("brak --kit daje null w add, list i create", () => {
+    expect(parseAddArgs(["demo"]).kit).toBeNull();
+    expect(parseListArgs([]).kit).toBeNull();
+    expect(parseCreateArgs(["acme"]).kit).toBeNull();
+  });
+
+  it("pusty --title i --admin-email pozostają dozwolone", () => {
+    expect(parseCreateArgs(["acme", "--title", ""]).title).toBe("");
+    expect(parseCreateArgs(["acme", "--admin-email", ""]).adminEmail).toBe("");
+  });
+
+  it("pusty --modules nadal oznacza brak modułów", () => {
+    expect(parseCreateArgs(["acme", "--modules", ""]).modules).toEqual([]);
+  });
+});
+
+describe("rozróżnianie opcji z wartością i flag w komunikatach", () => {
+  it("nieznana opcja z wartością po znaku równości podaje samą nazwę", () => {
+    expect(messageOf(() => parseAddArgs(["auth", "--foo=bar"]))).toBe(
+      "Nieznana opcja: --foo",
+    );
+  });
+
+  it("flaga z wartością nie przyjmuje wartości także tam, gdzie istnieje opcja string", () => {
+    expect(messageOf(() => parseAddArgs(["auth", "--no-install=1"]))).toBe(
+      "Opcja --no-install nie przyjmuje wartości",
+    );
+    expect(messageOf(() => parseCreateArgs(["acme", "--no-git=1"]))).toBe(
+      "Opcja --no-git nie przyjmuje wartości",
+    );
+    expect(messageOf(() => parseCreateArgs(["acme", "--setup=1"]))).toBe(
+      "Opcja --setup nie przyjmuje wartości",
+    );
+  });
+
+  it("flaga z wartością w remove, gdzie nie ma opcji string", () => {
+    expect(messageOf(() => parseRemoveArgs(["auth", "--force=1"]))).toBe(
+      "Opcja --force nie przyjmuje wartości",
+    );
+    expect(messageOf(() => parseRemoveArgs(["auth", "--no-install=1"]))).toBe(
+      "Opcja --no-install nie przyjmuje wartości",
+    );
+  });
+
+  it("opcja string bez wartości wymaga wartości w create i list", () => {
+    expect(messageOf(() => parseCreateArgs(["acme", "--kit"]))).toBe(
+      "Opcja --kit wymaga wartości",
+    );
+    expect(messageOf(() => parseListArgs(["--kit"]))).toBe(
+      "Opcja --kit wymaga wartości",
+    );
+    expect(messageOf(() => parseCreateArgs(["acme", "--admin-email"]))).toBe(
+      "Opcja --admin-email wymaga wartości",
+    );
+  });
+
+  it("opcja string zakończona flagą wymaga wartości", () => {
+    expect(
+      messageOf(() => parseAddArgs(["auth", "--kit", "--no-install"])),
+    ).toBe("Opcja --kit wymaga wartości");
+  });
+});

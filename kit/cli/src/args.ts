@@ -37,12 +37,6 @@ export function parseLocales(value: string): Locale[] {
   return locales as Locale[];
 }
 
-const OPTION_NAME_IN_ERROR = /'(-{1,2}[^\s'=]+)/;
-
-function optionNameFromError(error: Error): string {
-  return OPTION_NAME_IN_ERROR.exec(error.message)?.[1] ?? "";
-}
-
 function translateParseError(
   error: unknown,
   options: ParseArgsOptionsConfig,
@@ -50,19 +44,28 @@ function translateParseError(
   if (!(error instanceof Error) || !("code" in error)) {
     return error;
   }
-  const option = optionNameFromError(error);
+  const option = error.message.split("'")[1].split(" ")[0];
   if (error.code === "ERR_PARSE_ARGS_UNKNOWN_OPTION") {
     return new Error(`Nieznana opcja: ${option}`);
   }
-  if (error.code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
-    const takesValue = options[option.replace(/^--/, "")]?.type === "string";
-    return new Error(
-      takesValue
-        ? `Opcja ${option} wymaga wartości`
-        : `Opcja ${option} nie przyjmuje wartości`,
-    );
+  const takesValue = Object.entries(options).some(
+    ([name, config]) => `--${name}` === option && config.type === "string",
+  );
+  return new Error(
+    takesValue
+      ? `Opcja ${option} wymaga wartości`
+      : `Opcja ${option} nie przyjmuje wartości`,
+  );
+}
+
+function optionalValue(
+  value: string | undefined,
+  option: string,
+): string | null {
+  if (value === "") {
+    throw new Error(`Opcja ${option} wymaga wartości`);
   }
-  return error;
+  return value ?? null;
 }
 
 function parseOptions<const T extends ParseArgsOptionsConfig>(
@@ -113,7 +116,7 @@ export function parseCreateArgs(argv: string[]): CreateArgs {
     setup: values.setup,
     install: !values["no-install"],
     git: !values["no-git"],
-    kit: values.kit ?? null,
+    kit: optionalValue(values.kit, "--kit"),
   };
 }
 
@@ -131,7 +134,7 @@ export function parseAddArgs(argv: string[]): AddArgs {
   assertMaxPositionals(positionals, 1);
   return {
     module,
-    kit: values.kit ?? null,
+    kit: optionalValue(values.kit, "--kit"),
     install: !values["no-install"],
   };
 }
@@ -158,5 +161,5 @@ export function parseListArgs(argv: string[]): ListArgs {
     kit: { type: "string" },
   });
   assertMaxPositionals(positionals, 0);
-  return { kit: values.kit ?? null };
+  return { kit: optionalValue(values.kit, "--kit") };
 }
