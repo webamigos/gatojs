@@ -20969,6 +20969,7 @@ function list(options) {
 
 // src/commands/remove.ts
 import {
+  lstat,
   readFile as readFile9,
   readdir as readdir3,
   realpath,
@@ -20976,7 +20977,7 @@ import {
   rmdir,
   writeFile as writeFile6
 } from "node:fs/promises";
-import { basename as basename3, dirname as dirname4, join as join10, resolve as resolve3, sep } from "node:path";
+import { dirname as dirname4, join as join10, relative, resolve as resolve3, sep } from "node:path";
 var HASH_CONFIG = { managedFiles: [] };
 function assertRemovable(state, module) {
   if (module === "core") throw new Error("Nie mo\u017Cna usun\u0105\u0107 rdzenia");
@@ -20999,14 +21000,12 @@ function assertRemovable(state, module) {
   }
 }
 async function realpathOfDeepestAncestor(path) {
-  const missing = [];
   let current = path;
   for (; ; ) {
     try {
-      return join10(await realpath(current), ...missing.reverse());
+      return join10(await realpath(current), relative(current, path));
     } catch (error62) {
       if (error62.code !== "ENOENT") throw error62;
-      missing.push(basename3(current));
       current = dirname4(current);
     }
   }
@@ -21037,21 +21036,24 @@ async function changedFiles(projectDir, files) {
   }
   return changed.sort(compareCodePoint);
 }
+async function lstatIfExists(path) {
+  try {
+    return await lstat(path);
+  } catch (error62) {
+    if (error62.code === "ENOENT") return null;
+    throw error62;
+  }
+}
 async function removeEmptyParents(projectDir, start) {
   const root = resolve3(projectDir);
   let current = dirname4(start);
   while (current.startsWith(root + sep)) {
-    let entries;
-    try {
-      entries = await readdir3(current);
-    } catch (error62) {
-      if (error62.code !== "ENOENT") throw error62;
-      entries = [];
+    const stats = await lstatIfExists(current);
+    if (stats !== null) {
+      if (!stats.isDirectory()) return;
+      if ((await readdir3(current)).length > 0) return;
+      await rmdir(current);
     }
-    if (entries.length > 0) return;
-    await rmdir(current).catch((error62) => {
-      if (error62.code !== "ENOENT") throw error62;
-    });
     current = dirname4(current);
   }
 }
@@ -21060,10 +21062,9 @@ async function remove(options) {
   const state = await readKitState(projectDir);
   assertRemovable(state, module);
   const entry = state.modules[module];
-  const absolutePaths = [];
-  for (const file2 of Object.keys(entry.files)) {
-    absolutePaths.push(await insideProject(projectDir, file2));
-  }
+  const absolutePaths = await Promise.all(
+    Object.keys(entry.files).map((file2) => insideProject(projectDir, file2))
+  );
   const changed = await changedFiles(projectDir, entry.files);
   if (changed.length > 0 && !options.force) {
     throw new Error(

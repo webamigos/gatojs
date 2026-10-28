@@ -1,4 +1,6 @@
+import type { Stats } from "node:fs";
 import {
+  lstat,
   readFile,
   readdir,
   realpath,
@@ -6,7 +8,7 @@ import {
   rmdir,
   writeFile,
 } from "node:fs/promises";
-import { basename, dirname, join, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { compareCodePoint } from "../compare.js";
 import { fileHash } from "../assemble/hash.js";
 import { removeDependencies } from "../assemble/package-json.js";
@@ -55,14 +57,12 @@ function assertRemovable(state: KitState, module: string): void {
 }
 
 async function realpathOfDeepestAncestor(path: string): Promise<string> {
-  const missing: string[] = [];
   let current = path;
   for (;;) {
     try {
-      return join(await realpath(current), ...missing.reverse());
+      return join(await realpath(current), relative(current, path));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      missing.push(basename(current));
       current = dirname(current);
     }
   }
@@ -103,6 +103,15 @@ async function changedFiles(
   return changed.sort(compareCodePoint);
 }
 
+async function lstatIfExists(path: string): Promise<Stats | null> {
+  try {
+    return await lstat(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
 async function removeEmptyParents(
   projectDir: string,
   start: string,
@@ -110,17 +119,12 @@ async function removeEmptyParents(
   const root = resolve(projectDir);
   let current = dirname(start);
   while (current.startsWith(root + sep)) {
-    let entries: string[];
-    try {
-      entries = await readdir(current);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      entries = [];
+    const stats = await lstatIfExists(current);
+    if (stats !== null) {
+      if (!stats.isDirectory()) return;
+      if ((await readdir(current)).length > 0) return;
+      await rmdir(current);
     }
-    if (entries.length > 0) return;
-    await rmdir(current).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== "ENOENT") throw error;
-    });
     current = dirname(current);
   }
 }
@@ -134,10 +138,9 @@ export async function remove(
   const entry = state.modules[module] as NonNullable<
     (typeof state.modules)[string]
   >;
-  const absolutePaths: string[] = [];
-  for (const file of Object.keys(entry.files)) {
-    absolutePaths.push(await insideProject(projectDir, file));
-  }
+  const absolutePaths = await Promise.all(
+    Object.keys(entry.files).map((file) => insideProject(projectDir, file)),
+  );
   const changed = await changedFiles(projectDir, entry.files);
   if (changed.length > 0 && !options.force) {
     throw new Error(
