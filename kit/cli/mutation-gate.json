@@ -3,7 +3,8 @@
     "src/generate/",
     "src/manifest/",
     "src/assemble/",
-    "src/commands/"
+    "src/commands/",
+    "src/kit/"
   ],
   "allowed": [
     {
@@ -54,6 +55,34 @@
       "original": "\"locales nie może zawierać duplikatów\"",
       "replacement": "\"\"",
       "reason": "tylko komunikat: odrzucenie duplikatów jest testowane, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/kit/files.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{\n      maxBuffer: 64 * 1024 * 1024,\n    }",
+      "replacement": "{}",
+      "reason": "świadoma stała konfiguracyjna: bufor dla dużych repozytoriów, fixture mieści się w domyślnym"
+    },
+    {
+      "file": "src/kit/files.ts",
+      "mutator": "ConditionalExpression",
+      "original": "(error as { code?: unknown }).code === GIT_FATAL_EXIT_CODE",
+      "replacement": "true",
+      "reason": "tylko komunikat: inny błąd gita (np. brak binarki) dostaje komunikat o braku repozytorium zamiast oryginalnego; zachowanie (odrzucenie) bez zmian"
+    },
+    {
+      "file": "src/kit/files.ts",
+      "mutator": "MethodExpression",
+      "original": "stdout.split(\"\\0\").filter(Boolean).sort(compareCodePoint)",
+      "replacement": "stdout.split(\"\\0\").filter(Boolean)",
+      "reason": "równoważny: git ls-files zwraca ścieżki już posortowane"
+    },
+    {
+      "file": "src/kit/ownership.ts",
+      "mutator": "MethodExpression",
+      "original": "Object.entries({\n      ...manifest.dependencies,\n      ...manifest.devDependencies,\n    }).sort(([a], [b]) => compareCodePoint(a, b))",
+      "replacement": "Object.entries({\n  ...manifest.dependencies,\n  ...manifest.devDependencies\n})",
+      "reason": "równoważny: końcowe sortowanie dependencyMismatch porządkuje wynik"
     }
   ]
 }

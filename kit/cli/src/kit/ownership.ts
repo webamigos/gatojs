@@ -98,6 +98,12 @@ export async function checkOwnership(kitDir: string): Promise<OwnershipReport> {
     .filter((name) => !declared.has(name))
     .sort(compareCodePoint);
 
+  globErrors.sort(
+    (a, b) =>
+      compareCodePoint(a.module, b.module) || compareCodePoint(a.glob, b.glob),
+  );
+  composeOutsideModule.sort(compareCodePoint);
+
   return {
     unowned,
     multiOwned,
