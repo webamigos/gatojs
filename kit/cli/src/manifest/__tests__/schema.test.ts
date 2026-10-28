@@ -40,6 +40,7 @@ describe("kitStateSchema", () => {
       project: { name: "WA App", slug: "wa-app" },
       locales: ["pl", "en"],
       modules: {},
+      projectModules: {},
     });
   });
 
