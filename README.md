@@ -82,8 +82,7 @@ npm run test:e2e
 2. Ustaw zmienne: `DATABASE_URL` (referencja do Postgresa), `BETTER_AUTH_SECRET`, `APP_URL`
    (publiczny adres), `RESEND_API_KEY`, `EMAIL_FROM`, `AUTH_PUBLIC_SIGNUP`, `MULTI_ORG`.
 3. Zacommituj katalog `prisma/migrations` — przed każdym wdrożeniem Railway uruchamia `npx prisma migrate deploy`.
-   W wygenerowanym projekcie najpierw usuń linię `prisma/migrations/` z `.gitignore` (kit jej używa, bo sam nie
-   dostarcza migracji), inaczej migracje nie trafią do repozytorium. Healthcheck: `/api/healthcheck`.
+   Healthcheck: `/api/healthcheck`.
 4. Po pierwszym wdrożeniu utwórz administratora:
 
    ```bash

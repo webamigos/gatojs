@@ -2,7 +2,7 @@
 
 Ten plik wyjaśnia, dlaczego wa-kit jest zbudowany tak, a nie inaczej. Każdy wpis mówi, jaki problem rozwiązuje decyzja, co wybrano, co odrzucono, co z tego wynika przy pisaniu kodu i co pilnuje, żeby decyzja była przestrzegana. Jak dana część działa krok po kroku, opisują pliki `01`–`11` (spis w [README.md](README.md)).
 
-Zweryfikowano z kodem: d416599, 2026-10-28
+Zweryfikowano z kodem: 25adbb8, 2026-10-28
 
 Rejestr obejmuje tylko decyzje, które obowiązują w kodzie z tego commitu. Funkcje zaplanowane, ale niezrobione (na przykład tworzenie projektu z kitu jedną komendą), pojawiają się wyłącznie jako kontekst albo konsekwencja.
 
@@ -487,17 +487,17 @@ Strona `/sign-up` przy wyłączonej rejestracji i bez `invitationId` przekierowu
 
 **Kontekst.** Schemat bazy projektu zależy od wybranych modułów: każdy moduł dodaje własny plik schematu i relacje w regionach ([D03](#d03), [D14](#d14)). Źródła nie zapisują uzasadnienia wprost, ale z modelu składania wynika, że historia migracji kitu nie pasowałaby do projektu z innym zestawem modułów. Projekt na produkcji stosuje natomiast migracje komendą `npx prisma migrate deploy` (`preDeployCommand` w `railway.toml` albo w ustawieniach usługi, bo nowa usługa Railway nie czyta `railway.toml`, [10-wdrozenie.md](10-wdrozenie.md#config-as-code)), która bierze tylko migracje zapisane w repozytorium.
 
-**Decyzja.** Kit nie dostarcza katalogu `prisma/migrations/` i ma go w `.gitignore`. Każda kopia repozytorium kitu tworzy własną migrację (`npx prisma migrate dev --name init`). Projekt klienta commituje swoje migracje.
+**Decyzja.** Kit nie dostarcza katalogu `prisma/migrations/` i ignoruje go plikiem `prisma/migrations/.gitignore`, którego `wa create` nie kopiuje. Każda kopia repozytorium kitu tworzy własną migrację (`npx prisma migrate dev --name init`). Projekt klienta commituje swoje migracje.
 
 **Odrzucone alternatywy.** Nie zapisano.
 
 **Konsekwencje.**
 
-- W projekcie skopiowanym z kitu trzeba przed pierwszym wdrożeniem usunąć linię `prisma/migrations/` z `.gitignore` (krok 3 sekcji „Railway” w [README.md repozytorium](../README.md)). Żadne narzędzie nie robi tego samo. Bez zacommitowanych migracji `prisma migrate deploy` nie ma czego zastosować, a baza produkcyjna nie dostaje schematu.
+- Root `.gitignore` nie ignoruje `prisma/migrations/`, więc w projekcie migracje trafiają do repozytorium bez dodatkowych kroków. Bez zacommitowanych migracji `prisma migrate deploy` nie ma czego zastosować, a baza produkcyjna nie dostaje schematu.
 - Testy działają bez zacommitowanych migracji: schemat tworzą `src/test/integration/global-setup.ts` (`prisma db push`) i `e2e/global-setup.ts` (`prisma db push --force-reset` albo, gdy migracje istnieją, `prisma migrate reset --force`), a `.github/workflows/e2e.yml` tworzy migrację w trakcie przebiegu. Które komendy czyszczą bazę i jak są zabezpieczone, opisuje [08-testy.md](08-testy.md).
 - Rozjazd historii migracji we własnej bazie: [03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#dryf-migracji).
 
-**Jak egzekwowana.** W repozytorium kitu: wpis `prisma/migrations/` w `.gitignore`. W projekcie klienta: tylko konwencja (instrukcja w `README.md`).
+**Jak egzekwowana.** W repozytorium kitu: plik `prisma/migrations/.gitignore`. W projekcie klienta: brak ignorowania, bo `wa create` tego pliku nie kopiuje.
 
 **Źródło.** [Design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §5 i §9; rulingi R2 i R22 w [handoffie planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md).
 

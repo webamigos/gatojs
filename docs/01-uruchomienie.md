@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - co zmieniają flagi `MULTI_ORG`, `AUTH_PUBLIC_SIGNUP` i `ADMIN_IMPERSONATION`;
 - jak rozpoznać i naprawić typowe problemy, w tym błędy walidacji zmiennych środowiskowych.
 
-Zweryfikowano z kodem: d416599, 2026-10-28
+Zweryfikowano z kodem: 25adbb8, 2026-10-28
 
 Źródła:
 
@@ -122,7 +122,7 @@ Komendy uruchamiasz w katalogu głównym repozytorium, w tej kolejności. Plik `
    npx prisma migrate dev --name init
    ```
 
-   Prisma czyta `DATABASE_URL` z `.env`, tworzy migrację `init` w `prisma/migrations/` i stosuje ją do bazy `wa_app`. Kit nie dostarcza migracji, a katalog `prisma/migrations/` jest w `.gitignore`, więc każda kopia repozytorium tworzy własną migrację. Jak obchodzić się z migracjami w projekcie, opisuje [03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#migracje).
+   Prisma czyta `DATABASE_URL` z `.env`, tworzy migrację `init` w `prisma/migrations/` i stosuje ją do bazy `wa_app`. Kit nie dostarcza migracji, a repozytorium kitu ignoruje katalog `prisma/migrations/` (plik `prisma/migrations/.gitignore`, którego `wa create` nie kopiuje), więc każda kopia repozytorium kitu tworzy własną migrację. Jak obchodzić się z migracjami w projekcie, opisuje [03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#migracje).
 
    Pierwsza linia wyniku, `◇ injected env (N) from .env.local,.env // tip: …`, to komunikat biblioteki dotenv, a nie błąd ([Plik `.env`](#plik-env)). Na pustej bazie wynik kończy się tak (`<data>` to znacznik czasu, na przykład `20261027212719`):
 

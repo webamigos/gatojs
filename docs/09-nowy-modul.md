@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak zaplanować i napisać testy komendy i test izolacji, zanim powstanie kod;
 - jakie błędy Prismy i Vitest pojawiają się w tych krokach i co z nimi zrobić.
 
-Zweryfikowano z kodem: d416599, 2026-10-28
+Zweryfikowano z kodem: 25adbb8, 2026-10-28
 
 Źródła:
 
@@ -89,7 +89,7 @@ Tutorial zakłada projekt klienta. W repozytorium kitu te same kroki działają,
 
 | Temat | Projekt klienta | Repozytorium kitu |
 | --- | --- | --- |
-| Migracje | Commitowane. Linia `prisma/migrations/` jest usunięta z `.gitignore`, a migracja `init` jest w repozytorium ([03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#migracje-w-projekcie)). | Katalog `prisma/migrations/` jest w `.gitignore`, więc migracja `add-notes` zostaje tylko na dysku ([D13](decyzje.md#d13)). |
+| Migracje | Commitowane. Root `.gitignore` nie ignoruje `prisma/migrations/`, a migracja `init` jest w repozytorium ([03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#migracje-w-projekcie)). | Katalog `prisma/migrations/` ignoruje plik `prisma/migrations/.gitignore`, więc migracja `add-notes` zostaje tylko na dysku ([D13](decyzje.md#d13)). |
 | `.wa/kit.json` | Moduły kitu w `modules`, moduły projektu w `projectModules`, tu `notes`. | Tylko moduły kitu. `projectModules` zostaje puste, bo funkcji projektu nie dopisuje się do kitu. |
 | Poprawka rdzenia, która przyda się innym projektom | Zgłaszasz do repozytorium kitu ([11-praca-z-kitem.md](11-praca-z-kitem.md)). | Robisz ją tutaj. |
 

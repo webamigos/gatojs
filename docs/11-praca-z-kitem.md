@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak przebiega praca według procesu superpowers i gdzie leżą jej dokumenty;
 - których plików nie edytuje się ręcznie i co uruchomić po zmianie, od której zależą.
 
-Zweryfikowano z kodem: d416599, 2026-10-28
+Zweryfikowano z kodem: 25adbb8, 2026-10-28
 
 Źródła:
 
@@ -161,7 +161,7 @@ Moduł kitu to kod, który ma trafić do wielu projektów: wpis w `.wa/kit.json`
 - Testy rdzenia się nie zmieniają: porównują rejestr tylko z pięcioma modułami rdzenia (`src/test/core-modules.ts`), a spójność całego rejestru, także nowego modułu kitu, sprawdza `src/shared/lib/modules/__tests__/registry-consistency.test.ts` ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)).
 - Decyzję, która obowiązuje w kodzie modułu, dopisujesz do [decyzje.md](decyzje.md#statusy-i-numeracja).
 
-Narzędzia, które dodaje moduł kitu do istniejącego projektu, nie ma ([README.md](README.md)).
+Moduł kitu dodajesz do istniejącego projektu komendą `wa add` ([kit/README.md](../kit/README.md)).
 
 <a id="commity"></a>
 

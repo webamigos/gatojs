@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - czego potrzebują testy e2e i co robią przed pierwszym testem;
 - które testy działają w `npm run verify`, a które tylko w osobnych jobach CI.
 
-Zweryfikowano z kodem: d416599, 2026-10-28
+Zweryfikowano z kodem: 25adbb8, 2026-10-28
 
 Źródła:
 
@@ -47,7 +47,7 @@ Każdy rodzaj testu zastępuje inną część systemu, więc każdy łapie inne 
 | Test architektury | Składnia plików z `src/`. Sprawdza, czy punkty wejścia serwera wołają guardy przed Prismą ([D24](decyzje.md#d24)). | `src/__tests__/server-entrypoints-guard.test.ts` | `npm test` | nie | tak |
 | Integracyjne | Prawdziwe: Postgres, Prisma, query, komendy i guardy. Zastąpione: nagłówki i przekierowania Next.js, język z next-intl, `auth.api.getSession`. | `*.integration.test.ts` | `npm run test:integration` | `_test`, czyści | nie |
 | E2E | Cała aplikacja po buildzie produkcyjnym, przeglądarka Chromium, baza i mailpit. Nic nie jest zastąpione. | `e2e/*.spec.ts` | `npm run test:e2e` | `_e2e`, kasuje | nie |
-| CLI | Generator `wa` na kopii plików w katalogu tymczasowym systemu. | `kit/cli/src/**/__tests__/` | `npm test --prefix kit/cli` | nie | tak |
+| CLI | Generator `wa` na kopii plików w katalogu tymczasowym systemu. | `kit/cli/src/**/__tests__/` | `npm test --prefix kit/cli` | nie | nie |
 | Hooki Claude Code | Funkcje i skrypty hooków z `.claude/hooks/`, także uruchamiane jako osobne procesy. | `.claude/hooks/*.test.mjs` | `npm run test:hooks` | nie | tak |
 | Mutacyjne (Stryker) | Testy jednostkowe albo integracyjne uruchamiane na kodzie z celowo wstrzykniętymi błędami ([08b](08b-testy-adwersarialne.md#stryker)). | konfiguracja w katalogu głównym | `npm run test:mutation` i pokrewne | integracyjny: `_test`, czyści | nie |
 

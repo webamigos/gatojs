@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak założyć konta na produkcji przez `railway run` i jak przekazać aplikację klientowi, łącznie z odcięciem dostępu Web Amigos po okresie wsparcia;
 - co uruchamia każdy workflow CI i kiedy.
 
-Zweryfikowano z kodem: d416599, 2026-10-28
+Zweryfikowano z kodem: 25adbb8, 2026-10-28
 
 Źródła:
 
@@ -149,7 +149,7 @@ docs
 
 - `.env` i `.env.*` (poza `.env.example`) nie trafiają do kontekstu budowania, więc lokalne sekrety nie wejdą do obrazu. Zmienne produkcyjne pochodzą wyłącznie z Railway.
 - `node_modules`, `.next` i `src/generated` powstają w obrazie od nowa. Pozostałe wpisy to pliki, których serwer nie potrzebuje: historia git, dokumentacja, konfiguracja agentów, dane lokalnej bazy i testy e2e. Wzorzec `*.md` obejmuje tylko pliki Markdown w katalogu głównym, a `kit/` i `docs/` są wpisane osobno, bo to pliki tylko dla kitu.
-- `prisma/migrations/` nie jest wykluczony, więc migracje trafiają do obrazu razem z `prisma/`. Railway buduje jednak z repozytorium, czyli tylko z zacommitowanych plików. Migracje, które zostały w `.gitignore`, nie dotrą do obrazu ([migracje](#migracje)).
+- `prisma/migrations/` nie jest wykluczony, więc migracje trafiają do obrazu razem z `prisma/`. Railway buduje jednak z repozytorium, czyli tylko z zacommitowanych plików. Migracje, które zostały zignorowane (jak w repozytorium kitu), nie dotrą do obrazu ([migracje](#migracje)).
 
 <a id="railway-toml"></a>
 
@@ -255,7 +255,7 @@ Wymagania: repozytorium projektu na GitHub, konto Resend z kluczem API i domeną
 
 <a id="migracje"></a>
 
-1. **Migracje w repozytorium.** W katalogu głównym projektu usuń linię `prisma/migrations/` z `.gitignore`, utwórz migrację, jeśli katalog jest pusty (`npx prisma migrate dev --name init`), i zacommituj cały katalog ([03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#migracje-w-projekcie)). Kit nie dostarcza migracji, bo schemat projektu zależy od wybranych modułów, i ma ten katalog w `.gitignore` ([D13](decyzje.md#d13)). Żadne narzędzie nie zmienia `.gitignore` samo. Wynik: `git ls-files prisma/migrations` wypisuje `prisma/migrations/migration_lock.toml` i co najmniej jeden plik `migration.sql`.
+1. **Migracje w repozytorium.** Utwórz migrację, jeśli katalog jest pusty (`npx prisma migrate dev --name init`), i zacommituj cały katalog ([03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#migracje-w-projekcie)). Kit nie dostarcza migracji, bo schemat projektu zależy od wybranych modułów, i ignoruje ten katalog plikiem `prisma/migrations/.gitignore`, którego `wa create` nie kopiuje ([D13](decyzje.md#d13)). Wynik: `git ls-files prisma/migrations` wypisuje `prisma/migrations/migration_lock.toml` i co najmniej jeden plik `migration.sql`.
 2. **Projekt na Railway.** Utwórz projekt z usługą PostgreSQL i usługą aplikacji połączoną z repozytorium GitHub. Railway wdraża usługę po każdym pushu do gałęzi połączonej z nią w ustawieniach.
 3. **Domena i zmienne.** W ustawieniach sieci usługi aplikacji wygeneruj domenę albo podepnij własną. Potem ustaw zmienne z [tabeli](#zmienne), a `APP_URL` na adres tej domeny z `https://`. `AUTH_PUBLIC_SIGNUP` zostaw `false` (albo jej nie ustawiaj) do czasu założenia kont w kroku 7, bo inaczej obca osoba może zostać właścicielem organizacji klienta ([dlaczego](#krok-konta)). Docelowe flagi uzgodnione z klientem ustawisz przy przekazaniu ([krok 5](#przekazanie-start)).
 

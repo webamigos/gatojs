@@ -2,7 +2,7 @@
 
 Ta dokumentacja jest dla dewelopera Web Amigos, który pracuje na wa-kit albo w projekcie zbudowanym z kitu. Zakłada, że znasz Next.js, TypeScript i Prismę. Nie zakłada znajomości better-auth, historii projektu ani procesu testów: każde pojęcie jest wyjaśnione przy pierwszym użyciu albo ma odnośnik do miejsca, które je wyjaśnia ([słownik](#slownik)). Agenci AI korzystają z tej samej dokumentacji przez wskazanie w `AGENTS.md`, ale nie są głównym odbiorcą.
 
-Zweryfikowano z kodem: d416599, 2026-10-28
+Zweryfikowano z kodem: 25adbb8, 2026-10-28
 
 ## Czego dotyczy
 
@@ -115,14 +115,14 @@ Jedno pojęcie oznacza w całej dokumentacji jedną rzecz. Definicje „moduł�
 
 ## Czego ta dokumentacja nie opisuje
 
-Dokumentacja opisuje tylko to, co działa w kodzie z commitu `d416599`. Funkcje zaplanowane i niezrobione są poza nią i rosną razem z kolejnymi planami. Gdy któraś zostanie wdrożona, odpowiedni plik dostanie własną sekcję, a ta tabela straci wiersz.
+Dokumentacja opisuje tylko to, co działa w kodzie z commitu `25adbb8`. Funkcje zaplanowane i niezrobione są poza nią i rosną razem z kolejnymi planami. Gdy któraś zostanie wdrożona, odpowiedni plik dostanie własną sekcję, a ta tabela straci wiersz.
 
 | Funkcja zaplanowana | Plan | Gdzie jest opisana |
 | --- | --- | --- |
 | Moduły opcjonalne `api-keys`, `audit-logs`, `uploads`, `worker` i `legal`, rozszerzenie macierzy składania w CI | Plan 3 | [Design doc, sekcja Moduły opcjonalne](superpowers/specs/2026-10-26-wa-kit-design.md#moduły-opcjonalne-v1) |
 | `wa update`, `wa diff`, wersjonowanie kitu i modułów, scalanie zmian | Plan 4 | [Design doc, sekcja Wersjonowanie i aktualizacje](superpowers/specs/2026-10-26-wa-kit-design.md#44-wersjonowanie-i-aktualizacje) |
 
-Jedyną komendą CLI, która działa, jest `wa generate` ([02b](02b-rejestr-i-generator.md#wa-generate)). Dokumentacja podaje ją jako `npm run wa -- generate`, tak jak `AGENTS.md`. Znane luki istniejącego kodu, w tym kierunki ich zamknięcia, są w [znane-ograniczenia.md](znane-ograniczenia.md).
+CLI ma komendy `create`, `add`, `remove`, `list`, `generate` i `kit sync`; ich użycie opisuje [kit/README.md](../kit/README.md). W projekcie uruchamia się je jako `npm run wa -- <komenda>`, tak jak w `AGENTS.md` (na przykład `wa generate`, [02b](02b-rejestr-i-generator.md#wa-generate)). Znane luki istniejącego kodu, w tym kierunki ich zamknięcia, są w [znane-ograniczenia.md](znane-ograniczenia.md).
 
 Poza zakresem są też:
 
