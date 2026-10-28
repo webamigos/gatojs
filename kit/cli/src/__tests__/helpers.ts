@@ -58,7 +58,7 @@ export async function createProject(
 ): Promise<string> {
   const { create } = await import("../commands/create.js");
   const kitDir = await makeKitRepo("kit");
-  const target = join(parent ?? (await makeTempDir()), name);
+  const target = join(await makeTempDir(), parent ?? "", name);
   await create({
     target,
     kitDir,
