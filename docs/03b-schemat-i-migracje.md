@@ -168,7 +168,7 @@ Jeśli któryś warunek nie jest spełniony, nie resetuj niczego i przejdź diag
 
 ### Co zrobić
 
-Projekt klienta rozpoznasz po tym, że `git ls-files prisma/migrations` wypisuje pliki. W repozytorium kitu ta komenda nic nie wypisuje, bo katalog ignoruje `prisma/migrations/.gitignore`.
+Repozytorium kitu rozpoznasz po pliku `kit/kit.json` (`test -f kit/kit.json`). Projekt klienta, złożony przez `wa create`, tego pliku nie ma.
 
 | | Dane w lokalnej bazie niepotrzebne | Dane w lokalnej bazie potrzebne |
 | --- | --- | --- |
