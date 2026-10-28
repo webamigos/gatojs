@@ -20457,6 +20457,7 @@ async function cloneKit(input2) {
         "--branch",
         `v${input2.version}`,
         "--quiet",
+        "--",
         input2.url,
         target
       ],
@@ -20472,6 +20473,9 @@ async function cloneKit(input2) {
 async function resolveKitSource(input2) {
   const { state } = input2;
   const source = input2.kitFlag ?? input2.envSource ?? state.kitRepo;
+  if (source.startsWith("-")) {
+    throw new Error(`Nieprawid\u0142owe \u017Ar\xF3d\u0142o wa-kit: ${source}`);
+  }
   if (isRemote(source)) {
     return cloneKit({
       url: source,
@@ -20577,7 +20581,7 @@ async function addFromSource(options) {
       log: options.log
     });
   } finally {
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, { recursive: true });
   }
 }
 

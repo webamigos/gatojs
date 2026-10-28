@@ -24,6 +24,7 @@ async function cloneKit(input: {
         "--branch",
         `v${input.version}`,
         "--quiet",
+        "--",
         input.url,
         target,
       ],
@@ -46,6 +47,9 @@ export async function resolveKitSource(input: {
 }): Promise<string> {
   const { state } = input;
   const source = input.kitFlag ?? input.envSource ?? state.kitRepo;
+  if (source.startsWith("-")) {
+    throw new Error(`Nieprawidłowe źródło wa-kit: ${source}`);
+  }
   if (isRemote(source)) {
     return cloneKit({
       url: source,
