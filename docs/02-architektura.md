@@ -7,7 +7,7 @@ Po przeczytaniu będziesz wiedzieć:
 - gdzie w repozytorium leży każdy rodzaj kodu i z czego składa się feature;
 - jak żądanie przechodzi od przeglądarki do bazy i w których miejscach kod sprawdza sesję, uprawnienia i tryb serwisowy.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: d416599, 2026-10-28
 
 Źródła:
 

@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - kiedy uruchomić generator i jak CI sprawdza, że pliki generowane są aktualne;
 - jak rozpoznać typowe błędy przy dodawaniu feature do rejestru.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: d416599, 2026-10-28
 
 Źródła:
 
@@ -127,7 +127,7 @@ Plik opisuje, z jakich modułów kitu składa się projekt. W repozytorium kitu 
 }
 ```
 
-- `modules` to słownik: klucz to nazwa modułu, a wartość to wersja, manifest i mapa `files`. Jest jeden moduł, `core`.
+- `modules` to słownik: klucz to nazwa modułu, a wartość to wersja, manifest i mapa `files`. W kicie jest jeden moduł, `core`; w projekcie dochodzą moduły wybrane przy `wa create` lub dodane przez `wa add`, a `files` zawiera hashe plików.
 - `projectModules` to słownik funkcji napisanych w projekcie: klucz to nazwa modułu, a wartość ma tylko `manifest`, bez wersji i hashy plików. Generator czyta go tak samo jak `modules` i rejestruje moduły projektu po modułach kitu, alfabetycznie. W repozytorium kitu jest pusty ([Krok 3 tutorialu](09-nowy-modul.md#krok-3)).
 - `manifest.files` to wzorce plików należących do modułu. Generator czyta z nich tylko wzorce zaczynające się od `src/features/<x>/`, żeby wykryć feature ([Wykrywanie feature](#wykrywanie-feature)). Pozostałe wzorce (`src/shared/**`, `src/app/**` i inne) są tylko zapisem własności. Nic nie sprawdza, czy obejmują wszystkie pliki rdzenia ani czy plik nie należy do dwóch modułów ([D02](decyzje.md#d02)).
 - `env`, `schemaRelations` i `compose` wypełniają regiony `wa:*`. W `core` są puste, więc wszystkie regiony w repozytorium są puste.

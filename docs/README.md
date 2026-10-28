@@ -2,7 +2,7 @@
 
 Ta dokumentacja jest dla dewelopera Web Amigos, który pracuje na wa-kit albo w projekcie zbudowanym z kitu. Zakłada, że znasz Next.js, TypeScript i Prismę. Nie zakłada znajomości better-auth, historii projektu ani procesu testów: każde pojęcie jest wyjaśnione przy pierwszym użyciu albo ma odnośnik do miejsca, które je wyjaśnia ([słownik](#slownik)). Agenci AI korzystają z tej samej dokumentacji przez wskazanie w `AGENTS.md`, ale nie są głównym odbiorcą.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: d416599, 2026-10-28
 
 ## Czego dotyczy
 
@@ -115,11 +115,10 @@ Jedno pojęcie oznacza w całej dokumentacji jedną rzecz. Definicje „moduł�
 
 ## Czego ta dokumentacja nie opisuje
 
-Dokumentacja opisuje tylko to, co działa w kodzie z commitu `4a6ffcb`. Funkcje zaplanowane i niezrobione są poza nią i rosną razem z kolejnymi planami. Gdy któraś zostanie wdrożona, odpowiedni plik dostanie własną sekcję, a ta tabela straci wiersz.
+Dokumentacja opisuje tylko to, co działa w kodzie z commitu `d416599`. Funkcje zaplanowane i niezrobione są poza nią i rosną razem z kolejnymi planami. Gdy któraś zostanie wdrożona, odpowiedni plik dostanie własną sekcję, a ta tabela straci wiersz.
 
 | Funkcja zaplanowana | Plan | Gdzie jest opisana |
 | --- | --- | --- |
-| `wa create` (`create-wa-app`), `wa add`, `wa remove`, `wa list`, przeniesienie CLI do `kit/cli`, `kit/kit.json` i commitowany bundel CLI | Plan 2 (CLI) | Komendy: [design doc, sekcja CLI](superpowers/specs/2026-10-26-wa-kit-design.md#5-cli). Reszta: [plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md). |
 | Moduły opcjonalne `api-keys`, `audit-logs`, `uploads`, `worker` i `legal`, rozszerzenie macierzy składania w CI | Plan 3 | [Design doc, sekcja Moduły opcjonalne](superpowers/specs/2026-10-26-wa-kit-design.md#moduły-opcjonalne-v1) |
 | `wa update`, `wa diff`, wersjonowanie kitu i modułów, scalanie zmian | Plan 4 | [Design doc, sekcja Wersjonowanie i aktualizacje](superpowers/specs/2026-10-26-wa-kit-design.md#44-wersjonowanie-i-aktualizacje) |
 

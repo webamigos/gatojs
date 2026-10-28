@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak założyć konta na produkcji przez `railway run` i jak przekazać aplikację klientowi, łącznie z odcięciem dostępu Web Amigos po okresie wsparcia;
 - co uruchamia każdy workflow CI i kiedy.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: d416599, 2026-10-28
 
 Źródła:
 

@@ -7,7 +7,7 @@ Po przeczytaniu będziesz wiedzieć:
 - gdzie w kodzie siedzi przyczyna każdej pozycji i który plik dokumentacji opisuje ją szczegółowo;
 - czym ograniczenie różni się od decyzji z [rejestru decyzji](decyzje.md).
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: d416599, 2026-10-28
 
 Źródła:
 

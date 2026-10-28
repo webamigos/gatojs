@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak `src/shared/lib/env.ts` sprawdza zmienne środowiskowe i które zmienne kod czyta z pominięciem tej walidacji;
 - które zmienne poza schematem czytają kod aplikacji, Next.js, Docker i testy.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: d416599, 2026-10-28
 
 Źródła:
 
@@ -209,7 +209,7 @@ Lista języków jest zapisana w dwóch miejscach: w aplikacji i w generatorze re
 1. Dopisz kod języka do `locales` w `src/i18n/config.ts`.
 2. Utwórz `src/app/messages/<kod>.json` z namespace `common`, `errors`, `sidebar` i `serviceMode`.
 3. Utwórz `src/features/<x>/i18n/<kod>.json` w każdym feature.
-4. W generatorze dopisz język do `LOCALES` w `kit/cli/src/generate/index.ts` oraz do `MESSAGE_LOCALES` i do typu `Record<"pl" | "en", MessageLoader[]>` w `kit/cli/src/generate/registry.ts`. Potem `npm run wa -- generate`.
+4. W CLI dopisz język do `localesSchema` w `kit/cli/src/manifest/schema.ts`, do `ALLOWED_LOCALES` i typu `Locale` w `kit/cli/src/args.ts` oraz do `kit/cli/src/generate/registry.ts`. Potem `npm run wa -- generate`.
 5. `npm run verify`.
 
 Bez kroku 4 rejestr nie ma loaderów nowego języka, a `npm run typecheck` zgłasza błąd TS7053 w `src/i18n/request.ts`, bo `moduleMessages` ma typ `Record<"pl" | "en", …>` (sprawdzone). Krok 4 zmienia kod kitu, więc taką poprawkę zgłoś do repozytorium kitu ([11-praca-z-kitem.md](11-praca-z-kitem.md)).

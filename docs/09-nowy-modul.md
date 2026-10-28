@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak zaplanować i napisać testy komendy i test izolacji, zanim powstanie kod;
 - jakie błędy Prismy i Vitest pojawiają się w tych krokach i co z nimi zrobić.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: d416599, 2026-10-28
 
 Źródła:
 
@@ -256,7 +256,8 @@ Dopisz do słownika `projectModules` wpis `notes`. Manifest musi przejść schem
 | `name` | Musi być równe kluczowi wpisu. Generator używa go też jako nagłówka bloku modułu w `.env.example`, gdy `env` nie jest puste. |
 | `version` | Schemat wymaga niepustego napisu. Przy awansie funkcji do kitu staje się wersją modułu kitu. |
 | `requires` | Moduły kitu albo inne moduły projektu, od których zależy funkcja. Brakujący moduł kończy odczyt błędem. |
-| `description`, `dependencies`, `devDependencies`, `workspaces` | Generator ich nie czyta. Muszą tylko przejść schemat. |
+| `description`, `workspaces` | Generator ich nie czyta. Muszą tylko przejść schemat. |
+| `dependencies`, `devDependencies` | `wa generate` ich nie czyta. `wa remove` czyta zależności modułów projektu i nie usuwa z `package.json` pakietów, których potrzebują; własne zależności modułu projektu zostają w `package.json`, bo `wa remove` nie usuwa modułów projektu. |
 
 Literówka w nazwie pola (na przykład `schemaRelation`) nie daje błędu: pole dostaje wartość domyślną i relacja się nie pojawi. Po zapisie uruchom generator:
 

@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - czego potrzebują testy e2e i co robią przed pierwszym testem;
 - które testy działają w `npm run verify`, a które tylko w osobnych jobach CI.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: d416599, 2026-10-28
 
 Źródła:
 

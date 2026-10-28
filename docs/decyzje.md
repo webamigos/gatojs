@@ -2,7 +2,7 @@
 
 Ten plik wyjaśnia, dlaczego wa-kit jest zbudowany tak, a nie inaczej. Każdy wpis mówi, jaki problem rozwiązuje decyzja, co wybrano, co odrzucono, co z tego wynika przy pisaniu kodu i co pilnuje, żeby decyzja była przestrzegana. Jak dana część działa krok po kroku, opisują pliki `01`–`11` (spis w [README.md](README.md)).
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: d416599, 2026-10-28
 
 Rejestr obejmuje tylko decyzje, które obowiązują w kodzie z tego commitu. Funkcje zaplanowane, ale niezrobione (na przykład tworzenie projektu z kitu jedną komendą), pojawiają się wyłącznie jako kontekst albo konsekwencja.
 
@@ -125,7 +125,7 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 
 - Zmiana w skopiowanym kodzie nie wymaga forka ani publikacji paczki. Poprawkę, która przyda się innym projektom, wysyła się jako pull request do `webamigos/wa-kit` (reguła „Pochodzenie kodu” w [CLAUDE.md](../CLAUDE.md)). To proces, a nie automat.
 - Flagi `MULTI_ORG`, `AUTH_PUBLIC_SIGNUP` i `ADMIN_IMPERSONATION` zmieniają działanie aplikacji, a nie to, z jakiego kodu się składa.
-- CLI kitu ma w kodzie jedną komendę, `generate` (`kit/cli/src/bin.ts`). Kopiowania kitu do nowego projektu i ściągania poprawek z kitu nie obsługuje żadne narzędzie z tego commitu. Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
+- CLI kitu (`kit/cli/src/bin.ts`) ma komendy `create`, `add`, `remove`, `list`, `generate` i `kit sync`. Zakłada projekt z kitu, dodaje i usuwa moduły oraz odświeża pliki generowane, ale nie ściąga do projektu poprawek wprowadzonych w kicie po jego utworzeniu. Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
 
 **Jak egzekwowana.** Tylko konwencja. `package.json` aplikacji nie ma w zależnościach żadnej paczki kitu (CLI leży w `kit/cli`, a skrypt `npm run wa` uruchamia jego bundel `.wa/bin/wa.mjs`), ale nic nie blokuje dodania takiej zależności.
 
@@ -139,9 +139,9 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 
 **Kontekst.** Kit trzeba rozwijać i testować jak zwykłą aplikację, a jednocześnie przy tworzeniu projektu musi się dać rozłożyć na rdzeń i moduły. Do tego potrzebna jest informacja, który plik należy do którego modułu.
 
-**Decyzja.** Kit zawiera jedną działającą aplikację referencyjną ze wszystkimi modułami. Leży w katalogu głównym repozytorium, z takim samym układem katalogów jak projekt klienta. Każdy moduł ma manifest z listą swoich plików (`files`, wzorce glob). Projekt powstaje przez skopiowanie aplikacji bez plików niewybranych modułów i przegenerowanie plików łączących ([D03](#d03)). Narzędzia do takiego kopiowania nie ma, więc robi się to ręcznie ([D01](#d01)).
+**Decyzja.** Kit zawiera jedną działającą aplikację referencyjną ze wszystkimi modułami. Leży w katalogu głównym repozytorium, z takim samym układem katalogów jak projekt klienta. Każdy moduł ma manifest z listą swoich plików (`files`, wzorce glob). Projekt powstaje komendą `wa create`: kopiuje aplikację bez plików niewybranych modułów i przegenerowuje pliki łączące ([D03](#d03)).
 
-Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateSchema` w `kit/cli/src/manifest/schema.ts`). Jest jeden moduł, `core`. Pole `modules.core.files`, w którym design doc §4.4 przewiduje hashe skopiowanych plików do aktualizacji, jest puste.
+Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateSchema` w `kit/cli/src/manifest/schema.ts`). W kicie jest jeden moduł, `core`; projekt ma rdzeń i wybrane moduły. Pole `files` każdego modułu w `.wa/kit.json` projektu zawiera hashe skopiowanych plików, na których `wa remove` rozpoznaje lokalne zmiany. W kicie `files` jest puste, bo hashe powstają przy tworzeniu projektu.
 
 **Odrzucone alternatywy.**
 
@@ -939,7 +939,7 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 - Etykiety menu są szukane pod `<key>.<labelKey>`, gdzie `key` pochodzi z definicji modułu, a tłumaczenia leżą pod nazwą katalogu. Nazwa katalogu feature i `key` w `defineModule` muszą być takie same. W rdzeniu są, ale nic tego nie sprawdza.
 - Kolizja namespace kończy się błędem przy ładowaniu tłumaczeń (`getRequestConfig` w `src/i18n/request.ts`), więc strona się nie wyrenderuje.
 - Decyzji o wykrywaniu języka nie zapisano ([znane-ograniczenia.md](znane-ograniczenia.md#wykrywanie-jezyka)): `src/i18n/routing.ts` nie ustawia `localeDetection`, więc działa domyślne zachowanie next-intl. Adres bez prefiksu bierze język z ciasteczka `NEXT_LOCALE`, a bez niego z nagłówka `Accept-Language`, więc przeglądarka, która woli angielski, trafia na `/en/...`. Szczegóły w [07-i18n-mail-env.md](07-i18n-mail-env.md).
-- Trzeci język wymaga zmian w `src/i18n/config.ts` i w generatorze (lista języków w `kit/cli/src/generate/index.ts` i `kit/cli/src/generate/registry.ts`).
+- Trzeci język wymaga zmian w `src/i18n/config.ts` i w CLI: lista języków jest w `kit/cli/src/manifest/schema.ts` (`localesSchema`), w `kit/cli/src/args.ts` (`ALLOWED_LOCALES`) i w plikach generowanych (`src/i18n/locales.generated.ts`, `kit/cli/src/generate/registry.ts`).
 - Dodawanie tekstów i języka: [07-i18n-mail-env.md](07-i18n-mail-env.md).
 
 **Jak egzekwowana.**

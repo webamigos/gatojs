@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak przebiega praca według procesu superpowers i gdzie leżą jej dokumenty;
 - których plików nie edytuje się ręcznie i co uruchomić po zmianie, od której zależą.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: d416599, 2026-10-28
 
 Źródła:
 
@@ -45,11 +45,11 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 - `node_modules/next/dist/server/lib/generate-agent-files.js`, `node_modules/next/dist/server/lib/app-info-log.js`, `node_modules/next/dist/server/lib/start-server.js` (Next.js 16.3.8)
 - dokumentacja Claude Code: [hooki](https://code.claude.com/docs/en/hooks) i [pliki instrukcji](https://code.claude.com/docs/en/memory)
 
-Ten plik opisuje pracę wokół kodu: dokąd trafia zmiana, przez jakie kontrole przechodzi, jak współpracować z agentami AI i jak wygląda proces, w którym powstaje kit. Dotyczy repozytorium kitu i projektów klientów, bo projekt powstaje z kopii repozytorium kitu i ma te same pliki konfiguracji ([D01](decyzje.md#d01), [D02](decyzje.md#d02)). Reguły są w [CLAUDE.md](../CLAUDE.md) i [AGENTS.md](../AGENTS.md). Ten plik je wyjaśnia i podaje powody, ale ich nie przepisuje. Dodaje tylko kilka praktyk oznaczonych słowem **Zalecenie**: tych `AGENTS.md` nie zawiera i nic ich nie sprawdza.
+Ten plik opisuje pracę wokół kodu: dokąd trafia zmiana, przez jakie kontrole przechodzi, jak współpracować z agentami AI i jak wygląda proces, w którym powstaje kit. Dotyczy repozytorium kitu i projektów klientów, bo projekt powstaje z kitu (`wa create`) i ma te same pliki konfiguracji ([D01](decyzje.md#d01), [D02](decyzje.md#d02)). Reguły są w [CLAUDE.md](../CLAUDE.md) i [AGENTS.md](../AGENTS.md). Ten plik je wyjaśnia i podaje powody, ale ich nie przepisuje. Dodaje tylko kilka praktyk oznaczonych słowem **Zalecenie**: tych `AGENTS.md` nie zawiera i nic ich nie sprawdza.
 
 Pojęcia używane w tym pliku:
 
-- **Repozytorium kitu**: `webamigos/wa-kit`, z którego pochodzi kod rdzenia. **Projekt** (projekt klienta): repozytorium aplikacji klienta, które powstało z kopii kitu. Moduł, feature, rejestr modułów i **szew** (miejsce, przez które rdzeń dowiaduje się o modułach: plik generowany albo region) definiuje [decyzje.md](decyzje.md#pojęcia).
+- **Repozytorium kitu**: `webamigos/wa-kit`, z którego pochodzi kod rdzenia. **Projekt** (projekt klienta): repozytorium aplikacji klienta, które powstało z kitu komendą `wa create`. Moduł, feature, rejestr modułów i **szew** (miejsce, przez które rdzeń dowiaduje się o modułach: plik generowany albo region) definiuje [decyzje.md](decyzje.md#pojęcia).
 - **Design doc, plan 1, handoff, ruling**: design doc to [główny dokument projektowy kitu](superpowers/specs/2026-10-26-wa-kit-design.md), plan 1 to [plan budowy rdzenia](superpowers/plans/2026-10-26-wa-kit-plan-1-core.md). Handoff to notatka przekazania pracy między sesjami, a ruling to decyzja, którą prowadzący wykonanie planu podjął sam, gdy plan czegoś nie rozstrzygał. Rulingi planu 1 są w [handoffie planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md).
 - **Pull request do kitu**: propozycja zmiany do gałęzi `main` repozytorium kitu. Tylko tą drogą kod wraca z projektu do kitu.
 - **Agent AI**: narzędzie, które na polecenie samo czyta i zmienia kod, na przykład Claude Code, Codex albo Cursor. **Subagent** to osobna sesja agenta z własnym kontekstem, uruchomiona przez główną sesję. **Orkiestrator** to główna sesja, która prowadzi plan i uruchamia subagentów ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md)).
@@ -86,7 +86,7 @@ Dlatego regułę, którą pilnuje tylko hook Claude Code albo hook git, sprawdza
 
 ### Dlaczego poprawki wracają do kitu
 
-Projekt dostaje kod kitu jako zwykły kod, a nie jako zależność, i może go zmieniać jak własny ([D01](decyzje.md#d01)). Żadne narzędzie nie przenosi zmian między kitem a projektem: CLI kitu ma jedną komendę, `generate` (`kit/cli/src/bin.ts`). Pole `modules.core.files` w `.wa/kit.json`, w którym design doc przewiduje hashe skopiowanych plików, jest puste, więc to, które pliki kitu zmieniły się w projekcie, widać tylko w historii git projektu. Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
+Projekt dostaje kod kitu jako zwykły kod, a nie jako zależność, i może go zmieniać jak własny ([D01](decyzje.md#d01)). Żadne narzędzie nie przenosi poprawek z kitu do istniejącego projektu: CLI (`kit/cli/src/bin.ts`) ma `create`, `add`, `remove`, `list`, `generate` i `kit sync`. Pole `files` modułów w `.wa/kit.json` projektu przechowuje hashe skopiowanych plików, więc `wa remove` wie, które pliki zmieniono lokalnie, ale zmiany kitu po utworzeniu projektu trzeba przenieść ręcznie. Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
 
 Z tego wynika reguła z [CLAUDE.md](../CLAUDE.md#pochodzenie-kodu) i [AGENTS.md](../AGENTS.md#co-to-jest): zmiany specyficzne dla projektu robisz w projekcie, a poprawki, które przydadzą się innym projektom, wysyłasz jako pull request do `webamigos/wa-kit`. Powody:
 

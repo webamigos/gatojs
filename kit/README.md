@@ -7,7 +7,7 @@ Dokumentacja plików tylko kitu (`kit/`). Nie trafia do projektów. Zasady pracy
 `create-wa-app` to nazwa one-linera, nie osobnego pakietu: bundel CLI leży w repozytorium (`.wa/bin/wa.mjs`), a kit nie jest publikowany w rejestrze npm. Wymagany jest `git` z dostępem do `webamigos/wa-kit`.
 
 ```bash
-git clone --depth 1 --branch v0.1.0 https://github.com/webamigos/wa-kit.git /tmp/wa-kit && node /tmp/wa-kit/.wa/bin/wa.mjs create <nazwa>
+KIT_DIR=$(mktemp -d) && git clone --depth 1 --branch v0.1.0 https://github.com/webamigos/wa-kit.git "$KIT_DIR" && node "$KIT_DIR/.wa/bin/wa.mjs" create <nazwa>
 ```
 
 Zamiast `v0.1.0` podaj tag wersji kitu, którą chcesz.
@@ -24,13 +24,15 @@ Zamiast `v0.1.0` podaj tag wersji kitu, którą chcesz.
 | `--setup`               | Po instalacji uruchamia środowisko (Docker, migracja, admin). Nie łączy się z `--no-install`.                    |
 | `--no-install`          | Pomija `npm install`.                                                                                            |
 | `--no-git`              | Pomija `git init` i pierwszy commit.                                                                             |
-| `--kit <źródło>`        | Źródło kitu zamiast domyślnego repozytorium.                                                                     |
+| `--kit <ścieżka>`       | Lokalny klon wa-kit, z którego powstaje projekt.                                                                 |
 
-Źródło kitu (`--kit` albo zmienna `WA_KIT_SOURCE`) to `https://...`, `ssh://...`, `file://...`, `git@...` albo ścieżka lokalna. Bez `--no-git` projekt dostaje `git init` i pierwszy commit, więc `git` musi mieć ustawione `user.name` i `user.email`.
+Bez `--no-git` projekt dostaje `git init` i pierwszy commit, więc `git` musi mieć ustawione `user.name` i `user.email`.
 
 ## Komendy w projekcie
 
 Uruchamiane jako `npm run wa -- <komenda>` (bundel `.wa/bin/wa.mjs`).
+
+Źródło kitu dla `add` i `list` (`--kit` albo zmienna `WA_KIT_SOURCE`) to `https://...`, `ssh://...`, `file://...`, `git@...` albo ścieżka lokalna.
 
 - `wa list [--kit <źródło>]`: moduły zainstalowane, dostępne w kicie i moduły projektu.
 - `wa add <moduł> [--kit <źródło>] [--no-install]`: kopiuje pliki modułu i jego zależności, dopisuje zależności npm i uruchamia `wa generate`.
@@ -42,7 +44,7 @@ Po `add` i `remove` zmienia się schemat bazy; migrację trzeba utworzyć i zaco
 
 ### Bezpieczeństwo `wa remove`
 
-- Usuwa wyłącznie pliki leżące wewnątrz projektu (po rozwiązaniu symlinków). Symlinków nie usuwa.
+- Usuwa wyłącznie pliki leżące wewnątrz projektu (po rozwiązaniu symlinków). Sprzątanie pustych katalogów nie usuwa symlinków i nie przechodzi przez nie. Plik modułu, który sam jest symlinkiem, jest usuwany jak zwykły plik (znika link, nie cel).
 - Ufa treści `.wa/kit.json`: plik projektu, którego hash zgadza się ze stanem, zostanie usunięty. `.wa/kit.json` pochodzący z niezaufanego źródła trzeba przejrzeć przed użyciem `remove`.
 - Operacja nie jest odporna na równoległe zmiany katalogu projektu przez inny proces.
 

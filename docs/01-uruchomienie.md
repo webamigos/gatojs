@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - co zmieniają flagi `MULTI_ORG`, `AUTH_PUBLIC_SIGNUP` i `ADMIN_IMPERSONATION`;
 - jak rozpoznać i naprawić typowe problemy, w tym błędy walidacji zmiennych środowiskowych.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: d416599, 2026-10-28
 
 Źródła:
 
