@@ -1,5 +1,14 @@
 {
-  "kitVersion": "0.0.0",
+  "kitVersion": "0.1.0",
+  "kitRepo": "https://github.com/webamigos/wa-kit.git",
+  "project": {
+    "name": "WA App",
+    "slug": "wa-app"
+  },
+  "locales": [
+    "pl",
+    "en"
+  ],
   "modules": {
     "core": {
       "version": "0.0.0",

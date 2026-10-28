@@ -5,18 +5,13 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// src/generate/index.ts
-import { mkdir as mkdir2, readFile as readFile3, stat, writeFile as writeFile2 } from "node:fs/promises";
-import { dirname as dirname2, join as join3 } from "node:path";
+// src/commands/kit-sync.ts
+import { readFile as readFile3 } from "node:fs/promises";
+import { join as join3 } from "node:path";
 
-// src/compare.ts
-function compareCodePoint(a, b) {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
-// src/manifest/kit-state.ts
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+// src/kit/kit-config.ts
+import { readdir, readFile } from "node:fs/promises";
+import { basename, join } from "node:path";
 
 // node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -19735,6 +19730,11 @@ function date4(params) {
   return _coercedDate(ZodDate, params);
 }
 
+// src/compare.ts
+function compareCodePoint(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 // src/manifest/schema.ts
 var moduleManifestSchema = external_exports.object({
   name: external_exports.string().min(1),
@@ -19755,8 +19755,17 @@ var moduleManifestSchema = external_exports.object({
   compose: external_exports.string().nullable().default(null),
   workspaces: external_exports.array(external_exports.string()).default([])
 });
+var DEFAULT_KIT_REPO = "https://github.com/webamigos/wa-kit.git";
+var localesSchema = external_exports.array(external_exports.enum(["pl", "en"])).min(1).refine((locales) => locales.includes("pl"), {
+  message: 'locales musi zawiera\u0107 "pl"'
+}).refine((locales) => new Set(locales).size === locales.length, {
+  message: "locales nie mo\u017Ce zawiera\u0107 duplikat\xF3w"
+});
 var kitStateSchema = external_exports.object({
   kitVersion: external_exports.string(),
+  kitRepo: external_exports.string().default(DEFAULT_KIT_REPO),
+  project: external_exports.object({ name: external_exports.string(), slug: external_exports.string() }).default({ name: "WA App", slug: "wa-app" }),
+  locales: localesSchema.default(["pl", "en"]),
   modules: external_exports.record(
     external_exports.string(),
     external_exports.object({
@@ -19767,12 +19776,67 @@ var kitStateSchema = external_exports.object({
   )
 });
 
+// src/kit/kit-config.ts
+var kitConfigSchema = external_exports.object({
+  version: external_exports.string().min(1),
+  repo: external_exports.string().min(1),
+  kitOnly: external_exports.array(external_exports.string()),
+  placeholders: external_exports.object({
+    projectName: external_exports.string(),
+    projectSlug: external_exports.string(),
+    projectSnake: external_exports.string()
+  }),
+  placeholderFiles: external_exports.array(external_exports.string()),
+  generatedFiles: external_exports.array(external_exports.string()),
+  managedFiles: external_exports.array(external_exports.string())
+});
+async function readKitConfig(kitDir) {
+  let raw;
+  try {
+    raw = await readFile(join(kitDir, "kit/kit.json"), "utf8");
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      throw new Error(
+        `Brak kit/kit.json w ${kitDir} \u2014 to nie jest repozytorium wa-kit`
+      );
+    }
+    throw error62;
+  }
+  return kitConfigSchema.parse(JSON.parse(raw));
+}
+function compareModuleNames(a, b) {
+  if (a === "core") return -1;
+  if (b === "core") return 1;
+  return compareCodePoint(a, b);
+}
+async function readKitManifests(kitDir) {
+  const modulesDir = join(kitDir, "kit/modules");
+  const fileNames = (await readdir(modulesDir)).filter((fileName) => fileName.endsWith(".json")).sort(
+    (a, b) => compareModuleNames(basename(a, ".json"), basename(b, ".json"))
+  );
+  const manifests = [];
+  for (const fileName of fileNames) {
+    const manifest = moduleManifestSchema.parse(
+      JSON.parse(await readFile(join(modulesDir, fileName), "utf8"))
+    );
+    if (manifest.name !== basename(fileName, ".json")) {
+      throw new Error(
+        `kit/modules/${fileName}: name "${manifest.name}" nie zgadza si\u0119 z nazw\u0105 pliku`
+      );
+    }
+    manifests.push(manifest);
+  }
+  return manifests;
+}
+
 // src/manifest/kit-state.ts
+import { mkdir, readFile as readFile2, writeFile } from "node:fs/promises";
+import { dirname, join as join2 } from "node:path";
 var KIT_STATE_PATH = ".wa/kit.json";
 async function readKitState(projectDir) {
   let raw;
   try {
-    raw = await readFile(join(projectDir, KIT_STATE_PATH), "utf8");
+    raw = await readFile2(join2(projectDir, KIT_STATE_PATH), "utf8");
   } catch (error62) {
     if (error62.code === "ENOENT") {
       throw new Error(
@@ -19783,6 +19847,28 @@ async function readKitState(projectDir) {
   }
   return kitStateSchema.parse(JSON.parse(raw));
 }
+async function writeKitState(projectDir, state) {
+  const sortedModules = Object.fromEntries(
+    Object.entries(state.modules).sort(([a], [b]) => compareCodePoint(a, b))
+  );
+  const target = join2(projectDir, KIT_STATE_PATH);
+  await mkdir(dirname(target), { recursive: true });
+  await writeFile(
+    target,
+    `${JSON.stringify(
+      {
+        kitVersion: state.kitVersion,
+        kitRepo: state.kitRepo,
+        project: state.project,
+        locales: state.locales,
+        modules: sortedModules
+      },
+      null,
+      2
+    )}
+`
+  );
+}
 function installedModules(state) {
   return Object.entries(state.modules).sort(([a], [b]) => {
     if (a === "core") return -1;
@@ -19790,6 +19876,42 @@ function installedModules(state) {
     return compareCodePoint(a, b);
   }).map(([, entry]) => entry.manifest);
 }
+
+// src/commands/kit-sync.ts
+async function readExisting(kitDir) {
+  try {
+    return await readFile3(join3(kitDir, ".wa/kit.json"), "utf8");
+  } catch (error62) {
+    if (error62.code === "ENOENT") return null;
+    throw error62;
+  }
+}
+async function kitSync(kitDir) {
+  const config2 = await readKitConfig(kitDir);
+  const manifests = await readKitManifests(kitDir);
+  const state = {
+    kitVersion: config2.version,
+    kitRepo: config2.repo,
+    project: {
+      name: config2.placeholders.projectName,
+      slug: config2.placeholders.projectSlug
+    },
+    locales: ["pl", "en"],
+    modules: Object.fromEntries(
+      manifests.map((manifest) => [
+        manifest.name,
+        { version: manifest.version, manifest, files: {} }
+      ])
+    )
+  };
+  const before = await readExisting(kitDir);
+  await writeKitState(kitDir, state);
+  return { changed: before !== await readExisting(kitDir) };
+}
+
+// src/generate/index.ts
+import { mkdir as mkdir2, readFile as readFile5, stat, writeFile as writeFile2 } from "node:fs/promises";
+import { dirname as dirname2, join as join5 } from "node:path";
 
 // src/generate/registry.ts
 var GENERATED_HEADER = "// generated by wa \u2014 nie edytuj. Uruchom: npm run wa -- generate";
@@ -19872,8 +19994,8 @@ function renderRegistry(modules) {
 }
 
 // src/generate/targets.ts
-import { readFile as readFile2 } from "node:fs/promises";
-import { join as join2 } from "node:path";
+import { readFile as readFile4 } from "node:fs/promises";
+import { join as join4 } from "node:path";
 
 // src/generate/regions.ts
 function replaceRegion(content, file2, marker, body) {
@@ -19925,7 +20047,7 @@ async function composeBody(modules, projectDir) {
   const parts = [];
   for (const m of modules) {
     if (m.compose === null) continue;
-    const content = await readFile2(join2(projectDir, m.compose), "utf8");
+    const content = await readFile4(join4(projectDir, m.compose), "utf8");
     parts.push(indent(content.replace(/\n+$/, "")));
   }
   return parts.join("\n");
@@ -19947,7 +20069,7 @@ var regionTargets = [
 async function renderRegionTarget(target, modules, projectDir) {
   let current;
   try {
-    current = await readFile2(join2(projectDir, target.file), "utf8");
+    current = await readFile4(join4(projectDir, target.file), "utf8");
   } catch (error62) {
     if (error62.code === "ENOENT") return null;
     throw error62;
@@ -19974,18 +20096,18 @@ async function exists(path) {
   }
 }
 async function detectFeature(projectDir, name) {
-  const base = join3(projectDir, "src", "features", name);
+  const base = join5(projectDir, "src", "features", name);
   const locales = [];
   for (const locale of LOCALES) {
-    if (await exists(join3(base, "i18n", `${locale}.json`)))
+    if (await exists(join5(base, "i18n", `${locale}.json`)))
       locales.push(locale);
   }
   return {
     name,
-    hasModuleTs: await exists(join3(base, "module.ts")),
-    hasEnv: await exists(join3(base, "env.ts")),
-    hasAuth: await exists(join3(base, "auth.ts")),
-    hasAuthClient: await exists(join3(base, "auth-client.ts")),
+    hasModuleTs: await exists(join5(base, "module.ts")),
+    hasEnv: await exists(join5(base, "env.ts")),
+    hasAuth: await exists(join5(base, "auth.ts")),
+    hasAuthClient: await exists(join5(base, "auth-client.ts")),
     locales
   };
 }
@@ -20021,7 +20143,7 @@ async function generate(projectDir) {
     [SERVER_REGISTRY, registry2.server],
     [CLIENT_REGISTRY, registry2.client]
   ]) {
-    const current = await readFile3(join3(projectDir, file2), "utf8").catch(
+    const current = await readFile5(join5(projectDir, file2), "utf8").catch(
       (error62) => {
         if (error62.code === "ENOENT") return null;
         throw error62;
@@ -20035,7 +20157,7 @@ async function generate(projectDir) {
   }
   const changed = pending.filter((p) => p.current !== p.next);
   for (const { file: file2, next } of changed) {
-    const target = join3(projectDir, file2);
+    const target = join5(projectDir, file2);
     await mkdir2(dirname2(target), { recursive: true });
     await writeFile2(target, next);
   }
@@ -20043,9 +20165,14 @@ async function generate(projectDir) {
 }
 
 // src/bin.ts
-var USAGE = "U\u017Cycie: wa generate";
+var USAGE = "U\u017Cycie: wa generate | wa kit sync";
 async function main(argv) {
-  const [command] = argv;
+  const [command, subcommand] = argv;
+  if (command === "kit" && subcommand === "sync") {
+    const { changed: changed2 } = await kitSync(process.cwd());
+    console.log(changed2 ? "Zaktualizowano .wa/kit.json" : "Bez zmian");
+    return 0;
+  }
   if (command !== "generate") {
     console.error(USAGE);
     return 1;

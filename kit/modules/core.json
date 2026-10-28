@@ -1,0 +1,26 @@
+{
+  "name": "core",
+  "version": "0.0.0",
+  "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
+  "requires": [],
+  "files": [
+    "src/features/auth/**",
+    "src/features/organizations/**",
+    "src/features/users/**",
+    "src/features/account/**",
+    "src/features/dashboard/**",
+    "src/shared/**",
+    "src/components/ui/**",
+    "src/app/**",
+    "src/i18n/**",
+    "prisma/schema/base.prisma",
+    "prisma/schema/auth.prisma",
+    "prisma/schema/organizations.prisma"
+  ],
+  "dependencies": {},
+  "devDependencies": {},
+  "env": [],
+  "schemaRelations": [],
+  "compose": null,
+  "workspaces": []
+}

@@ -26,8 +26,25 @@ export const moduleManifestSchema = z.object({
 
 export type ModuleManifest = z.infer<typeof moduleManifestSchema>;
 
+export const DEFAULT_KIT_REPO = "https://github.com/webamigos/wa-kit.git";
+
+const localesSchema = z
+  .array(z.enum(["pl", "en"]))
+  .min(1)
+  .refine((locales) => locales.includes("pl"), {
+    message: 'locales musi zawierać "pl"',
+  })
+  .refine((locales) => new Set(locales).size === locales.length, {
+    message: "locales nie może zawierać duplikatów",
+  });
+
 export const kitStateSchema = z.object({
   kitVersion: z.string(),
+  kitRepo: z.string().default(DEFAULT_KIT_REPO),
+  project: z
+    .object({ name: z.string(), slug: z.string() })
+    .default({ name: "WA App", slug: "wa-app" }),
+  locales: localesSchema.default(["pl", "en"]),
   modules: z.record(
     z.string(),
     z.object({

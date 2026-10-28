@@ -11,3 +11,4 @@ src/modules.client.generated.ts
 reports
 .stryker-tmp
 .wa/bin
+.wa/kit.json

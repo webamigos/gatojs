@@ -32,7 +32,17 @@ export async function writeKitState(
   await mkdir(dirname(target), { recursive: true });
   await writeFile(
     target,
-    `${JSON.stringify({ ...state, modules: sortedModules }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        kitVersion: state.kitVersion,
+        kitRepo: state.kitRepo,
+        project: state.project,
+        locales: state.locales,
+        modules: sortedModules,
+      },
+      null,
+      2,
+    )}\n`,
   );
 }
 

@@ -1,9 +1,15 @@
+import { kitSync } from "./commands/kit-sync.js";
 import { generate } from "./generate/index.js";
 
-const USAGE = "Użycie: wa generate";
+const USAGE = "Użycie: wa generate | wa kit sync";
 
 async function main(argv: string[]): Promise<number> {
-  const [command] = argv;
+  const [command, subcommand] = argv;
+  if (command === "kit" && subcommand === "sync") {
+    const { changed } = await kitSync(process.cwd());
+    console.log(changed ? "Zaktualizowano .wa/kit.json" : "Bez zmian");
+    return 0;
+  }
   if (command !== "generate") {
     console.error(USAGE);
     return 1;
