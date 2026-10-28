@@ -22,6 +22,24 @@ const withRegion = (before: string[], inner: string[], after: string[]) =>
   ].join("\n");
 
 describe("stripRegions", () => {
+  it("linia z koncem regionu bez znacznika startu nie otwiera regionu", () => {
+    expect(stripRegions("x\nmiddle\nwa:undefined:end\ny")).toBe(
+      "x\nmiddle\nwa:undefined:end\ny",
+    );
+  });
+
+  it("koniec regionu przed startem nie domyka go", () => {
+    expect(stripRegions("# wa:m:end\n# wa:m:start\nA\n")).toBe(
+      "# wa:m:end\n# wa:m:start\nA\n",
+    );
+  }, 2000);
+
+  it("region zamyka najblizszy koniec, takze bezposrednio po starcie", () => {
+    expect(stripRegions("# wa:m:start\n# wa:m:end\nX\n# wa:m:end\n")).toBe(
+      "# wa:m:start\n# wa:m:end\nX\n# wa:m:end\n",
+    );
+  }, 2000);
+
   it("dwa regiony: oba puste, znaczniki i tresc poza nimi bez zmian", () => {
     const content = [
       "head",
@@ -220,7 +238,7 @@ describe("fileHash", () => {
   });
 
   it("REGION_FILES to dokladnie cztery pliki z regionami generatora", () => {
-    expect([...REGION_FILES].sort()).toEqual([
+    expect(REGION_FILES).toEqual([
       ".env.example",
       "docker-compose.yml",
       "prisma/schema/auth.prisma",

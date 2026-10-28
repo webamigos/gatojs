@@ -116,6 +116,12 @@ describe("resolveModules", () => {
     );
   });
 
+  it("pierwszy nieznany modul w kolejnosci wejscia jest zglaszany", () => {
+    expect(() => resolveModules(["zly1", "zly2"], fixtureManifests)).toThrow(
+      "Nieznany moduł: zly1.",
+    );
+  });
+
   it("cykl w requires konczy sie i daje kazdy modul raz", () => {
     const manifests = [
       manifestOf("core"),
