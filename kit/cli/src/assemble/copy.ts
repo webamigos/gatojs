@@ -22,9 +22,10 @@ export async function copyFiles(input: {
     const text = original.toString("utf8");
     const content = applyPlaceholders(file, text, input.config, input.names);
     await mkdir(dirname(destination), { recursive: true });
-    await writeFile(destination, content === text ? original : content);
+    const written = content === text ? original : Buffer.from(content);
+    await writeFile(destination, written);
     await chmod(destination, (await stat(source)).mode & PERMISSION_BITS);
-    hashes[file] = fileHash(file, content, input.config);
+    hashes[file] = fileHash(file, written, input.config);
   }
   return hashes;
 }

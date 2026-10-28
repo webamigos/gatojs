@@ -12,7 +12,8 @@ export function resolveModules(
     available.map((manifest) => [manifest.name, manifest]),
   );
   const resolved = new Map<string, ModuleManifest>();
-  const pending = [CORE, ...requested];
+  const pending = [...requested].reverse();
+  pending.push(CORE);
   while (pending.length > 0) {
     const name = pending.pop() as string;
     if (resolved.has(name)) continue;

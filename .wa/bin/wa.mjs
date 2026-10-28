@@ -20122,6 +20122,7 @@ var regionTargets = [
   { file: ".env.example", marker: "modules", body: envBody },
   { file: "docker-compose.yml", marker: "services", body: composeBody }
 ];
+var REGION_FILES = regionTargets.map((target) => target.file).sort(compareCodePoint);
 async function renderRegionTarget(target, context) {
   let current;
   try {

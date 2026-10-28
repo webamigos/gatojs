@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { compareCodePoint } from "../compare.js";
 import type { ModuleManifest } from "../manifest/schema.js";
 import { replaceRegion } from "./regions.js";
 
@@ -83,6 +84,10 @@ export const regionTargets: RegionTarget[] = [
   { file: ".env.example", marker: "modules", body: envBody },
   { file: "docker-compose.yml", marker: "services", body: composeBody },
 ];
+
+export const REGION_FILES: string[] = regionTargets
+  .map((target) => target.file)
+  .sort(compareCodePoint);
 
 export async function renderRegionTarget(
   target: RegionTarget,
