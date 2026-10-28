@@ -119,7 +119,7 @@ Dokumentacja opisuje tylko to, co działa w kodzie z commitu `4a6ffcb`. Funkcje 
 
 | Funkcja zaplanowana | Plan | Gdzie jest opisana |
 | --- | --- | --- |
-| `wa create` (`create-wa-app`), `wa add`, `wa remove`, `wa list`, przeniesienie CLI do `kit/cli`, `kit/kit.json` i commitowany bundel CLI | Plan 2 (CLI) | Komendy: [design doc, sekcja CLI](superpowers/specs/2026-10-26-wa-kit-design.md#5-cli). Reszta: plan 2, plik 2026-10-27-wa-kit-plan-2-cli.md w katalogu `docs/superpowers/plans/`. |
+| `wa create` (`create-wa-app`), `wa add`, `wa remove`, `wa list`, przeniesienie CLI do `kit/cli`, `kit/kit.json` i commitowany bundel CLI | Plan 2 (CLI) | Komendy: [design doc, sekcja CLI](superpowers/specs/2026-10-26-wa-kit-design.md#5-cli). Reszta: [plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md). |
 | Moduły opcjonalne `api-keys`, `audit-logs`, `uploads`, `worker` i `legal`, rozszerzenie macierzy składania w CI | Plan 3 | [Design doc, sekcja Moduły opcjonalne](superpowers/specs/2026-10-26-wa-kit-design.md#moduły-opcjonalne-v1) |
 | `wa update`, `wa diff`, wersjonowanie kitu i modułów, scalanie zmian | Plan 4 | [Design doc, sekcja Wersjonowanie i aktualizacje](superpowers/specs/2026-10-26-wa-kit-design.md#44-wersjonowanie-i-aktualizacje) |
 
