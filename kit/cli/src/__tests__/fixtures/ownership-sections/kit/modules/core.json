@@ -1,0 +1,19 @@
+{
+  "name": "core",
+  "version": "0.0.0",
+  "description": "Rdzen fixture",
+  "files": ["package.json", "src/c/**"],
+  "dependencies": {
+    "same": "1.0.0",
+    "diff": "2.0.0",
+    "wrongdev": "^4.0.0",
+    "dual": "1.0.0",
+    "twin": "1.0.0"
+  },
+  "devDependencies": {
+    "devsame": "1.0.0",
+    "devdiff": "2.0.0",
+    "aaa-wrongdeps": "3.0.0",
+    "dual": "2.0.0"
+  }
+}
