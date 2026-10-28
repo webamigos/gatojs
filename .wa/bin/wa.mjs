@@ -21072,10 +21072,6 @@ async function remove(options) {
 ${changed.map((file2) => `  ${file2}`).join("\n")}`
     );
   }
-  for (const path of absolutePaths) {
-    await rm3(path, { force: true });
-    await removeEmptyParents(projectDir, path);
-  }
   const modules = { ...state.modules };
   delete modules[module];
   const remaining = [
@@ -21083,14 +21079,16 @@ ${changed.map((file2) => `  ${file2}`).join("\n")}`
     ...projectModuleManifests(state)
   ];
   const packageJsonPath = join10(projectDir, "package.json");
-  await writeFile6(
-    packageJsonPath,
-    removeDependencies(
-      await readFile9(packageJsonPath, "utf8"),
-      entry.manifest,
-      remaining
-    )
+  const nextPackageJson = removeDependencies(
+    await readFile9(packageJsonPath, "utf8"),
+    entry.manifest,
+    remaining
   );
+  for (const path of absolutePaths) {
+    await rm3(path, { force: true });
+    await removeEmptyParents(projectDir, path);
+  }
+  await writeFile6(packageJsonPath, nextPackageJson);
   await writeKitState(projectDir, { ...state, modules });
   await generate(projectDir);
   if (options.install) {

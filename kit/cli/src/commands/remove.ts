@@ -150,11 +150,6 @@ export async function remove(
     );
   }
 
-  for (const path of absolutePaths) {
-    await rm(path, { force: true });
-    await removeEmptyParents(projectDir, path);
-  }
-
   const modules = { ...state.modules };
   delete modules[module];
   const remaining = [
@@ -162,14 +157,18 @@ export async function remove(
     ...projectModuleManifests(state),
   ];
   const packageJsonPath = join(projectDir, "package.json");
-  await writeFile(
-    packageJsonPath,
-    removeDependencies(
-      await readFile(packageJsonPath, "utf8"),
-      entry.manifest,
-      remaining,
-    ),
+  const nextPackageJson = removeDependencies(
+    await readFile(packageJsonPath, "utf8"),
+    entry.manifest,
+    remaining,
   );
+
+  for (const path of absolutePaths) {
+    await rm(path, { force: true });
+    await removeEmptyParents(projectDir, path);
+  }
+
+  await writeFile(packageJsonPath, nextPackageJson);
   await writeKitState(projectDir, { ...state, modules });
   await generate(projectDir);
 
