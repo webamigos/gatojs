@@ -14,8 +14,8 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 
 - `.wa/kit.json`
 - `.gitignore`
-- `packages/cli/src/manifest/schema.ts`
-- `packages/cli/src/generate/index.ts`
+- `kit/cli/src/manifest/schema.ts`
+- `kit/cli/src/generate/index.ts`
 - `prisma/schema/organizations.prisma`
 - `src/shared/lib/modules/define-module.ts`
 - `src/shared/lib/modules/nav.ts`
@@ -159,7 +159,7 @@ Plik `en.json` ma te same klucze po angielsku. Żaden test nie porównuje kluczy
 Uruchom generator, tak jak po każdym dodaniu definicji modułu albo pliku tłumaczeń:
 
 ```bash
-npm run build -w @wa-kit/cli && npm run wa -- generate
+npm run wa -- generate
 ```
 
 Wynik to `Bez zmian`, a w plikach rejestru nie ma słowa `notes`. To jest oczekiwane na tym etapie: generator rejestruje tylko feature, które wskazuje wzorzec w `.wa/kit.json` ([Wykrywanie feature](02b-rejestr-i-generator.md#wykrywanie-feature)). Wpis dodasz w kroku 3.
@@ -209,7 +209,7 @@ export async function requireModuleAccess(
 
 > **Uwaga: to obejście.** `.wa/kit.json` z założenia opisuje kod, który projekt dostał z kitu ([D02](decyzje.md#d02)). Kit nie ma osobnego miejsca na funkcje projektu, a bez wpisu generator nie zarejestruje feature (objawy wyżej). Wpis modułu `notes` jest więc obejściem. Jego skutki opisuje [znane-ograniczenia.md](znane-ograniczenia.md#modul-projektu).
 
-Dopisz do słownika `modules` nowy moduł obok `core`. Manifest musi przejść schemat `moduleManifestSchema` z `packages/cli/src/manifest/schema.ts`, inaczej generator przerwie pracę i wypisze błędy Zod ([Referencja manifestu](02b-rejestr-i-generator.md#referencja-manifest)):
+Dopisz do słownika `modules` nowy moduł obok `core`. Manifest musi przejść schemat `moduleManifestSchema` z `kit/cli/src/manifest/schema.ts`, inaczej generator przerwie pracę i wypisze błędy Zod ([Referencja manifestu](02b-rejestr-i-generator.md#referencja-manifest)):
 
 `.wa/kit.json`
 

@@ -8,7 +8,9 @@
         "version": "1.0.0",
         "description": "core",
         "files": ["src/features/auth/**", "src/features/missing/**"],
-        "env": [{ "name": "DATABASE_URL", "example": "postgresql://localhost/app" }]
+        "env": [
+          { "name": "DATABASE_URL", "example": "postgresql://localhost/app" }
+        ]
       },
       "files": {}
     },

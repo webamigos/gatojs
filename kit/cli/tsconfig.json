@@ -3,13 +3,12 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "outDir": "dist",
+    "noEmit": true,
     "rootDir": "src",
-    "declaration": true,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "src/**/__tests__/fixtures"]
+  "exclude": ["node_modules", "src/**/__tests__/fixtures"]
 }

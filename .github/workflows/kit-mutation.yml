@@ -1,0 +1,44 @@
+name: Kit mutation testing
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kit-mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  stryker:
+    name: Stryker CLI (incremental)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: kit/cli/package-lock.json
+
+      - name: Install CLI dependencies
+        run: npm ci --prefix kit/cli
+
+      - name: Run Stryker
+        run: npm run test:mutation --prefix kit/cli
+
+      - name: Mutation gate for critical files
+        run: npm run test:mutation:gate --prefix kit/cli
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kit-mutation-report
+          path: kit/cli/reports/mutation/
+          if-no-files-found: ignore

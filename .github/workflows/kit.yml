@@ -1,0 +1,34 @@
+name: Kit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  cli:
+    name: CLI (verify + bundle)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: kit/cli/package-lock.json
+
+      - name: Install CLI dependencies
+        run: npm ci --prefix kit/cli
+
+      - name: Verify CLI
+        run: npm run verify --prefix kit/cli
+
+      - name: Bundle is up to date
+        run: git diff --exit-code -- .wa/bin/wa.mjs

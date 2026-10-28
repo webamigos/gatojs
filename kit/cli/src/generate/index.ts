@@ -20,11 +20,15 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-async function detectFeature(projectDir: string, name: string): Promise<RegistryModule> {
+async function detectFeature(
+  projectDir: string,
+  name: string,
+): Promise<RegistryModule> {
   const base = join(projectDir, "src", "features", name);
   const locales: string[] = [];
   for (const locale of LOCALES) {
-    if (await exists(join(base, "i18n", `${locale}.json`))) locales.push(locale);
+    if (await exists(join(base, "i18n", `${locale}.json`)))
+      locales.push(locale);
   }
   return {
     name,
@@ -36,26 +40,39 @@ async function detectFeature(projectDir: string, name: string): Promise<Registry
   };
 }
 
-async function featureEntries(projectDir: string, files: string[][]): Promise<RegistryModule[]> {
+async function featureEntries(
+  projectDir: string,
+  files: string[][],
+): Promise<RegistryModule[]> {
   const seen = new Set<string>();
   const entries: RegistryModule[] = [];
   for (const globs of files) {
     const names = [
-      ...new Set(globs.map((glob) => FEATURE_GLOB.exec(glob)?.[1]).filter((n): n is string => !!n)),
+      ...new Set(
+        globs
+          .map((glob) => FEATURE_GLOB.exec(glob)?.[1])
+          .filter((n): n is string => !!n),
+      ),
     ].sort(compareCodePoint);
     for (const name of names) {
       if (seen.has(name)) continue;
       seen.add(name);
       const entry = await detectFeature(projectDir, name);
       const present =
-        entry.hasModuleTs || entry.hasEnv || entry.hasAuth || entry.hasAuthClient || entry.locales.length > 0;
+        entry.hasModuleTs ||
+        entry.hasEnv ||
+        entry.hasAuth ||
+        entry.hasAuthClient ||
+        entry.locales.length > 0;
       if (present) entries.push(entry);
     }
   }
   return entries;
 }
 
-export async function generate(projectDir: string): Promise<{ changed: string[] }> {
+export async function generate(
+  projectDir: string,
+): Promise<{ changed: string[] }> {
   const state = await readKitState(projectDir);
   const manifests = installedModules(state);
   const features = await featureEntries(
@@ -69,10 +86,12 @@ export async function generate(projectDir: string): Promise<{ changed: string[] 
     [SERVER_REGISTRY, registry.server],
     [CLIENT_REGISTRY, registry.client],
   ] as const) {
-    const current = await readFile(join(projectDir, file), "utf8").catch((error: NodeJS.ErrnoException) => {
-      if (error.code === "ENOENT") return null;
-      throw error;
-    });
+    const current = await readFile(join(projectDir, file), "utf8").catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return null;
+        throw error;
+      },
+    );
     pending.push({ file, current, next });
   }
   for (const target of regionTargets) {

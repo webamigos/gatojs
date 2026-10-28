@@ -30,11 +30,16 @@ function relationsBody(model: string) {
 async function envBody(modules: ModuleManifest[]): Promise<string> {
   return modules
     .filter((m) => m.name !== "core" && m.env.length > 0)
-    .map((m) => [`# ${m.name}`, ...m.env.map((v) => `${v.name}=${v.example}`)].join("\n"))
+    .map((m) =>
+      [`# ${m.name}`, ...m.env.map((v) => `${v.name}=${v.example}`)].join("\n"),
+    )
     .join("\n\n");
 }
 
-async function composeBody(modules: ModuleManifest[], projectDir: string): Promise<string> {
+async function composeBody(
+  modules: ModuleManifest[],
+  projectDir: string,
+): Promise<string> {
   const parts: string[] = [];
   for (const m of modules) {
     if (m.compose === null) continue;
@@ -45,8 +50,16 @@ async function composeBody(modules: ModuleManifest[], projectDir: string): Promi
 }
 
 export const regionTargets: RegionTarget[] = [
-  { file: "prisma/schema/auth.prisma", marker: "relations", body: relationsBody("User") },
-  { file: "prisma/schema/organizations.prisma", marker: "relations", body: relationsBody("Organization") },
+  {
+    file: "prisma/schema/auth.prisma",
+    marker: "relations",
+    body: relationsBody("User"),
+  },
+  {
+    file: "prisma/schema/organizations.prisma",
+    marker: "relations",
+    body: relationsBody("Organization"),
+  },
   { file: ".env.example", marker: "modules", body: envBody },
   { file: "docker-compose.yml", marker: "services", body: composeBody },
 ];
@@ -64,5 +77,9 @@ export async function renderRegionTarget(
     throw error;
   }
   const body = await target.body(modules, projectDir);
-  return { file: target.file, current, next: replaceRegion(current, target.file, target.marker, body) };
+  return {
+    file: target.file,
+    current,
+    next: replaceRegion(current, target.file, target.marker, body),
+  };
 }

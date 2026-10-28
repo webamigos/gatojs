@@ -12,8 +12,8 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 
 Źródła:
 
-- start i konta: `scripts/admin-create.ts`, `scripts/lib/admin-create.ts`, `.env.example`, `packages/cli/src/generate/registry.ts`, `package.json`, `.nvmrc`, `src/app/[locale]/accept-invitation/[id]/page.tsx`, `src/features/auth/components/sign-in-form.tsx`;
-- rejestr modułów i generator: `.wa/kit.json`, `packages/cli/src/generate/index.ts`, `packages/cli/src/generate/targets.ts`, `packages/cli/src/manifest/schema.ts`, `src/shared/lib/modules/nav.ts`, `src/shared/lib/auth/permissions.ts`, `src/shared/lib/env.ts`, `src/shared/lib/mailer.ts`, `src/proxy.ts`;
+- start i konta: `scripts/admin-create.ts`, `scripts/lib/admin-create.ts`, `.env.example`, `kit/cli/src/generate/registry.ts`, `package.json`, `.nvmrc`, `src/app/[locale]/accept-invitation/[id]/page.tsx`, `src/features/auth/components/sign-in-form.tsx`;
+- rejestr modułów i generator: `.wa/kit.json`, `kit/cli/src/generate/index.ts`, `kit/cli/src/generate/targets.ts`, `kit/cli/src/manifest/schema.ts`, `src/shared/lib/modules/nav.ts`, `src/shared/lib/auth/permissions.ts`, `src/shared/lib/env.ts`, `src/shared/lib/mailer.ts`, `src/proxy.ts`;
 - testy rdzenia liczące rejestr: `src/shared/lib/auth/__tests__/access-matrix.test.ts`, `src/shared/lib/modules/__tests__/nav.test.ts`, `src/shared/components/__tests__/app-sidebar.test.tsx`;
 - auth, role i tryb serwisowy: `src/shared/lib/auth/index.ts`, `src/shared/lib/auth/admin-access.ts`, `src/shared/lib/auth/admin-guard.ts`, `src/shared/lib/auth/roles.ts`, `src/shared/components/service-mode/use-service-mode-action.tsx`, `src/features/organizations/components/organization-members.tsx`, `src/features/organizations/services/commands/member-commands.ts`, `src/features/organizations/services/queries/switchable-organizations-query.ts`, `src/features/users/services/commands/impersonation-commands.ts`;
 - język, logi i serwer: `src/i18n/routing.ts`, `src/shared/lib/logger.ts`, `src/instrumentation.ts`, `src/app/api/healthcheck/route.ts`, `src/shared/utils/error-handling.ts`, `Dockerfile`, `railway.toml`;
@@ -99,7 +99,7 @@ Priorytet „wysoki” dostają pozycje, które dotyczą domyślnej ścieżki st
 
 W przebiegu tutorialu `npm run verify` kończy się kodem 1 (27 nieudanych testów w 3 plikach), dopóki funkcja nie zostanie dopisana do tych testów. To zmiana plików modułu `core`, sprzeczna z regułą „moduł nie edytuje rdzenia” ([D03](decyzje.md#d03)), i źródło konfliktów przy przyszłej aktualizacji kitu ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)). Do tego dochodzi brak kontroli „każdy plik ma właściciela”: nic nie porównuje plików z wzorcami `files`, a manifest `core` nie obejmuje między innymi `scripts/**`, `e2e/**`, `src/proxy.ts`, `src/instrumentation.ts`, `src/types/**` i plików konfiguracyjnych w katalogu głównym ([D02](decyzje.md#d02)).
 
-**Gdzie.** `.wa/kit.json`, `packages/cli/src/generate/index.ts` (stała `FEATURE_GLOB`), `packages/cli/src/generate/targets.ts` (`regionTargets`).
+**Gdzie.** `.wa/kit.json`, `kit/cli/src/generate/index.ts` (stała `FEATURE_GLOB`), `kit/cli/src/generate/targets.ts` (`regionTargets`).
 
 **Obejście.** Wpis modułu w `.wa/kit.json` według [kroku 3 tutorialu](09-nowy-modul.md#krok-3) i dopisanie funkcji do trzech testów rdzenia według [kroku 8](09b-implementacja-i-bramki.md#testy-rdzenia). Funkcję w istniejącym module kitu (bez nowego wpisu) opisuje [osobna sekcja](09b-implementacja-i-bramki.md#istniejacy-modul). Objaw braku wpisu: [09-nowy-modul.md](09-nowy-modul.md#objaw-braku-wpisu).
 
@@ -113,8 +113,8 @@ W przebiegu tutorialu `npm run verify` kończy się kodem 1 (27 nieudanych test�
 
 | Ograniczenie | Skutek | Gdzie | Obejście |
 | --- | --- | --- | --- |
-| `key` w `defineModule` różni się od nazwy katalogu feature | Etykieta menu bez tłumaczenia: generator zapisuje teksty pod nazwą katalogu, a menu szuka etykiety pod `key`. Nic nie sprawdza, że oba są równe | `src/shared/lib/modules/nav.ts` (`getNavEntries`), `packages/cli/src/generate/registry.ts` | Nazwij katalog tak samo jak `key` ([D27](decyzje.md#d27)) |
-| Generator pomija bez błędu relację do modelu innego niż `User` i `Organization`, nieznane pola manifestu (literówka `schemaRelation` przechodzi) i pole `env[].required` | Relacja albo zmienna nie trafia do regionu, a błąd widać dopiero w `prisma validate` albo wcale | `packages/cli/src/generate/targets.ts` (`relationsBody`, `envBody`), `packages/cli/src/manifest/schema.ts` | Po `wa generate` obejrzyj diff regionów ([02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#regiony)) |
+| `key` w `defineModule` różni się od nazwy katalogu feature | Etykieta menu bez tłumaczenia: generator zapisuje teksty pod nazwą katalogu, a menu szuka etykiety pod `key`. Nic nie sprawdza, że oba są równe | `src/shared/lib/modules/nav.ts` (`getNavEntries`), `kit/cli/src/generate/registry.ts` | Nazwij katalog tak samo jak `key` ([D27](decyzje.md#d27)) |
+| Generator pomija bez błędu relację do modelu innego niż `User` i `Organization`, nieznane pola manifestu (literówka `schemaRelation` przechodzi) i pole `env[].required` | Relacja albo zmienna nie trafia do regionu, a błąd widać dopiero w `prisma validate` albo wcale | `kit/cli/src/generate/targets.ts` (`relationsBody`, `envBody`), `kit/cli/src/manifest/schema.ts` | Po `wa generate` obejrzyj diff regionów ([02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#regiony)) |
 | `prisma format` przy brakującej relacji zwrotnej | Dopisuje pole pod `// wa:relations:end`, poza regionem. Po dodaniu `schemaRelations` i `wa generate` pole jest dwa razy, a `prisma validate` zgłasza `Field … is already defined` | `prisma/schema/organizations.prisma`, `prisma/schema/auth.prisma` | Nie uruchamiaj `prisma format` przy tym błędzie. Dodaj `schemaRelations` ([pułapka w 09](09-nowy-modul.md#pulapka-relacji)) |
 | Trasa feature zaczynająca się od `api` albo zawierająca kropkę | `matcher` w `src/proxy.ts` pomija taki adres: `/api-keys` daje 404 (brak przepisania na `/pl/api-keys`), a `/en/api-keys` działa | `src/proxy.ts` | Nie nazywaj tras `api…` ani z kropką ([02-architektura.md](02-architektura.md#proxy)) |
 | Zmienne feature z `env.ts` nie mają typu | `env.NAZWA` kończy się błędem TypeScript (TS2339), bo `env` ma typ `CoreEnv`. Walidacja działa. Generator nie porównuje pola `env` manifestu z kluczami `envSchema` | `src/shared/lib/env.ts` | [07-i18n-mail-env.md](07-i18n-mail-env.md#env-feature) |
@@ -364,7 +364,6 @@ Pozycje z małym skutkiem; rozwiązania opisuje [01-uruchomienie.md](01-uruchomi
 
 | Ograniczenie | Skutek | Gdzie | Obejście |
 | --- | --- | --- | --- |
-| Nagłówek plików generowanych podaje `npx wa generate` | Na świeżym klonie nie ma pliku wykonywalnego `wa`, bo `packages/cli/dist` powstaje dopiero po zbudowaniu CLI | `packages/cli/src/generate/registry.ts` (`GENERATED_HEADER`) | `npm run build -w @wa-kit/cli && npm run wa -- generate` ([02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#uruchomienie)) |
 | `.nvmrc` dopuszcza dowolne Node 22, a `packageManager` wymaga npm 11 | Z Node 22.12 przychodzi npm 10.9. `npm install` przepisuje `package-lock.json`, a starsze wydania 22 wypisują ostrzeżenia `EBADENGINE` (nie przerywają instalacji) | `.nvmrc`, `package.json` | `npm ci`, Node 22.18 lub nowszy ([01-uruchomienie.md](01-uruchomienie.md#typowe-problemy)) |
 | Aplikacja nie ma strony pod `/` | `http://localhost:3000/` daje 404 | `src/app/[locale]` | Wejdź na `/sign-in` |
 | Formularz logowania nie linkuje do `/sign-up` | Przy `AUTH_PUBLIC_SIGNUP=true` trzeba znać adres rejestracji | `src/features/auth/components/sign-in-form.tsx` | Wejdź na `/sign-up` |

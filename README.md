@@ -52,10 +52,10 @@ Zmienne modułów są dopisywane przez `wa generate` w regionie `# wa:modules:st
 ## Komendy
 
 ```bash
-npm run verify        # lint, typecheck, testy, build, testy CLI i hooków
+npm run verify        # lint, typecheck, testy, build i hooków
 npm test              # Vitest
 npm run test:e2e      # build + Playwright (wymaga docker compose up -d)
-npm run build -w @wa-kit/cli && npm run wa -- generate   # odśwież pliki generowane przez wa
+npm run wa -- generate   # odśwież pliki generowane przez wa
 ```
 
 ### E2E

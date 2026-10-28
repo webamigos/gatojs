@@ -38,9 +38,9 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 - `src/shared/config/project.ts`
 - `src/modules.generated.ts`
 - `prisma/schema/organizations.prisma`
-- `packages/cli/src/bin.ts`
-- `packages/cli/src/generate/index.ts`
-- `packages/cli/src/generate/registry.ts`
+- `kit/cli/src/bin.ts`
+- `kit/cli/src/generate/index.ts`
+- `kit/cli/src/generate/registry.ts`
 - `docs/superpowers/`
 - `node_modules/next/dist/server/lib/generate-agent-files.js`, `node_modules/next/dist/server/lib/app-info-log.js`, `node_modules/next/dist/server/lib/start-server.js` (Next.js 16.3.8)
 - dokumentacja Claude Code: [hooki](https://code.claude.com/docs/en/hooks) i [pliki instrukcji](https://code.claude.com/docs/en/memory)
@@ -86,7 +86,7 @@ Dlatego regułę, którą pilnuje tylko hook Claude Code albo hook git, sprawdza
 
 ### Dlaczego poprawki wracają do kitu
 
-Projekt dostaje kod kitu jako zwykły kod, a nie jako zależność, i może go zmieniać jak własny ([D01](decyzje.md#d01)). Żadne narzędzie nie przenosi zmian między kitem a projektem: CLI kitu ma jedną komendę, `generate` (`packages/cli/src/bin.ts`). Pole `modules.core.files` w `.wa/kit.json`, w którym design doc przewiduje hashe skopiowanych plików, jest puste, więc to, które pliki kitu zmieniły się w projekcie, widać tylko w historii git projektu. Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
+Projekt dostaje kod kitu jako zwykły kod, a nie jako zależność, i może go zmieniać jak własny ([D01](decyzje.md#d01)). Żadne narzędzie nie przenosi zmian między kitem a projektem: CLI kitu ma jedną komendę, `generate` (`kit/cli/src/bin.ts`). Pole `modules.core.files` w `.wa/kit.json`, w którym design doc przewiduje hashe skopiowanych plików, jest puste, więc to, które pliki kitu zmieniły się w projekcie, widać tylko w historii git projektu. Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
 
 Z tego wynika reguła z [CLAUDE.md](../CLAUDE.md#pochodzenie-kodu) i [AGENTS.md](../AGENTS.md#co-to-jest): zmiany specyficzne dla projektu robisz w projekcie, a poprawki, które przydadzą się innym projektom, wysyłasz jako pull request do `webamigos/wa-kit`. Powody:
 
@@ -105,7 +105,7 @@ O miejscu decyduje pytanie: czy ta zmiana byłaby poprawna w każdym projekcie n
 | Trzy testy rdzenia z listą feature, rozszerzone o feature projektu. | Projekt | Lista zależy od feature projektu ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)). |
 | Błąd w kodzie rdzenia: guard, komenda, query, komponent, walidacja zmiennych środowiskowych. | Kit, a w projekcie od razu, jeśli poprawka jest pilna. | Ten sam kod jest w każdym projekcie. |
 | Wspólny tekst w `src/app/messages/`, nowy język. | Kit | Teksty rdzenia i lista języków w generatorze to kod kitu ([07-i18n-mail-env.md](07-i18n-mail-env.md#dodawanie-jezyka)). |
-| Zmiana generatora albo CLI w `packages/cli/`. | Kit | Wynik generatora ma być taki sam w każdym projekcie. |
+| Zmiana generatora albo CLI w `kit/cli/`. | Kit | Wynik generatora ma być taki sam w każdym projekcie. |
 | Reguły dla agentów (`AGENTS.md`, `CLAUDE.md`), hooki i agenci w `.claude/`, workflowy CI, konfiguracja husky, lint-staged i commitlint. | Kit | Wspólny sposób pracy. Zmiana w jednym projekcie rozjeżdża go z pozostałymi. |
 | Funkcja klienta potrzebuje od rdzenia czegoś, czego rdzeń nie daje, na przykład szwu, przez który moduł dopisałby się do pliku rdzenia. | Kit, a w projekcie lokalna zmiana rdzenia do czasu poprawki w kicie. | Moduł nie edytuje rdzenia ([D03](decyzje.md#d03)), więc brakujący szew dodaje się w kicie. |
 
@@ -245,7 +245,7 @@ Konfiguracja lint-staged:
 `package.json`
 
 ```json
-"verify": "npm run lint && npm run typecheck && npm test && npm run build && turbo run test typecheck && npm run test:hooks",
+"verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run test:hooks",
 ```
 
 | Krok | Komenda | Co sprawdza |
@@ -254,13 +254,12 @@ Konfiguracja lint-staged:
 | `npm run typecheck` | `tsc --noEmit` | Typy aplikacji. |
 | `npm test` | `vitest run` | Testy jednostkowe i komponentowe, w tym test architektury ([D24](decyzje.md#d24)). |
 | `npm run build` | `next build` | Build produkcyjny. |
-| `turbo run test typecheck` | Skrypty `test` i `typecheck` z `packages/cli/package.json`. | Testy i typy CLI. Zadania w `turbo.json` mają `dependsOn: ["^build"]`, więc turbo najpierw buduje zależności workspace. |
 | `npm run test:hooks` | `node --test` na plikach `.claude/hooks/*.test.mjs`. | Hooki Claude Code ([Hooki](#hooki)). |
 
 Kroki są połączone `&&`, więc łańcuch kończy się na pierwszym błędzie i kolejne kroki się nie wykonują. `verify` nie uruchamia testów integracyjnych, e2e ani mutacyjnych, bo wymagają bazy albo przeglądarki albo trwają długo ([08-testy.md](08-testy.md#rodzaje)). Nie sprawdza też aktualności plików generowanych, formatowania ani wiadomości commitów. Job `verify` w CI przed `npm run verify` uruchamia generator i porównuje wynik z repozytorium. **Zalecenie:** zrób to samo lokalnie i sprawdź, że generator wypisuje `Bez zmian`:
 
 ```bash
-npm run build -w @wa-kit/cli && npm run wa -- generate
+npm run wa -- generate
 npm run verify
 ```
 
@@ -496,7 +495,7 @@ Pliki rejestru rozpoznasz po pierwszej linii:
 `src/modules.generated.ts`
 
 ```ts
-// generated by wa — nie edytuj. Uruchom: npx wa generate
+// generated by wa — nie edytuj. Uruchom: npm run wa -- generate
 ```
 
 Region to fragment pliku między liniami z markerami, na przykład w modelu `Organization`:
@@ -533,14 +532,14 @@ Co zrobić po zmianie, od której zależą:
 2. Z katalogu głównego repozytorium uruchom generator:
 
    ```bash
-   npm run build -w @wa-kit/cli && npm run wa -- generate
+   npm run wa -- generate
    ```
 
    Wynik to `Bez zmian` albo po jednej linii `zmieniono <plik>` dla każdego zapisanego pliku.
 3. Zacommituj zmienione pliki razem ze zmianą, która je wywołała.
 
-Nagłówek pliku rejestru podaje `npx wa generate`. Używaj komendy z `AGENTS.md`, podanej wyżej: `npx wa generate` nie buduje CLI, a katalog `packages/cli/dist` jest w `.gitignore`, więc na świeżym klonie CLI nie istnieje ([D04](decyzje.md#d04)).
+Nagłówek pliku rejestru podaje `npm run wa -- generate`. Komenda działa na świeżym klonie, bo bundel CLI `.wa/bin/wa.mjs` jest w repozytorium ([D04](decyzje.md#d04)).
 
-Gdy generator nie daje tego, czego potrzebujesz, na przykład nowego rodzaju szwu, zmiana dotyczy `packages/cli/src/generate/`, czyli kodu kitu, i idzie przez [pull request do kitu](#pull-request).
+Gdy generator nie daje tego, czego potrzebujesz, na przykład nowego rodzaju szwu, zmiana dotyczy `kit/cli/src/generate/`, czyli kodu kitu, i idzie przez [pull request do kitu](#pull-request).
 
 Klient Prismy w `src/generated/prisma/` to inny plik generowany: tworzy go `prisma generate` (skrypt `postinstall` i `npm run db:generate`), a katalog jest w `.gitignore`. Po zmianie schematu odśwież go komendą, zamiast edytować ([03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#schemat)).

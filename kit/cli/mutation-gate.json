@@ -1,0 +1,9 @@
+{
+  "critical": [
+    "src/generate/",
+    "src/manifest/",
+    "src/assemble/",
+    "src/commands/"
+  ],
+  "allowed": []
+}

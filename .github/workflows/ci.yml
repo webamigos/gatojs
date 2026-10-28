@@ -26,9 +26,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build wa CLI
-        run: npm run build -w @wa-kit/cli
-
       - name: Regenerate wa files
         run: npm run wa -- generate
 

@@ -12,20 +12,28 @@ export async function readKitState(projectDir: string): Promise<KitState> {
     raw = await readFile(join(projectDir, KIT_STATE_PATH), "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(`Brak .wa/kit.json w ${projectDir} — to nie jest projekt wa-kit`);
+      throw new Error(
+        `Brak .wa/kit.json w ${projectDir} — to nie jest projekt wa-kit`,
+      );
     }
     throw error;
   }
   return kitStateSchema.parse(JSON.parse(raw));
 }
 
-export async function writeKitState(projectDir: string, state: KitState): Promise<void> {
+export async function writeKitState(
+  projectDir: string,
+  state: KitState,
+): Promise<void> {
   const sortedModules = Object.fromEntries(
     Object.entries(state.modules).sort(([a], [b]) => compareCodePoint(a, b)),
   );
   const target = join(projectDir, KIT_STATE_PATH);
   await mkdir(dirname(target), { recursive: true });
-  await writeFile(target, `${JSON.stringify({ ...state, modules: sortedModules }, null, 2)}\n`);
+  await writeFile(
+    target,
+    `${JSON.stringify({ ...state, modules: sortedModules }, null, 2)}\n`,
+  );
 }
 
 export function installedModules(state: KitState): ModuleManifest[] {

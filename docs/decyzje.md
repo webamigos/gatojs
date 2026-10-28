@@ -53,7 +53,7 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 - **Feature**: katalog `src/features/<x>/` z kodem jednej funkcji (komponenty, komendy, query, tłumaczenia).
 - **Definicja modułu**: plik `src/features/<x>/module.ts` z `defineModule(...)` (typ `ModuleDef`). Opisuje feature dla nawigacji i guardów; najważniejsze pole to `key`, na przykład `users`.
 - **Rejestr modułów**: tablice w `src/modules.generated.ts` i `src/modules.client.generated.ts` (na przykład `clientModules`), z których nawigacja, guardy, tłumaczenia i walidacja env dowiadują się o feature.
-- **Plik generowany, region `wa:*`, szew**: plik albo fragment pliku między liniami z `wa:<nazwa>:start` i `wa:<nazwa>:end`, który przepisuje generator kitu (`npm run build -w @wa-kit/cli && npm run wa -- generate`). Szew to miejsce, w którym rdzeń dowiaduje się o modułach: plik generowany albo region.
+- **Plik generowany, region `wa:*`, szew**: plik albo fragment pliku między liniami z `wa:<nazwa>:start` i `wa:<nazwa>:end`, który przepisuje generator kitu (`npm run wa -- generate`). Szew to miejsce, w którym rdzeń dowiaduje się o modułach: plik generowany albo region.
 - **Organizacja, aktywna organizacja**: firma albo zespół, do którego należą użytkownicy i dane. Zalogowany użytkownik pracuje zawsze w jednej organizacji naraz, nazywanej aktywną.
 - **Rola globalna** (`user`, `admin`, `superadmin`) dotyczy konta w całej aplikacji. **Rola w organizacji** (`owner`, `admin`, `member`) dotyczy członkostwa w jednej organizacji.
 - **Superadmin, tryb serwisowy, impersonacja**: konto serwisowe Web Amigos; praca superadmina w organizacji, do której nie należy; praca na koncie innego użytkownika bez jego hasła.
@@ -125,9 +125,9 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 
 - Zmiana w skopiowanym kodzie nie wymaga forka ani publikacji paczki. Poprawkę, która przyda się innym projektom, wysyła się jako pull request do `webamigos/wa-kit` (reguła „Pochodzenie kodu” w [CLAUDE.md](../CLAUDE.md)). To proces, a nie automat.
 - Flagi `MULTI_ORG`, `AUTH_PUBLIC_SIGNUP` i `ADMIN_IMPERSONATION` zmieniają działanie aplikacji, a nie to, z jakiego kodu się składa.
-- CLI kitu ma w kodzie jedną komendę, `generate` (`packages/cli/src/bin.ts`). Kopiowania kitu do nowego projektu i ściągania poprawek z kitu nie obsługuje żadne narzędzie z tego commitu. Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
+- CLI kitu ma w kodzie jedną komendę, `generate` (`kit/cli/src/bin.ts`). Kopiowania kitu do nowego projektu i ściągania poprawek z kitu nie obsługuje żadne narzędzie z tego commitu. Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
 
-**Jak egzekwowana.** Tylko konwencja. `package.json` aplikacji nie ma w zależnościach żadnej paczki kitu (`@wa-kit/cli` to workspace w `packages/cli`, używany przez skrypt `npm run wa`), ale nic nie blokuje dodania takiej zależności.
+**Jak egzekwowana.** Tylko konwencja. `package.json` aplikacji nie ma w zależnościach żadnej paczki kitu (CLI leży w `kit/cli`, a skrypt `npm run wa` uruchamia jego bundel `.wa/bin/wa.mjs`), ale nic nie blokuje dodania takiej zależności.
 
 **Źródło.** [Design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §1, §2 (anty-cele) i §9; [CLAUDE.md](../CLAUDE.md), „Pochodzenie kodu”.
 
@@ -141,7 +141,7 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 
 **Decyzja.** Kit zawiera jedną działającą aplikację referencyjną ze wszystkimi modułami. Leży w katalogu głównym repozytorium, z takim samym układem katalogów jak projekt klienta. Każdy moduł ma manifest z listą swoich plików (`files`, wzorce glob). Projekt powstaje przez skopiowanie aplikacji bez plików niewybranych modułów i przegenerowanie plików łączących ([D03](#d03)). Narzędzia do takiego kopiowania nie ma, więc robi się to ręcznie ([D01](#d01)).
 
-Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateSchema` w `packages/cli/src/manifest/schema.ts`). Jest jeden moduł, `core`. Pole `modules.core.files`, w którym design doc §4.4 przewiduje hashe skopiowanych plików do aktualizacji, jest puste.
+Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateSchema` w `kit/cli/src/manifest/schema.ts`). Jest jeden moduł, `core`. Pole `modules.core.files`, w którym design doc §4.4 przewiduje hashe skopiowanych plików do aktualizacji, jest puste.
 
 **Odrzucone alternatywy.**
 
@@ -150,15 +150,15 @@ Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateS
 
 **Konsekwencje.**
 
-- Pliki tylko dla kitu (`packages/cli`, `docs/`) leżą obok aplikacji i nie należą do żadnego manifestu.
-- Kod czyta z `files` tylko wzorce zaczynające się od `src/features/<x>/`: na ich podstawie `wa generate` wykrywa feature (`FEATURE_GLOB` w `packages/cli/src/generate/index.ts`). Pozostałe wzorce (`src/shared/**`, `src/app/**` i inne) są tylko zapisem własności.
+- Pliki tylko dla kitu (`kit/`, `docs/`) leżą obok aplikacji i nie należą do żadnego manifestu.
+- Kod czyta z `files` tylko wzorce zaczynające się od `src/features/<x>/`: na ich podstawie `wa generate` wykrywa feature (`FEATURE_GLOB` w `kit/cli/src/generate/index.ts`). Pozostałe wzorce (`src/shared/**`, `src/app/**` i inne) są tylko zapisem własności.
 - Każdy feature musi mieć osobny wzorzec: wzorzec z nawiasami, na przykład `src/features/{auth,users}/**`, generator pomija bez błędu (ruling R14). Wzorzec katalogu, którego nie ma na dysku, też jest pomijany, więc manifest może wymieniać feature z wyprzedzeniem (ruling R5).
 - Feature, którego nie obejmuje żaden wzorzec w `.wa/kit.json`, nie trafia do rejestru modułów: nie ma nawigacji, `requireModuleAccess` nie zna jego klucza, a jego tłumaczenia się nie ładują. Dotyczy to także funkcji projektu klienta; skutki i obejście opisuje [znane-ograniczenia.md](znane-ograniczenia.md#modul-projektu).
 - Manifest `core` nie wymienia wszystkich plików rdzenia (brakuje na przykład `scripts/**`, `e2e/**` i `src/proxy.ts`; lista w checkliście handoffu planu 1). Design doc §4.2 i §7 zapowiadają kontrolę w CI, że każdy plik ma dokładnie jednego właściciela; w kodzie takiej kontroli nie ma.
 
 **Jak egzekwowana.**
 
-- `readKitState` w `packages/cli/src/manifest/kit-state.ts` sprawdza `.wa/kit.json` schematem Zod i przerywa `wa generate` przy błędnym pliku (testy: `packages/cli/src/manifest/__tests__/kit-state.test.ts`). CI uruchamia generator w każdym przebiegu (`.github/workflows/ci.yml`, krok „Regenerate wa files”).
+- `readKitState` w `kit/cli/src/manifest/kit-state.ts` sprawdza `.wa/kit.json` schematem Zod i przerywa `wa generate` przy błędnym pliku (testy: `kit/cli/src/manifest/__tests__/kit-state.test.ts`). CI uruchamia generator w każdym przebiegu (`.github/workflows/ci.yml`, krok „Regenerate wa files”).
 - Kompletność własności (każdy plik należy do dokładnie jednego modułu): tylko konwencja.
 
 **Źródło.** [Design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §4.1, §4.2, §6, §7 i §9; [plan 1](superpowers/plans/2026-10-26-wa-kit-plan-1-core.md), sekcja „Architecture”; rulingi R5 i R14 oraz checklista dla planu 2 w [handoffie planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md).
@@ -188,14 +188,14 @@ Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateS
 
 **Konsekwencje.**
 
-- Nowy feature to nowe pliki, wzorzec w `.wa/kit.json` ([D02](#d02)) i przebieg `npm run build -w @wa-kit/cli && npm run wa -- generate`.
-- Uszkodzony marker (brak końca, podwójny początek) albo marker w treści regionu przerywa generator błędem z nazwą pliku i markera, a żaden plik nie zostaje zmieniony (`replaceRegion` w `packages/cli/src/generate/regions.ts`).
+- Nowy feature to nowe pliki, wzorzec w `.wa/kit.json` ([D02](#d02)) i przebieg `npm run wa -- generate`.
+- Uszkodzony marker (brak końca, podwójny początek) albo marker w treści regionu przerywa generator błędem z nazwą pliku i markera, a żaden plik nie zostaje zmieniony (`replaceRegion` w `kit/cli/src/generate/regions.ts`).
 - Design doc §4.3 wymienia też szwy, których kod nie ma albo ma inaczej (osobne pliki pluginów better-auth, `trackAudit`, generowane `workspaces`). Obowiązuje tabela powyżej, zgodna z `AGENTS.md`.
 
 **Jak egzekwowana.**
 
 - Ręczna zmiana w pliku generowanym albo w regionie: job `verify` w `.github/workflows/ci.yml` ([D04](#d04)).
-- Poprawność regionów: testy `packages/cli/src/generate/__tests__/regions.test.ts` i `generate.test.ts` („uszkodzony marker: błąd i żaden plik nie zmieniony”), uruchamiane w `npm run verify`.
+- Poprawność regionów: testy `kit/cli/src/generate/__tests__/regions.test.ts` i `generate.test.ts` („uszkodzony marker: błąd i żaden plik nie zmieniony”), uruchamiane w `npm run verify`.
 - To, że moduł nie zmienia plików rdzenia poza regionami: tylko konwencja.
 
 **Źródło.** [Design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §2, §4.1, §4.3 i §9; [AGENTS.md](../AGENTS.md), „Moduły i pliki generowane”; [CLAUDE.md](../CLAUDE.md), „Pliki generowane”.
@@ -206,7 +206,7 @@ Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateS
 
 **Status:** obowiązuje · **Data:** 2026-10-26 · **Kto zdecydował:** autor design doc (commitowanie, §4.3); wykonawca planu 1 (ruling R17: równość bajtowa i wyłączenie z formatowania; ruling R12: bez nagłówka w regionach)
 
-**Kontekst.** Aplikacja importuje rejestr modułów w wielu miejscach, na przykład `src/shared/lib/env.ts` importuje `@/modules.generated`. Bez tych plików nie działa `npm run build`, `npm run typecheck` ani `npm test`. CLI trzeba zbudować osobno (`packages/cli/dist` jest w `.gitignore`), więc projekt nie może zależeć od tego, że ktoś je zbudował. Z drugiej strony plik zmieniony ręcznie albo przez formatter rozjeżdża się z tym, co zapisze generator.
+**Kontekst.** Aplikacja importuje rejestr modułów w wielu miejscach, na przykład `src/shared/lib/env.ts` importuje `@/modules.generated`. Bez tych plików nie działa `npm run build`, `npm run typecheck` ani `npm test`. Bundel CLI `.wa/bin/wa.mjs` jest w repozytorium, więc projekt nie wymaga budowania CLI przed generatorem. Z drugiej strony plik zmieniony ręcznie albo przez formatter rozjeżdża się z tym, co zapisze generator.
 
 **Decyzja.** `src/modules.generated.ts`, `src/modules.client.generated.ts` i regiony `wa:*` są commitowane. Ich treść ma być bajt w bajt taka, jaką zapisuje `wa generate`. Oba pliki TypeScript są wpisane do `.prettierignore` i do `globalIgnores` w `eslint.config.mjs`, więc `lint-staged` (`.lintstagedrc.json`) ich nie przeformatuje. Zaczynają się linią nagłówka „generated by wa — nie edytuj”. Regiony nie mają nagłówka, bo oznaczają je same markery.
 
@@ -214,14 +214,14 @@ Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateS
 
 **Konsekwencje.**
 
-- Po zmianie `.wa/kit.json` albo po dodaniu lub usunięciu `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts` lub `i18n/<locale>.json` w feature uruchom `npm run build -w @wa-kit/cli && npm run wa -- generate` i zacommituj wynik razem ze zmianą. Generator wypisuje zmienione pliki albo `Bez zmian`.
+- Po zmianie `.wa/kit.json` albo po dodaniu lub usunięciu `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts` lub `i18n/<locale>.json` w feature uruchom `npm run wa -- generate` i zacommituj wynik razem ze zmianą. Generator wypisuje zmienione pliki albo `Bez zmian`.
 - Nagłówek w plikach generowanych podaje inną komendę niż `AGENTS.md`. Używaj komendy z `AGENTS.md`, podanej wyżej.
 
 **Jak egzekwowana.**
 
-- Job `verify` w `.github/workflows/ci.yml` (push i pull request do `main`): kroki „Build wa CLI” (`npm run build -w @wa-kit/cli`), „Regenerate wa files” (`npm run wa -- generate`) i „Generated files are up to date” (`git diff --exit-code`). Każda różnica przerywa job przed `npm run verify`.
+- Job `verify` w `.github/workflows/ci.yml` (push i pull request do `main`): kroki „Regenerate wa files” (`npm run wa -- generate`) i „Generated files are up to date” (`git diff --exit-code`). Każda różnica przerywa job przed `npm run verify`.
 - `.prettierignore` i `globalIgnores` w `eslint.config.mjs`.
-- Idempotencja generatora: `packages/cli/src/generate/__tests__/generate.test.ts` („drugie uruchomienie nic nie zmienia”).
+- Idempotencja generatora: `kit/cli/src/generate/__tests__/generate.test.ts` („drugie uruchomienie nic nie zmienia”).
 
 **Źródło.** [Design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §4.3 (ostatni akapit); rulingi R12 i R17 w [handoffie planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md).
 
@@ -252,7 +252,7 @@ Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateS
 **Jak egzekwowana.**
 
 - `npm run typecheck`: `permissions.ts` i `nav.ts` przypisują `clientModules` do `readonly ModuleDef[]`, a pliki generowane importują domyślny eksport `module.ts` i nazwane eksporty pozostałych plików.
-- `packages/cli/src/generate/__tests__/registry.test.ts` („klient eksportuje pełne obiekty modułów, nie projekcję pól”).
+- `kit/cli/src/generate/__tests__/registry.test.ts` („klient eksportuje pełne obiekty modułów, nie projekcję pól”).
 - `src/shared/lib/auth/__tests__/permissions.test.ts` i `src/shared/lib/auth/__tests__/access-matrix.test.ts` (120 kombinacji definicji modułu, roli globalnej, roli w organizacji i `MULTI_ORG` oraz zgodność menu z macierzą, „decyzja 3”).
 - Brak importów serwerowych w `module.ts`: tylko pośrednio przez `npm run build`. Nie ma testu, który to sprawdza wprost.
 
@@ -939,7 +939,7 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 - Etykiety menu są szukane pod `<key>.<labelKey>`, gdzie `key` pochodzi z definicji modułu, a tłumaczenia leżą pod nazwą katalogu. Nazwa katalogu feature i `key` w `defineModule` muszą być takie same. W rdzeniu są, ale nic tego nie sprawdza.
 - Kolizja namespace kończy się błędem przy ładowaniu tłumaczeń (`getRequestConfig` w `src/i18n/request.ts`), więc strona się nie wyrenderuje.
 - Decyzji o wykrywaniu języka nie zapisano ([znane-ograniczenia.md](znane-ograniczenia.md#wykrywanie-jezyka)): `src/i18n/routing.ts` nie ustawia `localeDetection`, więc działa domyślne zachowanie next-intl. Adres bez prefiksu bierze język z ciasteczka `NEXT_LOCALE`, a bez niego z nagłówka `Accept-Language`, więc przeglądarka, która woli angielski, trafia na `/en/...`. Szczegóły w [07-i18n-mail-env.md](07-i18n-mail-env.md).
-- Trzeci język wymaga zmian w `src/i18n/config.ts` i w generatorze (lista języków w `packages/cli/src/generate/index.ts` i `packages/cli/src/generate/registry.ts`).
+- Trzeci język wymaga zmian w `src/i18n/config.ts` i w generatorze (lista języków w `kit/cli/src/generate/index.ts` i `kit/cli/src/generate/registry.ts`).
 - Dodawanie tekstów i języka: [07-i18n-mail-env.md](07-i18n-mail-env.md).
 
 **Jak egzekwowana.**

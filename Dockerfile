@@ -4,7 +4,6 @@ FROM base AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-COPY packages/cli/package.json ./packages/cli/
 RUN npm ci --ignore-scripts
 
 FROM base AS builder

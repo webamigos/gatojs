@@ -14,4 +14,5 @@ playwright.config.ts
 test-results
 playwright-report
 src/generated
-packages/cli/dist
+kit
+docs

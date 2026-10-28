@@ -24,7 +24,11 @@ function stateWith(names: string[]): KitState {
         name,
         {
           version: "1.0.0",
-          manifest: moduleManifestSchema.parse({ name, version: "1.0.0", description: name }),
+          manifest: moduleManifestSchema.parse({
+            name,
+            version: "1.0.0",
+            description: name,
+          }),
           files: { [`src/features/${name}/module.ts`]: "a".repeat(64) },
         },
       ]),
@@ -34,22 +38,33 @@ function stateWith(names: string[]): KitState {
 
 describe("kit state", () => {
   it("readKitState zgłasza brak pliku z nazwą katalogu", async () => {
-    await expect(readKitState(tmp)).rejects.toThrow(`Brak .wa/kit.json w ${tmp}`);
+    await expect(readKitState(tmp)).rejects.toThrow(
+      `Brak .wa/kit.json w ${tmp}`,
+    );
   });
 
   it("writeKitState + readKitState round-trip, moduły posortowane", async () => {
     await writeKitState(tmp, stateWith(["uploads", "core", "api-keys"]));
     const raw = await readFile(join(tmp, ".wa/kit.json"), "utf8");
-    expect(Object.keys(JSON.parse(raw).modules)).toEqual(["api-keys", "core", "uploads"]);
+    expect(Object.keys(JSON.parse(raw).modules)).toEqual([
+      "api-keys",
+      "core",
+      "uploads",
+    ]);
     expect(raw.endsWith("\n")).toBe(true);
     expect(raw).toContain('\n  "kitVersion"');
-    expect(installedModules(await readKitState(tmp)).map((m) => m.name)).toEqual(["core", "api-keys", "uploads"]);
+    expect(
+      installedModules(await readKitState(tmp)).map((m) => m.name),
+    ).toEqual(["core", "api-keys", "uploads"]);
   });
 
   it("readKitState odrzuca niepoprawny plik", async () => {
     await writeKitState(tmp, stateWith(["core"]));
     const { writeFile } = await import("node:fs/promises");
-    await writeFile(join(tmp, ".wa/kit.json"), JSON.stringify({ kitVersion: 1 }));
+    await writeFile(
+      join(tmp, ".wa/kit.json"),
+      JSON.stringify({ kitVersion: 1 }),
+    );
     await expect(readKitState(tmp)).rejects.toThrow();
   });
 });

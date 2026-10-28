@@ -1,0 +1,30 @@
+{
+  "name": "@wa-kit/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "build": "npm run typecheck && node bundle.mjs",
+    "verify": "npm run typecheck && npm test && npm run build",
+    "test:mutation": "stryker run",
+    "test:mutation:task": "stryker run --force --mutate",
+    "test:mutation:gate": "tsx ../../scripts/mutation-gate.ts"
+  },
+  "devDependencies": {
+    "@fast-check/vitest": "^0.5.0",
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/typescript-checker": "^10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
+    "@types/node": "^22",
+    "esbuild": "^0.28.2",
+    "fast-check": "^4.10.2",
+    "tsx": "^4.23.15",
+    "typescript": "^5",
+    "vitest": "^4.1.2"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
+}

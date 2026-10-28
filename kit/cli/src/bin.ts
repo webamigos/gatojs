@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { generate } from "./generate/index.js";
 
 const USAGE = "Użycie: wa generate";

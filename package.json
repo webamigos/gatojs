@@ -2,10 +2,6 @@
   "name": "wa-app",
   "version": "0.0.0",
   "private": true,
-  "workspaces": [
-    "packages/*",
-    "apps/*"
-  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -21,8 +17,8 @@
     "test:mutation:integration": "stryker run stryker.integration.config.json",
     "test:mutation:gate": "tsx scripts/mutation-gate.ts",
     "db:generate": "prisma generate",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run build && turbo run test typecheck && npm run test:hooks",
-    "wa": "node packages/cli/dist/bin.js",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run test:hooks",
+    "wa": "node .wa/bin/wa.mjs",
     "postinstall": "prisma generate",
     "prepare": "husky",
     "admin:create": "tsx scripts/admin-create.ts",

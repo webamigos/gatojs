@@ -185,7 +185,7 @@ Nazwy usług (`db` i `mail`) zwraca `docker compose config --services`. Używaj 
 
 - Porty są zapisane jako `"${DB_PORT:-5432}:5432"`. Lewa strona to port na komputerze: wartość zmiennej albo domyślna. Prawa to port w kontenerze, który się nie zmienia.
 - Dane Postgresa leżą w katalogu `volumes/postgres` (w `.gitignore`). `docker compose down` usuwa kontenery, ale ten katalog zostaje, więc baza przetrwa restart.
-- Na końcu pliku jest region `wa:services:start` / `wa:services:end` na usługi modułów. Wypełnia go generator kitu (`npm run build -w @wa-kit/cli && npm run wa -- generate`, opis w [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#regiony)), więc nie edytuj go ręcznie.
+- Na końcu pliku jest region `wa:services:start` / `wa:services:end` na usługi modułów. Wypełnia go generator kitu (`npm run wa -- generate`, opis w [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#regiony)), więc nie edytuj go ręcznie.
 
 <a id="zmiana-portow"></a>
 

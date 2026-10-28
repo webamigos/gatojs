@@ -123,7 +123,7 @@ Dokumentacja opisuje tylko to, co działa w kodzie z commitu `4a6ffcb`. Funkcje 
 | Moduły opcjonalne `api-keys`, `audit-logs`, `uploads`, `worker` i `legal`, rozszerzenie macierzy składania w CI | Plan 3 | [Design doc, sekcja Moduły opcjonalne](superpowers/specs/2026-10-26-wa-kit-design.md#moduły-opcjonalne-v1) |
 | `wa update`, `wa diff`, wersjonowanie kitu i modułów, scalanie zmian | Plan 4 | [Design doc, sekcja Wersjonowanie i aktualizacje](superpowers/specs/2026-10-26-wa-kit-design.md#44-wersjonowanie-i-aktualizacje) |
 
-Jedyną komendą CLI, która działa, jest `wa generate` ([02b](02b-rejestr-i-generator.md#wa-generate)). Dokumentacja podaje ją jako `npm run build -w @wa-kit/cli && npm run wa -- generate`, tak jak `AGENTS.md`. Znane luki istniejącego kodu, w tym kierunki ich zamknięcia, są w [znane-ograniczenia.md](znane-ograniczenia.md).
+Jedyną komendą CLI, która działa, jest `wa generate` ([02b](02b-rejestr-i-generator.md#wa-generate)). Dokumentacja podaje ją jako `npm run wa -- generate`, tak jak `AGENTS.md`. Znane luki istniejącego kodu, w tym kierunki ich zamknięcia, są w [znane-ograniczenia.md](znane-ograniczenia.md).
 
 Poza zakresem są też:
 
