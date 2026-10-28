@@ -1,19 +1,36 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseCreateArgs } from "./args.js";
+import { tmpdir } from "node:os";
+import { parseAddArgs, parseCreateArgs } from "./args.js";
+import { addFromSource } from "./commands/add.js";
 import { create } from "./commands/create.js";
 import { readlinePrompter } from "./process/prompter.js";
 import { spawnRunner } from "./process/runner.js";
 import { kitSync } from "./commands/kit-sync.js";
 import { generate } from "./generate/index.js";
 
-const USAGE = "Użycie: wa generate | wa kit sync | wa create <katalog> [opcje]";
+const USAGE =
+  "Użycie: wa generate | wa kit sync | wa create <katalog> [opcje] | wa add <moduł> [--kit <ścieżka|url>] [--no-install]";
 
 async function main(argv: string[]): Promise<number> {
   const [command, subcommand] = argv;
   if (command === "kit" && subcommand === "sync") {
     const { changed } = await kitSync(process.cwd());
     console.log(changed ? "Zaktualizowano .wa/kit.json" : "Bez zmian");
+    return 0;
+  }
+  if (command === "add") {
+    const { module, kit, install } = parseAddArgs(argv.slice(1));
+    await addFromSource({
+      projectDir: process.cwd(),
+      module,
+      kitFlag: kit,
+      envSource: process.env["WA_KIT_SOURCE"],
+      install,
+      runner: spawnRunner,
+      log: console.log,
+      tmpRoot: tmpdir(),
+    });
     return 0;
   }
   if (command === "create") {

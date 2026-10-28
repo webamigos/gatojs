@@ -68,3 +68,23 @@ export function parseCreateArgs(argv: string[]): CreateArgs {
     kit: values.kit ?? null,
   };
 }
+
+export type AddArgs = { module: string; kit: string | null; install: boolean };
+
+export function parseAddArgs(argv: string[]): AddArgs {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    options: {
+      kit: { type: "string" },
+      "no-install": { type: "boolean", default: false },
+    },
+  });
+  const [module] = positionals;
+  if (module === undefined) throw new Error("Podaj nazwę modułu");
+  return {
+    module,
+    kit: values.kit ?? null,
+    install: !values["no-install"],
+  };
+}

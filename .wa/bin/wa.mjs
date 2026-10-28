@@ -6,8 +6,9 @@ var __export = (target, all) => {
 };
 
 // src/bin.ts
-import { dirname as dirname4, resolve as resolve2 } from "node:path";
+import { dirname as dirname4, resolve as resolve3 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
 
 // src/args.ts
 import { parseArgs } from "node:util";
@@ -56,23 +57,28 @@ function parseCreateArgs(argv) {
     kit: values.kit ?? null
   };
 }
+function parseAddArgs(argv) {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    options: {
+      kit: { type: "string" },
+      "no-install": { type: "boolean", default: false }
+    }
+  });
+  const [module] = positionals;
+  if (module === void 0) throw new Error("Podaj nazw\u0119 modu\u0142u");
+  return {
+    module,
+    kit: values.kit ?? null,
+    install: !values["no-install"]
+  };
+}
 
-// src/commands/create.ts
-import { randomBytes } from "node:crypto";
+// src/commands/add.ts
 import { existsSync } from "node:fs";
-import { mkdir as mkdir4, readdir as readdir2, readFile as readFile6, rm, writeFile as writeFile4 } from "node:fs/promises";
-import { join as join6, resolve } from "node:path";
-
-// src/assemble/copy.ts
-import { chmod, mkdir, readFile as readFile2, stat, writeFile } from "node:fs/promises";
-import { dirname, join as join2 } from "node:path";
-
-// src/assemble/hash.ts
-import { createHash } from "node:crypto";
-
-// src/generate/targets.ts
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdtemp, readFile as readFile6, rm, writeFile as writeFile4 } from "node:fs/promises";
+import { join as join7 } from "node:path";
 
 // src/compare.ts
 function compareCodePoint(a, b) {
@@ -84,6 +90,17 @@ function compareModuleNames(a, b) {
   if (b === "core") return 1;
   return compareCodePoint(a, b);
 }
+
+// src/assemble/copy.ts
+import { chmod, mkdir, readFile as readFile2, stat, writeFile } from "node:fs/promises";
+import { dirname, join as join2 } from "node:path";
+
+// src/assemble/hash.ts
+import { createHash } from "node:crypto";
+
+// src/generate/targets.ts
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 
 // src/generate/regions.ts
 function replaceRegion(content, file2, marker, body) {
@@ -240,6 +257,7 @@ async function copyFiles(input2) {
 }
 
 // src/assemble/package-json.ts
+var SECTIONS = ["dependencies", "devDependencies"];
 function sortedKeys(dependencies) {
   return Object.fromEntries(
     Object.entries(dependencies).sort(([a], [b]) => compareCodePoint(a, b))
@@ -262,25 +280,14 @@ function projectPackageJson(kitPackageJson, manifests, names) {
   packageJson.devDependencies = sumDependencies(manifests, "devDependencies");
   return serialize(packageJson);
 }
-
-// src/assemble/project-names.ts
-import { basename } from "node:path";
-var SLUG_PATTERN = /^[a-z][a-z0-9-]{1,49}$/;
-function displayName(slug) {
-  return slug.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
-}
-function projectNames(target, title) {
-  const slug = basename(target);
-  if (!SLUG_PATTERN.test(slug)) {
-    throw new Error(
-      `Nazwa projektu "${slug}": dozwolone ma\u0142e litery, cyfry i my\u015Blniki, pierwsza litera, 2\u201350 znak\xF3w`
-    );
+function addDependencies(packageJson, manifest) {
+  const parsed = JSON.parse(packageJson);
+  for (const section of SECTIONS) {
+    if (Object.keys(manifest[section]).length === 0) continue;
+    const existing = parsed[section] ?? {};
+    parsed[section] = sortedKeys({ ...manifest[section], ...existing });
   }
-  return {
-    name: title ?? displayName(slug),
-    slug,
-    snake: slug.replaceAll("-", "_")
-  };
+  return serialize(parsed);
 }
 
 // src/kit/files.ts
@@ -5439,7 +5446,7 @@ var recursive = /* @__PURE__ */ new WeakMap();
 var NONE = 0;
 var ASSUMED = 1;
 var PROVEN = 2;
-function isRecursive(inst, stack, resolve3) {
+function isRecursive(inst, stack, resolve4) {
   const cached2 = recursive.get(inst);
   if (cached2 !== void 0)
     return cached2 ? PROVEN : NONE;
@@ -5449,7 +5456,7 @@ function isRecursive(inst, stack, resolve3) {
   let result = NONE;
   const check2 = (child) => {
     if (result !== PROVEN && child?._zod) {
-      const answer = isRecursive(child, stack, resolve3);
+      const answer = isRecursive(child, stack, resolve4);
       if (answer > result)
         result = answer;
     }
@@ -5460,7 +5467,7 @@ function isRecursive(inst, stack, resolve3) {
       const desc = Object.getOwnPropertyDescriptor(sh, key);
       if (spread && !desc.enumerable)
         continue;
-      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve3) : NONE;
+      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve4) : NONE;
       if (child > answer)
         answer = child;
     }
@@ -5524,7 +5531,7 @@ function isRecursive(inst, stack, resolve3) {
       break;
     // `$ZodLazy` caches its inner on the def, so a resolved edge is followed exactly
     case "lazy": {
-      const inner = def._cachedInner ?? (resolve3 ? inst._zod.innerType : void 0);
+      const inner = def._cachedInner ?? (resolve4 ? inst._zod.innerType : void 0);
       merge2(inner ? isRecursive(inner, stack, false) : ASSUMED);
       break;
     }
@@ -20387,7 +20394,7 @@ async function generate(projectDir) {
 
 // src/kit/kit-config.ts
 import { readdir, readFile as readFile5 } from "node:fs/promises";
-import { basename as basename2, join as join5 } from "node:path";
+import { basename, join as join5 } from "node:path";
 var kitConfigSchema = external_exports.object({
   version: external_exports.string().min(1),
   repo: external_exports.string().min(1),
@@ -20417,7 +20424,7 @@ async function readKitConfig(kitDir) {
 }
 async function readKitManifests(kitDir) {
   const modulesDir = join5(kitDir, "kit/modules");
-  const entries = (await readdir(modulesDir)).filter((fileName) => fileName.endsWith(".json")).map((fileName) => ({ fileName, name: basename2(fileName, ".json") })).sort((a, b) => compareModuleNames(a.name, b.name));
+  const entries = (await readdir(modulesDir)).filter((fileName) => fileName.endsWith(".json")).map((fileName) => ({ fileName, name: basename(fileName, ".json") })).sort((a, b) => compareModuleNames(a.name, b.name));
   const manifests = [];
   for (const { fileName, name } of entries) {
     const manifest = moduleManifestSchema.parse(
@@ -20433,11 +20440,178 @@ async function readKitManifests(kitDir) {
   return manifests;
 }
 
+// src/kit/source.ts
+import { join as join6, resolve } from "node:path";
+function isRemote(source) {
+  return source.includes("://") || source.startsWith("git@");
+}
+async function cloneKit(input2) {
+  const target = join6(input2.tmpDir, "wa-kit");
+  try {
+    await input2.runner(
+      "git",
+      [
+        "clone",
+        "--depth",
+        "1",
+        "--branch",
+        `v${input2.version}`,
+        "--quiet",
+        input2.url,
+        target
+      ],
+      input2.tmpDir
+    );
+  } catch {
+    throw new Error(
+      `Nie uda\u0142o si\u0119 pobra\u0107 wa-kit v${input2.version} z ${input2.url}. Sprawd\u017A dost\u0119p (gh auth status) albo podaj --kit <\u015Bcie\u017Cka>`
+    );
+  }
+  return target;
+}
+async function resolveKitSource(input2) {
+  const { state } = input2;
+  const source = input2.kitFlag ?? input2.envSource ?? state.kitRepo;
+  if (isRemote(source)) {
+    return cloneKit({
+      url: source,
+      version: state.kitVersion,
+      runner: input2.runner,
+      tmpDir: input2.tmpDir
+    });
+  }
+  const kitDir = resolve(source);
+  const config2 = await readKitConfig(kitDir);
+  if (config2.version !== state.kitVersion) {
+    throw new Error(
+      `Kit w ${kitDir} ma wersj\u0119 ${config2.version}, projekt u\u017Cywa ${state.kitVersion}`
+    );
+  }
+  return kitDir;
+}
+
+// src/commands/add.ts
+async function add(options) {
+  const { projectDir, module, kitDir, runner, log } = options;
+  const state = await readKitState(projectDir);
+  if (module in state.modules) {
+    throw new Error(`Modu\u0142 ${module} jest ju\u017C zainstalowany`);
+  }
+  if (module in state.projectModules) {
+    throw new Error(
+      `Modu\u0142 ${module} jest modu\u0142em projektu; zmie\u0144 jego nazw\u0119 albo usu\u0144 wpis z projectModules`
+    );
+  }
+  const config2 = await readKitConfig(kitDir);
+  const manifests = await readKitManifests(kitDir);
+  const toAdd = resolveModules([module], manifests).filter(
+    (manifest) => !(manifest.name in state.modules)
+  );
+  const available = await assemblableFiles(kitDir, config2);
+  const filesByModule = toAdd.map((manifest) => ({
+    manifest,
+    files: moduleFiles(manifest, available)
+  }));
+  const collisions = [...new Set(filesByModule.flatMap(({ files }) => files))].filter((file2) => existsSync(join7(projectDir, file2))).sort(compareCodePoint);
+  if (collisions.length > 0) {
+    throw new Error(
+      `Pliki ju\u017C istniej\u0105, przerwano bez zmian:
+${collisions.map((file2) => `  ${file2}`).join("\n")}`
+    );
+  }
+  const names = {
+    name: state.project.name,
+    slug: state.project.slug,
+    snake: state.project.slug.replaceAll("-", "_")
+  };
+  const modules = { ...state.modules };
+  const packageJsonPath = join7(projectDir, "package.json");
+  let packageJson = await readFile6(packageJsonPath, "utf8");
+  for (const { manifest, files } of filesByModule) {
+    const hashes = await copyFiles({
+      kitDir,
+      projectDir,
+      files,
+      config: config2,
+      names
+    });
+    modules[manifest.name] = {
+      version: manifest.version,
+      manifest,
+      files: hashes
+    };
+    packageJson = addDependencies(packageJson, manifest);
+  }
+  await writeFile4(packageJsonPath, packageJson);
+  await writeKitState(projectDir, { ...state, modules });
+  await generate(projectDir);
+  if (options.install) {
+    try {
+      await runner("npm", ["install"], projectDir);
+    } catch {
+      throw new Error(
+        "Modu\u0142 dodany, ale npm install si\u0119 nie powi\xF3d\u0142. Uruchom: npm install"
+      );
+    }
+  }
+  log(`npx prisma migrate dev --name add-${module}`);
+  return { added: toAdd.map((manifest) => manifest.name) };
+}
+async function addFromSource(options) {
+  const state = await readKitState(options.projectDir);
+  const tmpDir = await mkdtemp(join7(options.tmpRoot, "wa-add-"));
+  try {
+    const kitDir = await resolveKitSource({
+      kitFlag: options.kitFlag,
+      envSource: options.envSource,
+      state,
+      runner: options.runner,
+      tmpDir
+    });
+    return await add({
+      projectDir: options.projectDir,
+      module: options.module,
+      kitDir,
+      install: options.install,
+      runner: options.runner,
+      log: options.log
+    });
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+}
+
+// src/commands/create.ts
+import { randomBytes } from "node:crypto";
+import { existsSync as existsSync2 } from "node:fs";
+import { mkdir as mkdir4, readdir as readdir2, readFile as readFile7, rm as rm2, writeFile as writeFile5 } from "node:fs/promises";
+import { join as join8, resolve as resolve2 } from "node:path";
+
+// src/assemble/project-names.ts
+import { basename as basename2 } from "node:path";
+var SLUG_PATTERN = /^[a-z][a-z0-9-]{1,49}$/;
+function displayName(slug) {
+  return slug.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+}
+function projectNames(target, title) {
+  const slug = basename2(target);
+  if (!SLUG_PATTERN.test(slug)) {
+    throw new Error(
+      `Nazwa projektu "${slug}": dozwolone ma\u0142e litery, cyfry i my\u015Blniki, pierwsza litera, 2\u201350 znak\xF3w`
+    );
+  }
+  return {
+    name: title ?? displayName(slug),
+    slug,
+    snake: slug.replaceAll("-", "_")
+  };
+}
+
 // src/commands/create.ts
 var DEFAULT_LOCALES = "pl,en";
 var SETUP_QUESTION = "Uruchomi\u0107 baz\u0119, migracj\u0119 i admin:create teraz? [t/N]";
 async function isNonEmptyDirectory(dir) {
-  if (!existsSync(dir)) return false;
+  if (!existsSync2(dir)) return false;
   return (await readdir2(dir)).length > 0;
 }
 function moduleQuestion(manifests) {
@@ -20475,12 +20649,12 @@ async function collectAnswers(options, manifests, names) {
 }
 async function removeDirectoryContents(dir) {
   for (const entry of await readdir2(dir)) {
-    await rm(join6(dir, entry), { recursive: true });
+    await rm2(join8(dir, entry), { recursive: true });
   }
 }
 async function discardAssembly(dir, existed) {
   if (existed) await removeDirectoryContents(dir);
-  else await rm(dir, { recursive: true });
+  else await rm2(dir, { recursive: true });
 }
 async function assemble(input2) {
   const { options, projectDir, config: config2, manifests, names, locales } = input2;
@@ -20496,11 +20670,11 @@ async function assemble(input2) {
     });
     modules[manifest.name] = { version: manifest.version, manifest, files };
   }
-  const packageJsonPath = join6(projectDir, "package.json");
-  await writeFile4(
+  const packageJsonPath = join8(projectDir, "package.json");
+  await writeFile5(
     packageJsonPath,
     projectPackageJson(
-      await readFile6(packageJsonPath, "utf8"),
+      await readFile7(packageJsonPath, "utf8"),
       manifests,
       names
     )
@@ -20516,7 +20690,7 @@ async function assemble(input2) {
   await generate(projectDir);
 }
 async function writeEnvFile(projectDir, adminEmail) {
-  const example = await readFile6(join6(projectDir, ".env.example"), "utf8");
+  const example = await readFile7(join8(projectDir, ".env.example"), "utf8");
   const secret = randomBytes(32).toString("base64url");
   let env = example.replace(
     /^BETTER_AUTH_SECRET=.*/m,
@@ -20525,7 +20699,7 @@ async function writeEnvFile(projectDir, adminEmail) {
   if (adminEmail !== null) {
     env = env.replace(/^ADMIN_EMAIL=.*/m, () => `ADMIN_EMAIL=${adminEmail}`);
   }
-  await writeFile4(join6(projectDir, ".env"), env);
+  await writeFile5(join8(projectDir, ".env"), env);
 }
 async function commitInitial(options, projectDir, version2) {
   const { runner, log } = options;
@@ -20575,13 +20749,13 @@ function logNextSteps(log, projectDir, setup, adminEmail) {
   log("npm run dev");
 }
 async function create(options) {
-  const projectDir = resolve(options.target);
+  const projectDir = resolve2(options.target);
   const names = projectNames(projectDir, options.title);
-  const existed = existsSync(projectDir);
+  const existed = existsSync2(projectDir);
   if (await isNonEmptyDirectory(projectDir)) {
     throw new Error(`Katalog ${projectDir} istnieje i nie jest pusty`);
   }
-  if (!existsSync(join6(options.kitDir, "kit/kit.json"))) {
+  if (!existsSync2(join8(options.kitDir, "kit/kit.json"))) {
     throw new Error("Uruchom create z klonu wa-kit albo podaj --kit <\u015Bcie\u017Cka>");
   }
   const config2 = await readKitConfig(options.kitDir);
@@ -20654,12 +20828,12 @@ var readlinePrompter = {
 
 // src/process/runner.ts
 import { spawn } from "node:child_process";
-var spawnRunner = (command, args, cwd) => new Promise((resolve3, reject) => {
+var spawnRunner = (command, args, cwd) => new Promise((resolve4, reject) => {
   const child = spawn(command, args, { cwd, stdio: "inherit" });
   child.on("error", reject);
   child.on("close", (code) => {
     if (code === 0) {
-      resolve3();
+      resolve4();
       return;
     }
     reject(
@@ -20669,11 +20843,11 @@ var spawnRunner = (command, args, cwd) => new Promise((resolve3, reject) => {
 });
 
 // src/commands/kit-sync.ts
-import { readFile as readFile7 } from "node:fs/promises";
-import { join as join7 } from "node:path";
+import { readFile as readFile8 } from "node:fs/promises";
+import { join as join9 } from "node:path";
 async function readExisting(kitDir) {
   try {
-    return await readFile7(join7(kitDir, ".wa/kit.json"), "utf8");
+    return await readFile8(join9(kitDir, ".wa/kit.json"), "utf8");
   } catch (error62) {
     if (error62.code === "ENOENT") return null;
     throw error62;
@@ -20707,7 +20881,7 @@ async function kitSync(kitDir) {
 }
 
 // src/bin.ts
-var USAGE = "U\u017Cycie: wa generate | wa kit sync | wa create <katalog> [opcje]";
+var USAGE = "U\u017Cycie: wa generate | wa kit sync | wa create <katalog> [opcje] | wa add <modu\u0142> [--kit <\u015Bcie\u017Cka|url>] [--no-install]";
 async function main(argv) {
   const [command, subcommand] = argv;
   if (command === "kit" && subcommand === "sync") {
@@ -20715,15 +20889,29 @@ async function main(argv) {
     console.log(changed2 ? "Zaktualizowano .wa/kit.json" : "Bez zmian");
     return 0;
   }
+  if (command === "add") {
+    const { module, kit, install } = parseAddArgs(argv.slice(1));
+    await addFromSource({
+      projectDir: process.cwd(),
+      module,
+      kitFlag: kit,
+      envSource: process.env["WA_KIT_SOURCE"],
+      install,
+      runner: spawnRunner,
+      log: console.log,
+      tmpRoot: tmpdir()
+    });
+    return 0;
+  }
   if (command === "create") {
     const { kit, ...parsed } = parseCreateArgs(argv.slice(1));
-    const defaultKit = resolve2(
+    const defaultKit = resolve3(
       dirname4(fileURLToPath(import.meta.url)),
       "../.."
     );
     await create({
       ...parsed,
-      kitDir: kit === null ? defaultKit : resolve2(kit),
+      kitDir: kit === null ? defaultKit : resolve3(kit),
       runner: spawnRunner,
       prompter: readlinePrompter,
       log: console.log
