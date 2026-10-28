@@ -3,8 +3,14 @@ import type { KitState } from "../manifest/schema.js";
 import type { Runner } from "../process/runner.js";
 import { readKitConfig } from "./kit-config.js";
 
+const REMOTE_PREFIXES = ["https://", "ssh://", "file://", "git@"];
+
 function isRemote(source: string): boolean {
-  return source.includes("://") || source.startsWith("git@");
+  return REMOTE_PREFIXES.some((prefix) => source.startsWith(prefix));
+}
+
+function looksLikeTransport(source: string): boolean {
+  return source.includes("://") || source.includes("::");
 }
 
 async function cloneKit(input: {
@@ -47,7 +53,10 @@ export async function resolveKitSource(input: {
 }): Promise<string> {
   const { state } = input;
   const source = input.kitFlag ?? input.envSource ?? state.kitRepo;
-  if (source.startsWith("-")) {
+  if (
+    source.startsWith("-") ||
+    (!isRemote(source) && looksLikeTransport(source))
+  ) {
     throw new Error(`Nieprawidłowe źródło wa-kit: ${source}`);
   }
   if (isRemote(source)) {

@@ -20442,8 +20442,12 @@ async function readKitManifests(kitDir) {
 
 // src/kit/source.ts
 import { join as join6, resolve } from "node:path";
+var REMOTE_PREFIXES = ["https://", "ssh://", "file://", "git@"];
 function isRemote(source) {
-  return source.includes("://") || source.startsWith("git@");
+  return REMOTE_PREFIXES.some((prefix) => source.startsWith(prefix));
+}
+function looksLikeTransport(source) {
+  return source.includes("://") || source.includes("::");
 }
 async function cloneKit(input2) {
   const target = join6(input2.tmpDir, "wa-kit");
@@ -20473,7 +20477,7 @@ async function cloneKit(input2) {
 async function resolveKitSource(input2) {
   const { state } = input2;
   const source = input2.kitFlag ?? input2.envSource ?? state.kitRepo;
-  if (source.startsWith("-")) {
+  if (source.startsWith("-") || !isRemote(source) && looksLikeTransport(source)) {
     throw new Error(`Nieprawid\u0142owe \u017Ar\xF3d\u0142o wa-kit: ${source}`);
   }
   if (isRemote(source)) {
