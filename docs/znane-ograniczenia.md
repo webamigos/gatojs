@@ -3,7 +3,7 @@
 Po przeczytaniu będziesz wiedzieć:
 
 - które zachowania kitu są znanymi lukami, a nie błędem w Twoim kodzie ani w dokumentacji;
-- które trzy pozycje mają wysoki priorytet i jak je ominąć: przy pierwszym uruchomieniu, w testach mutacyjnych i na Railway;
+- które dwie pozycje mają wysoki priorytet i jak je ominąć: w testach mutacyjnych i na Railway;
 - dlaczego funkcja projektu klienta potrzebuje wpisu w `.wa/kit.json` i ile to obejście kosztuje;
 - gdzie w kodzie siedzi przyczyna każdej pozycji i który plik dokumentacji opisuje ją szczegółowo;
 - czym ograniczenie różni się od decyzji z [rejestru decyzji](decyzje.md).
@@ -40,7 +40,7 @@ Priorytet „wysoki” dostają pozycje, które dotyczą domyślnej ścieżki st
 
 | Obszar | Pozycje |
 | --- | --- |
-| [Wysoki priorytet](#wysoki-priorytet) | [`admin:create` zakłada konto bez hasła](#admin-create-puste-haslo), [dwa procesy testów w przebiegu integracyjnym Strykera](#stryker-concurrency), [Railway nie czyta `railway.toml`](#railway-toml) |
+| [Wysoki priorytet](#wysoki-priorytet) | [dwa procesy testów w przebiegu integracyjnym Strykera](#stryker-concurrency), [Railway nie czyta `railway.toml`](#railway-toml) |
 | [Funkcje projektu i rejestr modułów](#funkcje-projektu) | [funkcja klienta w `.wa/kit.json`](#modul-projektu), [mniejsze pozycje generatora i rejestru](#rejestr-male) |
 | [Logowanie, role i organizacje](#auth) | [zaproszenie dla istniejącego konta](#zaproszenie-istniejace-konto), [rola z kilkoma wartościami](#rola-wielowartosciowa), [tryb serwisowy](#tryb-serwisowy-luki), [impersonacja i konta serwisowe](#konta-serwisowe), [mniejsze pozycje](#auth-male) |
 | [Język i komunikaty](#jezyk) | [wykrywanie języka](#wykrywanie-jezyka), [komunikaty i strona 404](#jezyk-male) |
@@ -52,20 +52,6 @@ Priorytet „wysoki” dostają pozycje, które dotyczą domyślnej ścieżki st
 <a id="wysoki-priorytet"></a>
 
 ## Wysoki priorytet
-
-<a id="admin-create-puste-haslo"></a>
-
-### `admin:create` z pustą `ADMIN_PASSWORD=` zakłada konto bez hasła
-
-**Skutek.** Domyślna ścieżka startu to `cp .env.example .env`, a potem `npm run admin:create -- --email <email>` ([01-uruchomienie.md](01-uruchomienie.md#admin-create)). `.env.example` ma linię `ADMIN_PASSWORD=` bez wartości, więc zmienna jest pustym napisem. Skrypt wypisuje „Wygenerowane hasło (pokazane raz)”, ale konto nie ma sposobu logowania hasłem: logowanie wypisanym hasłem kończy się błędem. Ponowne uruchomienie hasła nie ustawia, także z `--password`, bo skrypt nie zmienia hasła istniejącego konta.
-
-**Gdzie.** `scripts/admin-create.ts` przekazuje `values.password ?? process.env.ADMIN_PASSWORD`, czyli `""`. `ensureUser` w `scripts/lib/admin-create.ts` traktuje pusty napis jak brak hasła i generuje hasło, ale do `auth.api.createUser` przekazuje `options.password ?? generatedPassword`, czyli nadal `""`. better-auth zakłada konto logowania hasłem tylko przy niepustym haśle. Żaden test tego nie wykrywa: `scripts/lib/__tests__/admin-create.test.ts` sprawdza hasło przekazane do `createUser` tylko dla hasła podanego wprost (`password: "my-password-1"`), a nie dla ścieżki z wygenerowanym hasłem ani z pustym napisem, a `e2e/global-setup.ts` zawsze podaje `--password`.
-
-**Obejście.** Przed pierwszym uruchomieniem usuń linię `ADMIN_PASSWORD=` z `.env` albo podaj `--password`. Konto, które już powstało bez hasła, naprawia „Zapomniałeś hasła?” na stronie logowania. Na produkcji ta sama pułapka dotyczy `admin:create` uruchamianego przez `railway run`: skrypt szuka zmiennych, których usługa nie ma, w lokalnym `.env`, więc pusta `ADMIN_PASSWORD=` stamtąd też daje konto bez hasła ([10-wdrozenie.md](10-wdrozenie.md#admin-create)).
-
-**Kierunek zmiany.** W `ensureUser` użyć `options.password || generatedPassword` (albo czytać `ADMIN_PASSWORD` tak jak schemat `optionalString` w `env.ts`, czyli pusty napis jako brak) i dopisać test, że `createUser` dostaje wygenerowane hasło.
-
-**Sprawdzono.** Uruchomiono: `admin:create` z pustą `ADMIN_PASSWORD=` na bazie testowej dało konto bez wiersza w tabeli `accounts`. Szczegóły: [04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password).
 
 <a id="stryker-concurrency"></a>
 

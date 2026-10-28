@@ -76,13 +76,14 @@ async function ensureUser(
   });
 
   if (!existing) {
-    const generatedPassword = options.password
+    const providedPassword = options.password?.trim() ? options.password : null;
+    const generatedPassword = providedPassword
       ? null
       : randomBytes(15).toString("base64url");
     const { user } = await auth.api.createUser({
       body: {
         email: options.email,
-        password: (options.password ?? generatedPassword) as string,
+        password: (providedPassword ?? generatedPassword) as string,
         name: options.name ?? options.email.split("@")[0],
         role: options.role,
         data: { emailVerified: true },

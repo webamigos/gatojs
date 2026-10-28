@@ -342,7 +342,7 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
   Sprawdzone uruchomieniem `npm run admin:create -- --email t5-empty-password@example.com` z `ADMIN_PASSWORD=` na bazie `wa_app_doccheck` (port 5439): wypisane hasło, w tabeli `accounts` 0 wierszy dla konta; drugie uruchomienie z `--password` → nadal 0 wierszy. Konto testowe usunięte po próbie.
   Dotyczy domyślnej ścieżki startu z `README.md` i `docs/01-uruchomienie.md` (`cp .env.example .env`, potem `admin:create -- --email`). `scripts/lib/__tests__/admin-create.test.ts` nie sprawdza hasła przekazanego do `createUser` (pierwszy test asertuje tylko `email`, `name`, `role` i `data`), a e2e (`e2e/global-setup.ts`) zawsze podaje `--password`, więc żaden test tego nie wychwyci.
 - **Propozycja:** w `ensureUser` użyć `options.password || generatedPassword` (albo w `scripts/admin-create.ts` czytać `ADMIN_PASSWORD` tak jak schemat `optionalString` w `env.ts`, czyli pusty napis jako brak), i dopisać test, że `createUser` dostaje wygenerowane hasło przy `password: ""` i bez hasła. Do czasu poprawki `docs/01-uruchomienie.md` (krok 6 i tabela opcji) i `docs/04-auth-i-role.md` (sekcja „Pusta `ADMIN_PASSWORD=`”) każą usunąć linię z `.env` albo podać `--password`.
-- **Status:** otwarte, **wysoki priorytet** (dotyczy domyślnej ścieżki startu).
+- **Status:** naprawione. `ensureUser` traktuje pusty napis i same spacje jak brak hasła i przekazuje do `createUser` wygenerowane hasło; testy w `scripts/lib/__tests__/admin-create.test.ts`. Dokumentacja zaktualizowana, wpis usunięty z `docs/znane-ograniczenia.md`.
 
 ## R37. Akcje serwerowe rdzenia odbiegają od reguły „walidacja → autoryzacja → wywołanie serwisu” i „schematy w `contracts/`”
 

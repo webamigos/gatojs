@@ -412,7 +412,7 @@ Walidacja chroni tylko odczyty przez `env`. Część zmiennych ze schematu kod c
 | --- | --- | --- |
 | `DATABASE_URL` | `src/shared/lib/prisma.ts`, `prisma.config.ts` | Prisma łączy się bez walidacji pozostałych zmiennych. `env.DATABASE_URL` nie czyta żaden plik. |
 | `NODE_ENV`, `OTEL_EXPORTER_OTLP_ENDPOINT` | `src/shared/lib/logger.ts` (przy imporcie), `src/instrumentation.ts` | Logger i eksport działają niezależnie od wyniku walidacji. |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | `scripts/admin-create.ts` (`values.password ?? process.env.ADMIN_PASSWORD`) | Pusta wartość nie znaczy tu „brak” ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)). |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | `scripts/admin-create.ts` (`values.password ?? process.env.ADMIN_PASSWORD`) | Pusta wartość `ADMIN_PASSWORD` działa jak brak: skrypt generuje hasło ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)). |
 
 Skutek przy wdrożeniu: `/api/healthcheck` nie odczytuje `env`, więc odpowiada `200` także przy błędnych zmiennych. Błąd pojawi się dopiero przy pierwszym żądaniu, które czyta `env`, na przykład przy logowaniu, wejściu na `/dashboard` albo `/sign-up` ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#healthcheck)).
 
@@ -451,7 +451,7 @@ Linie w regionie `# wa:modules:start` / `# wa:modules:end` w `.env.example` poch
 | `MULTI_ORG` | flaga | `false` | nie | hook `before`, `allowUserToCreateOrganization`, `requireModuleAccess`, layout `(app)`, strona `no-organization` | `true`: wiele organizacji ([03-dane-i-organizacje.md](03-dane-i-organizacje.md#tryby-multi-org)). |
 | `ADMIN_IMPERSONATION` | flaga | `false` | nie | `createAdminRoles`, hook `before`, strona użytkowników | `true`: `admin` może podszyć się pod `user` ([04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md#impersonacja)). |
 | `ADMIN_EMAIL` | `optionalString` | brak | nie | `scripts/admin-create.ts` przez `process.env` | Wartość domyślna `--email` dla `admin:create`. |
-| `ADMIN_PASSWORD` | `optionalString` | brak | nie | `scripts/admin-create.ts` przez `process.env` | Wartość domyślna `--password`. Pustej wartości skrypt nie traktuje jak braku ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)). |
+| `ADMIN_PASSWORD` | `optionalString` | brak | nie | `scripts/admin-create.ts` przez `process.env` | Wartość domyślna `--password`. Pusta wartość i same spacje znaczą brak hasła, więc skrypt je generuje ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)). |
 | `LOG_LEVEL` | `optionalString`, dowolny napis | brak (`.env.example`: `info`) | nie | nic | Nie zmienia działania ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#log-level)). |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `optionalString`, format nie jest sprawdzany | brak | schemat nie wymaga; bez niej wpisy `logger` znikają | `logger.ts` i `instrumentation.ts` przez `process.env` | Adres bazowy odbiornika OTLP przez HTTP, bez `/v1/logs` ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#otel)). |
 

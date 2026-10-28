@@ -304,7 +304,7 @@ Adres `DATABASE_URL` z usługi aplikacji wskazuje sieć prywatną Railway (`*.ra
 1. W usłudze PostgreSQL włącz dostęp publiczny w ustawieniach sieci. Railway tworzy wtedy proxy TCP i zmienną `DATABASE_PUBLIC_URL` w usłudze bazy. Ruch przez to proxy Railway nalicza jako transfer wychodzący.
 2. W usłudze aplikacji dodaj zmienną referencyjną `DATABASE_PUBLIC_URL` z wartością `${{Postgres.DATABASE_PUBLIC_URL}}` (nazwa usługi bazy jak w projekcie). Bez niej `$DATABASE_PUBLIC_URL` w komendzie niżej jest pusty, bo `railway run` bierze zmienne tylko z jednej usługi, a skrypt kończy się błędem `DATABASE_URL: Too small …` ([niżej](#admin-create-bledy)).
 3. W lokalnej kopii projektu przełącz się na commit, który działa na produkcji, i wygeneruj klienta Prismy: `npm install` (jego `postinstall` uruchamia `prisma generate`) albo, gdy zależności się nie zmieniły, `npm run db:generate`. Klient w `src/generated/prisma` powstaje z lokalnego schematu, więc schemat musi zgadzać się z bazą.
-4. Usuń linię `ADMIN_PASSWORD=` z lokalnych `.env` i `.env.local` (powód niżej).
+4. Sprawdź, skąd skrypt weźmie hasło (powód niżej).
 5. W katalogu głównym projektu, połączonym z usługą aplikacji przez `railway link`, uruchom komendę z `README.md`:
 
    `README.md`
@@ -317,7 +317,7 @@ Adres `DATABASE_URL` z usługi aplikacji wskazuje sieć prywatną Railway (`*.ra
 6. Wynik to `Utworzono administratora <email>`, potem `Utworzono organizację <id>` albo `Organizacja <id>`, i `Wygenerowane hasło (pokazane raz): <hasło>`. Zaloguj się tym hasłem, zanim zamkniesz terminal.
 7. Gdy nie potrzebujesz już połączenia z zewnątrz, usuń zmienną z kroku 2 i wyłącz dostęp publiczny do bazy.
 
-**Pusta `ADMIN_PASSWORD` z lokalnego `.env`.** `scripts/admin-create.ts` wczytuje `.env.local` i `.env` przez dotenv, który nie nadpisuje zmiennych już ustawionych. Zmienne z Railway wygrywają, ale każdej zmiennej, której usługa nie ma, skrypt szuka w lokalnych plikach. Linia `ADMIN_PASSWORD=` skopiowana z `.env.example` daje wtedy konto bez hasła, a wypisane „wygenerowane hasło” nie działa ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)). Ile wartości przyszło z lokalnych plików, pokazuje linia `injected env (N) from .env.local,.env` na początku wyniku, zaraz po dwóch liniach npm (`> wa-app@0.0.0 admin:create` …) (sprawdzone). Konto, które powstało bez hasła, naprawisz przez „Zapomniałeś hasła?” na produkcji.
+**`ADMIN_PASSWORD` z lokalnego `.env`.** `scripts/admin-create.ts` wczytuje `.env.local` i `.env` przez dotenv, który nie nadpisuje zmiennych już ustawionych. Zmienne z Railway wygrywają, ale każdej zmiennej, której usługa nie ma, skrypt szuka w lokalnych plikach. Pusta linia `ADMIN_PASSWORD=` skopiowana z `.env.example` działa jak brak hasła: skrypt generuje hasło i wypisuje je raz ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)). Niepusta `ADMIN_PASSWORD` z lokalnego pliku stałaby się hasłem konta produkcyjnego, więc sprawdź ją przed uruchomieniem. Ile wartości przyszło z lokalnych plików, pokazuje linia `injected env (N) from .env.local,.env` na początku wyniku, zaraz po dwóch liniach npm (`> wa-app@0.0.0 admin:create` …) (sprawdzone).
 
 <a id="admin-create-bledy"></a>Inne błędy:
 

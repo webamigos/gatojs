@@ -96,7 +96,7 @@ Komendy uruchamiasz w katalogu głównym repozytorium, w tej kolejności. Plik `
    cp .env.example .env
    ```
 
-   Jeśli `.env` już istnieje, pomiń ten krok, bo `cp` nadpisze plik bez pytania. Wartości z `.env.example` wystarczają do pracy lokalnej z jednym wyjątkiem: pustą linię `ADMIN_PASSWORD=` usuń przed krokiem 6, bo inaczej pierwsze konto powstanie bez hasła (krok 6 [pierwszego uruchomienia](#pierwsze-uruchomienie), sekcja [Plik `.env`](#plik-env)).
+   Jeśli `.env` już istnieje, pomiń ten krok, bo `cp` nadpisze plik bez pytania. Wartości z `.env.example` wystarczają do pracy lokalnej. Pusta linia `ADMIN_PASSWORD=` jest w porządku: krok 6 [pierwszego uruchomienia](#pierwsze-uruchomienie) traktuje ją jak brak hasła (sekcja [Plik `.env`](#plik-env)).
 
 3. **Sprawdź, czy porty są wolne.**
 
@@ -144,7 +144,7 @@ Komendy uruchamiasz w katalogu głównym repozytorium, w tej kolejności. Plik `
 
 6. **Załóż pierwsze konto.**
 
-   Najpierw usuń z `.env` linię `ADMIN_PASSWORD=` (plik z kroku 2 ma ją pustą) albo dopisz do komendy `--password <hasło>`. Przy pustej `ADMIN_PASSWORD` skrypt zakłada konto bez hasła i wypisuje wygenerowane hasło, którym nie da się zalogować ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)).
+   Linia `ADMIN_PASSWORD=` z pliku z kroku 2 jest pusta, więc skrypt generuje hasło i wypisuje je raz. Własne hasło podasz przez `--password <hasło>` albo niepustą `ADMIN_PASSWORD` ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)).
 
    ```bash
    npm run admin:create -- --email <email>
@@ -241,7 +241,7 @@ Po każdej zmianie portu ustaw ten sam port w `APP_URL`, na przykład `APP_URL=h
 
 Prisma i `admin:create` wypisują na starcie linię `◇ injected env (N) from .env.local,.env // tip: …`, w której tekst po `// tip:` jest losową wskazówką. To komunikat dotenv, a nie błąd. `N` to liczba zmiennych ustawionych z plików, bez zmiennych, które były już ustawione w powłoce. `injected env (0)` oznacza, że z plików nic nie wczytano: nie ma `.env`, plik jest pusty albo wszystkie zmienne są już ustawione w powłoce.
 
-Do pracy lokalnej nie musisz niczego zmieniać poza usunięciem pustej linii `ADMIN_PASSWORD=` przed krokiem 6 [pierwszego uruchomienia](#pierwsze-uruchomienie) ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)). Zmiany, które mogą być potrzebne:
+Do pracy lokalnej nie musisz niczego zmieniać. Pusta linia `ADMIN_PASSWORD=` oznacza hasło wygenerowane przez krok 6 [pierwszego uruchomienia](#pierwsze-uruchomienie) ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)). Zmiany, które mogą być potrzebne:
 
 | Zmienna | Kiedy zmieniasz |
 | --- | --- |
@@ -268,7 +268,7 @@ Zmienne sprawdza funkcja `parseEnv` z `src/shared/lib/env.ts` przy pierwszym odc
 | Opcja | Znaczenie |
 | --- | --- |
 | `--email` | Adres e-mail, zapisywany małymi literami. Wymagany, chyba że ustawiono `ADMIN_EMAIL`. |
-| `--password` | Hasło. Bez tej opcji skrypt bierze `ADMIN_PASSWORD`, a gdy jej brak, generuje 20-znakowe hasło i wypisuje je raz. Pusta wartość `ADMIN_PASSWORD=`, jak w `.env.example`, nie działa jak brak zmiennej: konto powstaje bez hasła, a wypisane hasło nie działa ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)). |
+| `--password` | Hasło. Bez tej opcji skrypt bierze `ADMIN_PASSWORD`, a gdy jej brak, generuje 20-znakowe hasło i wypisuje je raz. Pusta wartość `ADMIN_PASSWORD=` (jak w `.env.example`) i same spacje działają jak brak zmiennej: skrypt generuje hasło ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)). |
 | `--name` | Imię i nazwisko. Domyślnie część adresu przed `@`. |
 | `--org-name` | Nazwa pierwszej organizacji. Domyślnie `WA App` (`project.name` z `src/shared/config/project.ts`). |
 | `--role` | Rola globalna: `admin` (domyślnie) albo `superadmin`. |

@@ -1,3 +1,5 @@
+import { test } from "@fast-check/vitest";
+import fc from "fast-check";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type UserRow = {
@@ -96,7 +98,12 @@ const { db, mockPrisma, mockAuth } = vi.hoisted(() => {
         async ({
           body,
         }: {
-          body: { email: string; name: string; role: string };
+          body: {
+            email: string;
+            name: string;
+            role: string;
+            password?: string;
+          };
         }) => {
           const user: UserRow = {
             id: `user-${++db.seq}`,
@@ -584,6 +591,113 @@ describe("adminCreate z rolą globalną", () => {
       expect(db.members).toEqual([
         { organizationId: "org-first", userId: "u-o2@x.pl", role: "owner" },
       ]);
+    },
+  );
+});
+
+function lastCreateUserPassword(): unknown {
+  const calls = mockAuth.api.createUser.mock.calls;
+  return (calls[calls.length - 1][0] as { body: { password?: string } }).body
+    .password;
+}
+
+describe("adminCreate: puste hasło (R36)", () => {
+  beforeEach(() => {
+    db.users.length = 0;
+    db.orgs.length = 0;
+    db.members.length = 0;
+    db.seq = 0;
+  });
+
+  it.each([
+    ["pusty napis", ""],
+    ["brak pola", undefined],
+    ["same spacje", "   "],
+    ["spacje, tabulator i nowa linia", " \t\n "],
+  ])(
+    "hasło: %s → do createUser trafia wygenerowane hasło, zwrócone jako generatedPassword",
+    async (_label, password) => {
+      const r = await adminCreate({
+        email: "a@example.com",
+        password,
+        ...yes,
+      });
+      const passed = lastCreateUserPassword();
+      expect(typeof passed).toBe("string");
+      expect((passed as string).length).toBe(20);
+      expect((passed as string).trim()).toBe(passed);
+      expect(r.generatedPassword).not.toBeNull();
+      expect(r.generatedPassword).toBe(passed);
+    },
+  );
+
+  it("podane hasło trafia do createUser bez zmian i nie jest zwracane jako wygenerowane", async () => {
+    const r = await adminCreate({
+      email: "a@example.com",
+      password: "Haslo-123456",
+      ...yes,
+    });
+    expect(lastCreateUserPassword()).toBe("Haslo-123456");
+    expect(r.generatedPassword).toBeNull();
+  });
+
+  it("istniejące konto z pustym hasłem: createUser nie jest wołany, generatedPassword to null", async () => {
+    db.users.push({
+      id: "u-x",
+      email: "x@example.com",
+      name: "x",
+      role: "user",
+      emailVerified: true,
+    });
+    const r = await adminCreate({
+      email: "x@example.com",
+      password: "",
+      ...yes,
+    });
+    expect(mockAuth.api.createUser).not.toHaveBeenCalled();
+    expect(r.generatedPassword).toBeNull();
+  });
+
+  test.prop(
+    [
+      fc
+        .array(fc.constantFrom(" ", "\t", "\n"), { maxLength: 8 })
+        .map((chars) => chars.join("")),
+    ],
+    { numRuns: 30 },
+  )(
+    "dowolny ciąg samych białych znaków daje wygenerowane, niepuste hasło równe zwróconemu",
+    async (blank) => {
+      db.users.length = 0;
+      db.orgs.length = 0;
+      db.members.length = 0;
+      mockAuth.api.createUser.mockClear();
+      const r = await adminCreate({
+        email: "p@example.com",
+        password: blank,
+        ...yes,
+      });
+      const passed = lastCreateUserPassword();
+      expect(passed).not.toBe(blank);
+      expect((passed as string).length).toBe(20);
+      expect(r.generatedPassword).toBe(passed);
+    },
+  );
+
+  test.prop([fc.stringMatching(/^[A-Za-z0-9!@#-]{1,30}$/)], { numRuns: 30 })(
+    "hasło z widocznych znaków jest przekazane dokładnie i nie jest generowane",
+    async (password) => {
+      db.users.length = 0;
+      db.orgs.length = 0;
+      db.members.length = 0;
+      mockAuth.api.createUser.mockClear();
+      const r = await adminCreate({
+        email: "q@example.com",
+        password,
+        ...yes,
+      });
+      expect(lastCreateUserPassword()).toBe(password);
+      expect(r.generatedPassword).toBeNull();
     },
   );
 });
