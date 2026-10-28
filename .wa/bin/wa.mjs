@@ -19802,7 +19802,7 @@ function identifier(name, suffix) {
   return `${camel}${suffix}`;
 }
 function array2(items) {
-  return items.length === 0 ? "[]" : `[${items.join(", ")}]`;
+  return `[${items.join(", ")}]`;
 }
 function typedArray(name, items) {
   return items.length === 0 ? `export const ${name}: never[] = [];` : `export const ${name} = ${array2(items)};`;

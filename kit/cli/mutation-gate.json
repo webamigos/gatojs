@@ -5,5 +5,20 @@
     "src/assemble/",
     "src/commands/"
   ],
-  "allowed": []
+  "allowed": [
+    {
+      "file": "src/generate/regions.ts",
+      "mutator": "ConditionalExpression",
+      "original": "start === undefined",
+      "replacement": "false",
+      "reason": "równoważny: starts.length !== 1 wyklucza wcześniej brak startu; warunek tylko zawęża typ dla TypeScript"
+    },
+    {
+      "file": "src/generate/regions.ts",
+      "mutator": "ConditionalExpression",
+      "original": "end === undefined",
+      "replacement": "false",
+      "reason": "równoważny: ends.length !== 1 wyklucza wcześniej brak końca; warunek tylko zawęża typ dla TypeScript"
+    }
+  ]
 }

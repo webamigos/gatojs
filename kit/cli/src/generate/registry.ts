@@ -20,7 +20,7 @@ function identifier(name: string, suffix: string): string {
 }
 
 function array(items: string[]): string {
-  return items.length === 0 ? "[]" : `[${items.join(", ")}]`;
+  return `[${items.join(", ")}]`;
 }
 
 function typedArray(name: string, items: string[]): string {
