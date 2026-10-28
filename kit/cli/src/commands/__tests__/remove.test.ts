@@ -668,4 +668,36 @@ describe("remove", () => {
     expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
     expect(runner).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["zawiera niepoprawny JSON", "niepoprawny"],
+    ["nie istnieje", "brak"],
+  ])(
+    "package.json, który %s, przerywa remove przed usunięciem czegokolwiek",
+    async (_nazwa, wariant) => {
+      const dir = await createProject("app", ["demo"]);
+      if (wariant === "niepoprawny") {
+        await writeFile(join(dir, "package.json"), "{nie json");
+      } else {
+        await rm(join(dir, "package.json"));
+      }
+      const snapshot = await snapshotDir(dir, IGNORE);
+      const failure = await remove(removeOptions(dir, "demo")).then(
+        () => null,
+        (error: Error) => error,
+      );
+      expect(failure).toBeInstanceOf(Error);
+      expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
+      expect(existsSync(join(dir, "src/features/demo/module.ts"))).toBe(true);
+      expect(existsSync(join(dir, "src/features/demo/env.ts"))).toBe(true);
+      expect(existsSync(join(dir, "src/features/demo/i18n/pl.json"))).toBe(
+        true,
+      );
+      expect(Object.keys((await readKitState(dir)).modules)).toEqual([
+        "core",
+        "demo",
+      ]);
+      expect(runner).not.toHaveBeenCalled();
+    },
+  );
 });
