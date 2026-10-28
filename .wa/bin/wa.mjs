@@ -20634,7 +20634,14 @@ async function addFromSource(options) {
 // src/commands/create.ts
 import { randomBytes } from "node:crypto";
 import { existsSync as existsSync2 } from "node:fs";
-import { chmod as chmod2, mkdir as mkdir4, readdir as readdir2, readFile as readFile7, rm as rm2, writeFile as writeFile5 } from "node:fs/promises";
+import {
+  chmod as chmod2,
+  mkdir as mkdir4,
+  readdir as readdir2,
+  readFile as readFile7,
+  rm as rm2,
+  writeFile as writeFile5
+} from "node:fs/promises";
 import { join as join8, resolve as resolve2 } from "node:path";
 
 // src/assemble/project-names.ts
