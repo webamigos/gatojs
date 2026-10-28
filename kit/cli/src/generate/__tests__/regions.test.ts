@@ -111,4 +111,17 @@ describe("replaceRegion", () => {
     expect(result).not.toMatch(/(?<!\r)\n/);
     expect(result).toBe("a\r\n# wa:m:start\r\nX=1\r\n# wa:m:end\r\n");
   });
+  it("jeden start i dwa end → błąd uszkodzonego regionu", () => {
+    const src = "# wa:modules:start\nold\n# wa:modules:end\n# wa:modules:end\n";
+    expect(() => replaceRegion(src, "f", "modules", "x")).toThrow(
+      "uszkodzony region wa:modules",
+    );
+  });
+
+  it("samotny CR w środku linii body zostaje w wyniku", () => {
+    const src = "# wa:m:start\n# wa:m:end\n";
+    expect(replaceRegion(src, "f", "m", "a\rb")).toBe(
+      "# wa:m:start\na\rb\n# wa:m:end\n",
+    );
+  });
 });
