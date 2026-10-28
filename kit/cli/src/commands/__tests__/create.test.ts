@@ -780,3 +780,51 @@ describe("readlinePrompter", () => {
     );
   });
 });
+
+describe("create: pytania i kotwice linii .env", () => {
+  it("pytanie o moduły wypisuje moduły z opisami bez core", async () => {
+    const { prompter, questions } = scriptedPrompter([]);
+    await create(opts({ modules: null, prompter }));
+    expect(questions[0]?.question).toBe(
+      "Moduły (po przecinku, puste = żaden):\n  demo — Demo fixture\n  needs-demo — Needs demo fixture\nWybór",
+    );
+  });
+
+  it("zadaje pytania o języki, nazwę, email admina i setup", async () => {
+    const { prompter, questions } = scriptedPrompter([]);
+    await create(opts({ modules: [], prompter }));
+    expect(questions.slice(0, 4)).toEqual([
+      { question: "Języki (pl,en)", fallback: "pl,en" },
+      { question: "Nazwa wyświetlana", fallback: "Acme Shop" },
+      { question: "Email admina (puste = pomiń)", fallback: "" },
+      {
+        question: "Uruchomić bazę, migrację i admin:create teraz? [t/N]",
+        fallback: false,
+      },
+    ]);
+  });
+
+  it("podmienia tylko linie zaczynające się od klucza, nie wystąpienia w środku linii", async () => {
+    const example = join(kit, ".env.example");
+    const original = await readFile(example, "utf8");
+    await writeFile(
+      example,
+      `# kopia: BETTER_AUTH_SECRET=stare\nX_ADMIN_EMAIL=stare\n${original}`,
+    );
+    const dir = join(tmp, "acme-shop");
+    await create(
+      opts({
+        target: dir,
+        modules: [],
+        yes: true,
+        adminEmail: "a@x.pl",
+      }),
+    );
+    const env = await read(dir, ".env");
+    expect(env).toContain("# kopia: BETTER_AUTH_SECRET=stare\n");
+    expect(env).toContain("X_ADMIN_EMAIL=stare\n");
+    expect(env).toMatch(SECRET_LINE);
+    expect(env).toMatch(/^ADMIN_EMAIL=a@x\.pl$/m);
+    expect(env).not.toContain("change-me");
+  });
+});

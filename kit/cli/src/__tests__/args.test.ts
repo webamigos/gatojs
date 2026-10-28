@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { parseCreateArgs } from "../args.js";
 
 describe("parseCreateArgs", () => {
+  it("brak katalogu zgłasza Podaj katalog projektu", () => {
+    expect(() => parseCreateArgs([])).toThrow("Podaj katalog projektu");
+  });
+
   it("sam cel dostaje wartości domyślne", () => {
     expect(parseCreateArgs(["acme"])).toEqual({
       target: "acme",
