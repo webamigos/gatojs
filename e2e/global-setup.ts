@@ -1,22 +1,14 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
 import { assertE2eDatabase } from "./database-guard";
 import { appEnv, E2E_ADMIN, E2E_PORTS } from "./env";
 import { clearMailbox } from "./helpers";
+import { hasMigrations } from "./migrations";
 
 function run(args: string[], env: Record<string, string>): void {
   execFileSync("npx", args, {
     stdio: "inherit",
     env: { ...process.env, ...env },
   });
-}
-
-function hasMigrations(): boolean {
-  const dir = "prisma/migrations";
-  return (
-    existsSync(dir) &&
-    readdirSync(dir).some((entry) => entry !== "migration_lock.toml")
-  );
 }
 
 export default async function globalSetup(): Promise<void> {
@@ -28,7 +20,7 @@ export default async function globalSetup(): Promise<void> {
   assertE2eDatabase(env.DATABASE_URL);
 
   run(
-    hasMigrations()
+    hasMigrations("prisma/migrations")
       ? ["prisma", "migrate", "reset", "--force"]
       : ["prisma", "db", "push", "--force-reset"],
     env,
