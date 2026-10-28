@@ -57,6 +57,15 @@ describe("parseCreateArgs", () => {
     );
   });
 
+  it.each(["pl,pl", "pl,en,pl", "pl,en,en"])(
+    "--locales %s odrzuca duplikaty",
+    (value) => {
+      expect(() => parseCreateArgs(["app", "--locales", value])).toThrow(
+        "--locales: dozwolone pl,en; pl jest wymagany",
+      );
+    },
+  );
+
   it("--locales pl,de odrzuca nieznany język", () => {
     expect(() => parseCreateArgs(["acme", "--locales", "pl,de"])).toThrow(
       "--locales: dozwolone pl,en; pl jest wymagany",

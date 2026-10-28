@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generate } from "../../generate/index.js";
@@ -82,6 +82,12 @@ afterEach(async () => {
 });
 
 describe("create: składanie projektu", () => {
+  it("plik .env ma uprawnienia tylko dla właściciela", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true }));
+    expect((await stat(join(dir, ".env"))).mode & 0o777).toBe(0o600);
+  });
+
   it("składa core + demo bez plików kit-only, z placeholderami i hashami", async () => {
     const dir = join(tmp, "acme-shop");
     await create(opts({ target: dir, modules: ["demo"], yes: true }));
@@ -634,7 +640,7 @@ describe("create: pytania", () => {
 
   it("pyta w kolejności: moduły, języki, nazwa, email, setup, z domyślnymi wartościami", async () => {
     const { prompter, questions } = scriptedPrompter([], []);
-    await create(opts({ modules: null, prompter }));
+    await create(opts({ modules: null, install: true, prompter }));
     expect(questions).toHaveLength(5);
     expect(questions[0]?.question).toContain("demo — Demo fixture");
     expect(questions[0]?.question).toContain("needs-demo — Needs demo fixture");
@@ -688,6 +694,33 @@ describe("create: pytania", () => {
     );
   });
 
+  it("odpowiedź o języki z duplikatami daje błąd walidacji i nie tworzy katalogu", async () => {
+    const dir = join(tmp, "acme-shop");
+    const { prompter } = scriptedPrompter(["", "pl,pl"]);
+    await expect(
+      create(opts({ target: dir, modules: null, prompter })),
+    ).rejects.toThrow("--locales: dozwolone pl,en; pl jest wymagany");
+    expect(existsSync(dir)).toBe(false);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("bez install nie pyta o setup, ale pyta o moduły, języki, nazwę i email", async () => {
+    const { prompter, questions } = scriptedPrompter([]);
+    await create(opts({ modules: null, install: false, prompter }));
+    expect(questions).toHaveLength(4);
+    expect(prompter.confirm).not.toHaveBeenCalled();
+    expect(questions[3]?.fallback).toBe("");
+  });
+
+  it("z install bez yes pyta o setup", async () => {
+    const { prompter } = scriptedPrompter([]);
+    await create(opts({ modules: [], install: true, prompter }));
+    expect(prompter.confirm).toHaveBeenCalledWith(
+      "Uruchomić bazę, migrację i admin:create teraz? [t/N]",
+      false,
+    );
+  });
+
   it("potwierdzenie setupu w pytaniu uruchamia bazę i migrację", async () => {
     const { prompter } = scriptedPrompter([], [true]);
     await create(opts({ install: true, git: false, prompter }));
@@ -729,7 +762,7 @@ describe("create: pytania", () => {
 
   it("pyta tylko o brakujące: przy podanych modułach trzy pytania i setup", async () => {
     const { prompter, questions } = scriptedPrompter([]);
-    await create(opts({ modules: ["demo"], prompter }));
+    await create(opts({ modules: ["demo"], install: true, prompter }));
     expect(questions).toHaveLength(4);
     expect(questions[0]?.fallback).toBe("pl,en");
     expect(questions[3]?.question).toContain("Uruchomić bazę");
@@ -819,7 +852,7 @@ describe("create: pytania i kotwice linii .env", () => {
 
   it("zadaje pytania o języki, nazwę, email admina i setup", async () => {
     const { prompter, questions } = scriptedPrompter([]);
-    await create(opts({ modules: [], prompter }));
+    await create(opts({ modules: [], install: true, prompter }));
     expect(questions.slice(0, 4)).toEqual([
       { question: "Języki (pl,en)", fallback: "pl,en" },
       { question: "Nazwa wyświetlana", fallback: "Acme Shop" },
