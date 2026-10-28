@@ -137,7 +137,7 @@ src/app/[locale]/(auth|app)
 - Bugfix = test, który bez poprawki nie przechodzi.
 - Integracyjne: `*.integration.test.ts`, uruchamiane przez `npm run test:integration` (osobny config
   `vitest.integration.config.ts`, nie wchodzą do `npm test`). Baza z `INTEGRATION_DATABASE_URL`
-  (domyślnie `postgresql://postgres:postgres@localhost:5432/wa_app_test`); nazwa musi kończyć się
+  (domyślny adres w `src/test/integration/database-url.ts`, baza `<nazwa_projektu>_test`); nazwa musi kończyć się
   na `_test`, bo `resetDatabase()` czyści tabele. Lokalnie: `docker compose up -d db`. Pomocniki w
   `src/test/integration/`. Każde nowe query lub komenda na danych domenowych dostaje test izolacji:
   dwie organizacje, odczyt i zapis z kontekstem jednej nie dotyka danych drugiej.

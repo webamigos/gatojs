@@ -7,7 +7,6 @@ coverage/
 build/
 .env*
 !.env.example
-prisma/migrations/
 volumes/
 .superpowers/
 .worktrees/
