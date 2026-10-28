@@ -42,7 +42,9 @@ export function replaceRegion(
 function indicesOf(lines: string[], token: string): number[] {
   const found: number[] = [];
   lines.forEach((line, index) => {
-    if (line.includes(token)) found.push(index);
+    if (line.includes(token)) {
+      found.push(index);
+    }
   });
   return found;
 }

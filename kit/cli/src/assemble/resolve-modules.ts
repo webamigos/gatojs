@@ -16,7 +16,9 @@ export function resolveModules(
   pending.push(CORE);
   while (pending.length > 0) {
     const name = pending.pop() as string;
-    if (resolved.has(name)) continue;
+    if (resolved.has(name)) {
+      continue;
+    }
     const manifest = byName.get(name);
     if (!manifest) {
       const names = available

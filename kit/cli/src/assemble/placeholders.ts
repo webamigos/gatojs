@@ -7,7 +7,9 @@ export function applyPlaceholders(
   config: KitConfig,
   names: ProjectNames,
 ): string {
-  if (!config.placeholderFiles.includes(file)) return content;
+  if (!config.placeholderFiles.includes(file)) {
+    return content;
+  }
   return content
     .replaceAll(config.placeholders.projectName, names.name)
     .replaceAll(config.placeholders.projectSlug, names.slug)

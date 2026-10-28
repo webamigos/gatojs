@@ -28,8 +28,9 @@ async function detectFeature(
   const base = join(projectDir, "src", "features", name);
   const locales: string[] = [];
   for (const locale of configuredLocales) {
-    if (await exists(join(base, "i18n", `${locale}.json`)))
+    if (await exists(join(base, "i18n", `${locale}.json`))) {
       locales.push(locale);
+    }
   }
   return {
     name,
@@ -57,7 +58,9 @@ async function featureEntries(
       ),
     ].sort(compareCodePoint);
     for (const name of names) {
-      if (seen.has(name)) continue;
+      if (seen.has(name)) {
+        continue;
+      }
       seen.add(name);
       const entry = await detectFeature(projectDir, name, configuredLocales);
       entries.push(entry);
@@ -86,7 +89,9 @@ export async function generate(
   ] as const) {
     const current = await readFile(join(projectDir, file), "utf8").catch(
       (error: NodeJS.ErrnoException) => {
-        if (error.code === "ENOENT") return null;
+        if (error.code === "ENOENT") {
+          return null;
+        }
         throw error;
       },
     );
@@ -98,7 +103,9 @@ export async function generate(
       projectDir,
       project: state.project,
     });
-    if (rendered) pending.push(rendered);
+    if (rendered) {
+      pending.push(rendered);
+    }
   }
 
   const changed = pending.filter((p) => p.current !== p.next);

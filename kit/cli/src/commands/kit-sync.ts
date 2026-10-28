@@ -9,7 +9,9 @@ async function readExisting(kitDir: string): Promise<string | null> {
   try {
     return await readFile(join(kitDir, ".wa/kit.json"), "utf8");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
     throw error;
   }
 }

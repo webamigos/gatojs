@@ -37,7 +37,9 @@ export function list(options: ListOptions): void {
       log("Dostępne: brak");
     } else {
       log("Dostępne:");
-      for (const manifest of rest) log(availableLine(manifest));
+      for (const manifest of rest) {
+        log(availableLine(manifest));
+      }
     }
   }
   const projectEntries = Object.entries(state.projectModules).sort(([a], [b]) =>

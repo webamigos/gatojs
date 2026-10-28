@@ -108,7 +108,9 @@ async function main(argv: string[]): Promise<number> {
   if (changed.length === 0) {
     console.log("Bez zmian");
   } else {
-    for (const file of changed) console.log(`zmieniono ${file}`);
+    for (const file of changed) {
+      console.log(`zmieniono ${file}`);
+    }
   }
   return 0;
 }

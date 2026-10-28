@@ -13,12 +13,16 @@ export function stripRegions(content: string): string {
     kept.push(line);
     index += 1;
     const region = REGION_START.exec(line)?.[1];
-    if (region === undefined) continue;
+    if (region === undefined) {
+      continue;
+    }
     const end = lines.findIndex(
       (candidate, position) =>
         position >= index && candidate.includes(`wa:${region}:end`),
     );
-    if (end === -1) continue;
+    if (end === -1) {
+      continue;
+    }
     kept.push(lines[end] as string);
     index = end + 1;
   }
@@ -34,7 +38,9 @@ export function fileHash(
   content: Buffer,
   config: Pick<KitConfig, "managedFiles">,
 ): string {
-  if (config.managedFiles.includes(file)) return "managed";
+  if (config.managedFiles.includes(file)) {
+    return "managed";
+  }
   if (REGION_FILES.includes(file)) {
     return sha256(stripRegions(content.toString("utf8")));
   }
