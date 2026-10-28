@@ -84,9 +84,17 @@ jobs:
       - name: No placeholders left in the project
         working-directory: ${{ runner.temp }}/matrix-app
         run: |
-          if git grep -nE "WA App|wa-app|wa_app" -- . ':!**/__tests__/**' ':!**/*.test.*' ':!package-lock.json' ':!.wa/bin/**'; then
+          set +e
+          git grep -nE "WA App|wa-app|wa_app" -- . ':!**/__tests__/**' ':!**/*.test.*' ':!package-lock.json' ':!.wa/bin/**'
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
             echo "Placeholders left in the project"
             exit 1
+          fi
+          if [ "$status" -ne 1 ]; then
+            echo "git grep failed with status $status"
+            exit "$status"
           fi
 
       - name: Validate schema
@@ -112,6 +120,11 @@ jobs:
         env:
           INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/matrix_app_test
         run: npm run test:integration
+
+      - name: Docker image builds
+        if: matrix.combo.name == 'core'
+        working-directory: ${{ runner.temp }}/matrix-app
+        run: docker build .
 
       - name: Project module is registered without editing core tests
         working-directory: ${{ runner.temp }}/matrix-app
@@ -142,8 +155,3 @@ jobs:
           '
           npm run wa -- generate
           npm test
-
-      - name: Docker image builds
-        if: matrix.combo.name == 'core'
-        working-directory: ${{ runner.temp }}/matrix-app
-        run: docker build .
