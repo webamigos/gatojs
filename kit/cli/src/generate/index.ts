@@ -2,13 +2,13 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { compareCodePoint } from "../compare.js";
 import { installedModules, readKitState } from "../manifest/kit-state.js";
-import { renderRegistry } from "./registry.js";
+import { renderLocales, renderRegistry } from "./registry.js";
 import type { RegistryModule } from "./registry.js";
 import { regionTargets, renderRegionTarget } from "./targets.js";
 
 const SERVER_REGISTRY = "src/modules.generated.ts";
 const CLIENT_REGISTRY = "src/modules.client.generated.ts";
-const LOCALES = ["pl", "en"];
+const LOCALES_FILE = "src/i18n/locales.generated.ts";
 const FEATURE_GLOB = /^src\/features\/([^/*]+)\//;
 
 async function exists(path: string): Promise<boolean> {
@@ -23,10 +23,11 @@ async function exists(path: string): Promise<boolean> {
 async function detectFeature(
   projectDir: string,
   name: string,
+  configuredLocales: string[],
 ): Promise<RegistryModule> {
   const base = join(projectDir, "src", "features", name);
   const locales: string[] = [];
-  for (const locale of LOCALES) {
+  for (const locale of configuredLocales) {
     if (await exists(join(base, "i18n", `${locale}.json`)))
       locales.push(locale);
   }
@@ -43,6 +44,7 @@ async function detectFeature(
 async function featureEntries(
   projectDir: string,
   files: string[][],
+  configuredLocales: string[],
 ): Promise<RegistryModule[]> {
   const seen = new Set<string>();
   const entries: RegistryModule[] = [];
@@ -57,7 +59,7 @@ async function featureEntries(
     for (const name of names) {
       if (seen.has(name)) continue;
       seen.add(name);
-      const entry = await detectFeature(projectDir, name);
+      const entry = await detectFeature(projectDir, name, configuredLocales);
       const present =
         entry.hasModuleTs ||
         entry.hasEnv ||
@@ -78,13 +80,15 @@ export async function generate(
   const features = await featureEntries(
     projectDir,
     manifests.map((m) => m.files),
+    state.locales,
   );
-  const registry = renderRegistry(features);
+  const registry = renderRegistry(features, state.locales);
 
   const pending: { file: string; current: string | null; next: string }[] = [];
   for (const [file, next] of [
     [SERVER_REGISTRY, registry.server],
     [CLIENT_REGISTRY, registry.client],
+    [LOCALES_FILE, renderLocales(state.locales)],
   ] as const) {
     const current = await readFile(join(projectDir, file), "utf8").catch(
       (error: NodeJS.ErrnoException) => {
@@ -95,7 +99,11 @@ export async function generate(
     pending.push({ file, current, next });
   }
   for (const target of regionTargets) {
-    const rendered = await renderRegionTarget(target, manifests, projectDir);
+    const rendered = await renderRegionTarget(target, {
+      modules: manifests,
+      projectDir,
+      project: state.project,
+    });
     if (rendered) pending.push(rendered);
   }
 

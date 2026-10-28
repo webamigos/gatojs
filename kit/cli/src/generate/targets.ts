@@ -3,10 +3,16 @@ import { join } from "node:path";
 import type { ModuleManifest } from "../manifest/schema.js";
 import { replaceRegion } from "./regions.js";
 
+export type RegionContext = {
+  modules: ModuleManifest[];
+  projectDir: string;
+  project: { name: string; slug: string };
+};
+
 export type RegionTarget = {
   file: string;
   marker: string;
-  body: (modules: ModuleManifest[], projectDir: string) => Promise<string>;
+  body: (context: RegionContext) => Promise<string>;
 };
 
 const INDENT = "  ";
@@ -19,7 +25,7 @@ function indent(text: string): string {
 }
 
 function relationsBody(model: string) {
-  return async (modules: ModuleManifest[]): Promise<string> =>
+  return async ({ modules }: RegionContext): Promise<string> =>
     modules
       .flatMap((m) => m.schemaRelations)
       .filter((relation) => relation.model === model)
@@ -27,19 +33,33 @@ function relationsBody(model: string) {
       .join("\n");
 }
 
-async function envBody(modules: ModuleManifest[]): Promise<string> {
+function fillPlaceholders(
+  text: string,
+  project: { name: string; slug: string },
+): string {
+  return text
+    .replaceAll("{{projectSlug}}", project.slug)
+    .replaceAll("{{projectName}}", project.name);
+}
+
+async function envBody({ modules, project }: RegionContext): Promise<string> {
   return modules
     .filter((m) => m.name !== "core" && m.env.length > 0)
     .map((m) =>
-      [`# ${m.name}`, ...m.env.map((v) => `${v.name}=${v.example}`)].join("\n"),
+      [
+        `# ${m.name}`,
+        ...m.env.map(
+          (v) => `${v.name}=${fillPlaceholders(v.example, project)}`,
+        ),
+      ].join("\n"),
     )
     .join("\n\n");
 }
 
-async function composeBody(
-  modules: ModuleManifest[],
-  projectDir: string,
-): Promise<string> {
+async function composeBody({
+  modules,
+  projectDir,
+}: RegionContext): Promise<string> {
   const parts: string[] = [];
   for (const m of modules) {
     if (m.compose === null) continue;
@@ -66,17 +86,16 @@ export const regionTargets: RegionTarget[] = [
 
 export async function renderRegionTarget(
   target: RegionTarget,
-  modules: ModuleManifest[],
-  projectDir: string,
+  context: RegionContext,
 ): Promise<{ file: string; current: string; next: string } | null> {
   let current: string;
   try {
-    current = await readFile(join(projectDir, target.file), "utf8");
+    current = await readFile(join(context.projectDir, target.file), "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
-  const body = await target.body(modules, projectDir);
+  const body = await target.body(context);
   return {
     file: target.file,
     current,

@@ -27,6 +27,7 @@ const eslintConfig = defineConfig([
     "src/generated/**",
     "src/modules.generated.ts",
     "src/modules.client.generated.ts",
+    "src/i18n/locales.generated.ts",
   ]),
 ]);
 
