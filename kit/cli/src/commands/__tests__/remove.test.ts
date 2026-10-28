@@ -647,4 +647,25 @@ describe("remove", () => {
       removed: ["demo"],
     });
   });
+
+  it("wpis files pod zwykłym plikiem kończy się błędem ENOTDIR, nie sukcesem ani odrzuceniem jako poza projektem", async () => {
+    const dir = await createProject("app", ["demo"]);
+    const state = await readKitState(dir);
+    const demo = state.modules.demo as NonNullable<
+      (typeof state.modules)["demo"]
+    >;
+    await setDemoFiles(dir, {
+      ...demo.files,
+      "src/features/demo/module.ts/x": sha256("x"),
+    });
+    const snapshot = await snapshotDir(dir, IGNORE);
+    const failure = await remove(removeOptions(dir, "demo")).then(
+      () => null,
+      (error: Error) => error,
+    );
+    expect(failure?.message).toContain("ENOTDIR: not a directory, realpath");
+    expect(failure?.message).not.toContain("Ścieżka poza projektem");
+    expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
+    expect(runner).not.toHaveBeenCalled();
+  });
 });
