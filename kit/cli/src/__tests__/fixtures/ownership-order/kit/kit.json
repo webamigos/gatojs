@@ -1,0 +1,13 @@
+{
+  "version": "0.1.0",
+  "repo": "https://github.com/webamigos/wa-kit.git",
+  "kitOnly": ["kit/**"],
+  "placeholders": {
+    "projectName": "WA App",
+    "projectSlug": "wa-app",
+    "projectSnake": "wa_app"
+  },
+  "placeholderFiles": [],
+  "generatedFiles": [],
+  "managedFiles": ["package.json"]
+}

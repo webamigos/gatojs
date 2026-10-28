@@ -1,0 +1,8 @@
+{
+  "name": "alpha",
+  "version": "0.1.0",
+  "description": "Alpha fixture",
+  "files": ["src/a/**", "y-alpha-pusty/**", "b-alpha-pusty/**"],
+  "dependencies": { "mid": "1.0.0", "beta-lib": "2.0.0" },
+  "compose": "poza/alpha.yml"
+}
