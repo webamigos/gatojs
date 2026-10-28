@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -19,6 +19,9 @@ afterEach(async () => {
 function stateWith(names: string[]): KitState {
   return {
     kitVersion: "0.0.0",
+    kitRepo: "https://github.com/webamigos/wa-kit.git",
+    project: { name: "WA App", slug: "wa-app" },
+    locales: ["pl", "en"],
     modules: Object.fromEntries(
       names.map((name) => [
         name,
@@ -66,5 +69,33 @@ describe("kit state", () => {
       JSON.stringify({ kitVersion: 1 }),
     );
     await expect(readKitState(tmp)).rejects.toThrow();
+  });
+
+  it("stary kit.json bez nowych pol dostaje wartosci domyslne", async () => {
+    await mkdir(join(tmp, ".wa"), { recursive: true });
+    await writeFile(
+      join(tmp, ".wa/kit.json"),
+      JSON.stringify({ kitVersion: "0.0.0", modules: {} }),
+    );
+    expect(await readKitState(tmp)).toEqual({
+      kitVersion: "0.0.0",
+      kitRepo: "https://github.com/webamigos/wa-kit.git",
+      project: { name: "WA App", slug: "wa-app" },
+      locales: ["pl", "en"],
+      modules: {},
+    });
+  });
+
+  it("writeKitState zapisuje klucze w kolejnosci kitVersion, kitRepo, project, locales, modules", async () => {
+    await writeKitState(tmp, {
+      kitVersion: "1.2.3",
+      kitRepo: "https://example.com/kit.git",
+      project: { name: "Moj", slug: "moj" },
+      locales: ["pl"],
+      modules: {},
+    });
+    expect(await readFile(join(tmp, ".wa/kit.json"), "utf8")).toBe(
+      '{\n  "kitVersion": "1.2.3",\n  "kitRepo": "https://example.com/kit.git",\n  "project": {\n    "name": "Moj",\n    "slug": "moj"\n  },\n  "locales": [\n    "pl"\n  ],\n  "modules": {}\n}\n',
+    );
   });
 });

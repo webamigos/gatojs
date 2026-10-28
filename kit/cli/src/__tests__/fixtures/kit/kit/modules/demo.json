@@ -1,0 +1,10 @@
+{
+  "name": "demo",
+  "version": "0.3.0",
+  "description": "Demo fixture",
+  "files": ["src/features/demo/**"],
+  "dependencies": { "left-pad": "^1.3.0" },
+  "env": [{ "name": "DEMO_TOKEN", "example": "{{projectSlug}}_demo_" }],
+  "schemaRelations": [{ "model": "User", "field": "demos Demo[]" }],
+  "compose": "src/features/demo/compose.yml"
+}
