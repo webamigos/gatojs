@@ -36,7 +36,7 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
   Wpis w `.wa/kit.json` jest jedynym wejściem, a plik opisuje z założenia kod z kitu.
 - **Propozycja dla planu 2:** osobna sekcja albo flaga modułów projektu w `.wa/kit.json` (np. `projectModules` z samym manifestem, bez `version` i hashy).
   `wa generate` czyta je tak samo jak `modules`. Pomijają je `wa update`, `wa diff` i `wa kit sync`, a `wa remove` nie kasuje ich plików bez jawnej zgody.
-- **Status:** otwarte, do planu 2. Ta sama luka trafia do `docs/znane-ograniczenia.md` (kotwica `modul-projektu`).
+- **Status:** rozwiązane w planie 2, Task 5 (sekcja `projectModules` w `.wa/kit.json`).
 
 ## R4. `LOG_LEVEL` jest opisana i walidowana, ale nic jej nie czyta
 
@@ -512,7 +512,7 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
   - `src/shared/components/__tests__/app-sidebar.test.tsx`: test „member widzi pozycje z rejestru z etykietami z namespace modułu” (`["Dashboard", "Konto"]`).
   W przebiegu tutorialu (kopia z `4a6ffcb`, feature `notes` z jedną pozycją menu, bez `roles`) `npm run verify` zakończył się kodem 1: `Test Files  3 failed | 53 passed (56)`, `Tests  27 failed | 1199 passed (1226)`. Przy `nav: []` dalej padałby test „dokładnie 5 modułów” (wniosek z kodu). Zgodnie z rulingiem kontrolera T10-1 tutorial (`docs/09b-implementacja-i-bramki.md`, sekcja „`npm run verify` i testy rdzenia”) każe dopisać `notes` do tych trzech testów: wiersz w `MATRIX` w obu trybach, `NOTES` w 22 listach `NAV`, liczności 6 i 144, trzy listy w `nav.test.ts`, import `src/features/notes/i18n/pl.json` i etykieta w `app-sidebar.test.tsx`. Potem `Tests  1250 passed (1250)`. To zmiana plików modułu `core` w projekcie, sprzeczna z D03, i źródło konfliktów przy przyszłej aktualizacji kitu.
 - **Propozycja:** do decyzji Jakuba. Testy rdzenia filtrują rejestr do kluczy feature modułu `core` (stała z pięcioma kluczami albo lista z wzorców `files` manifestu `core` w `.wa/kit.json`) i przekazują go do `getNavEntries(context, modules)` (drugi parametr już istnieje) oraz do `canAccessModule`. Test paska bocznego filtruje etykiety do pozycji rdzenia. Osobno: szablon testu macierzy dla modułów projektu (na przykład generowany test, który dla każdej definicji spoza `core` sprawdza tylko spójność menu z `canAccessModule`). Po zmianie tutorial traci krok edycji testów rdzenia.
-- **Status:** otwarte, do decyzji Jakuba. Tutorial opisuje obejście z ostrzeżeniem i linkiem do `docs/znane-ograniczenia.md#modul-projektu`.
+- **Status:** rozwiązane w planie 2, Task 5 (testy rdzenia filtrują rejestr do modułów rdzenia, spójność rejestru sprawdza `registry-consistency.test.ts`).
 
 ## R57. Test integracyjny komendy z `revalidatePath` potrzebuje mocka `next/cache`, czego nie mówi żaden opis testu izolacji
 

@@ -8,13 +8,13 @@ Po przeczytaniu będziesz wiedzieć:
 - kiedy uruchomić generator i jak CI sprawdza, że pliki generowane są aktualne;
 - jak rozpoznać typowe błędy przy dodawaniu feature do rejestru.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: d416599, 2026-10-28
 
 Źródła:
 
-- `packages/cli/package.json`
-- `packages/cli/tsconfig.json`
-- `packages/cli/src/` (kod CLI, testy i fikstury)
+- `kit/cli/package.json`
+- `kit/cli/tsconfig.json`
+- `kit/cli/src/` (kod CLI, testy i fikstury)
 - `src/modules.generated.ts`
 - `src/modules.client.generated.ts`
 - `.wa/kit.json`
@@ -122,18 +122,20 @@ Plik opisuje, z jakich modułów kitu składa się projekt. W repozytorium kitu 
       },
       "files": {}
     }
-  }
+  },
+  "projectModules": {}
 }
 ```
 
-- `modules` to słownik: klucz to nazwa modułu, a wartość to wersja, manifest i mapa `files`. Jest jeden moduł, `core`.
+- `modules` to słownik: klucz to nazwa modułu, a wartość to wersja, manifest i mapa `files`. W kicie jest jeden moduł, `core`; w projekcie dochodzą moduły wybrane przy `wa create` lub dodane przez `wa add`, a `files` zawiera hashe plików.
+- `projectModules` to słownik funkcji napisanych w projekcie: klucz to nazwa modułu, a wartość ma tylko `manifest`, bez wersji i hashy plików. Generator czyta go tak samo jak `modules` i rejestruje moduły projektu po modułach kitu, alfabetycznie. W repozytorium kitu jest pusty ([Krok 3 tutorialu](09-nowy-modul.md#krok-3)).
 - `manifest.files` to wzorce plików należących do modułu. Generator czyta z nich tylko wzorce zaczynające się od `src/features/<x>/`, żeby wykryć feature ([Wykrywanie feature](#wykrywanie-feature)). Pozostałe wzorce (`src/shared/**`, `src/app/**` i inne) są tylko zapisem własności. Nic nie sprawdza, czy obejmują wszystkie pliki rdzenia ani czy plik nie należy do dwóch modułów ([D02](decyzje.md#d02)).
 - `env`, `schemaRelations` i `compose` wypełniają regiony `wa:*`. W `core` są puste, więc wszystkie regiony w repozytorium są puste.
 - Pozostałych pól generator nie używa. Pełną listę z typami i wartościami domyślnymi podaje [Referencja](#referencja-manifest).
 
-`readKitState` w `packages/cli/src/manifest/kit-state.ts` sprawdza plik schematem Zod i przy błędzie przerywa generator. Pól, których schemat nie zna, nie zgłasza: literówka w nazwie pola (na przykład `schemaRelation` zamiast `schemaRelations`) przechodzi bez błędu, a pole dostaje wartość domyślną.
+`readKitState` w `kit/cli/src/manifest/kit-state.ts` sprawdza plik schematem Zod i przy błędzie przerywa generator. Pól, których schemat nie zna, nie zgłasza: literówka w nazwie pola (na przykład `schemaRelation` zamiast `schemaRelations`) przechodzi bez błędu, a pole dostaje wartość domyślną.
 
-Feature, którego nie obejmuje żaden wzorzec w `.wa/kit.json`, nie trafia do rejestru: nie ma pozycji w menu, `requireModuleAccess` z jego kluczem kończy się 404, a jego tłumaczenia się nie ładują. Dotyczy to także funkcji projektu klienta ([znane-ograniczenia.md](znane-ograniczenia.md#modul-projektu)).
+Feature, którego nie obejmuje żaden wzorzec w `.wa/kit.json`, nie trafia do rejestru: nie ma pozycji w menu, `requireModuleAccess` z jego kluczem kończy się 404, a jego tłumaczenia się nie ładują. Dotyczy to także funkcji projektu klienta: jej wzorzec `src/features/<x>/**` należy wpisać w manifeście w `projectModules` ([Krok 3 tutorialu](09-nowy-modul.md#krok-3)).
 
 <a id="wa-generate"></a>
 
@@ -144,11 +146,10 @@ Feature, którego nie obejmuje żaden wzorzec w `.wa/kit.json`, nie trafia do re
 ### Uruchomienie
 
 ```bash
-npm run build -w @wa-kit/cli && npm run wa -- generate
+npm run wa -- generate
 ```
 
-- `npm run build -w @wa-kit/cli` kompiluje CLI (`tsc`) do `packages/cli/dist`. Ten katalog jest w `.gitignore`, a `npm ci` go nie tworzy, więc na świeżym klonie CLI trzeba zbudować przed pierwszym użyciem. Komenda kompiluje za każdym razem, żeby uruchomione CLI zawsze odpowiadało kodowi w `packages/cli/src`.
-- `npm run wa -- generate` uruchamia skrypt `wa` z `package.json`, czyli `node packages/cli/dist/bin.js`, z argumentem `generate`. Generator pracuje na katalogu bieżącym procesu (`process.cwd()` w `packages/cli/src/bin.ts`). npm uruchamia skrypt w katalogu najbliższego `package.json` nad bieżącym katalogiem, więc z katalogu głównego i z podkatalogów takich jak `src/` generator działa na całym repozytorium. W `packages/cli/` najbliższy jest `package.json` CLI, który nie ma skryptu `wa`, i komenda kończy się błędem npm.
+- `npm run wa -- generate` uruchamia skrypt `wa` z `package.json`, czyli `node .wa/bin/wa.mjs`, z argumentem `generate`. Plik `.wa/bin/wa.mjs` to bundel CLI (esbuild) zapisany w repozytorium, więc nie trzeba go budować na świeżym klonie. Po zmianie kodu CLI w `kit/cli/src` odśwież go przez `npm run build --prefix kit/cli`. Generator pracuje na katalogu bieżącym procesu (`process.cwd()` w `kit/cli/src/bin.ts`). npm uruchamia skrypt w katalogu najbliższego `package.json` nad bieżącym katalogiem, więc z katalogu głównego i z podkatalogów takich jak `src/` generator działa na całym repozytorium. W `kit/cli/` najbliższy jest `package.json` CLI, który nie ma skryptu `wa`, i komenda kończy się błędem npm.
 - Wynik to `Bez zmian` albo po jednej linii `zmieniono <plik>` dla każdego zapisanego pliku.
 
 Pierwsza linia plików rejestru to nagłówek „generated by wa — nie edytuj” z inną komendą niż powyższa. Używaj komendy z tej sekcji, takiej samej jak w `AGENTS.md` ([D04](decyzje.md#d04)).
@@ -179,13 +180,13 @@ flowchart TD
     compare -->|"nie"| skip["plik bez zmian"]
 ```
 
-Wszystkie etapy są w `packages/cli/src/generate/index.ts` (`generate`), a funkcje pomocnicze w `packages/cli/src/manifest/kit-state.ts`, `packages/cli/src/generate/registry.ts` i `packages/cli/src/generate/targets.ts`.
+Wszystkie etapy są w `kit/cli/src/generate/index.ts` (`generate`), a funkcje pomocnicze w `kit/cli/src/manifest/kit-state.ts`, `kit/cli/src/generate/registry.ts` i `kit/cli/src/generate/targets.ts`.
 
 <a id="wykrywanie-feature"></a>
 
 ### Wykrywanie feature
 
-`packages/cli/src/generate/index.ts`
+`kit/cli/src/generate/index.ts`
 
 ```ts
 const LOCALES = ["pl", "en"];
@@ -212,7 +213,7 @@ const FEATURE_GLOB = /^src\/features\/([^/*]+)\//;
 
 Region to fragment pliku między linią z `wa:<marker>:start` a linią z `wa:<marker>:end`. Generator zastępuje wszystko między tymi liniami, a same linie z markerami zostawia. Składnię komentarza (`//` albo `#`) wyznacza plik, a generator szuka tylko tekstu markera. Cztery regiony wymienia stała `regionTargets`:
 
-`packages/cli/src/generate/targets.ts`
+`kit/cli/src/generate/targets.ts`
 
 ```ts
 export const regionTargets: RegionTarget[] = [
@@ -232,7 +233,7 @@ export const regionTargets: RegionTarget[] = [
 
 Zmiennych modułu `core` region w `.env.example` nie obejmuje, bo są wpisane w ten plik na stałe. Relacja z innym modelem niż `User` i `Organization` nie trafia do żadnego regionu i generator tego nie zgłasza.
 
-Przykład z testu „generuje wszystkie cele” w `packages/cli/src/generate/__tests__/generate.test.ts`. Fikstura `minimal` ma moduł `demo` z polami manifestu jak w lewej kolumnie:
+Przykład z testu „generuje wszystkie cele” w `kit/cli/src/generate/__tests__/generate.test.ts`. Fikstura `minimal` ma moduł `demo` z polami manifestu jak w lewej kolumnie:
 
 | Pole manifestu `demo` | Treść regionu po przebiegu |
 | --- | --- |
@@ -242,21 +243,18 @@ Przykład z testu „generuje wszystkie cele” w `packages/cli/src/generate/__t
 
 Reguły regionów:
 
-- W pliku musi być dokładnie jedna linia z markerem początku i jedna z markerem końca, a koniec musi być niżej niż początek, więc oba markery nie mogą stać w jednej linii. Treść regionu nie może zawierać markera tego samego regionu. Jeśli plik ma gdziekolwiek końce linii CRLF, cały wynik ma końce CRLF. Tego pilnuje `replaceRegion` w `packages/cli/src/generate/regions.ts`.
-- Plik docelowy, którego nie ma na dysku, jest pomijany bez błędu (`renderRegionTarget`), a brak pliku z pola `compose` przerywa generator (`composeBody`). Obie funkcje są w `packages/cli/src/generate/targets.ts`.
+- W pliku musi być dokładnie jedna linia z markerem początku i jedna z markerem końca, a koniec musi być niżej niż początek, więc oba markery nie mogą stać w jednej linii. Treść regionu nie może zawierać markera tego samego regionu. Jeśli plik ma gdziekolwiek końce linii CRLF, cały wynik ma końce CRLF. Tego pilnuje `replaceRegion` w `kit/cli/src/generate/regions.ts`.
+- Plik docelowy, którego nie ma na dysku, jest pomijany bez błędu (`renderRegionTarget`), a brak pliku z pola `compose` przerywa generator (`composeBody`). Obie funkcje są w `kit/cli/src/generate/targets.ts`.
 
 Komunikaty błędów podaje [Referencja](#referencja-komunikaty).
 
 ### Idempotencja i kontrola w CI
 
-Generator zapisuje tylko pliki, których treść różni się od wyniku, więc drugi przebieg bez zmian wypisuje `Bez zmian` i niczego nie dotyka (test „drugie uruchomienie nic nie zmienia” w `generate.test.ts`). Na tym opiera się kontrola w CI. Job `verify` buduje CLI, uruchamia generator i sprawdza, czy pliki śledzone przez git się nie zmieniły:
+Generator zapisuje tylko pliki, których treść różni się od wyniku, więc drugi przebieg bez zmian wypisuje `Bez zmian` i niczego nie dotyka (test „drugie uruchomienie nic nie zmienia” w `generate.test.ts`). Na tym opiera się kontrola w CI. Job `verify` uruchamia generator i sprawdza, czy pliki śledzone przez git się nie zmieniły:
 
 `.github/workflows/ci.yml`
 
 ```yaml
-      - name: Build wa CLI
-        run: npm run build -w @wa-kit/cli
-
       - name: Regenerate wa files
         run: npm run wa -- generate
 
@@ -266,7 +264,7 @@ Generator zapisuje tylko pliki, których treść różni się od wyniku, więc d
 
 Zarówno ręczna zmiana pliku generowanego albo regionu, jak i zmiana feature bez przebiegu generatora dają różnicę w ostatnim kroku, więc job pada przed `npm run verify`. `git diff` nie widzi plików nieśledzonych, ale wszystkie pliki, które zapisuje generator, są w repozytorium. Pliki rejestru są wpisane w `.prettierignore` i w `globalIgnores` w `eslint.config.mjs`, żeby `lint-staged` nie przeformatował ich przy commicie i nie rozjechał z wyjściem generatora ([D04](decyzje.md#d04)).
 
-Samo CLI ma własne testy i sprawdzanie typów, które `npm run verify` uruchamia przez `turbo run test typecheck`. Root ESLint (`packages/**` w `globalIgnores`) i root Vitest (`packages/**` w `exclude` w `vitest.config.ts`) pomijają katalog `packages/`.
+Samo CLI ma własną bramkę (`npm run verify --prefix kit/cli`), uruchamianą w osobnym workflow kitu. Root ESLint (`kit/**` w `globalIgnores`) i root Vitest (`kit/**` w `exclude` w `vitest.config.ts`) pomijają katalog `kit/`.
 
 ### Objawy typowych błędów
 
@@ -286,7 +284,7 @@ Samo CLI ma własne testy i sprawdzanie typów, które `npm run verify` uruchami
 
 ### `.wa/kit.json` i manifest modułu
 
-Schematy `kitStateSchema` i `moduleManifestSchema` z `packages/cli/src/manifest/schema.ts`. Kolumna „Generator” mówi, czy `wa generate` używa pola. Pola, których schemat nie zna, są pomijane bez błędu.
+Schematy `kitStateSchema` i `moduleManifestSchema` z `kit/cli/src/manifest/schema.ts`. Kolumna „Generator” mówi, czy `wa generate` używa pola. Pola, których schemat nie zna, są pomijane bez błędu.
 
 `kitStateSchema` (cały plik):
 
@@ -345,6 +343,5 @@ Nazwy w plikach rejestru powstają z nazwy katalogu feature: znaki `-`, `_` i `.
 | Brakujący, podwójny albo odwrócony marker regionu | `<plik>: uszkodzony region wa:<marker>` | 1 |
 | Treść regionu zawiera jego marker | `<plik>: treść regionu wa:<marker> zawiera znacznik regionu` | 1 |
 | Brak pliku z pola `compose` | `ENOENT: no such file or directory, open '<ścieżka>'` | 1 |
-| CLI niezbudowane | błąd Node `Cannot find module '<repozytorium>/packages/cli/dist/bin.js'`; uruchom pełną komendę z sekcji [Uruchomienie](#uruchomienie) | 1 |
 
 Przy każdym błędzie z tej tabeli żaden plik nie zostaje zmieniony.

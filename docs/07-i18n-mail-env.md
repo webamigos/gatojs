@@ -8,11 +8,11 @@ Po przeczytaniu będziesz wiedzieć:
 - jak `src/shared/lib/env.ts` sprawdza zmienne środowiskowe i które zmienne kod czyta z pominięciem tej walidacji;
 - które zmienne poza schematem czytają kod aplikacji, Next.js, Docker i testy.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: d416599, 2026-10-28
 
 Źródła:
 
-- tłumaczenia: `src/i18n/config.ts`, `src/i18n/routing.ts`, `src/i18n/request.ts`, `src/i18n/merge-messages.ts`, `src/i18n/__tests__/merge-messages.test.ts`, `src/proxy.ts`, `next.config.ts`, `src/app/layout.tsx`, `src/app/[locale]/layout.tsx`, `src/app/messages/pl.json`, `src/app/messages/en.json`, `src/features/account/i18n/`, `src/features/auth/i18n/`, `src/features/dashboard/i18n/`, `src/features/organizations/i18n/`, `src/features/users/i18n/`, `src/features/organizations/components/organization-members.tsx`, `src/shared/components/service-mode/service-mode-banner.tsx`, `src/modules.generated.ts`, `packages/cli/src/generate/index.ts`, `packages/cli/src/generate/registry.ts`, `playwright.config.ts`;
+- tłumaczenia: `src/i18n/config.ts`, `src/i18n/routing.ts`, `src/i18n/request.ts`, `src/i18n/merge-messages.ts`, `src/i18n/__tests__/merge-messages.test.ts`, `src/proxy.ts`, `next.config.ts`, `src/app/layout.tsx`, `src/app/[locale]/layout.tsx`, `src/app/messages/pl.json`, `src/app/messages/en.json`, `src/features/account/i18n/`, `src/features/auth/i18n/`, `src/features/dashboard/i18n/`, `src/features/organizations/i18n/`, `src/features/users/i18n/`, `src/features/organizations/components/organization-members.tsx`, `src/shared/components/service-mode/service-mode-banner.tsx`, `src/modules.generated.ts`, `kit/cli/src/generate/index.ts`, `kit/cli/src/generate/registry.ts`, `playwright.config.ts`;
 - maile: `src/shared/lib/mailer.ts`, `src/shared/lib/__tests__/mailer.test.ts`, `src/app/emails/`, `src/shared/lib/auth/index.ts`, `src/shared/lib/auth/welcome-set-password.ts`, `src/features/users/services/commands/invite-user-command.ts`, `src/features/users/contracts/user-account.schemas.ts`, `src/app/[locale]/(app)/users/page.tsx`, `src/shared/utils/error-handling.ts`, `e2e/helpers.ts`;
 - zmienne środowiskowe: `src/shared/lib/env.ts`, `src/shared/lib/__tests__/env.test.ts`, `.env.example`, `.wa/kit.json`, `src/shared/lib/prisma.ts`, `prisma.config.ts`, `scripts/admin-create.ts`, `src/shared/lib/logger.ts`, `src/instrumentation.ts`, `docker-compose.yml`, `Dockerfile`, `e2e/env.ts`, `src/test/integration/database-url.ts`;
 - biblioteki (wersje w `package-lock.json`): `node_modules/next-intl/dist/esm/development/routing/config.js` (next-intl 4.14.9, `receiveRoutingConfig`), `node_modules/next-intl/dist/esm/development/middleware/resolveLocale.js`, `node_modules/next-intl/dist/esm/development/middleware/syncCookie.js`, `node_modules/@opentelemetry/otlp-exporter-base/build/src/configuration/otlp-node-http-env-configuration.js` (0.218.0), `node_modules/resend/dist/index.mjs` (resend 6.34.1, `logError`), `node_modules/next/dist/bin/next` (Next.js 16.3.8, opcje `-p` i `-H`).
@@ -194,7 +194,7 @@ Wszystkie teksty bieżącego języka trafiają do przeglądarki. `src/app/[local
          <span>{t("banner", { name: organizationName })}</span>
    ```
 
-3. Generator uruchamiasz tylko wtedy, gdy w feature pojawia się nowy plik `i18n/<locale>.json` (`npm run build -w @wa-kit/cli && npm run wa -- generate`). Rejestr importuje plik, a nie kopiuje jego treści, więc nowy klucz w istniejącym pliku generatora nie wymaga.
+3. Generator uruchamiasz tylko wtedy, gdy w feature pojawia się nowy plik `i18n/<locale>.json` (`npm run wa -- generate`). Rejestr importuje plik, a nie kopiuje jego treści, więc nowy klucz w istniejącym pliku generatora nie wymaga.
 
 Tekstu wspólnego nie dopisuj do `src/app/messages/`: to pliki rdzenia, a moduł nie edytuje rdzenia ([D03](decyzje.md#d03)). Tekst feature trzymaj w jego namespace, nawet jeśli brzmi jak `common`. Jeśli tekst przyda się wszystkim projektom, zgłoś go jako poprawkę rdzenia do repozytorium kitu ([11-praca-z-kitem.md](11-praca-z-kitem.md)).
 
@@ -209,7 +209,7 @@ Lista języków jest zapisana w dwóch miejscach: w aplikacji i w generatorze re
 1. Dopisz kod języka do `locales` w `src/i18n/config.ts`.
 2. Utwórz `src/app/messages/<kod>.json` z namespace `common`, `errors`, `sidebar` i `serviceMode`.
 3. Utwórz `src/features/<x>/i18n/<kod>.json` w każdym feature.
-4. W generatorze dopisz język do `LOCALES` w `packages/cli/src/generate/index.ts` oraz do `MESSAGE_LOCALES` i do typu `Record<"pl" | "en", MessageLoader[]>` w `packages/cli/src/generate/registry.ts`. Potem `npm run build -w @wa-kit/cli && npm run wa -- generate`.
+4. W CLI dopisz język do `localesSchema` w `kit/cli/src/manifest/schema.ts`, do `ALLOWED_LOCALES` i typu `Locale` w `kit/cli/src/args.ts` oraz do `kit/cli/src/generate/registry.ts`. Potem `npm run wa -- generate`.
 5. `npm run verify`.
 
 Bez kroku 4 rejestr nie ma loaderów nowego języka, a `npm run typecheck` zgłasza błąd TS7053 w `src/i18n/request.ts`, bo `moduleMessages` ma typ `Record<"pl" | "en", …>` (sprawdzone). Krok 4 zmienia kod kitu, więc taką poprawkę zgłoś do repozytorium kitu ([11-praca-z-kitem.md](11-praca-z-kitem.md)).

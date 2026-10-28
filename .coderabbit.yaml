@@ -6,8 +6,7 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
-    # Also auto-review PRs targeting main (the default branch, dev, is already
-    # covered automatically).
+    # Auto-review PRs targeting main.
     base_branches:
       - "main"
     ignore_title_keywords:

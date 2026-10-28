@@ -8,5 +8,8 @@ volumes
 .superpowers
 src/modules.generated.ts
 src/modules.client.generated.ts
+src/i18n/locales.generated.ts
 reports
 .stryker-tmp
+.wa/bin
+.wa/kit.json

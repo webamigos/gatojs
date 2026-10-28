@@ -1,0 +1,37 @@
+{
+  "version": "0.1.0",
+  "repo": "https://github.com/webamigos/wa-kit.git",
+  "kitOnly": [
+    "kit/**",
+    "docs/**",
+    ".superpowers/**",
+    ".claude/handoffs/**",
+    ".wa/kit.json",
+    ".github/workflows/kit.yml",
+    ".github/workflows/kit-mutation.yml",
+    "prisma/migrations/.gitignore"
+  ],
+  "placeholders": {
+    "projectName": "WA App",
+    "projectSlug": "wa-app",
+    "projectSnake": "wa_app"
+  },
+  "placeholderFiles": [
+    "src/shared/config/project.ts",
+    "package.json",
+    "docker-compose.yml",
+    ".env.example",
+    "e2e/env.ts",
+    ".github/workflows/e2e.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/mutation.yml",
+    "src/test/integration/database-url.ts",
+    "README.md"
+  ],
+  "generatedFiles": [
+    "src/modules.generated.ts",
+    "src/modules.client.generated.ts",
+    "src/i18n/locales.generated.ts"
+  ],
+  "managedFiles": ["package.json", "package-lock.json"]
+}

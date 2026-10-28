@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak przebiega praca według procesu superpowers i gdzie leżą jej dokumenty;
 - których plików nie edytuje się ręcznie i co uruchomić po zmianie, od której zależą.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: 25adbb8, 2026-10-28
 
 Źródła:
 
@@ -38,18 +38,18 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 - `src/shared/config/project.ts`
 - `src/modules.generated.ts`
 - `prisma/schema/organizations.prisma`
-- `packages/cli/src/bin.ts`
-- `packages/cli/src/generate/index.ts`
-- `packages/cli/src/generate/registry.ts`
+- `kit/cli/src/bin.ts`
+- `kit/cli/src/generate/index.ts`
+- `kit/cli/src/generate/registry.ts`
 - `docs/superpowers/`
 - `node_modules/next/dist/server/lib/generate-agent-files.js`, `node_modules/next/dist/server/lib/app-info-log.js`, `node_modules/next/dist/server/lib/start-server.js` (Next.js 16.3.8)
 - dokumentacja Claude Code: [hooki](https://code.claude.com/docs/en/hooks) i [pliki instrukcji](https://code.claude.com/docs/en/memory)
 
-Ten plik opisuje pracę wokół kodu: dokąd trafia zmiana, przez jakie kontrole przechodzi, jak współpracować z agentami AI i jak wygląda proces, w którym powstaje kit. Dotyczy repozytorium kitu i projektów klientów, bo projekt powstaje z kopii repozytorium kitu i ma te same pliki konfiguracji ([D01](decyzje.md#d01), [D02](decyzje.md#d02)). Reguły są w [CLAUDE.md](../CLAUDE.md) i [AGENTS.md](../AGENTS.md). Ten plik je wyjaśnia i podaje powody, ale ich nie przepisuje. Dodaje tylko kilka praktyk oznaczonych słowem **Zalecenie**: tych `AGENTS.md` nie zawiera i nic ich nie sprawdza.
+Ten plik opisuje pracę wokół kodu: dokąd trafia zmiana, przez jakie kontrole przechodzi, jak współpracować z agentami AI i jak wygląda proces, w którym powstaje kit. Dotyczy repozytorium kitu i projektów klientów, bo projekt powstaje z kitu (`wa create`) i ma te same pliki konfiguracji ([D01](decyzje.md#d01), [D02](decyzje.md#d02)). Reguły są w [CLAUDE.md](../CLAUDE.md) i [AGENTS.md](../AGENTS.md). Ten plik je wyjaśnia i podaje powody, ale ich nie przepisuje. Dodaje tylko kilka praktyk oznaczonych słowem **Zalecenie**: tych `AGENTS.md` nie zawiera i nic ich nie sprawdza.
 
 Pojęcia używane w tym pliku:
 
-- **Repozytorium kitu**: `webamigos/wa-kit`, z którego pochodzi kod rdzenia. **Projekt** (projekt klienta): repozytorium aplikacji klienta, które powstało z kopii kitu. Moduł, feature, rejestr modułów i **szew** (miejsce, przez które rdzeń dowiaduje się o modułach: plik generowany albo region) definiuje [decyzje.md](decyzje.md#pojęcia).
+- **Repozytorium kitu**: `webamigos/wa-kit`, z którego pochodzi kod rdzenia. **Projekt** (projekt klienta): repozytorium aplikacji klienta, które powstało z kitu komendą `wa create`. Moduł, feature, rejestr modułów i **szew** (miejsce, przez które rdzeń dowiaduje się o modułach: plik generowany albo region) definiuje [decyzje.md](decyzje.md#pojęcia).
 - **Design doc, plan 1, handoff, ruling**: design doc to [główny dokument projektowy kitu](superpowers/specs/2026-10-26-wa-kit-design.md), plan 1 to [plan budowy rdzenia](superpowers/plans/2026-10-26-wa-kit-plan-1-core.md). Handoff to notatka przekazania pracy między sesjami, a ruling to decyzja, którą prowadzący wykonanie planu podjął sam, gdy plan czegoś nie rozstrzygał. Rulingi planu 1 są w [handoffie planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md).
 - **Pull request do kitu**: propozycja zmiany do gałęzi `main` repozytorium kitu. Tylko tą drogą kod wraca z projektu do kitu.
 - **Agent AI**: narzędzie, które na polecenie samo czyta i zmienia kod, na przykład Claude Code, Codex albo Cursor. **Subagent** to osobna sesja agenta z własnym kontekstem, uruchomiona przez główną sesję. **Orkiestrator** to główna sesja, która prowadzi plan i uruchamia subagentów ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md)).
@@ -74,7 +74,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | Edycja pliku przez agenta w Claude Code | Hooki `block-comments.mjs` i `protect-tests.mjs`. | Nowy komentarz w kodzie; zmianę testu w fazie implementacji. | Zapisu przez powłokę, zmian w innych narzędziach i w edytorze. | [Hooki Claude Code](#hooki) |
 | `git commit` | husky: lint-staged i commitlint. | Błąd ESLint, którego `--fix` nie naprawi; wiadomość niezgodną z Conventional Commits. | Plików spoza commitu. `git commit --no-verify` pomija oba hooki. | [Commity](#commity) |
-| Przed oddaniem pracy | `npm run verify`. | Błędy ESLint, typów, testów jednostkowych, buildu, testów CLI i hooków. | Testów integracyjnych, e2e i mutacyjnych; nieaktualnych plików generowanych. | [Bramka](#verify) |
+| Przed oddaniem pracy | `npm run verify`. | Błędy ESLint, typów, testów jednostkowych, buildu, testów pakietów workspace i hooków. | Testów integracyjnych, e2e i mutacyjnych; nieaktualnych plików generowanych. | [Bramka](#verify) |
 | Pull request i push do `main` | Workflowy z `.github/workflows/`, CodeRabbit. | To samo co `verify`, a do tego nieaktualne pliki generowane, testy integracyjne i e2e, sekrety w commitach (testy mutacyjne tylko lokalnie albo ręcznie); przy zmianie zależności także podatności, a przy zmianie workflowów ich błędy. | Wiadomości commitów i formatowania Prettierem. | [10-wdrozenie.md](10-wdrozenie.md#ci) |
 | Recenzja | Człowiek. | Reguły, których nie pilnuje żadne narzędzie. | — | [Jak czytać wpis](decyzje.md#jak-czytać-wpis) |
 
@@ -86,7 +86,7 @@ Dlatego regułę, którą pilnuje tylko hook Claude Code albo hook git, sprawdza
 
 ### Dlaczego poprawki wracają do kitu
 
-Projekt dostaje kod kitu jako zwykły kod, a nie jako zależność, i może go zmieniać jak własny ([D01](decyzje.md#d01)). Żadne narzędzie nie przenosi zmian między kitem a projektem: CLI kitu ma jedną komendę, `generate` (`packages/cli/src/bin.ts`). Pole `modules.core.files` w `.wa/kit.json`, w którym design doc przewiduje hashe skopiowanych plików, jest puste, więc to, które pliki kitu zmieniły się w projekcie, widać tylko w historii git projektu. Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
+Projekt dostaje kod kitu jako zwykły kod, a nie jako zależność, i może go zmieniać jak własny ([D01](decyzje.md#d01)). Żadne narzędzie nie przenosi poprawek z kitu do istniejącego projektu: CLI (`kit/cli/src/bin.ts`) ma `create`, `add`, `remove`, `list`, `generate` i `kit sync`. Pole `files` modułów w `.wa/kit.json` projektu przechowuje hashe skopiowanych plików, więc `wa remove` wie, które pliki zmieniono lokalnie, ale zmiany kitu po utworzeniu projektu trzeba przenieść ręcznie. Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
 
 Z tego wynika reguła z [CLAUDE.md](../CLAUDE.md#pochodzenie-kodu) i [AGENTS.md](../AGENTS.md#co-to-jest): zmiany specyficzne dla projektu robisz w projekcie, a poprawki, które przydadzą się innym projektom, wysyłasz jako pull request do `webamigos/wa-kit`. Powody:
 
@@ -102,14 +102,14 @@ O miejscu decyduje pytanie: czy ta zmiana byłaby poprawna w każdym projekcie n
 | Funkcja klienta: feature w `src/features/<x>/`, jego plik schematu w `prisma/schema/`, wpis w `.wa/kit.json`, strony. | Projekt | Dotyczy jednego klienta. Przykład: feature `notes` z [09-nowy-modul.md](09-nowy-modul.md). |
 | Nazwa i slug projektu w `src/shared/config/project.ts`. | Projekt | Każdy projekt ma własne ([05-moduly-rdzenia.md](05-moduly-rdzenia.md#project)). |
 | Migracje w `prisma/migrations/`. | Projekt | Historia migracji zależy od modułów projektu, a kit migracji nie commituje ([D13](decyzje.md#d13)). |
-| Trzy testy rdzenia z listą feature, rozszerzone o feature projektu. | Projekt | Lista zależy od feature projektu ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)). |
+| Wpis funkcji klienta w `projectModules` w `.wa/kit.json`. | Projekt | Dotyczy jednego klienta; testów rdzenia to nie zmienia ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)). |
 | Błąd w kodzie rdzenia: guard, komenda, query, komponent, walidacja zmiennych środowiskowych. | Kit, a w projekcie od razu, jeśli poprawka jest pilna. | Ten sam kod jest w każdym projekcie. |
 | Wspólny tekst w `src/app/messages/`, nowy język. | Kit | Teksty rdzenia i lista języków w generatorze to kod kitu ([07-i18n-mail-env.md](07-i18n-mail-env.md#dodawanie-jezyka)). |
-| Zmiana generatora albo CLI w `packages/cli/`. | Kit | Wynik generatora ma być taki sam w każdym projekcie. |
+| Zmiana generatora albo CLI w `kit/cli/`. | Kit | Wynik generatora ma być taki sam w każdym projekcie. |
 | Reguły dla agentów (`AGENTS.md`, `CLAUDE.md`), hooki i agenci w `.claude/`, workflowy CI, konfiguracja husky, lint-staged i commitlint. | Kit | Wspólny sposób pracy. Zmiana w jednym projekcie rozjeżdża go z pozostałymi. |
 | Funkcja klienta potrzebuje od rdzenia czegoś, czego rdzeń nie daje, na przykład szwu, przez który moduł dopisałby się do pliku rdzenia. | Kit, a w projekcie lokalna zmiana rdzenia do czasu poprawki w kicie. | Moduł nie edytuje rdzenia ([D03](decyzje.md#d03)), więc brakujący szew dodaje się w kicie. |
 
-**Zalecenie.** Poprawkę pliku kitu, która ma wrócić do kitu (wiersze „Kit” w tabeli), zrób w projekcie w osobnym commicie, który zawiera tylko tę poprawkę. Taki commit łatwo przenieść do kitu ([krok 2](#pull-request)). Nie dotyczy to zmian rdzenia, które należą do funkcji projektu, na przykład trzech testów rdzenia rozszerzonych o feature: te commitujesz razem z feature, jak w [kroku 9 tutorialu](09b-implementacja-i-bramki.md#krok-9).
+**Zalecenie.** Poprawkę pliku kitu, która ma wrócić do kitu (wiersze „Kit” w tabeli), zrób w projekcie w osobnym commicie, który zawiera tylko tę poprawkę. Taki commit łatwo przenieść do kitu ([krok 2](#pull-request)). Nie dotyczy to zmian rdzenia, które należą do funkcji projektu, na przykład wpisu feature w `projectModules` i plików generowanych: te commitujesz razem z feature, jak w [kroku 9 tutorialu](09b-implementacja-i-bramki.md#krok-9).
 
 <a id="pull-request"></a>
 
@@ -156,12 +156,12 @@ Poprawkę przenosisz ręcznie. Projekt i kit mają ten sam układ katalogów ([D
 
 Moduł kitu to kod, który ma trafić do wielu projektów: wpis w `.wa/kit.json` z manifestem i feature, które ten wpis obejmuje. W kicie jest jeden moduł, `core`. Nowy moduł powstaje w repozytorium kitu, przez pull request, tymi samymi krokami co funkcja klienta w [09-nowy-modul.md](09-nowy-modul.md) i [09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md). Różnice:
 
-- Wpis w `.wa/kit.json` kitu dostaje własną nazwę modułu obok `core`. Funkcja klienta też dostaje własny wpis ([krok 3 tutorialu](09-nowy-modul.md#krok-3)), ale w projekcie to obejście ([znane-ograniczenia.md](znane-ograniczenia.md#modul-projektu)). W kicie wpis jest właściwym miejscem modułu. Pola manifestu opisuje [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#referencja-manifest).
+- Wpis w `.wa/kit.json` kitu dostaje własną nazwę modułu obok `core`. Funkcja klienta dostaje wpis w osobnej sekcji `projectModules` ([krok 3 tutorialu](09-nowy-modul.md#krok-3)), a nie w `modules`. W kicie wpis w `modules` jest właściwym miejscem modułu. Pola manifestu opisuje [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#referencja-manifest).
 - Migracji nie commitujesz, bo kit ich nie commituje ([D13](decyzje.md#d13)).
-- Trzy testy rdzenia z listą feature zmieniasz w tym samym pull requeście, bo każdy nowy wpis w rejestrze je łamie ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)). W kicie te testy są kodem kitu. Zakaz z 09b, żeby nie zmieniać ich w repozytorium kitu, dotyczy funkcji klienta, takiej jak `notes`. Ten punkt to wniosek z działania testów: dodania modułu kitu nie przechodzono.
+- Testy rdzenia się nie zmieniają: porównują rejestr tylko z pięcioma modułami rdzenia (`src/test/core-modules.ts`), a spójność całego rejestru, także nowego modułu kitu, sprawdza `src/shared/lib/modules/__tests__/registry-consistency.test.ts` ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)).
 - Decyzję, która obowiązuje w kodzie modułu, dopisujesz do [decyzje.md](decyzje.md#statusy-i-numeracja).
 
-Narzędzia, które dodaje moduł kitu do istniejącego projektu, nie ma ([README.md](README.md)).
+Moduł kitu dodajesz do istniejącego projektu komendą `wa add` ([kit/README.md](../kit/README.md)).
 
 <a id="commity"></a>
 
@@ -254,17 +254,17 @@ Konfiguracja lint-staged:
 | `npm run typecheck` | `tsc --noEmit` | Typy aplikacji. |
 | `npm test` | `vitest run` | Testy jednostkowe i komponentowe, w tym test architektury ([D24](decyzje.md#d24)). |
 | `npm run build` | `next build` | Build produkcyjny. |
-| `turbo run test typecheck` | Skrypty `test` i `typecheck` z `packages/cli/package.json`. | Testy i typy CLI. Zadania w `turbo.json` mają `dependsOn: ["^build"]`, więc turbo najpierw buduje zależności workspace. |
+| `turbo run test typecheck` | Skrypty `test` i `typecheck` pakietów w workspace `packages/*`. | Obecnie nic, bo katalog `packages/` jest pusty (CLI leży w `kit/cli` i ma własną bramkę). Zadania w `turbo.json` mają `dependsOn: ["^build"]`. |
 | `npm run test:hooks` | `node --test` na plikach `.claude/hooks/*.test.mjs`. | Hooki Claude Code ([Hooki](#hooki)). |
 
 Kroki są połączone `&&`, więc łańcuch kończy się na pierwszym błędzie i kolejne kroki się nie wykonują. `verify` nie uruchamia testów integracyjnych, e2e ani mutacyjnych, bo wymagają bazy albo przeglądarki albo trwają długo ([08-testy.md](08-testy.md#rodzaje)). Nie sprawdza też aktualności plików generowanych, formatowania ani wiadomości commitów. Job `verify` w CI przed `npm run verify` uruchamia generator i porównuje wynik z repozytorium. **Zalecenie:** zrób to samo lokalnie i sprawdź, że generator wypisuje `Bez zmian`:
 
 ```bash
-npm run build -w @wa-kit/cli && npm run wa -- generate
+npm run wa -- generate
 npm run verify
 ```
 
-Czasy przebiegów są w [08-testy.md](08-testy.md#czas). Pierwszy `verify` po dodaniu feature w projekcie kończy się błędem trzech testów rdzenia ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)).
+Czasy przebiegów są w [08-testy.md](08-testy.md#czas). Pierwszy `verify` po dodaniu feature w projekcie przechodzi bez zmian w testach rdzenia ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)).
 
 <a id="agenci-ai"></a>
 
@@ -496,7 +496,7 @@ Pliki rejestru rozpoznasz po pierwszej linii:
 `src/modules.generated.ts`
 
 ```ts
-// generated by wa — nie edytuj. Uruchom: npx wa generate
+// generated by wa — nie edytuj. Uruchom: npm run wa -- generate
 ```
 
 Region to fragment pliku między liniami z markerami, na przykład w modelu `Organization`:
@@ -533,14 +533,14 @@ Co zrobić po zmianie, od której zależą:
 2. Z katalogu głównego repozytorium uruchom generator:
 
    ```bash
-   npm run build -w @wa-kit/cli && npm run wa -- generate
+   npm run wa -- generate
    ```
 
    Wynik to `Bez zmian` albo po jednej linii `zmieniono <plik>` dla każdego zapisanego pliku.
 3. Zacommituj zmienione pliki razem ze zmianą, która je wywołała.
 
-Nagłówek pliku rejestru podaje `npx wa generate`. Używaj komendy z `AGENTS.md`, podanej wyżej: `npx wa generate` nie buduje CLI, a katalog `packages/cli/dist` jest w `.gitignore`, więc na świeżym klonie CLI nie istnieje ([D04](decyzje.md#d04)).
+Nagłówek pliku rejestru podaje `npm run wa -- generate`. Komenda działa na świeżym klonie, bo bundel CLI `.wa/bin/wa.mjs` jest w repozytorium ([D04](decyzje.md#d04)).
 
-Gdy generator nie daje tego, czego potrzebujesz, na przykład nowego rodzaju szwu, zmiana dotyczy `packages/cli/src/generate/`, czyli kodu kitu, i idzie przez [pull request do kitu](#pull-request).
+Gdy generator nie daje tego, czego potrzebujesz, na przykład nowego rodzaju szwu, zmiana dotyczy `kit/cli/src/generate/`, czyli kodu kitu, i idzie przez [pull request do kitu](#pull-request).
 
 Klient Prismy w `src/generated/prisma/` to inny plik generowany: tworzy go `prisma generate` (skrypt `postinstall` i `npm run db:generate`), a katalog jest w `.gitignore`. Po zmianie schematu odśwież go komendą, zamiast edytować ([03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#schemat)).

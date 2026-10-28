@@ -1,0 +1,12 @@
+{
+  "name": "wa-app",
+  "version": "9.9.9",
+  "private": true,
+  "scripts": {
+    "dev": "next dev"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {}
+}

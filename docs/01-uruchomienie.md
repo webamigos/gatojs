@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - co zmieniają flagi `MULTI_ORG`, `AUTH_PUBLIC_SIGNUP` i `ADMIN_IMPERSONATION`;
 - jak rozpoznać i naprawić typowe problemy, w tym błędy walidacji zmiennych środowiskowych.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: 25adbb8, 2026-10-28
 
 Źródła:
 
@@ -122,7 +122,7 @@ Komendy uruchamiasz w katalogu głównym repozytorium, w tej kolejności. Plik `
    npx prisma migrate dev --name init
    ```
 
-   Prisma czyta `DATABASE_URL` z `.env`, tworzy migrację `init` w `prisma/migrations/` i stosuje ją do bazy `wa_app`. Kit nie dostarcza migracji, a katalog `prisma/migrations/` jest w `.gitignore`, więc każda kopia repozytorium tworzy własną migrację. Jak obchodzić się z migracjami w projekcie, opisuje [03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#migracje).
+   Prisma czyta `DATABASE_URL` z `.env`, tworzy migrację `init` w `prisma/migrations/` i stosuje ją do bazy `wa_app`. Kit nie dostarcza migracji, a repozytorium kitu ignoruje katalog `prisma/migrations/` (plik `prisma/migrations/.gitignore`, którego `wa create` nie kopiuje), więc każda kopia repozytorium kitu tworzy własną migrację. Jak obchodzić się z migracjami w projekcie, opisuje [03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#migracje).
 
    Pierwsza linia wyniku, `◇ injected env (N) from .env.local,.env // tip: …`, to komunikat biblioteki dotenv, a nie błąd ([Plik `.env`](#plik-env)). Na pustej bazie wynik kończy się tak (`<data>` to znacznik czasu, na przykład `20261027212719`):
 
@@ -185,7 +185,7 @@ Nazwy usług (`db` i `mail`) zwraca `docker compose config --services`. Używaj 
 
 - Porty są zapisane jako `"${DB_PORT:-5432}:5432"`. Lewa strona to port na komputerze: wartość zmiennej albo domyślna. Prawa to port w kontenerze, który się nie zmienia.
 - Dane Postgresa leżą w katalogu `volumes/postgres` (w `.gitignore`). `docker compose down` usuwa kontenery, ale ten katalog zostaje, więc baza przetrwa restart.
-- Na końcu pliku jest region `wa:services:start` / `wa:services:end` na usługi modułów. Wypełnia go generator kitu (`npm run build -w @wa-kit/cli && npm run wa -- generate`, opis w [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#regiony)), więc nie edytuj go ręcznie.
+- Na końcu pliku jest region `wa:services:start` / `wa:services:end` na usługi modułów. Wypełnia go generator kitu (`npm run wa -- generate`, opis w [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#regiony)), więc nie edytuj go ręcznie.
 
 <a id="zmiana-portow"></a>
 

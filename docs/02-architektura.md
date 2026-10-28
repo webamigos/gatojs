@@ -7,7 +7,7 @@ Po przeczytaniu będziesz wiedzieć:
 - gdzie w repozytorium leży każdy rodzaj kodu i z czego składa się feature;
 - jak żądanie przechodzi od przeglądarki do bazy i w których miejscach kod sprawdza sesję, uprawnienia i tryb serwisowy.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: d416599, 2026-10-28
 
 Źródła:
 
@@ -65,7 +65,7 @@ Repozytorium wa-kit (dalej: kit) to działająca aplikacja Next.js 16, z której
 - **Guard**: funkcja, która sprawdza sesję albo uprawnienia, zanim kod sięgnie do danych, na przykład `getOrgContext()` albo `requireModuleAccess()`.
 - **Kontekst organizacji** (`OrgContext`): wynik `getOrgContext()`, czyli `{ userId, organizationId, orgRole, userRole, serviceMode }` dla zalogowanego użytkownika i jego aktywnej organizacji. Szczegóły: [03-dane-i-organizacje.md](03-dane-i-organizacje.md).
 
-CLI kitu ma jedną komendę, `generate`. W kodzie nie ma narzędzia, które tworzy projekt z kitu albo przenosi poprawki między kitem a projektem: projekt powstaje z kopii repozytorium ([D02](decyzje.md#d02)). Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
+CLI kitu (`wa`) tworzy projekt z kitu (`create`), dodaje i usuwa moduły (`add`, `remove`), wypisuje je (`list`) i odświeża pliki generowane (`generate`). Opisuje go [kit/README.md](../kit/README.md). Nie przenosi poprawek między kitem a projektem: te wysyła się jako pull request ([D02](decyzje.md#d02)). Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
 
 <a id="zasady-kitu"></a>
 
@@ -142,7 +142,7 @@ flowchart LR
 | `prisma/schema/` | Schemat w wielu plikach: `base.prisma` (generator i źródło danych), `auth.prisma`, `organizations.prisma`. | [03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#schemat) |
 | `scripts/` | `admin-create.ts` (`npm run admin:create`) i `mutation-gate.ts` (`npm run test:mutation:gate`), logika obu w `lib/`. | [04-auth-i-role.md](04-auth-i-role.md), [08-testy.md](08-testy.md), [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#bramka) |
 | `e2e/` | Testy Playwright i ich przygotowanie (`global-setup.ts`). | [08-testy.md](08-testy.md) |
-| `packages/cli/` | CLI `wa`, workspace npm `@wa-kit/cli`. | [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#wa-generate) |
+| `kit/cli/` | CLI `wa` (źródła, testy i bundel `.wa/bin/wa.mjs` powstaje przez `npm run build --prefix kit/cli`). | [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#wa-generate) |
 | `.wa/kit.json` | Stan kitu: moduły i ich manifesty. | [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#kit-json) |
 | `.claude/` | Konfiguracja Claude Code: hooki w `hooks/`, agenci testów w `agents/`, `settings.json`. | [11-praca-z-kitem.md](11-praca-z-kitem.md) |
 | `.github/workflows/` | CI: `ci.yml`, `e2e.yml`, `mutation.yml`, `security-audit.yml`, `security-secret-scan.yml`, `workflow-lint.yml`. | [08-testy.md](08-testy.md), [10-wdrozenie.md](10-wdrozenie.md), [11-praca-z-kitem.md](11-praca-z-kitem.md) |

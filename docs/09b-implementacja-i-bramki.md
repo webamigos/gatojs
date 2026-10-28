@@ -3,11 +3,11 @@
 Po przeczytaniu będziesz wiedzieć:
 
 - jak napisać query, komendę, komponent i stronę feature tak, żeby testy z części pierwszej przeszły;
-- dlaczego `npm run verify` po dodaniu feature wymaga zmiany trzech testów rdzenia i jak ją zrobić;
+- dlaczego `npm run verify` po dodaniu feature nie wymaga zmiany testów rdzenia i co pilnuje spójności rejestru;
 - jak uruchomić testy integracyjne i Strykera dla nowego feature i jak czytać ich wynik;
 - co zacommitować i jak dodać kolejną funkcję do feature, który już jest w rejestrze.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: d416599, 2026-10-28
 
 Źródła:
 
@@ -24,9 +24,8 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 - `src/features/organizations/services/queries/organization-queries.ts`
 - `src/app/[locale]/(app)/dashboard/page.tsx`
 - `src/__tests__/server-entrypoints-guard.test.ts`
-- `src/shared/lib/auth/__tests__/access-matrix.test.ts`
-- `src/shared/lib/modules/__tests__/nav.test.ts`
-- `src/shared/components/__tests__/app-sidebar.test.tsx`
+- `src/shared/lib/modules/__tests__/registry-consistency.test.ts`
+- `src/test/core-modules.ts`
 - `src/test/integration/database.ts`
 - `stryker.config.json`
 - `mutation-gate.json`
@@ -262,99 +261,17 @@ Po implementacji testy jednostkowe dają `Tests  20 passed (20)`, a testy izolac
 
 ### `npm run verify` i testy rdzenia
 
-Pierwszy przebieg `npm run verify` po dodaniu feature kończy się kodem 1. Lint i sprawdzanie typów przechodzą, a `npm test` zgłasza `Test Files  3 failed | 53 passed (56)` i `Tests  27 failed | 1199 passed (1226)`. `verify` to łańcuch komend połączonych `&&`, więc zatrzymuje się na `npm test`. Build, testy CLI i testy hooków uruchomione w przebiegu osobno przeszły. Wszystkie błędy testów pochodzą z trzech testów rdzenia, które porównują rejestr z listą wpisaną na stałe:
+Dodanie feature `notes` nie wymaga zmiany żadnego istniejącego testu. Testy rdzenia, które porównują rejestr z listą wpisaną na stałe (`access-matrix.test.ts`, `nav.test.ts`, `app-sidebar.test.tsx`), biorą z rejestru tylko moduły rdzenia: `src/test/core-modules.ts` eksportuje `CORE_MODULE_KEYS` (`account`, `auth`, `dashboard`, `organizations`, `users`) i `coreClientModules`, czyli `clientModules` przefiltrowany do tych kluczy. Moduły kitu i moduły projektu z `projectModules` nie wchodzą do literałowej macierzy dostępu ani do list adresów menu.
 
-| Plik testu | Co sprawdza | Błąd po dodaniu `notes` |
-| --- | --- | --- |
-| `src/shared/lib/auth/__tests__/access-matrix.test.ts` | Rejestr zawiera dokładnie moduły z macierzy dostępu, a menu każdej roli pokazuje dokładnie pozycje z dostępem (decyzja 3 z [macierzy dostępu](04-auth-i-role.md#macierz-dostepu)). | `rejestr zawiera dokładnie 5 modułów z macierzy`: `expected [ Array(6) ] to deeply equal [ Array(5) ]`; 22 przypadki nawigacji z dodatkową pozycją `{ href: "/notes", labelPath: "notes.nav" }`. |
-| `src/shared/lib/modules/__tests__/nav.test.ts` | Listy adresów w menu dla membera, admina i superadmina. | 3 testy z blokiem `getNavEntries (rejestr generowany)`. |
-| `src/shared/components/__tests__/app-sidebar.test.tsx` | Etykiety menu membera. | Test `member widzi pozycje z rejestru z etykietami z namespace modułu`. |
+Spójność całego rejestru, razem z `notes`, sprawdza `src/shared/lib/modules/__tests__/registry-consistency.test.ts`. Dla każdego modułu z `clientModules` wymaga on:
 
-Feature bez pozycji w menu (`nav: []`) nie omija problemu: test „rejestr zawiera dokładnie 5 modułów” zawodzi przy każdym nowym wpisie w rejestrze.
+- unikalnych kluczy modułów i unikalnych `href` pozycji menu, zaczynających się od `/`;
+- dla każdego języka z `locales` i każdej pozycji menu: loadera tłumaczeń modułu w `moduleMessages` oraz niepustego napisu pod `labelKey` (i `multiOrgLabelKey`, jeśli jest);
+- dla 24 kombinacji ról globalnych, ról w organizacji i `MULTI_ORG`: `href` modułu jest w `getNavEntries(context)` wtedy i tylko wtedy, gdy `canAccessModule(moduleDef, context)`.
 
-> **Uwaga: zmiana plików modułu `core`.** Te trzy pliki należą do rdzenia (wzorzec `src/shared/**` modułu `core`). Zasada „moduł nie edytuje plików rdzenia” ([D03](decyzje.md#d03)) chroni moduły kitu przed konfliktami przy aktualizacji, a kod kitu jest w projekcie zwykłym kodem, który projekt może zmieniać ([D01](decyzje.md#d01)). Zmiana testów rdzenia w projekcie łamie jednak tę zasadę i przy przyszłej aktualizacji kitu może dać konflikt w tych plikach. Rób ją tylko w projekcie klienta, nie w repozytorium kitu. Opis ograniczenia: [znane-ograniczenia.md](znane-ograniczenia.md#modul-projektu).
+To test spójności danych rejestru, a nie pokrycie reguł dostępu. Reguły dla modułów rdzenia pokrywa literałowa macierz z [macierzy dostępu](04-auth-i-role.md#macierz-dostepu). Reguły własnej funkcji, na przykład zawężenie `roles` albo `adminOnly` w `module.ts`, pokrywasz własnym testem obok feature, z oczekiwanym wynikiem wpisanym literałem.
 
-Dopisz `notes` do trzech testów. Wiersze macierzy wypełniasz tak, jak działa `canAccessModule` dla definicji bez ograniczeń ról, czyli tak samo jak wiersz `dashboard`: każda rola w organizacji ma dostęp, a kolumna „bez członkostwa” zależy od roli globalnej ([Macierz dostępu](04-auth-i-role.md#macierz-dostepu)).
-
-`src/shared/lib/auth/__tests__/access-matrix.test.ts`
-
-```ts
-type ModuleKey =
-  "auth" | "organizations" | "dashboard" | "account" | "users" | "notes";
-// …
-    notes: {
-      user: {
-        owner: OK,
-        admin: OK,
-        member: OK,
-        none: REDIRECT_NO_ORGANIZATION,
-      },
-      admin: {
-        owner: OK,
-        admin: OK,
-        member: OK,
-        none: OK_GLOBAL_ADMIN_REDIRECTED_EARLIER,
-      },
-      superadmin: {
-        owner: OK,
-        admin: OK,
-        member: OK,
-        none: OK_GLOBAL_ADMIN_REDIRECTED_EARLIER,
-      },
-    },
-// …
-const DASHBOARD = { href: "/dashboard", labelPath: "dashboard.nav" };
-const NOTES = { href: "/notes", labelPath: "notes.nav" };
-// …
-  single: {
-    user: {
-      owner: [DASHBOARD, NOTES, ACCOUNT],
-// …
-  it("rejestr zawiera dokładnie 6 modułów z macierzy", () => {
-    expect(clientModules.map((moduleDef) => moduleDef.key).sort()).toEqual([
-      "account",
-      "auth",
-      "dashboard",
-      "notes",
-      "organizations",
-      "users",
-    ]);
-  });
-
-  it("macierz obejmuje 144 komórki: 6 modułów × 3 role globalne × 4 role w organizacji × 2 tryby", () => {
-    expect(moduleCases).toHaveLength(144);
-  });
-```
-
-Pełna lista zmian w tym pliku: typ `ModuleKey`, wiersz `notes` w obu trybach stałej `MATRIX` (`single` i `multi`, te same wartości), stała `NOTES`, `NOTES` za `DASHBOARD` w każdej niepustej liście stałej `NAV` (22 listy, kolejność według `order`), `"notes"` w `MODULE_KEYS` i oba testy liczności.
-
-`src/shared/lib/modules/__tests__/nav.test.ts`
-
-```ts
-  it("member widzi dashboard, notatki i konto, w kolejności order, bez użytkowników", () => {
-    expect(getNavEntries(member).map((entry) => entry.href)).toEqual([
-      "/dashboard",
-      "/notes",
-      "/account",
-    ]);
-  });
-```
-
-W dwóch pozostałych testach bloku `getNavEntries (rejestr generowany)` dopisz `"/notes"` za `"/dashboard"`. Test paska bocznego potrzebuje tekstów feature, bo sprawdza etykiety:
-
-`src/shared/components/__tests__/app-sidebar.test.tsx`
-
-```tsx
-import dashboardPl from "@/features/dashboard/i18n/pl.json";
-import notesPl from "@/features/notes/i18n/pl.json";
-// …
-  dashboard: dashboardPl,
-  notes: notesPl,
-// …
-    expect(labels).toEqual(["Dashboard", "Notatki", "Konto"]);
-```
-
-Wynik `npm run verify` po zmianie: `Test Files  56 passed (56)`, `Tests  1250 passed (1250)`, build i testy CLI zielone, łącznie około 42 sekund. Każda późniejsza zmiana `nav`, `roles`, `adminOnly`, `multiOrgRoles` albo `public` w `module.ts` feature wymaga takiej samej poprawki macierzy.
+Brak pozycji w tłumaczeniach albo powtórzony `href` pokaże `registry-consistency.test.ts` z nazwą modułu w komunikacie. Pierwszy przebieg `npm run verify` po dodaniu feature przechodzi bez poprawek w testach rdzenia.
 
 <a id="krok-8-integracja"></a>
 
@@ -448,9 +365,6 @@ A  src/features/notes/services/commands/create-note-command.ts
 A  src/features/notes/services/queries/list-notes-query.ts
 M  src/modules.client.generated.ts
 M  src/modules.generated.ts
-M  src/shared/components/__tests__/app-sidebar.test.tsx
-M  src/shared/lib/auth/__tests__/access-matrix.test.ts
-M  src/shared/lib/modules/__tests__/nav.test.ts
 ```
 
 Znacznik czasu w nazwie migracji będzie u Ciebie inny. Jeśli `next dev` uruchamiał agent AI, na liście jest też `M  AGENTS.md`: cofnij go przez `git restore --staged --worktree AGENTS.md` (pułapka wyżej).
@@ -463,13 +377,13 @@ Zacommituj wszystko razem: pliki generowane i migracja należą do zmiany, któr
 
 Ta sekcja dotyczy zmiany w feature, który już ma wpis w `.wa/kit.json` i definicję modułu, na przykład usuwania notatek w feature `notes`. Nowego wpisu nie dodajesz, ale istniejący czasem zmieniasz (nowa relacja zwrotna, zmienna, wzorzec pliku).
 
-1. **Generator po nowym pliku z listy albo po zmianie wpisu.** Uruchom `npm run build -w @wa-kit/cli && npm run wa -- generate` wtedy, gdy w feature dochodzi plik `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts` albo `i18n/<locale>.json`, albo gdy zmieniasz wpis w `.wa/kit.json` (`schemaRelations`, `env`, `compose`), bo z niego generator wypełnia regiony ([Uruchomienie](02b-rejestr-i-generator.md#uruchomienie)). Nowa komenda, query, komponent, strona albo klucz w istniejącym pliku tłumaczeń generatora nie wymagają, bo rejestr importuje pliki, a nie kopiuje ich treść.
+1. **Generator po nowym pliku z listy albo po zmianie wpisu.** Uruchom `npm run wa -- generate` wtedy, gdy w feature dochodzi plik `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts` albo `i18n/<locale>.json`, albo gdy zmieniasz wpis w `.wa/kit.json` (`schemaRelations`, `env`, `compose`), bo z niego generator wypełnia regiony ([Uruchomienie](02b-rejestr-i-generator.md#uruchomienie)). Nowa komenda, query, komponent, strona albo klucz w istniejącym pliku tłumaczeń generatora nie wymagają, bo rejestr importuje pliki, a nie kopiuje ich treść.
 2. **Plan i testy przed kodem**, jak w [kroku 6](09-nowy-modul.md#krok-6): zachowania z literałami, mutacje do zabicia, `test-writer`, czerwony przebieg z właściwego powodu.
 3. **Komenda według [kolejności z 06](06-wzorce-kodu.md#kolejnosc).** Gdy komenda zmienia albo usuwa rekord po `id` z wejścia, warunek ma postać `{ id, organizationId }`, bo samo `id` może wskazywać rekord innej organizacji ([Filtr `organizationId`](03-dane-i-organizacje.md#filtr-organizationid)). Reguła węższa niż dostęp do strony, na przykład usuwanie tylko przez ownera, sprawdza `context.orgRole` po `assertServiceModeConfirmed`.
 4. **Test izolacji dla nowej komendy albo query**: zalogowany użytkownik A podaje `id` rekordu organizacji B, komenda odmawia, a rekord B w bazie się nie zmienia ([Jak go zbudować](08-testy.md#izolacja), punkt 4). Dopisz go w istniejącym pliku `*.integration.test.ts` feature.
 5. **Zmiana schematu**: `npx prisma migrate dev --name <nazwa>`, potem `npm run db:generate`, i commit migracji razem ze zmianą ([krok 4](09-nowy-modul.md#krok-4)). Nowa relacja do `User` albo `Organization` wymaga najpierw nowej pozycji w `schemaRelations` istniejącego wpisu i przebiegu generatora. Bez tego Prisma zgłasza brak relacji zwrotnej i podpowiada `prisma format`, którego nie uruchamiaj ([pułapka relacji](09-nowy-modul.md#pulapka-relacji)).
 6. **Nowa strona feature** w `src/app/[locale]/(app)/<trasa>/page.tsx` woła `requireModuleAccess` z kluczem feature. Trasa spoza wzorców `files` wpisu działa, ale dopisz jej wzorzec, żeby zapis własności plików był pełny.
-7. **Zmiana dostępu albo menu w `module.ts`** (`nav`, `roles`, `adminOnly`, `multiOrgRoles`, `public`) zmienia wynik `canAccessModule` i listy menu, więc wymaga poprawki testów rdzenia z [kroku 8](#testy-rdzenia).
+7. **Zmiana dostępu albo menu w `module.ts`** (`nav`, `roles`, `adminOnly`, `multiOrgRoles`, `public`) zmienia wynik `canAccessModule` i listy menu. Testów rdzenia nie poprawiasz: spójność menu z `canAccessModule` dla całego rejestru sprawdza `registry-consistency.test.ts`, a własne reguły dostępu feature pokrywasz własnym testem ([krok 8](#testy-rdzenia)).
 8. **Bramki** jak w [kroku 8](#krok-8): `npm run wa -- generate` bez zmian, `npm run verify`, testy integracyjne i `npm run test:mutation:task` na zmienionych plikach produkcyjnych. Plik sprawdzany tylko testem integracyjnym, jak query, dostanie w tym przebiegu `NoCoverage`, więc jego test izolacji sprawdzasz ręcznie ([Testy integracyjne](#krok-8-integracja)).
 
 Nowy katalog w `src/features/` to zawsze nowy feature i nowy wzorzec w `.wa/kit.json`, więc przechodzi cały tutorial.
@@ -493,7 +407,7 @@ Nowy katalog w `src/features/` to zawsze nowy feature i nowy wzorzec w `.wa/kit.
 | `Error: Failed to resolve import "../create-note-command" from "…". Does the file exist?` | Testy przed kodem bez pustego pliku (`export {};`). | Pusty plik z `export {};` ([krok 6](09-nowy-modul.md#krok-6)). |
 | `TypeError: createNoteCommand is not a function` | Czerwony przebieg z właściwego powodu: brak eksportu. | Implementacja ([krok 7](#krok-7)). |
 | `Error: Invariant: static generation store missing in revalidatePath /notes` w logu testu i wynik „Nie udało się dodać notatki” | Test integracyjny komendy z `revalidatePath` bez mocka `next/cache`. | `vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }))` w teście. |
-| `Test Files  3 failed` z błędami w `access-matrix.test.ts`, `nav.test.ts` i `app-sidebar.test.tsx` | Nowy moduł w rejestrze. | [Testy rdzenia](#testy-rdzenia). |
+| Błąd w `registry-consistency.test.ts` z nazwą modułu | Brak tłumaczenia pozycji menu w jednym z języków, powtórzony `href` albo klucz modułu. | [Testy rdzenia](#testy-rdzenia). |
 | `Final mutation score 66.67 under breaking threshold 75, setting exit code to 1 (failure).` | Przebieg na plikach zadania bez pliku przyrostowego. | Oceń przeżyłe mutanty ([Mutacje](#krok-8-stryker)). |
 | `✓ Generated AGENTS.md for AI agents. …` | `next dev` uruchomione przez agenta AI. | Przed `git add -A`: `git restore AGENTS.md`; po `git add`: `git restore --staged --worktree AGENTS.md`. |
 

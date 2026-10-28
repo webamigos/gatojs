@@ -52,10 +52,10 @@ Zmienne modułów są dopisywane przez `wa generate` w regionie `# wa:modules:st
 ## Komendy
 
 ```bash
-npm run verify        # lint, typecheck, testy, build, testy CLI i hooków
+npm run verify        # lint, typecheck, testy, build, turbo (zadania `test` i `typecheck` w workspace; bez pakietów nic nie robi) oraz testy hooków
 npm test              # Vitest
 npm run test:e2e      # build + Playwright (wymaga docker compose up -d)
-npm run build -w @wa-kit/cli && npm run wa -- generate   # odśwież pliki generowane przez wa
+npm run wa -- generate   # odśwież pliki generowane przez wa
 ```
 
 ### E2E
@@ -82,8 +82,7 @@ npm run test:e2e
 2. Ustaw zmienne: `DATABASE_URL` (referencja do Postgresa), `BETTER_AUTH_SECRET`, `APP_URL`
    (publiczny adres), `RESEND_API_KEY`, `EMAIL_FROM`, `AUTH_PUBLIC_SIGNUP`, `MULTI_ORG`.
 3. Zacommituj katalog `prisma/migrations` — przed każdym wdrożeniem Railway uruchamia `npx prisma migrate deploy`.
-   W wygenerowanym projekcie najpierw usuń linię `prisma/migrations/` z `.gitignore` (kit jej używa, bo sam nie
-   dostarcza migracji), inaczej migracje nie trafią do repozytorium. Healthcheck: `/api/healthcheck`.
+   Healthcheck: `/api/healthcheck`.
 4. Po pierwszym wdrożeniu utwórz administratora:
 
    ```bash
@@ -99,6 +98,19 @@ npm run test:e2e
 
 5. Konta przy przekazaniu aplikacji: Web Amigos dostaje `--role superadmin`, zleceniodawca domyślne `admin`.
    Konta superadmina może zmienić lub usunąć tylko superadmin, więc po okresie wsparcia usuwamy je sami.
+
+## Moduły wa-kit
+
+```bash
+npm run wa -- list                       # zainstalowane moduły i dostępne w kicie
+npm run wa -- add <moduł>                # dodaj moduł z kitu
+npm run wa -- remove <moduł> [--force]   # usuń moduł (--force: także pliki zmienione lokalnie)
+```
+
+- `add` i `list` pobierają kit z repozytorium `webamigos/wa-kit`, więc wymagają dostępu do niego (zalogowany `git`). Źródło można zmienić opcją `--kit <url|ścieżka>` albo zmienną `WA_KIT_SOURCE`: dozwolone są `https://`, `ssh://`, `file://`, `git@` i ścieżka lokalna.
+- `add` i `remove` domyślnie uruchamiają `npm install`; opcja `--no-install` to pomija.
+- Po `add` i `remove` zmienia się schemat bazy: utwórz i zacommituj migrację (`npx prisma migrate dev --name <nazwa>`).
+- Moduły projektu (funkcje napisane w projekcie) są w `projectModules` w `.wa/kit.json`; `remove` ich nie usuwa.
 
 ## wa-kit
 

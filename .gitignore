@@ -7,7 +7,6 @@ coverage/
 build/
 .env*
 !.env.example
-prisma/migrations/
 volumes/
 .superpowers/
 .worktrees/
@@ -23,3 +22,5 @@ playwright-report/
 blob-report/
 reports/
 .stryker-tmp/
+kit/cli/reports/
+kit/cli/.stryker-tmp/

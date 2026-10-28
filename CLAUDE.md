@@ -25,7 +25,7 @@ Zapytania do danych domenowych zawsze przez `getOrgContext()` i filtr `organizat
 ## Pliki generowane
 
 - Nie edytuj `src/modules.generated.ts`, `src/modules.client.generated.ts` ani regionów `wa:*:start/end`.
-  Uruchom `npm run build -w @wa-kit/cli && npm run wa -- generate`.
+  Uruchom `npm run wa -- generate`.
 - Moduł nie edytuje plików rdzenia.
 
 ## Testy

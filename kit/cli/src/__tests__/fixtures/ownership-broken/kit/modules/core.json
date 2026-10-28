@@ -1,0 +1,8 @@
+{
+  "name": "core",
+  "version": "0.0.0",
+  "description": "Rdzen fixture",
+  "files": ["package.json", "src/shared/**", "other/**"],
+  "dependencies": { "zod": "^3.0.0" },
+  "devDependencies": { "vitest": "^4.0.0" }
+}

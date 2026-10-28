@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - czego potrzebują testy e2e i co robią przed pierwszym testem;
 - które testy działają w `npm run verify`, a które tylko w osobnych jobach CI.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: 25adbb8, 2026-10-28
 
 Źródła:
 
@@ -25,7 +25,7 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 - `src/features/organizations/services/__tests__/organization-isolation.integration.test.ts`
 - `playwright.config.ts`
 - `e2e/`
-- `packages/cli/vitest.config.ts`
+- `kit/cli/vitest.config.ts`
 - `turbo.json`
 - `.claude/hooks/block-comments.test.mjs`
 - `.claude/hooks/protect-tests.test.mjs`
@@ -47,11 +47,11 @@ Każdy rodzaj testu zastępuje inną część systemu, więc każdy łapie inne 
 | Test architektury | Składnia plików z `src/`. Sprawdza, czy punkty wejścia serwera wołają guardy przed Prismą ([D24](decyzje.md#d24)). | `src/__tests__/server-entrypoints-guard.test.ts` | `npm test` | nie | tak |
 | Integracyjne | Prawdziwe: Postgres, Prisma, query, komendy i guardy. Zastąpione: nagłówki i przekierowania Next.js, język z next-intl, `auth.api.getSession`. | `*.integration.test.ts` | `npm run test:integration` | `_test`, czyści | nie |
 | E2E | Cała aplikacja po buildzie produkcyjnym, przeglądarka Chromium, baza i mailpit. Nic nie jest zastąpione. | `e2e/*.spec.ts` | `npm run test:e2e` | `_e2e`, kasuje | nie |
-| CLI | Generator `wa` na kopii plików w katalogu tymczasowym systemu. | `packages/cli/src/**/__tests__/` | `npm test -w @wa-kit/cli` | nie | tak |
+| CLI | Generator `wa` na kopii plików w katalogu tymczasowym systemu. | `kit/cli/src/**/__tests__/` | `npm test --prefix kit/cli` | nie | nie |
 | Hooki Claude Code | Funkcje i skrypty hooków z `.claude/hooks/`, także uruchamiane jako osobne procesy. | `.claude/hooks/*.test.mjs` | `npm run test:hooks` | nie | tak |
 | Mutacyjne (Stryker) | Testy jednostkowe albo integracyjne uruchamiane na kodzie z celowo wstrzykniętymi błędami ([08b](08b-testy-adwersarialne.md#stryker)). | konfiguracja w katalogu głównym | `npm run test:mutation` i pokrewne | integracyjny: `_test`, czyści | nie |
 
-`npm run verify` to bramka `verify`, którą uruchamiasz przed oddaniem pracy: lint, typecheck, `npm test`, build, testy i typecheck CLI (`turbo run test typecheck`) oraz testy hooków. Testów integracyjnych, e2e i mutacyjnych nie uruchamia, bo wymagają bazy albo przeglądarki, a pełny przebieg mutacyjny trwa kilkanaście minut. Integracyjne i e2e działają w osobnych jobach CI, a mutacyjne tylko lokalnie albo po ręcznym uruchomieniu workflowu ([CI](#ci)), więc przed oddaniem zmiany w query, komendzie albo przepływie logowania uruchom je sam.
+`npm run verify` to bramka `verify`, którą uruchamiasz przed oddaniem pracy: lint, typecheck, `npm test`, build, `turbo run test typecheck` (workspace `packages/*`, który jest pusty, bo CLI ma własną bramkę: `npm run verify --prefix kit/cli`) oraz testy hooków. Testów integracyjnych, e2e i mutacyjnych nie uruchamia, bo wymagają bazy albo przeglądarki, a pełny przebieg mutacyjny trwa kilkanaście minut. Integracyjne i e2e działają w osobnych jobach CI, a mutacyjne tylko lokalnie albo po ręcznym uruchomieniu workflowu ([CI](#ci)), więc przed oddaniem zmiany w query, komendzie albo przepływie logowania uruchom je sam.
 
 <a id="jednostkowe"></a>
 
@@ -175,7 +175,7 @@ Prisma 7.10.1 sprawdza przy `db push --force-reset` i `migrate reset`, czy uruch
 
 ## Testy CLI i hooków
 
-**CLI** (`packages/cli`) ma własną konfigurację `packages/cli/vitest.config.ts`: środowisko `node`, pliki `src/**/*.test.ts`. Testy generatora i manifestu kopiują pliki do katalogu tymczasowego systemu (`mkdtemp`), więc nie zmieniają plików repozytorium. W `npm run verify` uruchamia je `turbo run test typecheck`: zadanie `test` w `turbo.json` wywołuje skrypt `test` z `packages/cli/package.json` po zbudowaniu zależności (`dependsOn: ["^build"]`). Osobno uruchomisz je komendą `npm test -w @wa-kit/cli`. Główny `npm test` pomija `packages/**`.
+**CLI** (`kit/cli`) ma własną konfigurację `kit/cli/vitest.config.ts`: środowisko `node`, pliki `src/**/*.test.ts`. Testy generatora i manifestu kopiują pliki do katalogu tymczasowego systemu (`mkdtemp`), więc nie zmieniają plików repozytorium. Uruchomisz je komendą `npm test --prefix kit/cli`, a w bramce CLI (`npm run verify --prefix kit/cli`) i w workflow `kit.yml`. Główny `npm test` pomija `kit/**`.
 
 **Hooki Claude Code** testuje `npm run test:hooks`, czyli wbudowany runner Node (`node --test`) na `.claude/hooks/block-comments.test.mjs` i `.claude/hooks/protect-tests.test.mjs`. Testy wywołują funkcje hooka, a w części przypadków uruchamiają skrypt jako osobny proces z wejściem JSON, tak jak robi to Claude Code, i sprawdzają kod wyjścia. Co robią hooki: [D23](decyzje.md#d23) (komentarze) i [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza) (testy tylko do odczytu).
 
@@ -432,7 +432,7 @@ Pomiary z 2026-10-28 na komputerze z 8 rdzeniami, na kodzie z commita `4a6ffcb`,
 | `npm test` | ok. 17 s | 55 plików, 1206 testów |
 | `npm run test:integration` | ok. 4 s | 1 plik, 38 testów, baza już założona |
 | `npm run test:hooks` | poniżej 1 s | 18 testów |
-| `npm test -w @wa-kit/cli` | poniżej 1 s | 5 plików, 35 testów |
+| `npm test --prefix kit/cli` | poniżej 1 s | 5 plików, 35 testów |
 | `npm run test:mutation:task -- src/shared/lib/auth/service-mode.ts` | 1 min 16 s | 35 mutantów, 101 testów powiązanych z plikiem; `.claude/agents/test-reviewer.md` podaje 1–3 minuty na zadanie |
 | `npm run test:mutation:gate` | poniżej 1 s | dwa raporty |
 | `npm run test:mutation` bez [pliku przyrostowego](08b-testy-adwersarialne.md#przyrostowy) | ok. 12 min przy 996 mutantach | Pomiar z audytu testów rdzenia na commicie `50a4d9e` (8 rdzeni). Od audytu przybyło mutantów (lokalny plik przyrostowy z 2026-10-27 ma ich 1781), więc pełny przebieg trwa dłużej. Nie mierzono go na `4a6ffcb`. |
@@ -447,7 +447,7 @@ Przebiegi z trybem przyrostowym są zwykle znacznie krótsze niż pełne, bo spr
 
 | Workflow, job | Kiedy działa | Co uruchamia | Baza i usługi |
 | --- | --- | --- | --- |
-| `ci.yml`, job `verify` | Push do `main`, pull request do `main`. | `npm run build -w @wa-kit/cli`, `npm run wa -- generate`, `git diff --exit-code` (pliki generowane muszą być aktualne), `npm run verify`. | Brak. |
+| `ci.yml`, job `verify` | Push do `main`, pull request do `main`. | `npm run wa -- generate`, `git diff --exit-code` (pliki generowane muszą być aktualne), `npm run verify`. | Brak. |
 | `ci.yml`, job `integration` | Jak `verify`. | `npm run test:integration`. | Usługa `postgres:16`, `INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wa_app_test`. |
 | `e2e.yml` | Push do `main`. Pull request do `main`, chyba że zmienia tylko `docs/**`, `*.md` albo `.husky/**`. | Instalacja Chromium, `npx prisma migrate dev --name init`, `npm run test:e2e`. Raport HTML jako artefakt `playwright-report` (14 dni). Limit 30 minut. | Usługa `postgres:16` z bazą `wa_app_e2e`, mailpit na portach 8025 i 1025. |
 | `mutation.yml` | Tylko ręcznie (`workflow_dispatch`). | `npm run test:mutation`, `npm run test:mutation:integration`, `npm run test:mutation:gate`. Raporty jako artefakt `mutation-report`. Limit 60 minut. | Usługa `postgres:16`, `INTEGRATION_DATABASE_URL` jak w `integration`. |
@@ -473,7 +473,7 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 | `npm run test:integration` | `vitest run -c vitest.integration.config.ts` | `_test`, czyści | nie | `ci.yml`, `integration` |
 | `npm run test:e2e` | `npm run build && rm -rf .next/standalone/.next/static && cp -R .next/static .next/standalone/.next/static && playwright test` | `_e2e`, kasuje | nie | `e2e.yml` |
 | `npm run test:hooks` | `node --test .claude/hooks/block-comments.test.mjs .claude/hooks/protect-tests.test.mjs` | nie | tak | `ci.yml`, `verify` |
-| `npm test -w @wa-kit/cli` | `vitest run` w `packages/cli/package.json` | nie | tak, przez `turbo run test typecheck` | `ci.yml`, `verify` |
+| `npm test --prefix kit/cli` | `vitest run` w `kit/cli/package.json` | nie | nie (bramka `verify` kitu) | `kit.yml`, `cli` |
 | `npm run test:mutation` | `stryker run` | nie | nie | `mutation.yml`, tylko ręcznie |
 | `npm run test:mutation:task -- <pliki>` | `stryker run --force --mutate` | nie | nie | nie |
 | `npm run test:mutation:integration` | `stryker run stryker.integration.config.json` | `_test`, czyści | nie | `mutation.yml`, tylko ręcznie |
@@ -499,8 +499,8 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 | `e2e/global-setup.ts` | Reset bazy e2e, `admin:create`, czyszczenie mailpit. |
 | `e2e/database-guard.ts` | `assertE2eDatabase`. |
 | `e2e/helpers.ts` | `LABELS`, logowanie, rejestracja, ustawienie hasła, API mailpit. |
-| `packages/cli/vitest.config.ts` | Testy CLI: `node`, `src/**/*.test.ts`. |
-| `turbo.json` | Zadania `build`, `lint`, `test` i `typecheck` w workspace `packages/*`; każde po `^build`. |
+| `kit/cli/vitest.config.ts` | Testy CLI: `node`, `src/**/*.test.ts`. |
+| `turbo.json` | Zadania `build`, `lint`, `test` i `typecheck` w workspace `packages/*` (obecnie pusty); każde po `^build`. |
 | `stryker.config.json`, `stryker.integration.config.json`, `mutation-gate.json` | Mutation testing i bramka mutacji: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#referencja). |
 
 <a id="referencja-zmienne"></a>

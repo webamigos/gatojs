@@ -123,6 +123,9 @@ const { db, mockPrisma, mockAuth } = vi.hoisted(() => {
 
 vi.mock("@/shared/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/shared/lib/auth", () => ({ auth: mockAuth }));
+vi.mock("@/shared/config/project", () => ({
+  project: { name: "Test Projekt", slug: "test-projekt" },
+}));
 
 import {
   AdminCreateError,
@@ -153,7 +156,10 @@ describe("adminCreate", () => {
         data: { emailVerified: true },
       }),
     });
-    expect(db.orgs[0]).toMatchObject({ name: "WA App", slug: "wa-app" });
+    expect(db.orgs[0]).toMatchObject({
+      name: "Test Projekt",
+      slug: "test-projekt",
+    });
     expect(db.members).toEqual([
       { organizationId: r.organizationId, userId: r.userId, role: "owner" },
     ]);
@@ -271,7 +277,7 @@ describe("adminCreate partial failure and slug fallback", () => {
 
   it("pusty slug wraca do project.slug", async () => {
     await adminCreate({ email: "g@x.pl", orgName: "!!!", ...yes });
-    expect(db.orgs[0].slug).toBe("wa-app");
+    expect(db.orgs[0].slug).toBe("test-projekt");
   });
 
   it("normalizuje email do małych liter", async () => {

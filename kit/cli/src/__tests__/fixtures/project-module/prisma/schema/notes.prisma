@@ -1,0 +1,10 @@
+model Note {
+  id             String       @id @default(cuid())
+  organizationId String       @map("organization_id")
+  title          String
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("notes")
+}
