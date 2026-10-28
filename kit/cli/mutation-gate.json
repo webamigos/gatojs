@@ -83,6 +83,20 @@
       "original": "Object.entries({\n      ...manifest.dependencies,\n      ...manifest.devDependencies,\n    }).sort(([a], [b]) => compareCodePoint(a, b))",
       "replacement": "Object.entries({\n  ...manifest.dependencies,\n  ...manifest.devDependencies\n})",
       "reason": "równoważny: końcowe sortowanie dependencyMismatch porządkuje wynik"
+    },
+    {
+      "file": "src/generate/index.ts",
+      "mutator": "ArrayDeclaration",
+      "original": "[]",
+      "replacement": "[\"Stryker was here\"]",
+      "reason": "równoważny: lista języków modułu jest filtrowana przez locales projektu w rendererach, dodatkowy element nie trafia do pliku generowanego"
+    },
+    {
+      "file": "src/generate/index.ts",
+      "mutator": "ConditionalExpression",
+      "original": "error.code === \"ENOENT\"",
+      "replacement": "true",
+      "reason": "równoważny: przy błędzie innym niż ENOENT zapis writeFile rzuca ten sam błąd; zmienia się najwyżej miejsce błędu"
     }
   ]
 }

@@ -60,13 +60,7 @@ async function featureEntries(
       if (seen.has(name)) continue;
       seen.add(name);
       const entry = await detectFeature(projectDir, name, configuredLocales);
-      const present =
-        entry.hasModuleTs ||
-        entry.hasEnv ||
-        entry.hasAuth ||
-        entry.hasAuthClient ||
-        entry.locales.length > 0;
-      if (present) entries.push(entry);
+      entries.push(entry);
     }
   }
   return entries;
