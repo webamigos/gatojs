@@ -1,5 +1,12 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, rmdir, writeFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdtemp,
+  readFile,
+  rm,
+  rmdir,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { compareCodePoint } from "../compare.js";
 import { copyFiles } from "../assemble/copy.js";
@@ -12,7 +19,11 @@ import { generate } from "../generate/index.js";
 import { assemblableFiles } from "../kit/files.js";
 import { readKitConfig, readKitManifests } from "../kit/kit-config.js";
 import { resolveKitSource } from "../kit/source.js";
-import { readKitState, writeKitState } from "../manifest/kit-state.js";
+import {
+  KIT_STATE_PATH,
+  readKitState,
+  writeKitState,
+} from "../manifest/kit-state.js";
 import type { Runner } from "../process/runner.js";
 
 export type AddOptions = {
@@ -37,6 +48,40 @@ function missingDirectories(projectDir: string, files: string[]): string[] {
 }
 
 const PACKAGE_JSON = "package.json";
+const ABSENT_CODES = new Set<string | undefined>(["ENOENT", "ENOTDIR"]);
+
+function isAbsent(error: unknown): boolean {
+  return ABSENT_CODES.has((error as NodeJS.ErrnoException).code);
+}
+
+async function pathOccupied(path: string): Promise<boolean> {
+  try {
+    await lstat(path);
+    return true;
+  } catch (error) {
+    if (isAbsent(error)) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function removeModuleFile(path: string): Promise<void> {
+  try {
+    await rm(path);
+  } catch (error) {
+    if (!isAbsent(error)) {
+      throw error;
+    }
+  }
+}
+
+async function restoreFile(path: string, original: string): Promise<void> {
+  const current = await readFile(path, "utf8");
+  if (current !== original) {
+    await writeFile(path, original);
+  }
+}
 
 type CleanupStep = { path: string; run: () => Promise<void> };
 
@@ -44,15 +89,15 @@ async function rollbackAdd(input: {
   projectDir: string;
   files: string[];
   createdDirectories: string[];
-  packageJsonOverwritten: boolean;
   originalPackageJson: string;
+  originalKitState: string;
   log: (line: string) => void;
 }): Promise<void> {
   const { projectDir, log } = input;
   const steps: CleanupStep[] = [
     ...input.files.map((file) => ({
       path: file,
-      run: () => rm(join(projectDir, file), { force: true }),
+      run: () => removeModuleFile(join(projectDir, file)),
     })),
     ...input.createdDirectories
       .filter((directory) => existsSync(join(projectDir, directory)))
@@ -60,20 +105,23 @@ async function rollbackAdd(input: {
         path: directory,
         run: () => rmdir(join(projectDir, directory)),
       })),
-  ];
-  if (input.packageJsonOverwritten) {
-    steps.push({
+    {
       path: PACKAGE_JSON,
       run: () =>
-        writeFile(join(projectDir, PACKAGE_JSON), input.originalPackageJson),
-    });
-  }
+        restoreFile(join(projectDir, PACKAGE_JSON), input.originalPackageJson),
+    },
+    {
+      path: KIT_STATE_PATH,
+      run: () =>
+        restoreFile(join(projectDir, KIT_STATE_PATH), input.originalKitState),
+    },
+  ];
   for (const step of steps) {
     try {
       await step.run();
     } catch (error) {
-      const { code } = error as NodeJS.ErrnoException;
-      log(`Nie udało się posprzątać: ${step.path} (${code})`);
+      const { code, message } = error as NodeJS.ErrnoException;
+      log(`Nie udało się posprzątać: ${step.path} (${code ?? message})`);
     }
   }
 }
@@ -99,8 +147,12 @@ export async function add(options: AddOptions): Promise<{ added: string[] }> {
     manifest,
     files: moduleFiles(manifest, available),
   }));
-  const collisions = [...new Set(filesByModule.flatMap(({ files }) => files))]
-    .filter((file) => existsSync(join(projectDir, file)))
+  const candidates = [...new Set(filesByModule.flatMap(({ files }) => files))];
+  const occupied = await Promise.all(
+    candidates.map((file) => pathOccupied(join(projectDir, file))),
+  );
+  const collisions = candidates
+    .filter((_, index) => occupied[index])
     .sort(compareCodePoint);
   if (collisions.length > 0) {
     throw new Error(
@@ -118,9 +170,12 @@ export async function add(options: AddOptions): Promise<{ added: string[] }> {
   const modules = { ...state.modules };
   const packageJsonPath = join(projectDir, PACKAGE_JSON);
   const originalPackageJson = await readFile(packageJsonPath, "utf8");
+  const originalKitState = await readFile(
+    join(projectDir, KIT_STATE_PATH),
+    "utf8",
+  );
   const plannedFiles = filesByModule.flatMap(({ files }) => files);
   const createdDirectories = missingDirectories(projectDir, plannedFiles);
-  let packageJsonOverwritten = false;
   try {
     let packageJson = originalPackageJson;
     for (const { manifest, files } of filesByModule) {
@@ -144,15 +199,14 @@ export async function add(options: AddOptions): Promise<{ added: string[] }> {
       packageJson = addDependencies(packageJson, manifest);
     }
     await writeFile(packageJsonPath, packageJson);
-    packageJsonOverwritten = true;
     await writeKitState(projectDir, { ...state, modules });
   } catch (error) {
     await rollbackAdd({
       projectDir,
       files: plannedFiles,
       createdDirectories,
-      packageJsonOverwritten,
       originalPackageJson,
+      originalKitState,
       log,
     });
     throw error;

@@ -7,7 +7,9 @@ import {
   mkdir,
   readdir,
   readFile,
+  readlink,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
@@ -327,6 +329,100 @@ describe("add", () => {
     expect(await readFile(join(dir, ".wa/kit.json"), "utf8")).toBe(stateBefore);
     expect(runner).not.toHaveBeenCalled();
   });
+
+  it.skipIf(process.platform === "win32")(
+    "wiszący symlink na ścieżce modułu jest kolizją i zostaje nietknięty",
+    async () => {
+      const dir = await createProject("app", []);
+      await mkdir(join(dir, "src/features/demo"), { recursive: true });
+      await symlink("nowhere", join(dir, "src/features/demo/module.ts"));
+      const packageBefore = await readFile(join(dir, "package.json"), "utf8");
+      const stateBefore = await readFile(join(dir, ".wa/kit.json"), "utf8");
+      await expect(
+        add({
+          projectDir: dir,
+          module: "demo",
+          kitDir,
+          install: true,
+          runner,
+          log,
+        }),
+      ).rejects.toThrow(
+        "Pliki już istnieją, przerwano bez zmian:\n  src/features/demo/module.ts",
+      );
+      expect(await readlink(join(dir, "src/features/demo/module.ts"))).toBe(
+        "nowhere",
+      );
+      expect(await readFile(join(dir, "package.json"), "utf8")).toBe(
+        packageBefore,
+      );
+      expect(await readFile(join(dir, ".wa/kit.json"), "utf8")).toBe(
+        stateBefore,
+      );
+      expect(runner).not.toHaveBeenCalled();
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "symlink do istniejącego pliku na ścieżce modułu jest kolizją",
+    async () => {
+      const dir = await createProject("app", []);
+      await writeProjectFile(dir, "elsewhere.ts", "export default 7;\n");
+      await mkdir(join(dir, "src/features/demo"), { recursive: true });
+      await symlink(
+        join(dir, "elsewhere.ts"),
+        join(dir, "src/features/demo/module.ts"),
+      );
+      await expect(
+        add({
+          projectDir: dir,
+          module: "demo",
+          kitDir,
+          install: false,
+          runner,
+          log,
+        }),
+      ).rejects.toThrow(
+        "Pliki już istnieją, przerwano bez zmian:\n  src/features/demo/module.ts",
+      );
+      expect(await readFile(join(dir, "elsewhere.ts"), "utf8")).toBe(
+        "export default 7;\n",
+      );
+      expect(runner).not.toHaveBeenCalled();
+    },
+  );
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "błąd lstat inny niż brak pliku jest rzucony, a projekt zostaje bez zmian",
+    async () => {
+      const dir = await createProject("app", []);
+      await mkdir(join(dir, "src/features/demo"), { recursive: true });
+      const packageBefore = await readFile(join(dir, "package.json"), "utf8");
+      const stateBefore = await readFile(join(dir, ".wa/kit.json"), "utf8");
+      await chmod(join(dir, "src/features/demo"), 0o000);
+      try {
+        await expect(
+          add({
+            projectDir: dir,
+            module: "demo",
+            kitDir,
+            install: false,
+            runner,
+            log,
+          }),
+        ).rejects.toMatchObject({ code: "EACCES" });
+      } finally {
+        await chmod(join(dir, "src/features/demo"), 0o755);
+      }
+      expect(await readFile(join(dir, "package.json"), "utf8")).toBe(
+        packageBefore,
+      );
+      expect(await readFile(join(dir, ".wa/kit.json"), "utf8")).toBe(
+        stateBefore,
+      );
+      expect(log).not.toHaveBeenCalled();
+    },
+  );
 
   it("package.json po add demo ma left-pad, a ręcznie dodana zależność zostaje", async () => {
     const dir = await createProject("app", []);
@@ -1108,4 +1204,35 @@ describe("add: sprzątanie po błędzie I/O", () => {
       expect(runner).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("add: plik w miejscu katalogu modułu", () => {
+  it("zwykły plik zamiast i18n: EEXIST, plik zostaje, reszta modułu znika, brak linii sprzątania", async () => {
+    const dir = await createProject("app", []);
+    await writeProjectFile(dir, "src/features/demo/i18n", "to jest plik\n");
+    const packageBefore = await readFile(join(dir, "package.json"), "utf8");
+    const stateBefore = await readFile(join(dir, ".wa/kit.json"), "utf8");
+    const error = await add({
+      projectDir: dir,
+      module: "demo",
+      kitDir,
+      install: true,
+      runner,
+      log,
+    }).then(
+      () => null,
+      (caught: unknown) => caught,
+    );
+    expect(error).toMatchObject({ code: "EEXIST" });
+    expect(await readFile(join(dir, "src/features/demo/i18n"), "utf8")).toBe(
+      "to jest plik\n",
+    );
+    expect(await readdir(join(dir, "src/features/demo"))).toEqual(["i18n"]);
+    expect(await readFile(join(dir, "package.json"), "utf8")).toBe(
+      packageBefore,
+    );
+    expect(await readFile(join(dir, ".wa/kit.json"), "utf8")).toBe(stateBefore);
+    expect(runner).not.toHaveBeenCalled();
+    expect(cleanupWarnings()).toEqual([]);
+  });
 });
