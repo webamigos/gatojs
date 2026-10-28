@@ -384,3 +384,110 @@ describe("createAdminRoles", () => {
     });
   });
 });
+
+describe("assertAdminActionAllowed: nieznany cel akcji (fail-closed)", () => {
+  const UNKNOWN_TARGET_MESSAGE = "Brak uprawnień do tego konta";
+  const SERVICE_ACCOUNT_MESSAGE =
+    "Konto serwisowe może zmieniać tylko superadmin";
+
+  const NON_IMPERSONATION_NULL_TARGET = [
+    ["/admin/set-role", "admin"],
+    ["/admin/set-role", "user"],
+    ["/admin/ban-user", "admin"],
+    ["/admin/ban-user", "user"],
+    ["/admin/remove-user", "admin"],
+    ["/admin/set-user-password", "user"],
+    ["/admin/list-user-sessions", "admin"],
+  ] as const;
+
+  it.each(NON_IMPERSONATION_NULL_TARGET)(
+    "%s: aktor %s, cel nie istnieje → 403 z komunikatem o braku uprawnień do konta",
+    (path, actorRole) => {
+      const error = caughtError({
+        path,
+        actorRole,
+        targetRole: null,
+        requestedRole: null,
+        adminImpersonation: false,
+      });
+      expect(error).toBeInstanceOf(APIError);
+      expect(error).toMatchObject({
+        status: "FORBIDDEN",
+        statusCode: 403,
+        body: { message: UNKNOWN_TARGET_MESSAGE },
+      });
+    },
+  );
+
+  it.each([false, true])(
+    "ADMIN_IMPERSONATION=%s: admin, cel nie istnieje → nadal 403 (fail-closed)",
+    (adminImpersonation) => {
+      expectForbidden({
+        path: "/admin/set-role",
+        actorRole: "admin",
+        targetRole: null,
+        requestedRole: null,
+        adminImpersonation,
+      });
+    },
+  );
+
+  it("admin na superadminie → komunikat o koncie serwisowym", () => {
+    const error = caughtError({
+      path: "/admin/ban-user",
+      actorRole: "admin",
+      targetRole: "superadmin",
+      requestedRole: null,
+      adminImpersonation: false,
+    });
+    expect(error).toMatchObject({
+      status: "FORBIDDEN",
+      body: { message: SERVICE_ACCOUNT_MESSAGE },
+    });
+  });
+
+  it.each(NON_IMPERSONATION_TARGET_PATHS)(
+    "%s: superadmin, cel nie istnieje → przepuszczony",
+    (path) => {
+      expectAllowed({
+        path,
+        actorRole: "superadmin",
+        targetRole: null,
+        requestedRole: null,
+        adminImpersonation: false,
+      });
+    },
+  );
+
+  it.each(["admin", "user", "superadmin"] as const)(
+    "/admin/impersonate-user: aktor %s, cel nie istnieje → komunikat o podszywaniu się",
+    (actorRole) => {
+      const error = caughtError({
+        path: "/admin/impersonate-user",
+        actorRole,
+        targetRole: null,
+        requestedRole: null,
+        adminImpersonation: true,
+      });
+      expect(error).toMatchObject({
+        status: "FORBIDDEN",
+        body: {
+          message: "Brak uprawnień do podszycia się pod tego użytkownika",
+        },
+      });
+    },
+  );
+
+  it.each(["admin", "user"] as const)(
+    "/admin/list-users: aktor %s, brak celu → przepuszczony",
+    (actorRole) => {
+      expectAllowed({
+        path: "/admin/list-users",
+        actorRole,
+        targetRole: null,
+        requestedRole: null,
+        adminImpersonation: false,
+      });
+    },
+  );
+});
