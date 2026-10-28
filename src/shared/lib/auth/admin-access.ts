@@ -80,11 +80,13 @@ export function assertAdminActionAllowed(input: {
     }
     return;
   }
-  if (
-    !actorIsSuperadmin &&
-    (input.targetRole === USER_ROLES.SUPERADMIN ||
-      (input.targetRole === null && ADMIN_TARGET_PATHS.includes(input.path)))
-  ) {
+  if (actorIsSuperadmin) {
+    return;
+  }
+  if (input.targetRole === USER_ROLES.SUPERADMIN) {
     forbidden("Konto serwisowe może zmieniać tylko superadmin");
+  }
+  if (input.targetRole === null && ADMIN_TARGET_PATHS.includes(input.path)) {
+    forbidden("Brak uprawnień do tego konta");
   }
 }

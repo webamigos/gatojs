@@ -652,7 +652,7 @@ Błąd wysyłki nie rzuca wyjątku: funkcja zapisuje błąd w logu (z zamaskowan
 
 - Rola globalna `superadmin` to serwis Web Amigos. Ma wszystko, co `admin`, i do tego impersonację ([D20](#d20)) oraz wejście do każdej organizacji ([D21](#d21)).
 - Na konto superadmina może działać tylko superadmin. Hook `before` better-auth w `src/shared/lib/auth/index.ts` dla ścieżek z `ADMIN_TARGET_PATHS` i `/admin/create-user` woła `assertAdminActionAllowed` (`src/shared/lib/auth/admin-access.ts`):
-  - aktor inny niż superadmin, który działa na koncie superadmina (rola, ban i odblokowanie, usunięcie, hasło, dane konta z e-mailem, sesje), dostaje 403 „Konto serwisowe może zmieniać tylko superadmin”, także wtedy, gdy celu nie da się ustalić;
+  - aktor inny niż superadmin, który działa na koncie superadmina (rola, ban i odblokowanie, usunięcie, hasło, dane konta z e-mailem, sesje), dostaje 403 „Konto serwisowe może zmieniać tylko superadmin”; gdy celu nie da się ustalić, dostaje 403 „Brak uprawnień do tego konta”;
   - rolę `superadmin` może nadać tylko superadmin (403 „Rolę superadmin może nadać tylko superadmin”);
   - impersonację rozstrzyga osobna reguła z własnym komunikatem ([D20](#d20)).
 - Rolę celu hook czyta z bazy (`targetRoleOf` w `src/shared/lib/auth/admin-guard.ts`, po `userId` albo tokenie sesji), a rolę aktora z sesji w bazie, nie z cookie cache.

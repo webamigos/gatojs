@@ -154,7 +154,7 @@ Trzy rzeczy związane z tymi formularzami łatwo przeoczyć. Opisuje je [04-auth
 
 - logowanie z przycisku „Zaloguj się” na stronie zaproszenia nie wraca do zaproszenia ([Link `/accept-invitation/<id>`](04-auth-i-role.md#accept-invitation));
 - rejestracja na adres, który ma już konto, też kończy się komunikatem sukcesu ([Rejestracja](04-auth-i-role.md#rejestracja));
-- reset hasła z `/forgot-password` naprawia konto bez hasła po `admin:create` z pustą `ADMIN_PASSWORD=` ([Pusta `ADMIN_PASSWORD=`](04-auth-i-role.md#pusta-admin-password)).
+- reset hasła z `/forgot-password` ustawia hasło także kontu, które nie ma sposobu logowania hasłem; `admin:create` z pustą `ADMIN_PASSWORD=` takiego konta nie tworzy ([Pusta `ADMIN_PASSWORD=`](04-auth-i-role.md#pusta-admin-password)).
 
 ### Kontrakty
 

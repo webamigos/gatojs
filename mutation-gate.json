@@ -219,29 +219,8 @@
     },
     {
       "file": "src/shared/lib/auth/admin-access.ts",
-      "mutator": "ObjectLiteral",
-      "original": "{ message }",
-      "replacement": "{}",
-      "reason": "tylko komunikat: test sprawdza status 403 i brak zmian w bazie, treść komunikatu nie jest kontraktem"
-    },
-    {
-      "file": "src/shared/lib/auth/admin-access.ts",
       "mutator": "StringLiteral",
       "original": "\"Rolę superadmin może nadać tylko superadmin\"",
-      "replacement": "\"\"",
-      "reason": "tylko komunikat: test sprawdza status 403, treść komunikatu nie jest kontraktem"
-    },
-    {
-      "file": "src/shared/lib/auth/admin-access.ts",
-      "mutator": "StringLiteral",
-      "original": "\"Brak uprawnień do podszycia się pod tego użytkownika\"",
-      "replacement": "\"\"",
-      "reason": "tylko komunikat: test sprawdza status 403, treść komunikatu nie jest kontraktem"
-    },
-    {
-      "file": "src/shared/lib/auth/admin-access.ts",
-      "mutator": "StringLiteral",
-      "original": "\"Konto serwisowe może zmieniać tylko superadmin\"",
       "replacement": "\"\"",
       "reason": "tylko komunikat: test sprawdza status 403, treść komunikatu nie jest kontraktem"
     },

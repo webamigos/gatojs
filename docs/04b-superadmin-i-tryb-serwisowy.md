@@ -110,9 +110,11 @@ flowchart TD
     imp -->|"tak"| can{"cel ustalony i canImpersonate?"}
     can -->|"nie"| deny2["403 „Brak uprawnień do podszycia się pod tego użytkownika”"]
     can -->|"tak"| plugin["dalej sprawdza better-auth"]
-    imp -->|"nie"| target{"wywołujący nie jest superadminem, a cel to superadmin<br/>albo cel nieustalony na ścieżce z ADMIN_TARGET_PATHS?"}
+    imp -->|"nie"| target{"wywołujący nie jest superadminem, a cel to superadmin?"}
     target -->|"tak"| deny3["403 „Konto serwisowe może zmieniać tylko superadmin”"]
-    target -->|"nie"| plugin
+    target -->|"nie"| unknown{"wywołujący nie jest superadminem, a cel nieustalony na ścieżce z ADMIN_TARGET_PATHS?"}
+    unknown -->|"tak"| deny4["403 „Brak uprawnień do tego konta”"]
+    unknown -->|"nie"| plugin
 ```
 
 Po hooku better-auth sprawdza uprawnienia roli wywołującego ([04-auth-i-role.md](04-auth-i-role.md#referencja-uprawnienia)). Konto `user` przechodzi więc hook na koncie innego `user`, ale endpoint odrzuca je z komunikatem better-auth po angielsku. Bez sesji, ale z nagłówkami, hook traktuje wywołującego jak `user`: na koncie superadmina i przy nieustalonym celu zwraca 403, a gdy przepuści żądanie, endpoint zwraca 401.
@@ -429,7 +431,8 @@ Namespace `serviceMode` we wspólnych tekstach `src/app/messages/pl.json`. `{nam
 
 | Komunikat | Skąd | Kiedy |
 | --- | --- | --- |
-| „Konto serwisowe może zmieniać tylko superadmin” | `assertAdminActionAllowed` (403) | Wywołujący inny niż superadmin, cel `superadmin` albo nieustalony na ścieżce z `ADMIN_TARGET_PATHS`. |
+| „Konto serwisowe może zmieniać tylko superadmin” | `assertAdminActionAllowed` (403) | Wywołujący inny niż superadmin, cel `superadmin`. |
+| „Brak uprawnień do tego konta” | `assertAdminActionAllowed` (403) | Wywołujący inny niż superadmin, cel nieustalony na ścieżce z `ADMIN_TARGET_PATHS`. |
 | „Rolę superadmin może nadać tylko superadmin” | `assertAdminActionAllowed` (403) | Wywołujący inny niż superadmin żąda roli `superadmin`, także w tablicy ról. |
 | „Brak uprawnień do podszycia się pod tego użytkownika” | `assertAdminActionAllowed` (403) | Impersonacja, na którą `canImpersonate` nie pozwala, albo cel nieustalony. |
 | „Nie udało się zalogować jako ten użytkownik” | `UsersManager` | Błąd `authClient.admin.impersonateUser`. |

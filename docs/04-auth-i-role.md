@@ -463,7 +463,7 @@ Wszystkie przypadki z testów `scripts/lib/__tests__/admin-create.test.ts`. Rol�
 
 | Konto w bazie | `--role` | Pytanie | Rola po skrypcie | Hasło |
 | --- | --- | --- | --- | --- |
-| brak | brak albo `admin` | nie | `admin` | z opcji albo niepustej `ADMIN_PASSWORD`; bez obu wygenerowane i wypisane; przy pustej `ADMIN_PASSWORD=` konto bez hasła (żaden test tego nie sprawdza, [niżej](#pusta-admin-password)) |
+| brak | brak albo `admin` | nie | `admin` | z opcji albo niepustej `ADMIN_PASSWORD`; bez obu wygenerowane i wypisane; pusta `ADMIN_PASSWORD=` albo same spacje to też brak hasła: wygenerowane i wypisane ([niżej](#pusta-admin-password)) |
 | brak | `superadmin` | nie | `superadmin` | jak wyżej |
 | `user` | brak albo `admin` | tak, chyba że `--yes` | `admin` po zgodzie | bez zmian |
 | `user` | `superadmin` | tak, chyba że `--yes` | `superadmin` po zgodzie | bez zmian |
@@ -476,10 +476,10 @@ Skrypt jest idempotentny: ponowne uruchomienie z tymi samymi opcjami nie tworzy 
 
 <a id="pusta-admin-password"></a>
 
-**Pusta `ADMIN_PASSWORD=`.** `.env.example` ma tę linię bez wartości, więc w `.env` skopiowanym przy pierwszym uruchomieniu zmienna istnieje i jest pustym napisem, a nie brakiem zmiennej. `scripts/admin-create.ts` przekazuje wtedy dalej pusty napis (`values.password ?? process.env.ADMIN_PASSWORD`). `ensureUser` w `scripts/lib/admin-create.ts` traktuje go jak brak hasła i generuje hasło, które potem wypisuje `main` w `scripts/admin-create.ts`, ale do `auth.api.createUser` przekazuje `options.password ?? generatedPassword`, czyli nadal pusty napis. better-auth zakłada wtedy konto bez sposobu logowania hasłem (`if (ctx.body.password)` w `createUser`), więc wypisanym hasłem nie da się zalogować: formularz pokazuje „Nie udało się zalogować”. Sprawdzone uruchomieniem na bazie testowej: konto powstało bez wiersza w `accounts`.
+**Pusta `ADMIN_PASSWORD=`.** `.env.example` ma tę linię bez wartości, więc w `.env` skopiowanym przy pierwszym uruchomieniu zmienna istnieje i jest pustym napisem. `scripts/admin-create.ts` przekazuje ją dalej bez zmian (`values.password ?? process.env.ADMIN_PASSWORD`), a `ensureUser` w `scripts/lib/admin-create.ts` traktuje pusty napis i same białe znaki jak brak hasła: generuje hasło, przekazuje do `auth.api.createUser` właśnie je i wypisuje je raz. Konto ma więc sposób logowania hasłem, a wypisane hasło działa. Niepuste hasło (z `--password` albo `ADMIN_PASSWORD`) trafia do `createUser` bez zmian.
 
-- **Jak uniknąć:** przed uruchomieniem usuń linię `ADMIN_PASSWORD=` z `.env` albo podaj `--password`.
-- **Jak naprawić konto:** użyj „Zapomniałeś hasła?” na stronie logowania. Reset zakłada brakujący sposób logowania hasłem (`resetCredentialPassword` w `node_modules/better-auth/dist/utils/password.mjs`). Ponowne `admin:create`, także z `--password`, hasła nie ustawi, bo istniejącemu kontu skrypt hasła nie zmienia (sprawdzone uruchomieniem).
+- **Własne hasło:** podaj `--password` albo ustaw niepustą `ADMIN_PASSWORD`.
+- **Istniejące konto:** skrypt hasła nie zmienia, także z `--password`. Nowe hasło ustawia „Zapomniałeś hasła?” na stronie logowania.
 
 Pusta `ADMIN_EMAIL=` działa inaczej: bez `--email` skrypt traktuje ją jak brak adresu i kończy się komunikatem `Podaj --email albo ustaw ADMIN_EMAIL`.
 
@@ -525,7 +525,7 @@ Rola `superadmin` dostaje wszystkie uprawnienia z `defaultStatements`. Testy: �
 | Opcja | Zmienna | Znaczenie |
 | --- | --- | --- |
 | `--email` | `ADMIN_EMAIL` | Adres konta. Bez obu: `Podaj --email albo ustaw ADMIN_EMAIL` i kod wyjścia 1. |
-| `--password` | `ADMIN_PASSWORD` | Hasło nowego konta. Bez obu skrypt generuje hasło i wypisuje je raz. Pusta `ADMIN_PASSWORD=` daje konto bez hasła ([wyżej](#pusta-admin-password)). Istniejącemu kontu hasła nie zmienia. |
+| `--password` | `ADMIN_PASSWORD` | Hasło nowego konta. Bez obu skrypt generuje hasło i wypisuje je raz. Pusta `ADMIN_PASSWORD=` działa jak brak ([wyżej](#pusta-admin-password)). Istniejącemu kontu hasła nie zmienia. |
 | `--name` | — | Imię nowego konta, domyślnie część adresu przed `@`. |
 | `--org-name` | — | Nazwa organizacji, tylko na pustej bazie. Domyślnie `WA App` (`project.name`). |
 | `--role` | — | `admin` (domyślnie) albo `superadmin`. |

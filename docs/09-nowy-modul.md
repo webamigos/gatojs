@@ -104,7 +104,7 @@ Jeśli chcesz przejść tutorial dla wprawy w repozytorium kitu, rób to w osobn
 Projekt musi przejść [pierwsze uruchomienie](01-uruchomienie.md#pierwsze-uruchomienie): zależności, `.env`, baza w Dockerze, migracja `init` i pierwsze konto. Trzy rzeczy sprawdź przed dalszymi krokami, bo każda psuje któryś z nich:
 
 1. **Port bazy.** Gdy zmieniłeś `DB_PORT` w `.env`, port w `DATABASE_URL` musi być ten sam ([Zmiana portów](01-uruchomienie.md#zmiana-portow)). W przebiegu baza działała na porcie 5439, a `DATABASE_URL` wskazywał bazę `wa_app_tutorial` na tym porcie.
-2. **Hasło pierwszego konta.** Linię `ADMIN_PASSWORD=` usuń z `.env` przed `npm run admin:create`, bo pusta zmienna daje konto bez hasła ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)).
+2. **Hasło pierwszego konta.** Pusta linia `ADMIN_PASSWORD=` w `.env` jest w porządku: `npm run admin:create` wygeneruje i wypisze hasło ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)).
 3. **Migracje w git.** `git ls-files prisma/migrations` wypisuje `prisma/migrations/migration_lock.toml` i plik migracji `init`. Pusty wynik oznacza, że migracje są ignorowane: przejdź [Migracje w projekcie klienta](03b-schemat-i-migracje.md#migracje-w-projekcie).
 
 Pracę zacznij na osobnej gałęzi, na przykład `git switch -c feat/notes`.
