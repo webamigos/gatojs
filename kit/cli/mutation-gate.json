@@ -97,6 +97,13 @@
       "original": "error.code === \"ENOENT\"",
       "replacement": "true",
       "reason": "równoważny: przy błędzie innym niż ENOENT zapis writeFile rzuca ten sam błąd; zmienia się najwyżej miejsce błędu"
+    },
+    {
+      "file": "src/commands/remove.ts",
+      "mutator": "ConditionalExpression",
+      "original": "(error as NodeJS.ErrnoException).code === \"ENOENT\"",
+      "replacement": "true",
+      "reason": "równoważny: każdy błąd systemu plików inny niż ENOENT odpada wcześniej przy walidacji ścieżek przez realpath; pozostaje tylko wyścig z zewnętrznym procesem"
     }
   ]
 }
