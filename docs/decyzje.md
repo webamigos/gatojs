@@ -30,7 +30,7 @@ Sposoby egzekwowania różnią się siłą:
 | --- | --- |
 | Guard w kodzie | Przy każdym żądaniu, także na produkcji. |
 | Test w `npm run verify` | Lokalnie przed oddaniem pracy i w CI (job `verify` w `.github/workflows/ci.yml`). |
-| Osobny workflow CI | Przy pull requeście i pushu do `main` (`.github/workflows/e2e.yml`, `.github/workflows/mutation.yml`, job `integration` w `ci.yml`), nie przy `npm run verify`. |
+| Osobny workflow CI | Przy pull requeście i pushu do `main` (`.github/workflows/e2e.yml`, job `integration` w `ci.yml`), nie przy `npm run verify`. `.github/workflows/mutation.yml` tylko po ręcznym uruchomieniu. |
 | Hook w `.claude/hooks/` | Tylko w sesji Claude Code, przy narzędziach `Edit` i `Write`. |
 | Tylko konwencja | Wyłącznie wtedy, gdy zauważy to recenzent. |
 
@@ -910,7 +910,8 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 
 **Jak egzekwowana.**
 
-- `.github/workflows/mutation.yml` (pull request i push do `main`, uruchomienie ręczne): `npm run test:mutation`, `npm run test:mutation:integration`, `npm run test:mutation:gate`, z Postgresem jako usługą.
+- Lokalnie: `test-reviewer` uruchamia `npm run test:mutation:task -- <pliki>` i `npm run test:mutation:gate` przy każdym zadaniu; pełny przebieg przed releasem kitu.
+- `.github/workflows/mutation.yml` tylko po ręcznym uruchomieniu (`workflow_dispatch`): `npm run test:mutation`, `npm run test:mutation:integration`, `npm run test:mutation:gate`, z Postgresem jako usługą. Workflow nie działa przy pull requeście ani pushu: pełny przebieg trwa kilkanaście minut, zużywa minuty GitHub Actions, a przebieg integracyjny ma znany problem z bazą ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#concurrency)). Koszt: CI nie zatrzyma osłabienia testu w pliku krytycznym; pilnuje tego proces lokalny i recenzja pull requestu.
 - `thresholds.break` w `stryker.config.json`.
 - Logika bramki (`scripts/mutation-gate.ts`, `scripts/lib/mutation-gate.ts`): `scripts/lib/__tests__/mutation-gate.test.ts` w `npm test`.
 - To, że wpisy w `allowed` dodaje człowiek: tylko konwencja (agent `test-reviewer` nie ma narzędzi `Edit` ani `Write`, ale ma `Bash`).

@@ -51,7 +51,7 @@ Każdy rodzaj testu zastępuje inną część systemu, więc każdy łapie inne 
 | Hooki Claude Code | Funkcje i skrypty hooków z `.claude/hooks/`, także uruchamiane jako osobne procesy. | `.claude/hooks/*.test.mjs` | `npm run test:hooks` | nie | tak |
 | Mutacyjne (Stryker) | Testy jednostkowe albo integracyjne uruchamiane na kodzie z celowo wstrzykniętymi błędami ([08b](08b-testy-adwersarialne.md#stryker)). | konfiguracja w katalogu głównym | `npm run test:mutation` i pokrewne | integracyjny: `_test`, czyści | nie |
 
-`npm run verify` to bramka `verify`, którą uruchamiasz przed oddaniem pracy: lint, typecheck, `npm test`, build, testy i typecheck CLI (`turbo run test typecheck`) oraz testy hooków. Testów integracyjnych, e2e i mutacyjnych nie uruchamia, bo wymagają bazy albo przeglądarki, a pełny przebieg mutacyjny trwa kilkanaście minut. Działają w osobnych jobach CI ([CI](#ci)), więc przed oddaniem zmiany w query, komendzie albo przepływie logowania uruchom je sam.
+`npm run verify` to bramka `verify`, którą uruchamiasz przed oddaniem pracy: lint, typecheck, `npm test`, build, testy i typecheck CLI (`turbo run test typecheck`) oraz testy hooków. Testów integracyjnych, e2e i mutacyjnych nie uruchamia, bo wymagają bazy albo przeglądarki, a pełny przebieg mutacyjny trwa kilkanaście minut. Integracyjne i e2e działają w osobnych jobach CI, a mutacyjne tylko lokalnie albo po ręcznym uruchomieniu workflowu ([CI](#ci)), więc przed oddaniem zmiany w query, komendzie albo przepływie logowania uruchom je sam.
 
 <a id="jednostkowe"></a>
 
@@ -450,11 +450,11 @@ Przebiegi z trybem przyrostowym są zwykle znacznie krótsze niż pełne, bo spr
 | `ci.yml`, job `verify` | Push do `main`, pull request do `main`. | `npm run build -w @wa-kit/cli`, `npm run wa -- generate`, `git diff --exit-code` (pliki generowane muszą być aktualne), `npm run verify`. | Brak. |
 | `ci.yml`, job `integration` | Jak `verify`. | `npm run test:integration`. | Usługa `postgres:16`, `INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wa_app_test`. |
 | `e2e.yml` | Push do `main`. Pull request do `main`, chyba że zmienia tylko `docs/**`, `*.md` albo `.husky/**`. | Instalacja Chromium, `npx prisma migrate dev --name init`, `npm run test:e2e`. Raport HTML jako artefakt `playwright-report` (14 dni). Limit 30 minut. | Usługa `postgres:16` z bazą `wa_app_e2e`, mailpit na portach 8025 i 1025. |
-| `mutation.yml` | Push do `main`, pull request do `main`, ręcznie (`workflow_dispatch`). | `npm run test:mutation`, `npm run test:mutation:integration`, `npm run test:mutation:gate`. Raporty jako artefakt `mutation-report`. Limit 60 minut. | Usługa `postgres:16`, `INTEGRATION_DATABASE_URL` jak w `integration`. |
+| `mutation.yml` | Tylko ręcznie (`workflow_dispatch`). | `npm run test:mutation`, `npm run test:mutation:integration`, `npm run test:mutation:gate`. Raporty jako artefakt `mutation-report`. Limit 60 minut. | Usługa `postgres:16`, `INTEGRATION_DATABASE_URL` jak w `integration`. |
 
 Kit nie commituje migracji ([D13](decyzje.md#d13)), więc `e2e.yml` tworzy migrację w trakcie przebiegu. `globalSetup` widzi ją w `prisma/migrations/` i resetuje bazę przez `prisma migrate reset --force`, a nie przez `db push --force-reset` jak lokalnie w repozytorium kitu.
 
-`mutation.yml` zapamiętuje pliki trybu przyrostowego Strykera w cache GitHub Actions (klucz z nazwą gałęzi i commitem, zapasowo ostatni wpis gałęzi, potem `main`), więc przebieg w pull requeście sprawdza głównie mutanty w zmienionym kodzie i te, których testy się zmieniły. Nowy push do tej samej gałęzi przerywa trwający przebieg (`cancel-in-progress: true`). Gdy przebieg unitowy da wynik poniżej progu, job kończy się przed przebiegiem integracyjnym i bramką mutacji. Szczegóły: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#stryker).
+`mutation.yml` nie uruchamia się przy pull requeście ani pushu ([D26](decyzje.md#d26)). Testy mutacyjne działają lokalnie: `test-reviewer` uruchamia je na plikach każdego zadania, a pełny przebieg uruchamiasz przed releasem kitu, lokalnie albo ręcznie w GitHub Actions (zakładka Actions, workflow „Mutation testing”, „Run workflow”). Workflow zapamiętuje pliki trybu przyrostowego Strykera w cache GitHub Actions (klucz z nazwą gałęzi i commitem, zapasowo ostatni wpis gałęzi, potem `main`), więc kolejny przebieg na tej gałęzi sprawdza głównie mutanty w zmienionym kodzie i te, których testy się zmieniły. Nowe uruchomienie dla tej samej gałęzi przerywa trwający przebieg (`cancel-in-progress: true`). Gdy przebieg unitowy da wynik poniżej progu, job kończy się przed przebiegiem integracyjnym i bramką mutacji. Szczegóły: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#stryker).
 
 <a id="referencja"></a>
 
@@ -474,10 +474,10 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 | `npm run test:e2e` | `npm run build && rm -rf .next/standalone/.next/static && cp -R .next/static .next/standalone/.next/static && playwright test` | `_e2e`, kasuje | nie | `e2e.yml` |
 | `npm run test:hooks` | `node --test .claude/hooks/block-comments.test.mjs .claude/hooks/protect-tests.test.mjs` | nie | tak | `ci.yml`, `verify` |
 | `npm test -w @wa-kit/cli` | `vitest run` w `packages/cli/package.json` | nie | tak, przez `turbo run test typecheck` | `ci.yml`, `verify` |
-| `npm run test:mutation` | `stryker run` | nie | nie | `mutation.yml` |
+| `npm run test:mutation` | `stryker run` | nie | nie | `mutation.yml`, tylko ręcznie |
 | `npm run test:mutation:task -- <pliki>` | `stryker run --force --mutate` | nie | nie | nie |
-| `npm run test:mutation:integration` | `stryker run stryker.integration.config.json` | `_test`, czyści | nie | `mutation.yml` |
-| `npm run test:mutation:gate` | `tsx scripts/mutation-gate.ts` | nie | nie | `mutation.yml` |
+| `npm run test:mutation:integration` | `stryker run stryker.integration.config.json` | `_test`, czyści | nie | `mutation.yml`, tylko ręcznie |
+| `npm run test:mutation:gate` | `tsx scripts/mutation-gate.ts` | nie | nie | `mutation.yml`, tylko ręcznie |
 | `npm run verify` | `npm run lint && npm run typecheck && npm test && npm run build && turbo run test typecheck && npm run test:hooks` | nie | — | `ci.yml`, `verify` |
 
 <a id="referencja-pliki"></a>

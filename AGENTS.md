@@ -191,8 +191,10 @@ Test napisany przez autora kodu, po kodzie, odtwarza jego założenia i przechod
   (wraca do testera), mutant równoważny (z uzasadnieniem) albo tekst komunikatu/logu. Logika
   bezpieczeństwa (auth, organizacje, role, guardy, rejestracja) nie może mieć luk.
 - Pełny przebieg: `npm run test:mutation` (Stryker, tryb incremental, raport w `reports/mutation/`).
-  Nie jest częścią `npm run verify`; w CI działa osobny job (`.github/workflows/mutation.yml`), który
-  pada poniżej progu `thresholds.break` (75%, wynik bazowy 77%). Progu nie obniżamy, żeby przepuścić zmianę.
+  Nie jest częścią `npm run verify` ani automatycznego CI: mutacje uruchamiamy lokalnie (recenzent przy każdym
+  zadaniu, pełny przebieg przed releasem kitu). `.github/workflows/mutation.yml` działa tylko po ręcznym
+  uruchomieniu (`workflow_dispatch`). Przebieg pada poniżej progu `thresholds.break` (75%, wynik bazowy 77%).
+  Progu nie obniżamy, żeby przepuścić zmianę.
 - **Bramka plików krytycznych** (`npm run test:mutation:gate`, `mutation-gate.json`): w plikach z listy `critical`
   (auth, organizacje, użytkownicy, bramka) każdy przeżyły mutant musi być zabity albo mieć wpis w `allowed`
   z uzasadnieniem: mutant równoważny, tylko komunikat/log albo świadoma stała konfiguracyjna. Wpisy dopisuje

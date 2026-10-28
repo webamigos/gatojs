@@ -442,7 +442,7 @@ Między krokami 5 i 6 elementy interfejsu, które czytają rolę z cookie cache,
 
 ## CI
 
-Sześć workflowów w `.github/workflows/` sprawdza kod, ale żaden nie wdraża aplikacji. Wdrożenie uruchamia Railway po pushu do połączonej gałęzi, niezależnie od wyniku CI. Railway ma opcję „Wait for CI” (wymaga workflowu z wyzwalaczem `push`): wdrożenie czeka wtedy, aż zakończą się wszystkie workflowy GitHub Actions uruchomione dla tego commita, najwyżej dwie godziny, i jest pomijane, gdy któryś się nie powiedzie. Czeka więc też na `e2e.yml` (limit 30 minut) i `mutation.yml` (limit 60 minut). Każdy workflow ma `permissions: contents: read` i pobiera repozytorium z `persist-credentials: false`. Szczegóły testów i baz w CI: [08-testy.md](08-testy.md#ci).
+Sześć workflowów w `.github/workflows/` sprawdza kod, ale żaden nie wdraża aplikacji. Wdrożenie uruchamia Railway po pushu do połączonej gałęzi, niezależnie od wyniku CI. Railway ma opcję „Wait for CI” (wymaga workflowu z wyzwalaczem `push`): wdrożenie czeka wtedy, aż zakończą się wszystkie workflowy GitHub Actions uruchomione dla tego commita, najwyżej dwie godziny, i jest pomijane, gdy któryś się nie powiedzie. Czeka więc też na `e2e.yml` (limit 30 minut). `mutation.yml` działa tylko po ręcznym uruchomieniu, więc wdrożenie na niego nie czeka. Każdy workflow ma `permissions: contents: read` i pobiera repozytorium z `persist-credentials: false`. Szczegóły testów i baz w CI: [08-testy.md](08-testy.md#ci).
 
 **`ci.yml`** sprawdza każdy push i pull request do `main`.
 
@@ -487,16 +487,12 @@ jobs:
 
 Job `test-e2e` instaluje Chromium, uruchamia `npx prisma migrate dev --name init` i `npm run test:e2e` z usługami `postgres:16` i mailpit, a raport HTML zapisuje jako artefakt `playwright-report`. W projekcie z zacommitowanymi migracjami ten krok ma skutek uboczny: gdy ktoś zmienił schemat bez migracji, `migrate dev` utworzy brakującą migrację w trakcie przebiegu i testy przejdą, a `prisma migrate deploy` na produkcji jej nie dostanie (wniosek z kodu workflowu: w repozytorium kitu ten sam krok tworzy migrację `init` bez pytania). Wyjątek to zmiana, przy której Prisma pyta o zgodę (ostrzeżenia o utracie danych): w CI nie ma kogo zapytać, więc krok najpewniej skończy się błędem (niesprawdzone). Przed pushem uruchom lokalnie `npx prisma migrate dev`. Wynik `Already in sync, no schema change or pending migration was found.` znaczy, że migracje pokrywają schemat; w przeciwnym razie komenda utworzy brakującą migrację, którą dołączasz do commita ([03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#migracje-w-projekcie), krok 4).
 
-**`mutation.yml`** uruchamia testy mutacyjne przy pull requeście i pushu do `main` oraz ręcznie.
+**`mutation.yml`** uruchamia testy mutacyjne tylko ręcznie (`workflow_dispatch`), na przykład przed releasem kitu. Na co dzień mutacje działają lokalnie ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#przebieg)).
 
 `.github/workflows/mutation.yml`
 
 ```yaml
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
   workflow_dispatch:
 # …
 jobs:

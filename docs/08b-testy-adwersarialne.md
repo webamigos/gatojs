@@ -40,7 +40,7 @@ Pojęcia używane w tym pliku:
 - **Plik przyrostowy**: plik, w którym Stryker zapisuje wyniki ostatniego przebiegu, żeby następny sprawdzał od nowa tylko mutanty zmienionego kodu ([Tryb przyrostowy](#przyrostowy)).
 - **Bramka mutacji**: skrypt `npm run test:mutation:gate`, który w plikach krytycznych nie przepuszcza żadnego niewykrytego mutanta bez wyjątku zatwierdzonego przez człowieka.
 
-Przebieg z `test-writer`, plikiem fazy i `test-reviewer` dotyczy zadań, które wykonują sesje agentów według planu. Deweloper, który sam pisze kod i testy, nie używa pliku fazy ani subagentów, ale obowiązują go te same zasady pisania testów, a jego zmiany sprawdza ta sama bramka mutacji w CI.
+Przebieg z `test-writer`, plikiem fazy i `test-reviewer` dotyczy zadań, które wykonują sesje agentów według planu. Deweloper, który sam pisze kod i testy, nie używa pliku fazy ani subagentów, ale obowiązują go te same zasady pisania testów, a przed oddaniem zmiany w pliku z listy `critical` sam uruchamia `npm run test:mutation:task -- <pliki>` i `npm run test:mutation:gate`. CI nie uruchamia mutacji automatycznie ([D26](decyzje.md#d26)).
 
 <a id="dlaczego"></a>
 
