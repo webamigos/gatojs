@@ -502,6 +502,49 @@ describe("add na zmodyfikowanej kopii kitu", () => {
       "Pliki już istnieją, przerwano bez zmian:\n  src/features/alpha/module.ts\n  src/features/zeta/module.ts",
     );
   });
+
+  it("kolizje są posortowane po ścieżce, gdy kolejność modułów daje ścieżki nieposortowane", async () => {
+    const kitCopy = await makeKitRepo("kit");
+    await writeFile(
+      join(kitCopy, "kit/modules/alpha.json"),
+      JSON.stringify({
+        name: "alpha",
+        version: "1.0.0",
+        description: "alpha",
+        requires: ["beta"],
+        files: ["src/features/zzz-alpha/**"],
+      }),
+    );
+    await writeFile(
+      join(kitCopy, "kit/modules/beta.json"),
+      JSON.stringify({
+        name: "beta",
+        version: "1.0.0",
+        description: "beta",
+        files: ["src/features/aaa-beta/**"],
+      }),
+    );
+    await writeProjectFile(kitCopy, "src/features/zzz-alpha/module.ts", "a\n");
+    await writeProjectFile(kitCopy, "src/features/aaa-beta/module.ts", "b\n");
+    await runCommand("git", ["-C", kitCopy, "add", "-A"]);
+    const dir = await createProject("app", []);
+    await writeProjectFile(dir, "src/features/zzz-alpha/module.ts", "x\n");
+    await writeProjectFile(dir, "src/features/aaa-beta/module.ts", "y\n");
+    const before = await snapshotDir(dir, IGNORE);
+    await expect(
+      add({
+        projectDir: dir,
+        module: "alpha",
+        kitDir: kitCopy,
+        install: false,
+        runner,
+        log,
+      }),
+    ).rejects.toThrow(
+      "Pliki już istnieją, przerwano bez zmian:\n  src/features/aaa-beta/module.ts\n  src/features/zzz-alpha/module.ts",
+    );
+    expect(await snapshotDir(dir, IGNORE)).toEqual(before);
+  });
 });
 
 describe("addFromSource", () => {
