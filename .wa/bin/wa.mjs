@@ -19812,15 +19812,13 @@ async function readKitConfig(kitDir) {
 }
 async function readKitManifests(kitDir) {
   const modulesDir = join(kitDir, "kit/modules");
-  const fileNames = (await readdir(modulesDir)).filter((fileName) => fileName.endsWith(".json")).sort(
-    (a, b) => compareModuleNames(basename(a, ".json"), basename(b, ".json"))
-  );
+  const entries = (await readdir(modulesDir)).filter((fileName) => fileName.endsWith(".json")).map((fileName) => ({ fileName, name: basename(fileName, ".json") })).sort((a, b) => compareModuleNames(a.name, b.name));
   const manifests = [];
-  for (const fileName of fileNames) {
+  for (const { fileName, name } of entries) {
     const manifest = moduleManifestSchema.parse(
       JSON.parse(await readFile(join(modulesDir, fileName), "utf8"))
     );
-    if (manifest.name !== basename(fileName, ".json")) {
+    if (manifest.name !== name) {
       throw new Error(
         `kit/modules/${fileName}: name "${manifest.name}" nie zgadza si\u0119 z nazw\u0105 pliku`
       );
