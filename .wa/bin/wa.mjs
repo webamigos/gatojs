@@ -6,9 +6,11 @@ var __export = (target, all) => {
 };
 
 // src/bin.ts
-import { dirname as dirname4, resolve as resolve3 } from "node:path";
+import { dirname as dirname5, resolve as resolve4 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { mkdtemp as mkdtemp2, rm as rm4 } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join as join11 } from "node:path";
 
 // src/args.ts
 import { parseArgs } from "node:util";
@@ -73,6 +75,27 @@ function parseAddArgs(argv) {
     kit: values.kit ?? null,
     install: !values["no-install"]
   };
+}
+function parseRemoveArgs(argv) {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    options: {
+      force: { type: "boolean", default: false },
+      "no-install": { type: "boolean", default: false }
+    }
+  });
+  const [module] = positionals;
+  if (module === void 0) throw new Error("Podaj nazw\u0119 modu\u0142u");
+  return { module, force: values.force, install: !values["no-install"] };
+}
+function parseListArgs(argv) {
+  const { values } = parseArgs({
+    args: argv,
+    allowPositionals: false,
+    options: { kit: { type: "string" } }
+  });
+  return { kit: values.kit ?? null };
 }
 
 // src/commands/add.ts
@@ -286,6 +309,22 @@ function addDependencies(packageJson, manifest) {
     if (Object.keys(manifest[section]).length === 0) continue;
     const existing = parsed[section] ?? {};
     parsed[section] = sortedKeys({ ...manifest[section], ...existing });
+  }
+  return serialize(parsed);
+}
+function removeDependencies(packageJson, removed, remaining) {
+  const parsed = JSON.parse(packageJson);
+  for (const section of SECTIONS) {
+    const existing = parsed[section];
+    if (!existing) continue;
+    const stillNeeded = new Set(
+      remaining.flatMap((manifest) => Object.keys(manifest[section]))
+    );
+    const next = { ...existing };
+    for (const name of Object.keys(removed[section])) {
+      if (!stillNeeded.has(name)) delete next[name];
+    }
+    parsed[section] = next;
   }
   return serialize(parsed);
 }
@@ -5446,7 +5485,7 @@ var recursive = /* @__PURE__ */ new WeakMap();
 var NONE = 0;
 var ASSUMED = 1;
 var PROVEN = 2;
-function isRecursive(inst, stack, resolve4) {
+function isRecursive(inst, stack, resolve5) {
   const cached2 = recursive.get(inst);
   if (cached2 !== void 0)
     return cached2 ? PROVEN : NONE;
@@ -5456,7 +5495,7 @@ function isRecursive(inst, stack, resolve4) {
   let result = NONE;
   const check2 = (child) => {
     if (result !== PROVEN && child?._zod) {
-      const answer = isRecursive(child, stack, resolve4);
+      const answer = isRecursive(child, stack, resolve5);
       if (answer > result)
         result = answer;
     }
@@ -5467,7 +5506,7 @@ function isRecursive(inst, stack, resolve4) {
       const desc = Object.getOwnPropertyDescriptor(sh, key);
       if (spread && !desc.enumerable)
         continue;
-      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve4) : NONE;
+      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve5) : NONE;
       if (child > answer)
         answer = child;
     }
@@ -5531,7 +5570,7 @@ function isRecursive(inst, stack, resolve4) {
       break;
     // `$ZodLazy` caches its inner on the def, so a resolved edge is followed exactly
     case "lazy": {
-      const inner = def._cachedInner ?? (resolve4 ? inst._zod.innerType : void 0);
+      const inner = def._cachedInner ?? (resolve5 ? inst._zod.innerType : void 0);
       merge2(inner ? isRecursive(inner, stack, false) : ASSUMED);
       break;
     }
@@ -16584,8 +16623,8 @@ var contributors = {
 function aggregateChecks(schema) {
   const agg = {};
   const def = schema._zod.def;
-  const list = schema._zod.traits.has("$ZodCheck") ? [schema, ...def.checks ?? []] : def.checks ?? [];
-  for (const ch of list)
+  const list2 = schema._zod.traits.has("$ZodCheck") ? [schema, ...def.checks ?? []] : def.checks ?? [];
+  for (const ch of list2)
     contributors[ch._zod.def.check]?.(agg, ch._zod.def);
   const bag = schema._zod.bag;
   if (bag.minimum !== void 0)
@@ -20836,12 +20875,12 @@ var readlinePrompter = {
 
 // src/process/runner.ts
 import { spawn } from "node:child_process";
-var spawnRunner = (command, args, cwd) => new Promise((resolve4, reject) => {
+var spawnRunner = (command, args, cwd) => new Promise((resolve5, reject) => {
   const child = spawn(command, args, { cwd, stdio: "inherit" });
   child.on("error", reject);
   child.on("close", (code) => {
     if (code === 0) {
-      resolve4();
+      resolve5();
       return;
     }
     reject(
@@ -20888,8 +20927,196 @@ async function kitSync(kitDir) {
   return { changed: before !== await readExisting(kitDir) };
 }
 
+// src/commands/list.ts
+function availableLine(manifest) {
+  const needs = manifest.requires.length > 0 ? ` (wymaga: ${manifest.requires.join(", ")})` : "";
+  return `  ${manifest.name} ${manifest.version} \u2014 ${manifest.description}${needs}`;
+}
+function list(options) {
+  const { state, available, availableError, log } = options;
+  log("Zainstalowane:");
+  for (const [name, entry] of Object.entries(state.modules).sort(
+    ([a], [b]) => compareModuleNames(a, b)
+  )) {
+    log(`  ${name} ${entry.version}`);
+  }
+  if (available === null) {
+    log(`Dost\u0119pne: nie uda\u0142o si\u0119 pobra\u0107 kitu (${availableError})`);
+  } else {
+    const rest = available.filter(
+      (manifest) => manifest.name !== "core" && !(manifest.name in state.modules)
+    ).sort((a, b) => compareCodePoint(a.name, b.name));
+    if (rest.length === 0) {
+      log("Dost\u0119pne: brak");
+    } else {
+      log("Dost\u0119pne:");
+      for (const manifest of rest) log(availableLine(manifest));
+    }
+  }
+  const projectEntries = Object.entries(state.projectModules).sort(
+    ([a], [b]) => compareCodePoint(a, b)
+  );
+  if (projectEntries.length > 0) {
+    log("Projektu:");
+    for (const [name, { manifest }] of projectEntries) {
+      log(`  ${name} \u2014 ${manifest.description}`);
+    }
+  }
+}
+
+// src/commands/remove.ts
+import { readFile as readFile9, readdir as readdir3, rm as rm3, rmdir, writeFile as writeFile6 } from "node:fs/promises";
+import { dirname as dirname4, isAbsolute, join as join10, relative, resolve as resolve3, sep } from "node:path";
+var HASH_CONFIG = {
+  version: "",
+  repo: "",
+  kitOnly: [],
+  placeholders: { projectName: "", projectSlug: "", projectSnake: "" },
+  placeholderFiles: [],
+  generatedFiles: [],
+  managedFiles: ["package.json", "package-lock.json"]
+};
+function assertRemovable(state, module) {
+  if (module === "core") throw new Error("Nie mo\u017Cna usun\u0105\u0107 rdzenia");
+  if (module in state.projectModules) {
+    throw new Error(
+      `Modu\u0142 ${module} nale\u017Cy do projektu; wa remove usuwa tylko modu\u0142y kitu. Usu\u0144 jego pliki i wpis w projectModules r\u0119cznie`
+    );
+  }
+  if (!(module in state.modules)) {
+    throw new Error(`Modu\u0142 ${module} nie jest zainstalowany`);
+  }
+  const requiredBy = [
+    ...Object.values(state.modules).map((entry) => entry.manifest),
+    ...projectModuleManifests(state)
+  ].filter((manifest) => manifest.requires.includes(module)).map((manifest) => manifest.name).sort(compareCodePoint);
+  if (requiredBy.length > 0) {
+    throw new Error(
+      `Modu\u0142 ${module} jest wymagany przez: ${requiredBy.join(", ")}`
+    );
+  }
+}
+function isInside(root, path) {
+  const fromRoot = relative(root, path);
+  return fromRoot !== "" && fromRoot !== ".." && !fromRoot.startsWith(`..${sep}`) && !isAbsolute(fromRoot);
+}
+function insideProject(projectDir, file2) {
+  const absolute = resolve3(projectDir, file2);
+  if (!isInside(resolve3(projectDir), absolute)) {
+    throw new Error(`\u015Acie\u017Cka poza projektem: ${file2}`);
+  }
+  return absolute;
+}
+async function readIfExists(path) {
+  try {
+    return await readFile9(path);
+  } catch (error62) {
+    if (error62.code === "ENOENT") return null;
+    throw error62;
+  }
+}
+async function changedFiles(projectDir, files) {
+  const changed = [];
+  for (const [file2, savedHash] of Object.entries(files)) {
+    const content = await readIfExists(insideProject(projectDir, file2));
+    if (content === null) continue;
+    if (fileHash(file2, content, HASH_CONFIG) !== savedHash) changed.push(file2);
+  }
+  return changed.sort(compareCodePoint);
+}
+async function removeEmptyParents(projectDir, start) {
+  const root = resolve3(projectDir);
+  let current = dirname4(start);
+  while (isInside(root, current)) {
+    let entries;
+    try {
+      entries = await readdir3(current);
+    } catch (error62) {
+      if (error62.code !== "ENOENT") throw error62;
+      entries = [];
+    }
+    if (entries.length > 0) return;
+    await rmdir(current).catch((error62) => {
+      if (error62.code !== "ENOENT") throw error62;
+    });
+    current = dirname4(current);
+  }
+}
+async function remove(options) {
+  const { projectDir, module, runner, log } = options;
+  const state = await readKitState(projectDir);
+  assertRemovable(state, module);
+  const entry = state.modules[module];
+  const absolutePaths = Object.keys(entry.files).map(
+    (file2) => insideProject(projectDir, file2)
+  );
+  const changed = await changedFiles(projectDir, entry.files);
+  if (changed.length > 0 && !options.force) {
+    throw new Error(
+      `Zmienione pliki modu\u0142u ${module} (u\u017Cyj --force):
+${changed.map((file2) => `  ${file2}`).join("\n")}`
+    );
+  }
+  for (const path of absolutePaths) {
+    await rm3(path, { force: true });
+    await removeEmptyParents(projectDir, path);
+  }
+  const modules = { ...state.modules };
+  delete modules[module];
+  const remaining = [
+    ...Object.values(modules).map((remainingEntry) => remainingEntry.manifest),
+    ...projectModuleManifests(state)
+  ];
+  const packageJsonPath = join10(projectDir, "package.json");
+  await writeFile6(
+    packageJsonPath,
+    removeDependencies(
+      await readFile9(packageJsonPath, "utf8"),
+      entry.manifest,
+      remaining
+    )
+  );
+  await writeKitState(projectDir, { ...state, modules });
+  await generate(projectDir);
+  if (options.install) {
+    try {
+      await runner("npm", ["install"], projectDir);
+    } catch {
+      throw new Error(
+        "Modu\u0142 usuni\u0119ty, ale npm install si\u0119 nie powi\xF3d\u0142. Uruchom: npm install"
+      );
+    }
+  }
+  log(`npx prisma migrate dev --name remove-${module}`);
+  return { removed: [module] };
+}
+
 // src/bin.ts
-var USAGE = "U\u017Cycie: wa generate | wa kit sync | wa create <katalog> [opcje] | wa add <modu\u0142> [--kit <\u015Bcie\u017Cka|url>] [--no-install]";
+var USAGE = "U\u017Cycie: wa generate | wa kit sync | wa create <katalog> [opcje] | wa add <modu\u0142> [--kit <\u015Bcie\u017Cka|url>] [--no-install] | wa remove <modu\u0142> [--force] [--no-install] | wa list [--kit <\u015Bcie\u017Cka|url>]";
+async function listCommand(kit) {
+  const projectDir = process.cwd();
+  const state = await readKitState(projectDir);
+  const tmpDir = await mkdtemp2(join11(tmpdir(), "wa-list-"));
+  try {
+    let available = null;
+    let availableError = null;
+    try {
+      const kitDir = await resolveKitSource({
+        kitFlag: kit,
+        envSource: process.env["WA_KIT_SOURCE"],
+        state,
+        runner: spawnRunner,
+        tmpDir
+      });
+      available = await readKitManifests(kitDir);
+    } catch (error62) {
+      availableError = error62 instanceof Error ? error62.message : String(error62);
+    }
+    list({ state, available, availableError, log: console.log });
+  } finally {
+    await rm4(tmpDir, { recursive: true });
+  }
+}
 async function main(argv) {
   const [command, subcommand] = argv;
   if (command === "kit" && subcommand === "sync") {
@@ -20911,15 +21138,31 @@ async function main(argv) {
     });
     return 0;
   }
+  if (command === "remove") {
+    const { module, force, install } = parseRemoveArgs(argv.slice(1));
+    await remove({
+      projectDir: process.cwd(),
+      module,
+      force,
+      install,
+      runner: spawnRunner,
+      log: console.log
+    });
+    return 0;
+  }
+  if (command === "list") {
+    await listCommand(parseListArgs(argv.slice(1)).kit);
+    return 0;
+  }
   if (command === "create") {
     const { kit, ...parsed } = parseCreateArgs(argv.slice(1));
-    const defaultKit = resolve3(
-      dirname4(fileURLToPath(import.meta.url)),
+    const defaultKit = resolve4(
+      dirname5(fileURLToPath(import.meta.url)),
       "../.."
     );
     await create({
       ...parsed,
-      kitDir: kit === null ? defaultKit : resolve3(kit),
+      kitDir: kit === null ? defaultKit : resolve4(kit),
       runner: spawnRunner,
       prompter: readlinePrompter,
       log: console.log

@@ -88,3 +88,30 @@ export function parseAddArgs(argv: string[]): AddArgs {
     install: !values["no-install"],
   };
 }
+
+export type RemoveArgs = { module: string; force: boolean; install: boolean };
+
+export function parseRemoveArgs(argv: string[]): RemoveArgs {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    options: {
+      force: { type: "boolean", default: false },
+      "no-install": { type: "boolean", default: false },
+    },
+  });
+  const [module] = positionals;
+  if (module === undefined) throw new Error("Podaj nazwę modułu");
+  return { module, force: values.force, install: !values["no-install"] };
+}
+
+export type ListArgs = { kit: string | null };
+
+export function parseListArgs(argv: string[]): ListArgs {
+  const { values } = parseArgs({
+    args: argv,
+    allowPositionals: false,
+    options: { kit: { type: "string" } },
+  });
+  return { kit: values.kit ?? null };
+}
