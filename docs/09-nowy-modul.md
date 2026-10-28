@@ -3,7 +3,7 @@
 Po przeczytaniu będziesz wiedzieć:
 
 - jak przygotować projekt klienta do dodania własnej funkcji i jakie pliki powstaną po drodze;
-- dlaczego funkcja projektu potrzebuje wpisu w `.wa/kit.json` i po czym poznasz, że go brakuje;
+- dlaczego funkcja projektu potrzebuje wpisu w `projectModules` w `.wa/kit.json` i po czym poznasz, że go brakuje;
 - jak dodać tabelę domenową z `organizationId`, relację zwrotną i migrację;
 - jak zaplanować i napisać testy komendy i test izolacji, zanim powstanie kod;
 - jakie błędy Prismy i Vitest pojawiają się w tych krokach i co z nimi zrobić.
@@ -57,14 +57,13 @@ Kroki zmieniają te pliki. Kolumna „Kto” mówi, czy plik piszesz Ty, czy nar
 | Plik | Krok | Kto |
 | --- | --- | --- |
 | `src/features/notes/module.ts`, `src/features/notes/i18n/pl.json`, `src/features/notes/i18n/en.json` | 2 | Ty |
-| `.wa/kit.json` (nowy moduł `notes`) | 3 | Ty |
+| `.wa/kit.json` (wpis `notes` w `projectModules`) | 3 | Ty |
 | `src/modules.generated.ts`, `src/modules.client.generated.ts`, region `wa:relations` w `prisma/schema/organizations.prisma` | 3 | generator (`npm run wa -- generate`) |
 | `prisma/schema/notes.prisma` | 4 | Ty |
 | `prisma/migrations/<data>_add_notes/migration.sql` | 4 | Prisma |
 | `src/features/notes/contracts/note.schemas.ts`, `src/features/notes/contracts/note.types.ts` | 5 | Ty |
 | `src/features/notes/services/commands/__tests__/create-note-command.test.ts`, `src/features/notes/services/__tests__/notes-isolation.integration.test.ts` | 6 | autor testów (w procesie z agentami `test-writer`) |
 | `src/features/notes/services/queries/list-notes-query.ts`, `src/features/notes/services/commands/create-note-command.ts`, `src/features/notes/components/notes-manager.tsx`, `src/app/[locale]/(app)/notes/page.tsx` | 7 | autor kodu (w procesie z agentami implementer, który nie zmienia testów; [role](08b-testy-adwersarialne.md#role)) |
-| `src/shared/lib/auth/__tests__/access-matrix.test.ts`, `src/shared/lib/modules/__tests__/nav.test.ts`, `src/shared/components/__tests__/app-sidebar.test.tsx` | 8 | Ty, zmiana plików modułu `core` |
 
 Kolejność kroków i punkty kontrolne:
 
@@ -72,7 +71,7 @@ Kolejność kroków i punkty kontrolne:
 flowchart TD
     s1["1. Projekt po starcie"] --> s2["2. module.ts i tłumaczenia"]
     s2 --> g1{"generator"}
-    g1 -->|"Bez zmian: feature poza rejestrem"| s3["3. Wpis modułu notes w .wa/kit.json"]
+    g1 -->|"Bez zmian: feature poza rejestrem"| s3["3. Wpis notes w projectModules"]
     s3 --> g2{"generator"}
     g2 -->|"rejestr i region wa:relations"| s4["4. notes.prisma, migracja, db:generate"]
     s4 --> s5["5. Kontrakty: schemat Zod i typ"]
@@ -91,8 +90,7 @@ Tutorial zakłada projekt klienta. W repozytorium kitu te same kroki działają,
 | Temat | Projekt klienta | Repozytorium kitu |
 | --- | --- | --- |
 | Migracje | Commitowane. Linia `prisma/migrations/` jest usunięta z `.gitignore`, a migracja `init` jest w repozytorium ([03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#migracje-w-projekcie)). | Katalog `prisma/migrations/` jest w `.gitignore`, więc migracja `add-notes` zostaje tylko na dysku ([D13](decyzje.md#d13)). |
-| `.wa/kit.json` | Moduł `core` i moduły projektu, tu `notes`. | Tylko `core`. Funkcji projektu nie dopisuje się do kitu. |
-| Testy rdzenia z listą modułów | Rozszerzone o `notes` (krok 8). | Bez zmian. |
+| `.wa/kit.json` | Moduły kitu w `modules`, moduły projektu w `projectModules`, tu `notes`. | Tylko moduły kitu. `projectModules` zostaje puste, bo funkcji projektu nie dopisuje się do kitu. |
 | Poprawka rdzenia, która przyda się innym projektom | Zgłaszasz do repozytorium kitu ([11-praca-z-kitem.md](11-praca-z-kitem.md)). | Robisz ją tutaj. |
 
 Jeśli chcesz przejść tutorial dla wprawy w repozytorium kitu, rób to w osobnej kopii roboczej (`git worktree`) z osobnymi bazami i niczego z niej nie commituj. W `.env` kopii ustaw w `DATABASE_URL` inną bazę niż `wa_app`, na przykład `wa_app_tutorial` (Prisma założy ją przy `npx prisma migrate dev`), a do testów integracyjnych podawaj osobną bazę z nazwą zakończoną na `_test`, na przykład `wa_app_tutorial_test`. Kopia, której `.env` powstał z `.env.example`, łączy się z tą samą bazą `wa_app` co kopia główna (ten sam port, ten sam kontener). Ta baza ma migrację `init` kopii głównej, której nie ma w ignorowanym katalogu `prisma/migrations/` kopii roboczej, więc `migrate dev` zgłosi rozjazd historii ([Rozjazd historii migracji](03b-schemat-i-migracje.md#dryf-migracji)). Gdyby migracja `add-notes` trafiła do `wa_app`, ten sam rozjazd zobaczyłaby kopia główna.
@@ -162,17 +160,17 @@ Uruchom generator, tak jak po każdym dodaniu definicji modułu albo pliku tłum
 npm run wa -- generate
 ```
 
-Wynik to `Bez zmian`, a w plikach rejestru nie ma słowa `notes`. To jest oczekiwane na tym etapie: generator rejestruje tylko feature, które wskazuje wzorzec w `.wa/kit.json` ([Wykrywanie feature](02b-rejestr-i-generator.md#wykrywanie-feature)). Wpis dodasz w kroku 3.
+Wynik to `Bez zmian`, a w plikach rejestru nie ma słowa `notes`. To jest oczekiwane na tym etapie: generator rejestruje tylko feature, które wskazuje wzorzec w manifeście modułu z `.wa/kit.json` ([Wykrywanie feature](02b-rejestr-i-generator.md#wykrywanie-feature)). Wpis w `projectModules` dodasz w kroku 3.
 
 <a id="objaw-braku-wpisu"></a>
 
-### Objaw: feature bez wpisu w `.wa/kit.json`
+### Objaw: feature bez wpisu w `projectModules`
 
 Tak wygląda aplikacja, gdy feature ma pliki, ale nie ma wpisu. Wiersze generatora, menu, strony i Prismy pochodzą z przebiegu (menu i stronę sprawdzono w przeglądarce na koncie superadmina, po chwilowym usunięciu wpisu z gotowego feature). Wiersze komendy i tłumaczeń wynikają z kodu:
 
 | Gdzie | Co widać | Dlaczego |
 | --- | --- | --- |
-| `npm run wa -- generate` | `Bez zmian`, `notes` nie ma w rejestrze. | Generator czyta tylko wzorce `src/features/<x>/` z `.wa/kit.json`. |
+| `npm run wa -- generate` | `Bez zmian`, `notes` nie ma w rejestrze. | Generator czyta tylko wzorce `src/features/<x>/` z manifestów w `.wa/kit.json`. |
 | Menu | Brak pozycji „Notatki”. | `getNavEntries` przegląda tylko definicje z rejestru. |
 | Strona `/notes` | Strona Next.js „404 This page could not be found.”, także dla admina i superadmina. | `requireModuleAccess("notes")` nie znajduje definicji i woła `notFound()` (kod niżej). Rola globalna daje dostęp tylko do definicji, którą guard znalazł. |
 | Komenda `createNoteCommand` | Komunikat „Nie udało się dodać notatki” i wpis `error` w logu. | `notFound()` rzucone w `try` trafia do `handleCommandError` jak każdy nieznany błąd ([Wynik i błędy](06-wzorce-kodu.md#wynik-i-bledy)). |
@@ -205,11 +203,16 @@ export async function requireModuleAccess(
 
 <a id="krok-3"></a>
 
-## Krok 3. Wpis modułu w `.wa/kit.json`
+## Krok 3. Wpis w `projectModules`
 
-> **Uwaga: to obejście.** `.wa/kit.json` z założenia opisuje kod, który projekt dostał z kitu ([D02](decyzje.md#d02)). Kit nie ma osobnego miejsca na funkcje projektu, a bez wpisu generator nie zarejestruje feature (objawy wyżej). Wpis modułu `notes` jest więc obejściem. Jego skutki opisuje [znane-ograniczenia.md](znane-ograniczenia.md#modul-projektu).
+`.wa/kit.json` ma dwie sekcje modułów. `modules` opisuje kod, który projekt dostał z kitu (wersje, hashe plików, aktualizacje). `projectModules` opisuje funkcje napisane w projekcie: wpis ma tylko `manifest`, bez własnej wersji i hashy plików, a `wa generate` czyta go tak samo jak moduły kitu ([D02](decyzje.md#d02)). Moduły projektu trafiają do rejestru po modułach kitu, alfabetycznie, a `wa kit sync` zachowuje je bez zmian.
 
-Dopisz do słownika `modules` nowy moduł obok `core`. Manifest musi przejść schemat `moduleManifestSchema` z `kit/cli/src/manifest/schema.ts`, inaczej generator przerwie pracę i wypisze błędy Zod ([Referencja manifestu](02b-rejestr-i-generator.md#referencja-manifest)):
+Dopisz do słownika `projectModules` wpis `notes`. Manifest musi przejść schemat `moduleManifestSchema` z `kit/cli/src/manifest/schema.ts`, a `wa generate` przy odczycie sprawdza jeszcze cztery reguły, inaczej przerwie pracę z komunikatem po polsku ([Referencja manifestu](02b-rejestr-i-generator.md#referencja-manifest)):
+
+- klucz wpisu jest równy `manifest.name`;
+- nazwa nie występuje jednocześnie w `modules` i w `projectModules`;
+- każdy moduł z `requires` jest w `modules` albo w `projectModules`;
+- `files` zawiera wzorzec zaczynający się od `src/features/<nazwa>/`.
 
 `.wa/kit.json`
 
@@ -218,13 +221,14 @@ Dopisz do słownika `modules` nowy moduł obok `core`. Manifest musi przejść s
   "kitVersion": "0.0.0",
   "modules": {
 // …
+  },
+  "projectModules": {
     "notes": {
-      "version": "0.1.0",
       "manifest": {
         "name": "notes",
         "version": "0.1.0",
         "description": "Funkcja projektu: notatki organizacji",
-        "requires": ["core"],
+        "requires": [],
         "files": [
           "src/features/notes/**",
           "src/app/[locale]/(app)/notes/**",
@@ -238,8 +242,7 @@ Dopisz do słownika `modules` nowy moduł obok `core`. Manifest musi przejść s
         ],
         "compose": null,
         "workspaces": []
-      },
-      "files": {}
+      }
     }
   }
 }
@@ -250,8 +253,10 @@ Dopisz do słownika `modules` nowy moduł obok `core`. Manifest musi przejść s
 | `files` | Generator czyta z tej listy tylko `src/features/notes/**`. Ten wzorzec rejestruje feature. Pozostałe dwa wzorce są zapisem własności plików, którego nic nie sprawdza. Każdy feature potrzebuje własnego wzorca ([D02](decyzje.md#d02)). |
 | `schemaRelations` | Linia `notes Note[]` trafi do regionu `wa:relations` w modelu `Organization`. To jedyny sposób dodania relacji zwrotnej do modelu rdzenia. Generator obsługuje tylko modele `User` i `Organization`; relację z innym modelem pomija bez błędu ([Regiony](02b-rejestr-i-generator.md#regiony)). |
 | `env`, `compose` | Puste: feature nie ma własnych zmiennych ani usług Dockera. |
-| `name` | Generator używa go tylko jako nagłówka bloku modułu w `.env.example`, gdy `env` nie jest puste. Schemat wymaga niepustego napisu. |
-| `version` (wpisu i manifestu), `description`, `requires`, `dependencies`, `devDependencies`, `workspaces`, `files` (poza manifestem) | Generator ich nie czyta. Muszą tylko przejść schemat: `version` w manifeście jest niepustym napisem, `version` wpisu i `description` mogą być dowolnym napisem, a `files` poza manifestem to obiekt. |
+| `name` | Musi być równe kluczowi wpisu. Generator używa go też jako nagłówka bloku modułu w `.env.example`, gdy `env` nie jest puste. |
+| `version` | Schemat wymaga niepustego napisu. Przy awansie funkcji do kitu staje się wersją modułu kitu. |
+| `requires` | Moduły kitu albo inne moduły projektu, od których zależy funkcja. Brakujący moduł kończy odczyt błędem. |
+| `description`, `dependencies`, `devDependencies`, `workspaces` | Generator ich nie czyta. Muszą tylko przejść schemat. |
 
 Literówka w nazwie pola (na przykład `schemaRelation`) nie daje błędu: pole dostaje wartość domyślną i relacja się nie pojawi. Po zapisie uruchom generator:
 
@@ -267,7 +272,7 @@ zmieniono src/modules.client.generated.ts
 zmieniono prisma/schema/organizations.prisma
 ```
 
-Rejestr importuje teraz definicję modułu i tłumaczenia `notes`, a region w modelu `Organization` zawiera relację:
+Rejestr importuje teraz definicję modułu i tłumaczenia `notes` po modułach kitu, a region w modelu `Organization` zawiera relację:
 
 `src/modules.client.generated.ts`
 
@@ -293,7 +298,7 @@ export const clientModules = [accountModule, authModule, dashboardModule, organi
 - **Plik schematu przed wpisem.** Prisma zgłasza brak relacji zwrotnej i proponuje ``Either run `prisma format` or add it manually.`` Nie rób żadnego z tych dwóch: dodaj `schemaRelations` i uruchom generator.
 - **Po `prisma format` albo ręcznym dopisaniu.** `prisma format` dopisuje `notes Note[]` pod linią `// wa:relations:end`, czyli w pliku rdzenia poza regionem. Następny przebieg generatora wstawia tę samą linię w region i schemat kończy się błędem `Field "notes" is already defined on model "Organization".` (sprawdzone na kopii schematu). Usuń linię spoza regionu.
 
-**Od tego kroku `npm test` zgłasza błędy w trzech testach rdzenia**, które porównują rejestr z listą wpisaną na stałe (w przebiegu 27 testów w 3 plikach). Poprawkę opisuje [krok 8](09b-implementacja-i-bramki.md#testy-rdzenia).
+Testy rdzenia nie zmieniają się: porównują rejestr tylko z modułami rdzenia, a spójność całego rejestru (unikalne klucze i adresy, etykiety menu w każdym języku, zgodność menu z `canAccessModule`) sprawdza `src/shared/lib/modules/__tests__/registry-consistency.test.ts`, który obejmuje też `notes` ([krok 8](09b-implementacja-i-bramki.md#testy-rdzenia)).
 
 <a id="krok-4"></a>
 

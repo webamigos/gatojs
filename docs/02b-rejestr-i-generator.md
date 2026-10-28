@@ -122,18 +122,20 @@ Plik opisuje, z jakich modułów kitu składa się projekt. W repozytorium kitu 
       },
       "files": {}
     }
-  }
+  },
+  "projectModules": {}
 }
 ```
 
 - `modules` to słownik: klucz to nazwa modułu, a wartość to wersja, manifest i mapa `files`. Jest jeden moduł, `core`.
+- `projectModules` to słownik funkcji napisanych w projekcie: klucz to nazwa modułu, a wartość ma tylko `manifest`, bez wersji i hashy plików. Generator czyta go tak samo jak `modules` i rejestruje moduły projektu po modułach kitu, alfabetycznie. W repozytorium kitu jest pusty ([Krok 3 tutorialu](09-nowy-modul.md#krok-3)).
 - `manifest.files` to wzorce plików należących do modułu. Generator czyta z nich tylko wzorce zaczynające się od `src/features/<x>/`, żeby wykryć feature ([Wykrywanie feature](#wykrywanie-feature)). Pozostałe wzorce (`src/shared/**`, `src/app/**` i inne) są tylko zapisem własności. Nic nie sprawdza, czy obejmują wszystkie pliki rdzenia ani czy plik nie należy do dwóch modułów ([D02](decyzje.md#d02)).
 - `env`, `schemaRelations` i `compose` wypełniają regiony `wa:*`. W `core` są puste, więc wszystkie regiony w repozytorium są puste.
 - Pozostałych pól generator nie używa. Pełną listę z typami i wartościami domyślnymi podaje [Referencja](#referencja-manifest).
 
 `readKitState` w `kit/cli/src/manifest/kit-state.ts` sprawdza plik schematem Zod i przy błędzie przerywa generator. Pól, których schemat nie zna, nie zgłasza: literówka w nazwie pola (na przykład `schemaRelation` zamiast `schemaRelations`) przechodzi bez błędu, a pole dostaje wartość domyślną.
 
-Feature, którego nie obejmuje żaden wzorzec w `.wa/kit.json`, nie trafia do rejestru: nie ma pozycji w menu, `requireModuleAccess` z jego kluczem kończy się 404, a jego tłumaczenia się nie ładują. Dotyczy to także funkcji projektu klienta ([znane-ograniczenia.md](znane-ograniczenia.md#modul-projektu)).
+Feature, którego nie obejmuje żaden wzorzec w `.wa/kit.json`, nie trafia do rejestru: nie ma pozycji w menu, `requireModuleAccess` z jego kluczem kończy się 404, a jego tłumaczenia się nie ładują. Dotyczy to także funkcji projektu klienta: jej wzorzec `src/features/<x>/**` należy wpisać w manifeście w `projectModules` ([Krok 3 tutorialu](09-nowy-modul.md#krok-3)).
 
 <a id="wa-generate"></a>
 

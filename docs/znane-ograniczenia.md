@@ -4,7 +4,6 @@ Po przeczytaniu będziesz wiedzieć:
 
 - które zachowania kitu są znanymi lukami, a nie błędem w Twoim kodzie ani w dokumentacji;
 - które dwie pozycje mają wysoki priorytet i jak je ominąć: w testach mutacyjnych i na Railway;
-- dlaczego funkcja projektu klienta potrzebuje wpisu w `.wa/kit.json` i ile to obejście kosztuje;
 - gdzie w kodzie siedzi przyczyna każdej pozycji i który plik dokumentacji opisuje ją szczegółowo;
 - czym ograniczenie różni się od decyzji z [rejestru decyzji](decyzje.md).
 
@@ -14,7 +13,6 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 
 - start i konta: `scripts/admin-create.ts`, `scripts/lib/admin-create.ts`, `.env.example`, `kit/cli/src/generate/registry.ts`, `package.json`, `.nvmrc`, `src/app/[locale]/accept-invitation/[id]/page.tsx`, `src/features/auth/components/sign-in-form.tsx`;
 - rejestr modułów i generator: `.wa/kit.json`, `kit/cli/src/generate/index.ts`, `kit/cli/src/generate/targets.ts`, `kit/cli/src/manifest/schema.ts`, `src/shared/lib/modules/nav.ts`, `src/shared/lib/auth/permissions.ts`, `src/shared/lib/env.ts`, `src/shared/lib/mailer.ts`, `src/proxy.ts`;
-- testy rdzenia liczące rejestr: `src/shared/lib/auth/__tests__/access-matrix.test.ts`, `src/shared/lib/modules/__tests__/nav.test.ts`, `src/shared/components/__tests__/app-sidebar.test.tsx`;
 - auth, role i tryb serwisowy: `src/shared/lib/auth/index.ts`, `src/shared/lib/auth/admin-access.ts`, `src/shared/lib/auth/admin-guard.ts`, `src/shared/lib/auth/roles.ts`, `src/shared/components/service-mode/use-service-mode-action.tsx`, `src/features/organizations/components/organization-members.tsx`, `src/features/organizations/services/commands/member-commands.ts`, `src/features/organizations/services/queries/switchable-organizations-query.ts`, `src/features/users/services/commands/impersonation-commands.ts`;
 - język, logi i serwer: `src/i18n/routing.ts`, `src/shared/lib/logger.ts`, `src/instrumentation.ts`, `src/app/api/healthcheck/route.ts`, `src/shared/utils/error-handling.ts`, `Dockerfile`, `railway.toml`;
 - testy i proces: `stryker.integration.config.json`, `vitest.integration.config.ts`, `mutation-gate.json`, `scripts/lib/mutation-gate.ts`, `.claude/hooks/protect-tests.mjs`, `.claude/hooks/block-comments.mjs`, `.github/workflows/e2e.yml`, `commitlint.config.mjs`, `.gitignore`;
@@ -41,7 +39,7 @@ Priorytet „wysoki” dostają pozycje, które dotyczą domyślnej ścieżki st
 | Obszar | Pozycje |
 | --- | --- |
 | [Wysoki priorytet](#wysoki-priorytet) | [dwa procesy testów w przebiegu integracyjnym Strykera](#stryker-concurrency), [Railway nie czyta `railway.toml`](#railway-toml) |
-| [Funkcje projektu i rejestr modułów](#funkcje-projektu) | [funkcja klienta w `.wa/kit.json`](#modul-projektu), [mniejsze pozycje generatora i rejestru](#rejestr-male) |
+| [Funkcje projektu i rejestr modułów](#funkcje-projektu) | [mniejsze pozycje generatora i rejestru](#rejestr-male) |
 | [Logowanie, role i organizacje](#auth) | [zaproszenie dla istniejącego konta](#zaproszenie-istniejace-konto), [rola z kilkoma wartościami](#rola-wielowartosciowa), [tryb serwisowy](#tryb-serwisowy-luki), [impersonacja i konta serwisowe](#konta-serwisowe), [mniejsze pozycje](#auth-male) |
 | [Język i komunikaty](#jezyk) | [wykrywanie języka](#wykrywanie-jezyka), [komunikaty i strona 404](#jezyk-male) |
 | [Logi, healthcheck i serwer](#serwer) | [logi na produkcji](#logi), [`HOSTNAME=127.0.0.1`](#hostname), [mniejsze pozycje](#serwer-male) |
@@ -84,28 +82,6 @@ Priorytet „wysoki” dostają pozycje, które dotyczą domyślnej ścieżki st
 <a id="funkcje-projektu"></a>
 
 ## Funkcje projektu i rejestr modułów
-
-<a id="modul-projektu"></a>
-
-### Funkcja klienta wymaga wpisu w `.wa/kit.json`
-
-**Skutek.** Kit nie ma pojęcia „moduł należący do projektu”. `wa generate` rejestruje feature (`src/features/<x>/`) tylko wtedy, gdy jakiś moduł w `.wa/kit.json` ma w `files` glob pasujący do `src/features/<x>/`, a na dysku jest `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts` albo `i18n/<locale>.json`. Funkcja klienta bez wpisu nie trafia do rejestru: nie ma pozycji w menu, `requireModuleAccess` z jej kluczem kończy się 404, jej tłumaczenia się nie ładują, a relacje zwrotne nie trafiają do regionów `wa:*` (te dopisuje tylko `schemaRelations` z manifestu). Plik `.wa/kit.json` opisuje z założenia kod pochodzący z kitu ([D02](decyzje.md#d02)), więc wpis funkcji klienta jest obejściem. [Tutorial](09-nowy-modul.md#krok-3) każe dodać ją jako osobny moduł pod własną nazwą.
-
-**Koszt obejścia.** Trzy testy rdzenia porównują rejestr (`clientModules`) z listą wpisaną na stałe, więc każda funkcja projektu je psuje:
-
-- `src/shared/lib/auth/__tests__/access-matrix.test.ts`: test „rejestr zawiera dokładnie 5 modułów z macierzy”, stała `MATRIX` i listy `NAV`;
-- `src/shared/lib/modules/__tests__/nav.test.ts`: trzy testy w bloku „getNavEntries (rejestr generowany)” z dokładnymi listami adresów;
-- `src/shared/components/__tests__/app-sidebar.test.tsx`: test „member widzi pozycje z rejestru z etykietami z namespace modułu”.
-
-W przebiegu tutorialu `npm run verify` kończy się kodem 1 (27 nieudanych testów w 3 plikach), dopóki funkcja nie zostanie dopisana do tych testów. To zmiana plików modułu `core`, sprzeczna z regułą „moduł nie edytuje rdzenia” ([D03](decyzje.md#d03)), i źródło konfliktów przy przyszłej aktualizacji kitu ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)). Do tego dochodzi brak kontroli „każdy plik ma właściciela”: nic nie porównuje plików z wzorcami `files`, a manifest `core` nie obejmuje między innymi `scripts/**`, `e2e/**`, `src/proxy.ts`, `src/instrumentation.ts`, `src/types/**` i plików konfiguracyjnych w katalogu głównym ([D02](decyzje.md#d02)).
-
-**Gdzie.** `.wa/kit.json`, `kit/cli/src/generate/index.ts` (stała `FEATURE_GLOB`), `kit/cli/src/generate/targets.ts` (`regionTargets`).
-
-**Obejście.** Wpis modułu w `.wa/kit.json` według [kroku 3 tutorialu](09-nowy-modul.md#krok-3) i dopisanie funkcji do trzech testów rdzenia według [kroku 8](09b-implementacja-i-bramki.md#testy-rdzenia). Funkcję w istniejącym module kitu (bez nowego wpisu) opisuje [osobna sekcja](09b-implementacja-i-bramki.md#istniejacy-modul). Objaw braku wpisu: [09-nowy-modul.md](09-nowy-modul.md#objaw-braku-wpisu).
-
-**Kierunek zmiany.** Osobne miejsce w `.wa/kit.json` dla modułów projektu (na przykład sekcja z samym manifestem, bez `version` i hashy plików), którą `wa generate` czyta tak samo jak moduły kitu, a `wa update`, `wa diff` i `wa kit sync` pomijają, a `wa remove` nie kasuje jej plików bez jawnej zgody. Testy rdzenia filtrowałyby rejestr do kluczy feature modułu `core` i przekazywały go do `getNavEntries(context, modules)` (drugi parametr już istnieje) oraz do `canAccessModule`. Po takiej zmianie tutorial traci krok edycji testów rdzenia. Plan 2 i plan 4 traktują `.wa/kit.json` jako opis kodu z kitu, więc zmianę trzeba uzgodnić z nimi ([README.md](README.md#plany)).
-
-**Sprawdzono.** Z kodu generatora i uruchomiono: przebieg tutorialu na kopii roboczej z commitu 4a6ffcb.
 
 <a id="rejestr-male"></a>
 

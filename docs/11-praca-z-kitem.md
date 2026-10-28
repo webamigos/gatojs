@@ -109,7 +109,7 @@ O miejscu decyduje pytanie: czy ta zmiana byłaby poprawna w każdym projekcie n
 | Reguły dla agentów (`AGENTS.md`, `CLAUDE.md`), hooki i agenci w `.claude/`, workflowy CI, konfiguracja husky, lint-staged i commitlint. | Kit | Wspólny sposób pracy. Zmiana w jednym projekcie rozjeżdża go z pozostałymi. |
 | Funkcja klienta potrzebuje od rdzenia czegoś, czego rdzeń nie daje, na przykład szwu, przez który moduł dopisałby się do pliku rdzenia. | Kit, a w projekcie lokalna zmiana rdzenia do czasu poprawki w kicie. | Moduł nie edytuje rdzenia ([D03](decyzje.md#d03)), więc brakujący szew dodaje się w kicie. |
 
-**Zalecenie.** Poprawkę pliku kitu, która ma wrócić do kitu (wiersze „Kit” w tabeli), zrób w projekcie w osobnym commicie, który zawiera tylko tę poprawkę. Taki commit łatwo przenieść do kitu ([krok 2](#pull-request)). Nie dotyczy to zmian rdzenia, które należą do funkcji projektu, na przykład trzech testów rdzenia rozszerzonych o feature: te commitujesz razem z feature, jak w [kroku 9 tutorialu](09b-implementacja-i-bramki.md#krok-9).
+**Zalecenie.** Poprawkę pliku kitu, która ma wrócić do kitu (wiersze „Kit” w tabeli), zrób w projekcie w osobnym commicie, który zawiera tylko tę poprawkę. Taki commit łatwo przenieść do kitu ([krok 2](#pull-request)). Nie dotyczy to zmian rdzenia, które należą do funkcji projektu, na przykład wpisu feature w `projectModules` i plików generowanych: te commitujesz razem z feature, jak w [kroku 9 tutorialu](09b-implementacja-i-bramki.md#krok-9).
 
 <a id="pull-request"></a>
 
@@ -156,7 +156,7 @@ Poprawkę przenosisz ręcznie. Projekt i kit mają ten sam układ katalogów ([D
 
 Moduł kitu to kod, który ma trafić do wielu projektów: wpis w `.wa/kit.json` z manifestem i feature, które ten wpis obejmuje. W kicie jest jeden moduł, `core`. Nowy moduł powstaje w repozytorium kitu, przez pull request, tymi samymi krokami co funkcja klienta w [09-nowy-modul.md](09-nowy-modul.md) i [09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md). Różnice:
 
-- Wpis w `.wa/kit.json` kitu dostaje własną nazwę modułu obok `core`. Funkcja klienta też dostaje własny wpis ([krok 3 tutorialu](09-nowy-modul.md#krok-3)), ale w projekcie to obejście ([znane-ograniczenia.md](znane-ograniczenia.md#modul-projektu)). W kicie wpis jest właściwym miejscem modułu. Pola manifestu opisuje [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#referencja-manifest).
+- Wpis w `.wa/kit.json` kitu dostaje własną nazwę modułu obok `core`. Funkcja klienta dostaje wpis w osobnej sekcji `projectModules` ([krok 3 tutorialu](09-nowy-modul.md#krok-3)), a nie w `modules`. W kicie wpis w `modules` jest właściwym miejscem modułu. Pola manifestu opisuje [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#referencja-manifest).
 - Migracji nie commitujesz, bo kit ich nie commituje ([D13](decyzje.md#d13)).
 - Trzy testy rdzenia z listą feature zmieniasz w tym samym pull requeście, bo każdy nowy wpis w rejestrze je łamie ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)). W kicie te testy są kodem kitu. Zakaz z 09b, żeby nie zmieniać ich w repozytorium kitu, dotyczy funkcji klienta, takiej jak `notes`. Ten punkt to wniosek z działania testów: dodania modułu kitu nie przechodzono.
 - Decyzję, która obowiązuje w kodzie modułu, dopisujesz do [decyzje.md](decyzje.md#statusy-i-numeracja).

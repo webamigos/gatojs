@@ -56,7 +56,7 @@ Kolejność to kolejność czytania dla nowej osoby. Podział na pliki z literą
 | [10-wdrozenie.md](10-wdrozenie.md) | Obraz Docker, `railway.toml`, wdrożenie na Railway, konta na produkcji, przekazanie aplikacji klientowi i workflowy CI. |
 | [11-praca-z-kitem.md](11-praca-z-kitem.md) | Zmiany lokalne a poprawki do kitu, commity, bramka `npm run verify`, praca z agentami AI, proces superpowers i pliki generowane. |
 | [decyzje.md](decyzje.md) | Rejestr decyzji D01–D27: dlaczego kit jest zbudowany tak, a nie inaczej, i co pilnuje przestrzegania każdej decyzji. |
-| [znane-ograniczenia.md](znane-ograniczenia.md) | Znane luki kodu z ich skutkami, plikami i obejściami: dwie pozycje o wysokim priorytecie, funkcja klienta w `.wa/kit.json` i reszta pogrupowana tematycznie. |
+| [znane-ograniczenia.md](znane-ograniczenia.md) | Znane luki kodu z ich skutkami, plikami i obejściami: dwie pozycje o wysokim priorytecie i reszta pogrupowana tematycznie. |
 | README.md | Ten plik: indeks, ścieżki czytania, słownik i zakres dokumentacji. |
 
 Katalog `docs/superpowers/` nie jest częścią dokumentacji. Trzyma specyfikacje, plany i notatki procesu, z których powstał kit: [design doc](superpowers/specs/2026-10-26-wa-kit-design.md), [plan 1 (rdzeń)](superpowers/plans/2026-10-26-wa-kit-plan-1-core.md) i [handoff planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md). Opisują zamiar z chwili pisania, a w trakcie wykonania zmieniły go rulingi i poprawki, więc przy sprzeczności rozstrzyga kod ([11-praca-z-kitem.md](11-praca-z-kitem.md#superpowers)).

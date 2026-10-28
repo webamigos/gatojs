@@ -75,6 +75,10 @@ npx prisma migrate dev --name <nazwa>     # nowa migracja
   - `.env.example` — `# wa:modules:start/end`
   - `docker-compose.yml` — `# wa:services:start/end`
 - Plików generowanych i regionów nie edytuj ręcznie. Uruchom `npm run wa -- generate`. CI sprawdza, że po `generate` nie ma diffu.
+- Funkcje napisane w projekcie (nie pochodzące z kitu) mają wpis w `projectModules` w `.wa/kit.json`: samo
+  `manifest` (z `src/features/<x>/**` w `files`), bez wersji i hashy. `wa generate` rejestruje je po modułach kitu;
+  `wa kit sync` ich nie rusza. Testy rdzenia porównują rejestr tylko z modułami rdzenia (`src/test/core-modules.ts`),
+  więc nowa funkcja nie wymaga zmiany plików rdzenia.
 - Każdy moduł: `src/features/<x>/module.ts` z `export default defineModule({...})`; opcjonalnie `env.ts`
   (`envSchema`), `auth.ts` (`authPlugin`), `auth-client.ts` (`authClientPlugin`), `i18n/{pl,en}.json`.
 

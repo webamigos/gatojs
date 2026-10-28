@@ -153,7 +153,7 @@ Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateS
 - Pliki tylko dla kitu (`kit/`, `docs/`) leżą obok aplikacji i nie należą do żadnego manifestu.
 - Kod czyta z `files` tylko wzorce zaczynające się od `src/features/<x>/`: na ich podstawie `wa generate` wykrywa feature (`FEATURE_GLOB` w `kit/cli/src/generate/index.ts`). Pozostałe wzorce (`src/shared/**`, `src/app/**` i inne) są tylko zapisem własności.
 - Każdy feature musi mieć osobny wzorzec: wzorzec z nawiasami, na przykład `src/features/{auth,users}/**`, generator pomija bez błędu (ruling R14). Wzorzec katalogu, którego nie ma na dysku, też jest pomijany, więc manifest może wymieniać feature z wyprzedzeniem (ruling R5).
-- Feature, którego nie obejmuje żaden wzorzec w `.wa/kit.json`, nie trafia do rejestru modułów: nie ma nawigacji, `requireModuleAccess` nie zna jego klucza, a jego tłumaczenia się nie ładują. Dotyczy to także funkcji projektu klienta; skutki i obejście opisuje [znane-ograniczenia.md](znane-ograniczenia.md#modul-projektu).
+- Feature, którego nie obejmuje żaden wzorzec w `.wa/kit.json`, nie trafia do rejestru modułów: nie ma nawigacji, `requireModuleAccess` nie zna jego klucza, a jego tłumaczenia się nie ładują. Dotyczy to także funkcji projektu klienta, która dostaje wpis w `projectModules` ([krok 3 tutorialu](09-nowy-modul.md#krok-3)).
 - Manifest `core` nie wymienia wszystkich plików rdzenia (brakuje na przykład `scripts/**`, `e2e/**` i `src/proxy.ts`; lista w checkliście handoffu planu 1). Design doc §4.2 i §7 zapowiadają kontrolę w CI, że każdy plik ma dokładnie jednego właściciela; w kodzie takiej kontroli nie ma.
 
 **Jak egzekwowana.**
