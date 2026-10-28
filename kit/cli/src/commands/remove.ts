@@ -1,10 +1,16 @@
-import { readFile, readdir, rm, rmdir, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import {
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  rmdir,
+  writeFile,
+} from "node:fs/promises";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { compareCodePoint } from "../compare.js";
 import { fileHash } from "../assemble/hash.js";
 import { removeDependencies } from "../assemble/package-json.js";
 import { generate } from "../generate/index.js";
-import type { KitConfig } from "../kit/kit-config.js";
 import {
   projectModuleManifests,
   readKitState,
@@ -22,15 +28,7 @@ export type RemoveOptions = {
   log: (line: string) => void;
 };
 
-const HASH_CONFIG: KitConfig = {
-  version: "",
-  repo: "",
-  kitOnly: [],
-  placeholders: { projectName: "", projectSlug: "", projectSnake: "" },
-  placeholderFiles: [],
-  generatedFiles: [],
-  managedFiles: ["package.json", "package-lock.json"],
-};
+const HASH_CONFIG = { managedFiles: [] };
 
 function assertRemovable(state: KitState, module: string): void {
   if (module === "core") throw new Error("Nie można usunąć rdzenia");
@@ -56,19 +54,28 @@ function assertRemovable(state: KitState, module: string): void {
   }
 }
 
-function isInside(root: string, path: string): boolean {
-  const fromRoot = relative(root, path);
-  return (
-    fromRoot !== "" &&
-    fromRoot !== ".." &&
-    !fromRoot.startsWith(`..${sep}`) &&
-    !isAbsolute(fromRoot)
-  );
+async function realpathOfDeepestAncestor(path: string): Promise<string> {
+  const missing: string[] = [];
+  let current = path;
+  for (;;) {
+    try {
+      return join(await realpath(current), ...missing.reverse());
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      missing.push(basename(current));
+      current = dirname(current);
+    }
+  }
 }
 
-function insideProject(projectDir: string, file: string): string {
+async function insideProject(
+  projectDir: string,
+  file: string,
+): Promise<string> {
+  const root = await realpath(projectDir);
   const absolute = resolve(projectDir, file);
-  if (!isInside(resolve(projectDir), absolute)) {
+  const real = await realpathOfDeepestAncestor(absolute);
+  if (!real.startsWith(root + sep)) {
     throw new Error(`Ścieżka poza projektem: ${file}`);
   }
   return absolute;
@@ -89,7 +96,7 @@ async function changedFiles(
 ): Promise<string[]> {
   const changed: string[] = [];
   for (const [file, savedHash] of Object.entries(files)) {
-    const content = await readIfExists(insideProject(projectDir, file));
+    const content = await readIfExists(await insideProject(projectDir, file));
     if (content === null) continue;
     if (fileHash(file, content, HASH_CONFIG) !== savedHash) changed.push(file);
   }
@@ -102,7 +109,7 @@ async function removeEmptyParents(
 ): Promise<void> {
   const root = resolve(projectDir);
   let current = dirname(start);
-  while (isInside(root, current)) {
+  while (current.startsWith(root + sep)) {
     let entries: string[];
     try {
       entries = await readdir(current);
@@ -127,9 +134,10 @@ export async function remove(
   const entry = state.modules[module] as NonNullable<
     (typeof state.modules)[string]
   >;
-  const absolutePaths = Object.keys(entry.files).map((file) =>
-    insideProject(projectDir, file),
-  );
+  const absolutePaths: string[] = [];
+  for (const file of Object.keys(entry.files)) {
+    absolutePaths.push(await insideProject(projectDir, file));
+  }
   const changed = await changedFiles(projectDir, entry.files);
   if (changed.length > 0 && !options.force) {
     throw new Error(

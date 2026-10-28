@@ -108,10 +108,14 @@ export function parseRemoveArgs(argv: string[]): RemoveArgs {
 export type ListArgs = { kit: string | null };
 
 export function parseListArgs(argv: string[]): ListArgs {
-  const { values } = parseArgs({
+  const { values, positionals } = parseArgs({
     args: argv,
-    allowPositionals: false,
+    allowPositionals: true,
     options: { kit: { type: "string" } },
   });
+  const [unexpected] = positionals;
+  if (unexpected !== undefined) {
+    throw new Error(`Nieoczekiwany argument: ${unexpected}`);
+  }
   return { kit: values.kit ?? null };
 }

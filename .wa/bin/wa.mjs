@@ -6,11 +6,10 @@ var __export = (target, all) => {
 };
 
 // src/bin.ts
-import { dirname as dirname5, resolve as resolve4 } from "node:path";
+import { dirname as dirname5, join as join11, resolve as resolve4 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdtemp as mkdtemp2, rm as rm4 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join as join11 } from "node:path";
 
 // src/args.ts
 import { parseArgs } from "node:util";
@@ -90,11 +89,15 @@ function parseRemoveArgs(argv) {
   return { module, force: values.force, install: !values["no-install"] };
 }
 function parseListArgs(argv) {
-  const { values } = parseArgs({
+  const { values, positionals } = parseArgs({
     args: argv,
-    allowPositionals: false,
+    allowPositionals: true,
     options: { kit: { type: "string" } }
   });
+  const [unexpected] = positionals;
+  if (unexpected !== void 0) {
+    throw new Error(`Nieoczekiwany argument: ${unexpected}`);
+  }
   return { kit: values.kit ?? null };
 }
 
@@ -20965,17 +20968,16 @@ function list(options) {
 }
 
 // src/commands/remove.ts
-import { readFile as readFile9, readdir as readdir3, rm as rm3, rmdir, writeFile as writeFile6 } from "node:fs/promises";
-import { dirname as dirname4, isAbsolute, join as join10, relative, resolve as resolve3, sep } from "node:path";
-var HASH_CONFIG = {
-  version: "",
-  repo: "",
-  kitOnly: [],
-  placeholders: { projectName: "", projectSlug: "", projectSnake: "" },
-  placeholderFiles: [],
-  generatedFiles: [],
-  managedFiles: ["package.json", "package-lock.json"]
-};
+import {
+  readFile as readFile9,
+  readdir as readdir3,
+  realpath,
+  rm as rm3,
+  rmdir,
+  writeFile as writeFile6
+} from "node:fs/promises";
+import { basename as basename3, dirname as dirname4, join as join10, resolve as resolve3, sep } from "node:path";
+var HASH_CONFIG = { managedFiles: [] };
 function assertRemovable(state, module) {
   if (module === "core") throw new Error("Nie mo\u017Cna usun\u0105\u0107 rdzenia");
   if (module in state.projectModules) {
@@ -20996,13 +20998,24 @@ function assertRemovable(state, module) {
     );
   }
 }
-function isInside(root, path) {
-  const fromRoot = relative(root, path);
-  return fromRoot !== "" && fromRoot !== ".." && !fromRoot.startsWith(`..${sep}`) && !isAbsolute(fromRoot);
+async function realpathOfDeepestAncestor(path) {
+  const missing = [];
+  let current = path;
+  for (; ; ) {
+    try {
+      return join10(await realpath(current), ...missing.reverse());
+    } catch (error62) {
+      if (error62.code !== "ENOENT") throw error62;
+      missing.push(basename3(current));
+      current = dirname4(current);
+    }
+  }
 }
-function insideProject(projectDir, file2) {
+async function insideProject(projectDir, file2) {
+  const root = await realpath(projectDir);
   const absolute = resolve3(projectDir, file2);
-  if (!isInside(resolve3(projectDir), absolute)) {
+  const real = await realpathOfDeepestAncestor(absolute);
+  if (!real.startsWith(root + sep)) {
     throw new Error(`\u015Acie\u017Cka poza projektem: ${file2}`);
   }
   return absolute;
@@ -21018,7 +21031,7 @@ async function readIfExists(path) {
 async function changedFiles(projectDir, files) {
   const changed = [];
   for (const [file2, savedHash] of Object.entries(files)) {
-    const content = await readIfExists(insideProject(projectDir, file2));
+    const content = await readIfExists(await insideProject(projectDir, file2));
     if (content === null) continue;
     if (fileHash(file2, content, HASH_CONFIG) !== savedHash) changed.push(file2);
   }
@@ -21027,7 +21040,7 @@ async function changedFiles(projectDir, files) {
 async function removeEmptyParents(projectDir, start) {
   const root = resolve3(projectDir);
   let current = dirname4(start);
-  while (isInside(root, current)) {
+  while (current.startsWith(root + sep)) {
     let entries;
     try {
       entries = await readdir3(current);
@@ -21047,9 +21060,10 @@ async function remove(options) {
   const state = await readKitState(projectDir);
   assertRemovable(state, module);
   const entry = state.modules[module];
-  const absolutePaths = Object.keys(entry.files).map(
-    (file2) => insideProject(projectDir, file2)
-  );
+  const absolutePaths = [];
+  for (const file2 of Object.keys(entry.files)) {
+    absolutePaths.push(await insideProject(projectDir, file2));
+  }
   const changed = await changedFiles(projectDir, entry.files);
   if (changed.length > 0 && !options.force) {
     throw new Error(

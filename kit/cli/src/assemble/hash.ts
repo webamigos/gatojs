@@ -32,7 +32,7 @@ function sha256(data: string | Buffer): string {
 export function fileHash(
   file: string,
   content: Buffer,
-  config: KitConfig,
+  config: Pick<KitConfig, "managedFiles">,
 ): string {
   if (config.managedFiles.includes(file)) return "managed";
   if (REGION_FILES.includes(file)) {
