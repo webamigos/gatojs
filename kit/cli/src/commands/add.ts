@@ -36,6 +36,8 @@ function missingDirectories(projectDir: string, files: string[]): string[] {
   return [...missing].sort((a, b) => b.length - a.length);
 }
 
+const PACKAGE_JSON = "package.json";
+
 type CleanupStep = { path: string; run: () => Promise<void> };
 
 async function rollbackAdd(input: {
@@ -61,9 +63,9 @@ async function rollbackAdd(input: {
   ];
   if (input.packageJsonOverwritten) {
     steps.push({
-      path: "package.json",
+      path: PACKAGE_JSON,
       run: () =>
-        writeFile(join(projectDir, "package.json"), input.originalPackageJson),
+        writeFile(join(projectDir, PACKAGE_JSON), input.originalPackageJson),
     });
   }
   for (const step of steps) {
@@ -114,7 +116,7 @@ export async function add(options: AddOptions): Promise<{ added: string[] }> {
     snake: state.project.slug.replaceAll("-", "_"),
   };
   const modules = { ...state.modules };
-  const packageJsonPath = join(projectDir, "package.json");
+  const packageJsonPath = join(projectDir, PACKAGE_JSON);
   const originalPackageJson = await readFile(packageJsonPath, "utf8");
   const plannedFiles = filesByModule.flatMap(({ files }) => files);
   const createdDirectories = missingDirectories(projectDir, plannedFiles);
