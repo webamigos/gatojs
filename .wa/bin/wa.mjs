@@ -26,25 +26,26 @@ function parseLocales(value) {
   }
   return locales;
 }
-var OPTION_NAME_IN_ERROR = /'(-{1,2}[^\s'=]+)/;
-function optionNameFromError(error62) {
-  return OPTION_NAME_IN_ERROR.exec(error62.message)?.[1] ?? "";
-}
 function translateParseError(error62, options) {
   if (!(error62 instanceof Error) || !("code" in error62)) {
     return error62;
   }
-  const option = optionNameFromError(error62);
+  const option = error62.message.split("'")[1].split(" ")[0];
   if (error62.code === "ERR_PARSE_ARGS_UNKNOWN_OPTION") {
     return new Error(`Nieznana opcja: ${option}`);
   }
-  if (error62.code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
-    const takesValue = options[option.replace(/^--/, "")]?.type === "string";
-    return new Error(
-      takesValue ? `Opcja ${option} wymaga warto\u015Bci` : `Opcja ${option} nie przyjmuje warto\u015Bci`
-    );
+  const takesValue = Object.entries(options).some(
+    ([name, config2]) => `--${name}` === option && config2.type === "string"
+  );
+  return new Error(
+    takesValue ? `Opcja ${option} wymaga warto\u015Bci` : `Opcja ${option} nie przyjmuje warto\u015Bci`
+  );
+}
+function optionalValue(value, option) {
+  if (value === "") {
+    throw new Error(`Opcja ${option} wymaga warto\u015Bci`);
   }
-  return error62;
+  return value ?? null;
 }
 function parseOptions(argv, options) {
   try {
@@ -89,7 +90,7 @@ function parseCreateArgs(argv) {
     setup: values.setup,
     install: !values["no-install"],
     git: !values["no-git"],
-    kit: values.kit ?? null
+    kit: optionalValue(values.kit, "--kit")
   };
 }
 function parseAddArgs(argv) {
@@ -104,7 +105,7 @@ function parseAddArgs(argv) {
   assertMaxPositionals(positionals, 1);
   return {
     module,
-    kit: values.kit ?? null,
+    kit: optionalValue(values.kit, "--kit"),
     install: !values["no-install"]
   };
 }
@@ -125,12 +126,19 @@ function parseListArgs(argv) {
     kit: { type: "string" }
   });
   assertMaxPositionals(positionals, 0);
-  return { kit: values.kit ?? null };
+  return { kit: optionalValue(values.kit, "--kit") };
 }
 
 // src/commands/add.ts
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile as readFile6, rm, rmdir, writeFile as writeFile4 } from "node:fs/promises";
+import {
+  lstat,
+  mkdtemp,
+  readFile as readFile6,
+  rm,
+  rmdir,
+  writeFile as writeFile4
+} from "node:fs/promises";
 import { dirname as dirname4, join as join7 } from "node:path";
 
 // src/compare.ts
@@ -20635,30 +20643,62 @@ function missingDirectories(projectDir, files) {
   return [...missing].sort((a, b) => b.length - a.length);
 }
 var PACKAGE_JSON = "package.json";
+var ABSENT_CODES = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
+function isAbsent(error62) {
+  return ABSENT_CODES.has(error62.code);
+}
+async function pathOccupied(path) {
+  try {
+    await lstat(path);
+    return true;
+  } catch (error62) {
+    if (isAbsent(error62)) {
+      return false;
+    }
+    throw error62;
+  }
+}
+async function removeModuleFile(path) {
+  try {
+    await rm(path);
+  } catch (error62) {
+    if (!isAbsent(error62)) {
+      throw error62;
+    }
+  }
+}
+async function restoreFile(path, original) {
+  const current = await readFile6(path, "utf8");
+  if (current !== original) {
+    await writeFile4(path, original);
+  }
+}
 async function rollbackAdd(input2) {
   const { projectDir, log } = input2;
   const steps = [
     ...input2.files.map((file2) => ({
       path: file2,
-      run: () => rm(join7(projectDir, file2), { force: true })
+      run: () => removeModuleFile(join7(projectDir, file2))
     })),
     ...input2.createdDirectories.filter((directory) => existsSync(join7(projectDir, directory))).map((directory) => ({
       path: directory,
       run: () => rmdir(join7(projectDir, directory))
-    }))
-  ];
-  if (input2.packageJsonOverwritten) {
-    steps.push({
+    })),
+    {
       path: PACKAGE_JSON,
-      run: () => writeFile4(join7(projectDir, PACKAGE_JSON), input2.originalPackageJson)
-    });
-  }
+      run: () => restoreFile(join7(projectDir, PACKAGE_JSON), input2.originalPackageJson)
+    },
+    {
+      path: KIT_STATE_PATH,
+      run: () => restoreFile(join7(projectDir, KIT_STATE_PATH), input2.originalKitState)
+    }
+  ];
   for (const step of steps) {
     try {
       await step.run();
     } catch (error62) {
-      const { code } = error62;
-      log(`Nie uda\u0142o si\u0119 posprz\u0105ta\u0107: ${step.path} (${code})`);
+      const { code, message } = error62;
+      log(`Nie uda\u0142o si\u0119 posprz\u0105ta\u0107: ${step.path} (${code ?? message})`);
     }
   }
 }
@@ -20683,7 +20723,11 @@ async function add(options) {
     manifest,
     files: moduleFiles(manifest, available)
   }));
-  const collisions = [...new Set(filesByModule.flatMap(({ files }) => files))].filter((file2) => existsSync(join7(projectDir, file2))).sort(compareCodePoint);
+  const candidates = [...new Set(filesByModule.flatMap(({ files }) => files))];
+  const occupied = await Promise.all(
+    candidates.map((file2) => pathOccupied(join7(projectDir, file2)))
+  );
+  const collisions = candidates.filter((_, index) => occupied[index]).sort(compareCodePoint);
   if (collisions.length > 0) {
     throw new Error(
       `Pliki ju\u017C istniej\u0105, przerwano bez zmian:
@@ -20698,9 +20742,12 @@ ${collisions.map((file2) => `  ${file2}`).join("\n")}`
   const modules = { ...state.modules };
   const packageJsonPath = join7(projectDir, PACKAGE_JSON);
   const originalPackageJson = await readFile6(packageJsonPath, "utf8");
+  const originalKitState = await readFile6(
+    join7(projectDir, KIT_STATE_PATH),
+    "utf8"
+  );
   const plannedFiles = filesByModule.flatMap(({ files }) => files);
   const createdDirectories = missingDirectories(projectDir, plannedFiles);
-  let packageJsonOverwritten = false;
   try {
     let packageJson = originalPackageJson;
     for (const { manifest, files } of filesByModule) {
@@ -20724,15 +20771,14 @@ ${collisions.map((file2) => `  ${file2}`).join("\n")}`
       packageJson = addDependencies(packageJson, manifest);
     }
     await writeFile4(packageJsonPath, packageJson);
-    packageJsonOverwritten = true;
     await writeKitState(projectDir, { ...state, modules });
   } catch (error62) {
     await rollbackAdd({
       projectDir,
       files: plannedFiles,
       createdDirectories,
-      packageJsonOverwritten,
       originalPackageJson,
+      originalKitState,
       log
     });
     throw error62;
@@ -21140,7 +21186,7 @@ function list(options) {
 
 // src/commands/remove.ts
 import {
-  lstat,
+  lstat as lstat2,
   readFile as readFile9,
   readdir as readdir3,
   realpath,
@@ -21219,7 +21265,7 @@ async function changedFiles(projectDir, files) {
 }
 async function lstatIfExists(path) {
   try {
-    return await lstat(path);
+    return await lstat2(path);
   } catch (error62) {
     if (error62.code === "ENOENT") {
       return null;
