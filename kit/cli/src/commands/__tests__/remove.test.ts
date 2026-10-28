@@ -610,4 +610,41 @@ describe("remove", () => {
     expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
     expect(runner).not.toHaveBeenCalled();
   });
+
+  it("symlink do katalogu wewnątrz projektu nie przerywa remove i nie jest usuwany przy sprzątaniu", async () => {
+    const dir = await createProject("app", ["demo"]);
+    await writeProjectFile(dir, "src/features/demo/real/f.ts", "f\n");
+    await symlink("real", join(dir, "src/features/demo/inner"));
+    const state = await readKitState(dir);
+    const demo = state.modules.demo as NonNullable<
+      (typeof state.modules)["demo"]
+    >;
+    await setDemoFiles(dir, {
+      ...demo.files,
+      "src/features/demo/inner/f.ts": sha256("f\n"),
+    });
+    await expect(remove(removeOptions(dir, "demo"))).resolves.toEqual({
+      removed: ["demo"],
+    });
+    expect(existsSync(join(dir, "src/features/demo/real/f.ts"))).toBe(false);
+    expect(existsSync(join(dir, "src/features/demo/module.ts"))).toBe(false);
+    expect(
+      (await lstat(join(dir, "src/features/demo/inner"))).isSymbolicLink(),
+    ).toBe(true);
+  });
+
+  it("dwa brakujące poziomy katalogów pod korzeniem projektu nie blokują remove", async () => {
+    const dir = await createProject("app", ["demo"]);
+    const state = await readKitState(dir);
+    const demo = state.modules.demo as NonNullable<
+      (typeof state.modules)["demo"]
+    >;
+    await setDemoFiles(dir, {
+      ...demo.files,
+      "nieistnieje-a/nieistnieje-b/plik.ts": sha256("dowolny"),
+    });
+    await expect(remove(removeOptions(dir, "demo"))).resolves.toEqual({
+      removed: ["demo"],
+    });
+  });
 });
