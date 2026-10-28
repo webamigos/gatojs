@@ -82,11 +82,14 @@ afterEach(async () => {
 });
 
 describe("create: składanie projektu", () => {
-  it("plik .env ma uprawnienia tylko dla właściciela", async () => {
-    const dir = join(tmp, "acme-shop");
-    await create(opts({ target: dir, yes: true }));
-    expect((await stat(join(dir, ".env"))).mode & 0o777).toBe(0o600);
-  });
+  it.skipIf(process.platform === "win32")(
+    "plik .env ma uprawnienia tylko dla właściciela",
+    async () => {
+      const dir = join(tmp, "acme-shop");
+      await create(opts({ target: dir, yes: true }));
+      expect((await stat(join(dir, ".env"))).mode & 0o777).toBe(0o600);
+    },
+  );
 
   it("składa core + demo bez plików kit-only, z placeholderami i hashami", async () => {
     const dir = join(tmp, "acme-shop");
