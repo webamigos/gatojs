@@ -1,4 +1,4 @@
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,6 +44,7 @@ describe("kitSync", () => {
       "project",
       "locales",
       "modules",
+      "projectModules",
     ]);
     expect(state.kitVersion).toBe("0.1.0");
     expect(state.kitRepo).toBe("https://github.com/webamigos/wa-kit.git");
@@ -113,5 +114,58 @@ describe("kitSync", () => {
     await expect(
       readFile(join(kitDir, ".wa/kit.json"), "utf8"),
     ).rejects.toThrow();
+  });
+  it("zachowuje istniejacy wpis notes w projectModules", async () => {
+    const notes = {
+      manifest: {
+        name: "notes",
+        version: "0.1.0",
+        description: "Notatki",
+        requires: [],
+        files: ["src/features/notes/**", "prisma/schema/notes.prisma"],
+        dependencies: {},
+        devDependencies: {},
+        env: [{ name: "NOTES_LIMIT", example: "10" }],
+        schemaRelations: [{ model: "Organization", field: "notes Note[]" }],
+        compose: null,
+        workspaces: [],
+      },
+    };
+    await mkdir(join(kitDir, ".wa"), { recursive: true });
+    await writeFile(
+      join(kitDir, ".wa/kit.json"),
+      JSON.stringify({
+        kitVersion: "0.0.0",
+        modules: {},
+        projectModules: { notes },
+      }),
+    );
+    await kitSync(kitDir);
+    const state = await readKitState(kitDir);
+    expect(state.projectModules).toEqual({ notes });
+    expect(Object.keys(state.modules)).toEqual(["core", "demo", "needs-demo"]);
+  });
+
+  it("drugi kitSync z wpisem notes zwraca changed false", async () => {
+    await mkdir(join(kitDir, ".wa"), { recursive: true });
+    await writeFile(
+      join(kitDir, ".wa/kit.json"),
+      JSON.stringify({
+        kitVersion: "0.0.0",
+        modules: {},
+        projectModules: {
+          notes: {
+            manifest: {
+              name: "notes",
+              version: "0.1.0",
+              description: "Notatki",
+              files: ["src/features/notes/**"],
+            },
+          },
+        },
+      }),
+    );
+    await kitSync(kitDir);
+    expect(await kitSync(kitDir)).toEqual({ changed: false });
   });
 });
