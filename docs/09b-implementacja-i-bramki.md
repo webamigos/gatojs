@@ -3,7 +3,7 @@
 Po przeczytaniu będziesz wiedzieć:
 
 - jak napisać query, komendę, komponent i stronę feature tak, żeby testy z części pierwszej przeszły;
-- dlaczego `npm run verify` po dodaniu feature wymaga zmiany trzech testów rdzenia i jak ją zrobić;
+- dlaczego `npm run verify` po dodaniu feature nie wymaga zmiany testów rdzenia i co pilnuje spójności rejestru;
 - jak uruchomić testy integracyjne i Strykera dla nowego feature i jak czytać ich wynik;
 - co zacommitować i jak dodać kolejną funkcję do feature, który już jest w rejestrze.
 
@@ -383,7 +383,7 @@ Ta sekcja dotyczy zmiany w feature, który już ma wpis w `.wa/kit.json` i defin
 4. **Test izolacji dla nowej komendy albo query**: zalogowany użytkownik A podaje `id` rekordu organizacji B, komenda odmawia, a rekord B w bazie się nie zmienia ([Jak go zbudować](08-testy.md#izolacja), punkt 4). Dopisz go w istniejącym pliku `*.integration.test.ts` feature.
 5. **Zmiana schematu**: `npx prisma migrate dev --name <nazwa>`, potem `npm run db:generate`, i commit migracji razem ze zmianą ([krok 4](09-nowy-modul.md#krok-4)). Nowa relacja do `User` albo `Organization` wymaga najpierw nowej pozycji w `schemaRelations` istniejącego wpisu i przebiegu generatora. Bez tego Prisma zgłasza brak relacji zwrotnej i podpowiada `prisma format`, którego nie uruchamiaj ([pułapka relacji](09-nowy-modul.md#pulapka-relacji)).
 6. **Nowa strona feature** w `src/app/[locale]/(app)/<trasa>/page.tsx` woła `requireModuleAccess` z kluczem feature. Trasa spoza wzorców `files` wpisu działa, ale dopisz jej wzorzec, żeby zapis własności plików był pełny.
-7. **Zmiana dostępu albo menu w `module.ts`** (`nav`, `roles`, `adminOnly`, `multiOrgRoles`, `public`) zmienia wynik `canAccessModule` i listy menu, więc wymaga poprawki testów rdzenia z [kroku 8](#testy-rdzenia).
+7. **Zmiana dostępu albo menu w `module.ts`** (`nav`, `roles`, `adminOnly`, `multiOrgRoles`, `public`) zmienia wynik `canAccessModule` i listy menu. Testów rdzenia nie poprawiasz: spójność menu z `canAccessModule` dla całego rejestru sprawdza `registry-consistency.test.ts`, a własne reguły dostępu feature pokrywasz własnym testem ([krok 8](#testy-rdzenia)).
 8. **Bramki** jak w [kroku 8](#krok-8): `npm run wa -- generate` bez zmian, `npm run verify`, testy integracyjne i `npm run test:mutation:task` na zmienionych plikach produkcyjnych. Plik sprawdzany tylko testem integracyjnym, jak query, dostanie w tym przebiegu `NoCoverage`, więc jego test izolacji sprawdzasz ręcznie ([Testy integracyjne](#krok-8-integracja)).
 
 Nowy katalog w `src/features/` to zawsze nowy feature i nowy wzorzec w `.wa/kit.json`, więc przechodzi cały tutorial.

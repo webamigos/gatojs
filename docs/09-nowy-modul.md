@@ -602,5 +602,5 @@ Przed implementacją oba przebiegi są czerwone z powodu `TypeError: … is not 
 
 ## Dalej
 
-Kroki 7–9 opisuje [09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md): query, komenda, komponent i strona, po których testy z kroku 6 są zielone, potem `npm run verify` ze zmianą testów rdzenia, testy integracyjne, Stryker, sprawdzenie w przeglądarce i commit. Na końcu tamtego pliku jest how-to „Nowa funkcja w istniejącym module” i tabela komunikatów z całego przebiegu.
+Kroki 7–9 opisuje [09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md): query, komenda, komponent i strona, po których testy z kroku 6 są zielone, potem `npm run verify` (testy rdzenia się nie zmieniają, rejestr pilnuje `registry-consistency.test.ts`), testy integracyjne, Stryker, sprawdzenie w przeglądarce i commit. Na końcu tamtego pliku jest how-to „Nowa funkcja w istniejącym module” i tabela komunikatów z całego przebiegu.
 

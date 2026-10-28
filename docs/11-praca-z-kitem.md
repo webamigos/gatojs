@@ -102,7 +102,7 @@ O miejscu decyduje pytanie: czy ta zmiana byłaby poprawna w każdym projekcie n
 | Funkcja klienta: feature w `src/features/<x>/`, jego plik schematu w `prisma/schema/`, wpis w `.wa/kit.json`, strony. | Projekt | Dotyczy jednego klienta. Przykład: feature `notes` z [09-nowy-modul.md](09-nowy-modul.md). |
 | Nazwa i slug projektu w `src/shared/config/project.ts`. | Projekt | Każdy projekt ma własne ([05-moduly-rdzenia.md](05-moduly-rdzenia.md#project)). |
 | Migracje w `prisma/migrations/`. | Projekt | Historia migracji zależy od modułów projektu, a kit migracji nie commituje ([D13](decyzje.md#d13)). |
-| Trzy testy rdzenia z listą feature, rozszerzone o feature projektu. | Projekt | Lista zależy od feature projektu ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)). |
+| Wpis funkcji klienta w `projectModules` w `.wa/kit.json`. | Projekt | Dotyczy jednego klienta; testów rdzenia to nie zmienia ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)). |
 | Błąd w kodzie rdzenia: guard, komenda, query, komponent, walidacja zmiennych środowiskowych. | Kit, a w projekcie od razu, jeśli poprawka jest pilna. | Ten sam kod jest w każdym projekcie. |
 | Wspólny tekst w `src/app/messages/`, nowy język. | Kit | Teksty rdzenia i lista języków w generatorze to kod kitu ([07-i18n-mail-env.md](07-i18n-mail-env.md#dodawanie-jezyka)). |
 | Zmiana generatora albo CLI w `kit/cli/`. | Kit | Wynik generatora ma być taki sam w każdym projekcie. |
@@ -158,7 +158,7 @@ Moduł kitu to kod, który ma trafić do wielu projektów: wpis w `.wa/kit.json`
 
 - Wpis w `.wa/kit.json` kitu dostaje własną nazwę modułu obok `core`. Funkcja klienta dostaje wpis w osobnej sekcji `projectModules` ([krok 3 tutorialu](09-nowy-modul.md#krok-3)), a nie w `modules`. W kicie wpis w `modules` jest właściwym miejscem modułu. Pola manifestu opisuje [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#referencja-manifest).
 - Migracji nie commitujesz, bo kit ich nie commituje ([D13](decyzje.md#d13)).
-- Trzy testy rdzenia z listą feature zmieniasz w tym samym pull requeście, bo każdy nowy wpis w rejestrze je łamie ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)). W kicie te testy są kodem kitu. Zakaz z 09b, żeby nie zmieniać ich w repozytorium kitu, dotyczy funkcji klienta, takiej jak `notes`. Ten punkt to wniosek z działania testów: dodania modułu kitu nie przechodzono.
+- Testy rdzenia się nie zmieniają: porównują rejestr tylko z pięcioma modułami rdzenia (`src/test/core-modules.ts`), a spójność całego rejestru, także nowego modułu kitu, sprawdza `src/shared/lib/modules/__tests__/registry-consistency.test.ts` ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)).
 - Decyzję, która obowiązuje w kodzie modułu, dopisujesz do [decyzje.md](decyzje.md#statusy-i-numeracja).
 
 Narzędzia, które dodaje moduł kitu do istniejącego projektu, nie ma ([README.md](README.md)).
@@ -264,7 +264,7 @@ npm run wa -- generate
 npm run verify
 ```
 
-Czasy przebiegów są w [08-testy.md](08-testy.md#czas). Pierwszy `verify` po dodaniu feature w projekcie kończy się błędem trzech testów rdzenia ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)).
+Czasy przebiegów są w [08-testy.md](08-testy.md#czas). Pierwszy `verify` po dodaniu feature w projekcie przechodzi bez zmian w testach rdzenia ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)).
 
 <a id="agenci-ai"></a>
 
