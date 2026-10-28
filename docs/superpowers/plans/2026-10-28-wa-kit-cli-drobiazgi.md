@@ -63,8 +63,7 @@ Pliki: `kit/cli/eslint.config.mjs` (nowy), `kit/cli/package.json`, `kit/cli/pack
 - `unownedDependencies` zmienia typ na `{ section, name }[]`: nazwa w sekcji `package.json`, której żaden moduł
   nie deklaruje w tej sekcji. Sortowanie: sekcja, nazwa.
 - Bez redundantnego sortowania wejścia (dziś równoważny mutant z wpisem w `allowed`). Wpis
-  `src/kit/ownership.ts` / `MethodExpression` stanie się nieaktualny i zatrzyma bramkę: **Jakub usuwa go w PR**
-  (agent tylko proponuje).
+  `src/kit/ownership.ts` / `MethodExpression` stanie się nieaktualny i zatrzyma bramkę: usuwamy go w tym PR (zatwierdził Jakub).
 
 ### Zachowania
 
