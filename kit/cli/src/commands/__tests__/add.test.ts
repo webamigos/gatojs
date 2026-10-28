@@ -747,6 +747,12 @@ async function setProjectDependencies(
   await writeFile(packagePath, `${JSON.stringify(parsed, null, 2)}\n`);
 }
 
+function cleanupWarnings(): string[] {
+  return log.mock.calls
+    .map(([line]) => line)
+    .filter((line) => line.includes("Nie udało się posprzątać"));
+}
+
 function warnings(): string[] {
   return log.mock.calls
     .map(([line]) => line)
@@ -970,6 +976,7 @@ describe("add: sprzątanie po błędzie I/O", () => {
     expect(await readFile(join(dir, ".wa/kit.json"), "utf8")).toBe(stateBefore);
     expect(await readdir(join(dir, "src/features"))).toEqual(featuresBefore);
     expect(runner).not.toHaveBeenCalled();
+    expect(cleanupWarnings()).toEqual([]);
   }
 
   it("brakujący na dysku drugi plik modułu: ENOENT, żaden plik ani katalog modułu nie zostaje", async () => {
@@ -1028,35 +1035,77 @@ describe("add: sprzątanie po błędzie I/O", () => {
     expect(existsSync(join(dir, "src/features/needs-demo"))).toBe(false);
   });
 
-  it("błąd w zapisie .wa/kit.json przywraca package.json i usuwa pliki modułu, rzucając oryginalny błąd", async () => {
-    if (process.platform === "win32" || process.getuid?.() === 0) return;
-    const dir = await createProject("app", []);
-    const packageBefore = await readFile(join(dir, "package.json"), "utf8");
-    const stateBefore = await readFile(join(dir, ".wa/kit.json"), "utf8");
-    const snapshot = await snapshotDir(dir, IGNORE);
-    await chmod(join(dir, ".wa/kit.json"), 0o444);
-    let error: unknown = null;
-    try {
-      await add({
-        projectDir: dir,
-        module: "demo",
-        kitDir,
-        install: true,
-        runner,
-        log,
-      }).catch((caught: unknown) => {
-        error = caught;
-      });
-    } finally {
-      await chmod(join(dir, ".wa/kit.json"), 0o644);
-    }
-    expect(error).toMatchObject({ code: "EACCES" });
-    expect(await readFile(join(dir, "package.json"), "utf8")).toBe(
-      packageBefore,
-    );
-    expect(await readFile(join(dir, ".wa/kit.json"), "utf8")).toBe(stateBefore);
-    expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
-    expect(existsSync(join(dir, "src/features/demo"))).toBe(false);
-    expect(runner).not.toHaveBeenCalled();
-  });
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "błąd w zapisie .wa/kit.json przywraca package.json i usuwa pliki modułu, rzucając oryginalny błąd",
+    async () => {
+      const dir = await createProject("app", []);
+      const packageBefore = await readFile(join(dir, "package.json"), "utf8");
+      const stateBefore = await readFile(join(dir, ".wa/kit.json"), "utf8");
+      const snapshot = await snapshotDir(dir, IGNORE);
+      await chmod(join(dir, ".wa/kit.json"), 0o444);
+      let error: unknown = null;
+      try {
+        await add({
+          projectDir: dir,
+          module: "demo",
+          kitDir,
+          install: true,
+          runner,
+          log,
+        }).catch((caught: unknown) => {
+          error = caught;
+        });
+      } finally {
+        await chmod(join(dir, ".wa/kit.json"), 0o644);
+      }
+      expect(error).toMatchObject({ code: "EACCES" });
+      expect(await readFile(join(dir, "package.json"), "utf8")).toBe(
+        packageBefore,
+      );
+      expect(await readFile(join(dir, ".wa/kit.json"), "utf8")).toBe(
+        stateBefore,
+      );
+      expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
+      expect(existsSync(join(dir, "src/features/demo"))).toBe(false);
+      expect(runner).not.toHaveBeenCalled();
+      expect(cleanupWarnings()).toEqual([]);
+    },
+  );
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "package.json tylko do odczytu: EACCES, nic nie zostaje, brak ostrzeżeń o sprzątaniu",
+    async () => {
+      const dir = await createProject("app", []);
+      const packageBefore = await readFile(join(dir, "package.json"), "utf8");
+      const stateBefore = await readFile(join(dir, ".wa/kit.json"), "utf8");
+      const snapshot = await snapshotDir(dir, IGNORE);
+      await chmod(join(dir, "package.json"), 0o444);
+      let error: unknown = null;
+      try {
+        await add({
+          projectDir: dir,
+          module: "demo",
+          kitDir,
+          install: true,
+          runner,
+          log,
+        }).catch((caught: unknown) => {
+          error = caught;
+        });
+      } finally {
+        await chmod(join(dir, "package.json"), 0o644);
+      }
+      expect(error).toMatchObject({ code: "EACCES" });
+      expect(await readFile(join(dir, "package.json"), "utf8")).toBe(
+        packageBefore,
+      );
+      expect(await readFile(join(dir, ".wa/kit.json"), "utf8")).toBe(
+        stateBefore,
+      );
+      expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
+      expect(existsSync(join(dir, "src/features/demo"))).toBe(false);
+      expect(cleanupWarnings()).toEqual([]);
+      expect(runner).not.toHaveBeenCalled();
+    },
+  );
 });
