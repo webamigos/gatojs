@@ -1,12 +1,5 @@
 import { existsSync } from "node:fs";
-import {
-  mkdtemp,
-  readdir,
-  readFile,
-  rm,
-  rmdir,
-  writeFile,
-} from "node:fs/promises";
+import { mkdtemp, readFile, rm, rmdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { compareCodePoint } from "../compare.js";
 import { copyFiles } from "../assemble/copy.js";
@@ -35,7 +28,7 @@ function missingDirectories(projectDir: string, files: string[]): string[] {
   const missing = new Set<string>();
   for (const file of files) {
     let directory = dirname(file);
-    while (directory !== "." && !existsSync(join(projectDir, directory))) {
+    while (!existsSync(join(projectDir, directory))) {
       missing.add(directory);
       directory = dirname(directory);
     }
@@ -43,29 +36,43 @@ function missingDirectories(projectDir: string, files: string[]): string[] {
   return [...missing].sort((a, b) => b.length - a.length);
 }
 
-async function removeEmptyDirectory(path: string): Promise<void> {
-  if (!existsSync(path)) {
-    return;
-  }
-  if ((await readdir(path)).length === 0) {
-    await rmdir(path);
-  }
-}
+type CleanupStep = { path: string; run: () => Promise<void> };
 
 async function rollbackAdd(input: {
   projectDir: string;
   files: string[];
   createdDirectories: string[];
-  packageJsonPath: string;
+  packageJsonOverwritten: boolean;
   originalPackageJson: string;
+  log: (line: string) => void;
 }): Promise<void> {
-  const { projectDir } = input;
-  await writeFile(input.packageJsonPath, input.originalPackageJson);
-  for (const file of input.files) {
-    await rm(join(projectDir, file), { force: true });
+  const { projectDir, log } = input;
+  const steps: CleanupStep[] = [
+    ...input.files.map((file) => ({
+      path: file,
+      run: () => rm(join(projectDir, file), { force: true }),
+    })),
+    ...input.createdDirectories
+      .filter((directory) => existsSync(join(projectDir, directory)))
+      .map((directory) => ({
+        path: directory,
+        run: () => rmdir(join(projectDir, directory)),
+      })),
+  ];
+  if (input.packageJsonOverwritten) {
+    steps.push({
+      path: "package.json",
+      run: () =>
+        writeFile(join(projectDir, "package.json"), input.originalPackageJson),
+    });
   }
-  for (const directory of input.createdDirectories) {
-    await removeEmptyDirectory(join(projectDir, directory));
+  for (const step of steps) {
+    try {
+      await step.run();
+    } catch (error) {
+      const { code } = error as NodeJS.ErrnoException;
+      log(`Nie udało się posprzątać: ${step.path} (${code})`);
+    }
   }
 }
 
@@ -111,6 +118,7 @@ export async function add(options: AddOptions): Promise<{ added: string[] }> {
   const originalPackageJson = await readFile(packageJsonPath, "utf8");
   const plannedFiles = filesByModule.flatMap(({ files }) => files);
   const createdDirectories = missingDirectories(projectDir, plannedFiles);
+  let packageJsonOverwritten = false;
   try {
     let packageJson = originalPackageJson;
     for (const { manifest, files } of filesByModule) {
@@ -134,16 +142,17 @@ export async function add(options: AddOptions): Promise<{ added: string[] }> {
       packageJson = addDependencies(packageJson, manifest);
     }
     await writeFile(packageJsonPath, packageJson);
+    packageJsonOverwritten = true;
     await writeKitState(projectDir, { ...state, modules });
   } catch (error) {
-    // WHY: błąd sprzątania nie może przykryć oryginalnego błędu, który rzucamy poniżej.
     await rollbackAdd({
       projectDir,
       files: plannedFiles,
       createdDirectories,
-      packageJsonPath,
+      packageJsonOverwritten,
       originalPackageJson,
-    }).catch(() => undefined);
+      log,
+    });
     throw error;
   }
   await generate(projectDir);

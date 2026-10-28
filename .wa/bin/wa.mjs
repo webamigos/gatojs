@@ -130,14 +130,7 @@ function parseListArgs(argv) {
 
 // src/commands/add.ts
 import { existsSync } from "node:fs";
-import {
-  mkdtemp,
-  readdir as readdir2,
-  readFile as readFile6,
-  rm,
-  rmdir,
-  writeFile as writeFile4
-} from "node:fs/promises";
+import { mkdtemp, readFile as readFile6, rm, rmdir, writeFile as writeFile4 } from "node:fs/promises";
 import { dirname as dirname4, join as join7 } from "node:path";
 
 // src/compare.ts
@@ -20634,29 +20627,38 @@ function missingDirectories(projectDir, files) {
   const missing = /* @__PURE__ */ new Set();
   for (const file2 of files) {
     let directory = dirname4(file2);
-    while (directory !== "." && !existsSync(join7(projectDir, directory))) {
+    while (!existsSync(join7(projectDir, directory))) {
       missing.add(directory);
       directory = dirname4(directory);
     }
   }
   return [...missing].sort((a, b) => b.length - a.length);
 }
-async function removeEmptyDirectory(path) {
-  if (!existsSync(path)) {
-    return;
-  }
-  if ((await readdir2(path)).length === 0) {
-    await rmdir(path);
-  }
-}
 async function rollbackAdd(input2) {
-  const { projectDir } = input2;
-  await writeFile4(input2.packageJsonPath, input2.originalPackageJson);
-  for (const file2 of input2.files) {
-    await rm(join7(projectDir, file2), { force: true });
+  const { projectDir, log } = input2;
+  const steps = [
+    ...input2.files.map((file2) => ({
+      path: file2,
+      run: () => rm(join7(projectDir, file2), { force: true })
+    })),
+    ...input2.createdDirectories.filter((directory) => existsSync(join7(projectDir, directory))).map((directory) => ({
+      path: directory,
+      run: () => rmdir(join7(projectDir, directory))
+    }))
+  ];
+  if (input2.packageJsonOverwritten) {
+    steps.push({
+      path: "package.json",
+      run: () => writeFile4(join7(projectDir, "package.json"), input2.originalPackageJson)
+    });
   }
-  for (const directory of input2.createdDirectories) {
-    await removeEmptyDirectory(join7(projectDir, directory));
+  for (const step of steps) {
+    try {
+      await step.run();
+    } catch (error62) {
+      const { code } = error62;
+      log(`Nie uda\u0142o si\u0119 posprz\u0105ta\u0107: ${step.path} (${code})`);
+    }
   }
 }
 async function add(options) {
@@ -20697,6 +20699,7 @@ ${collisions.map((file2) => `  ${file2}`).join("\n")}`
   const originalPackageJson = await readFile6(packageJsonPath, "utf8");
   const plannedFiles = filesByModule.flatMap(({ files }) => files);
   const createdDirectories = missingDirectories(projectDir, plannedFiles);
+  let packageJsonOverwritten = false;
   try {
     let packageJson = originalPackageJson;
     for (const { manifest, files } of filesByModule) {
@@ -20720,15 +20723,17 @@ ${collisions.map((file2) => `  ${file2}`).join("\n")}`
       packageJson = addDependencies(packageJson, manifest);
     }
     await writeFile4(packageJsonPath, packageJson);
+    packageJsonOverwritten = true;
     await writeKitState(projectDir, { ...state, modules });
   } catch (error62) {
     await rollbackAdd({
       projectDir,
       files: plannedFiles,
       createdDirectories,
-      packageJsonPath,
-      originalPackageJson
-    }).catch(() => void 0);
+      packageJsonOverwritten,
+      originalPackageJson,
+      log
+    });
     throw error62;
   }
   await generate(projectDir);
@@ -20774,7 +20779,7 @@ import { existsSync as existsSync2 } from "node:fs";
 import {
   chmod as chmod2,
   mkdir as mkdir4,
-  readdir as readdir3,
+  readdir as readdir2,
   readFile as readFile7,
   rm as rm2,
   writeFile as writeFile5
@@ -20808,7 +20813,7 @@ async function isNonEmptyDirectory(dir) {
   if (!existsSync2(dir)) {
     return false;
   }
-  return (await readdir3(dir)).length > 0;
+  return (await readdir2(dir)).length > 0;
 }
 function moduleQuestion(manifests) {
   const lines = manifests.filter((manifest) => manifest.name !== "core").map((manifest) => `  ${manifest.name} \u2014 ${manifest.description}`);
@@ -20844,7 +20849,7 @@ async function collectAnswers(options, manifests, names) {
   return { modules, locales, title, adminEmail, setup };
 }
 async function removeDirectoryContents(dir) {
-  for (const entry of await readdir3(dir)) {
+  for (const entry of await readdir2(dir)) {
     await rm2(join8(dir, entry), { recursive: true });
   }
 }
@@ -21136,7 +21141,7 @@ function list(options) {
 import {
   lstat,
   readFile as readFile9,
-  readdir as readdir4,
+  readdir as readdir3,
   realpath,
   rm as rm3,
   rmdir as rmdir2,
@@ -21230,7 +21235,7 @@ async function removeEmptyParents(projectDir, start) {
       if (!stats.isDirectory()) {
         return;
       }
-      if ((await readdir4(current)).length > 0) {
+      if ((await readdir3(current)).length > 0) {
         return;
       }
       await rmdir2(current);
