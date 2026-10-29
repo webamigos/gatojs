@@ -418,4 +418,45 @@ describe("enterOrganizationCommand", () => {
 
     expect(mockTrackAudit).not.toHaveBeenCalled();
   });
+
+  it("awaria sprawdzenia członkostwa → sesja nie zmieniona, brak wpisu, wynik z błędem", async () => {
+    signInAs(USERS.superadmin);
+    prisma.member.findFirst.mockImplementation(async () => {
+      throw new Error("db down");
+    });
+    const updateSession = vi.spyOn(prisma.session, "update");
+
+    const result = await enterOrganizationCommand("org-b");
+
+    expect(result).toMatchObject({ success: false });
+    expect(updateSession).not.toHaveBeenCalled();
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+    expect(activeOrganizations()).toEqual(UNCHANGED);
+  });
+
+  it("członkostwo jest sprawdzane przed zmianą sesji", async () => {
+    signInAs(USERS.superadmin);
+    const findMembership = vi.spyOn(prisma.member, "findFirst");
+    const updateSession = vi.spyOn(prisma.session, "update");
+
+    await enterOrganizationCommand("org-b");
+
+    expect(findMembership).toHaveBeenCalled();
+    expect(updateSession).toHaveBeenCalledTimes(1);
+    expect(Math.max(...findMembership.mock.invocationCallOrder)).toBeLessThan(
+      updateSession.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("awaria zapisu sesji po ustaleniu braku członkostwa → brak wpisu", async () => {
+    signInAs(USERS.superadmin);
+    prisma.session.update.mockImplementation(async () => {
+      throw new Error("db down");
+    });
+
+    const result = await enterOrganizationCommand("org-b");
+
+    expect(result).toMatchObject({ success: false });
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
 });
