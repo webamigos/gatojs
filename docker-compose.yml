@@ -25,6 +25,7 @@ services:
   minio:
     image: cgr.dev/chainguard/minio:latest
     restart: always
+    user: "0:0"
     command: ["server", "/data", "--console-address", ":9001"]
     ports:
       - "${MINIO_PORT:-9000}:9000"
