@@ -50,6 +50,10 @@ jobs:
             modules: "audit-logs"
           - name: api-keys
             modules: "api-keys"
+          - name: uploads
+            modules: "uploads"
+          - name: all
+            modules: "audit-logs,api-keys,uploads"
     services:
       postgres:
         image: postgres:16
@@ -119,14 +123,37 @@ jobs:
         working-directory: ${{ runner.temp }}/matrix-app
         run: npm run verify
 
+      - name: Start MinIO
+        if: contains(matrix.combo.modules, 'uploads')
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+            cgr.dev/chainguard/minio:latest server /data
+          for attempt in $(seq 1 30); do
+            curl -fs http://localhost:9000/minio/health/live && exit 0
+            sleep 2
+          done
+          echo "MinIO did not become healthy" >&2
+          exit 1
+
+      - name: Create MinIO bucket
+        if: contains(matrix.combo.modules, 'uploads')
+        run: |
+          docker run --rm --network host \
+            -e AWS_ACCESS_KEY_ID=minioadmin -e AWS_SECRET_ACCESS_KEY=minioadmin \
+            -e AWS_DEFAULT_REGION=us-east-1 \
+            amazon/aws-cli:latest --endpoint-url http://localhost:9000 s3 mb s3://matrix-app-uploads
+
       - name: Integration tests
         working-directory: ${{ runner.temp }}/matrix-app
         env:
           INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/matrix_app_test
+          INTEGRATION_S3_ENDPOINT: http://localhost:9000
+          INTEGRATION_S3_BUCKET: matrix-app-uploads
         run: npm run test:integration
 
       - name: Docker image builds
-        if: matrix.combo.name == 'core'
+        if: matrix.combo.name == 'core' || matrix.combo.name == 'all'
         working-directory: ${{ runner.temp }}/matrix-app
         run: docker build .
 
