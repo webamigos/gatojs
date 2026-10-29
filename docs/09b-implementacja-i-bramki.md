@@ -5,9 +5,10 @@ Po przeczytaniu będziesz wiedzieć:
 - jak napisać query, komendę, komponent i stronę feature tak, żeby testy z części pierwszej przeszły;
 - dlaczego `npm run verify` po dodaniu feature nie wymaga zmiany testów rdzenia i co pilnuje spójności rejestru;
 - jak uruchomić testy integracyjne i Strykera dla nowego feature i jak czytać ich wynik;
+- jak wystawić trasę API uwierzytelnianą kluczem i gdzie umieścić wołany przez nią serwis ([trasy API](#trasy-api));
 - co zacommitować i jak dodać kolejną funkcję do feature, który już jest w rejestrze.
 
-Zweryfikowano z kodem: 77bb337, 2026-10-29
+Zweryfikowano z kodem: f965e0a, 2026-10-29
 
 Źródła:
 
@@ -458,7 +459,7 @@ export async function POST(request: Request) {
 }
 ```
 
-Trasa przekazuje `auth.context` do serwisu, który waliduje wejście Zod-em; logiki biznesowej nie trzyma w pliku `route.ts`. Odpowiedź ma `Cache-Control: no-store`, tak jak trasa przykładowa `GET /api/v1/organization`. Klucz nie jest sesją, więc `getOrgContext()` i `assertServiceModeConfirmed` nie mają tu zastosowania: tożsamością jest `context.organizationId`, a zakres sprawdza `authenticateApiKey`.
+Trasa przekazuje `auth.context` do serwisu, który waliduje wejście Zod-em; logiki biznesowej nie trzyma w pliku `route.ts`. Serwis wołany z trasy z kluczem przyjmuje `ApiKeyContext` i leży w katalogu głównym `services/` feature, w pliku bez `"use server"` (jak `services/organization-api.ts` w module `api-keys`). Nie kładź go w `services/queries/`, bo test architektury wymaga tam guarda sesji. Nie kładź go też w pliku komend z `"use server"`: każda eksportowana funkcja takiego pliku to publiczna akcja serwerowa, w której wywołujący sam wybierałby `organizationId`. Odpowiedź ma `Cache-Control: no-store`, tak jak trasa przykładowa `GET /api/v1/organization`. Klucz nie jest sesją, więc `getOrgContext()` i `assertServiceModeConfirmed` nie mają tu zastosowania: tożsamością jest `context.organizationId`, a zakres sprawdza `authenticateApiKey`.
 
 3. **Audyt zapisu wykonanego kluczem** przez `trackAudit` z kanałem `API`. Zdarzenie nie ma użytkownika, a identyfikatorem poświadczenia jest id klucza:
 

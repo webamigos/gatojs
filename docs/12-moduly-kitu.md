@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - co robi redakcja danych wrażliwych i dlaczego moduł nie ma retencji;
 - co daje moduł `api-keys`: klucze API organizacji, zakresy, uwierzytelnianie tras, limit kluczy i pepper.
 
-Zweryfikowano z kodem: 77bb337, 2026-10-29
+Zweryfikowano z kodem: f965e0a, 2026-10-29
 
 Źródła:
 
@@ -37,6 +37,7 @@ Zweryfikowano z kodem: 77bb337, 2026-10-29
 - `src/features/api-keys/services/api-scopes.ts`
 - `src/features/api-keys/services/api-scope-labels.ts`
 - `src/features/api-keys/services/authenticate-api-key.ts`
+- `src/features/api-keys/services/organization-api.ts`
 - `src/features/api-keys/services/commands/api-key-commands.ts`
 - `src/features/api-keys/services/queries/api-key-queries.ts`
 - `src/app/api/v1/organization/route.ts`
@@ -106,7 +107,7 @@ Klucze API organizacji: zewnętrzny system wywołuje trasy projektu z nagłówki
 | Część | Plik | Co robi |
 | --- | --- | --- |
 | Model | `prisma/schema/api-keys.prisma` | Tabela `api_keys` z modelem `ApiKey` (organizacja, opcjonalny twórca, `name`, `displayPrefix`, unikalny `hashedKey`, `scopes`, `lastUsedAt`, `expiresAt`, `revokedAt`). Usunięcie organizacji kasuje klucze, usunięcie użytkownika zeruje `createdById`. |
-| Zmienna | `src/features/api-keys/env.ts` | `API_KEY_PEPPER`: min. 32 znaki; na produkcji wartość z `.env.example` jest odrzucana. |
+| Zmienna | `src/features/api-keys/env.ts` | `API_KEY_PEPPER`: min. 32 znaki; na produkcji wartość z `.env.example` jest odrzucana, a błąd walidacji dotyczy całej aplikacji ([Pepper](#pepper)). |
 | Sekret | `src/features/api-keys/services/api-key-secret.ts` | Klucz ma postać `<slug>_live_<32 bajty w base64url>` (myślniki ze sluga zamieniane na `_`). W bazie leży tylko HMAC-SHA256 klucza z pepperem i krótki `displayPrefix`. |
 | Zakresy | `src/features/api-keys/module.ts`, `services/api-scopes.ts` | Moduł deklaruje zakresy w `apiScopes` (`{ key, labelKey }`). Moduł `api-keys` deklaruje `organization:read`. `knownApiScopes()` zbiera zakresy wszystkich zainstalowanych modułów z `modules`. |
 | Uwierzytelnianie | `src/features/api-keys/services/authenticate-api-key.ts` | `authenticateApiKey(request, scope)`. |
@@ -118,7 +119,7 @@ Klucze API organizacji: zewnętrzny system wywołuje trasy projektu z nagłówki
 
 Klucz tworzy `owner` albo `admin` na stronie `/api-keys`: podaje nazwę, zakresy i opcjonalny termin ważności w dniach. Pełny klucz jest pokazany raz, w odpowiedzi komendy `createApiKeyCommand`; później widać tylko `displayPrefix`. Organizacja może mieć najwyżej 10 aktywnych kluczy (nieunieważnionych i niewygasłych). Limit sprawdza transakcja pod blokadą doradczą (`pg_advisory_xact_lock` po `organizationId`), więc równoległe tworzenie nie przekroczy limitu. Powyżej limitu komenda zwraca błąd „Osiągnięto limit 10 aktywnych kluczy”.
 
-Unieważnienie (`revokedAt`) ustawia się raz; powtórne unieważnienie niczego nie zmienia. Usunięcie kasuje wiersz. Komendy działają na danych organizacji, więc w trybie serwisowym superadmin musi je potwierdzić ([09b](09b-implementacja-i-bramki.md#komenda)). Każda z nich zapisuje wpis audytu: `api_key.created`, `api_key.revoked`, `api_key.deleted`.
+Unieważnienie (`revokedAt`) ustawia się raz; powtórne unieważnienie niczego nie zmienia. Usunięcie kasuje wiersz. Komendy działają na danych organizacji, więc w trybie serwisowym superadmin musi je potwierdzić ([09b](09b-implementacja-i-bramki.md#komenda)). Zapisują wpis audytu: `api_key.created`, `api_key.deleted` i `api_key.revoked`; powtórne unieważnienie już unieważnionego klucza jest no-opem bez wpisu audytu.
 
 ### `authenticateApiKey`
 
@@ -134,4 +135,6 @@ Zakresy klucza są przecinane z `knownApiScopes()`: zakres zapisany w kluczu, kt
 
 Klucze są haszowane HMAC-SHA256 z `API_KEY_PEPPER`. Zmiana peppera unieważnia wszystkie istniejące klucze: ich hasze przestają pasować, a trasy zwracają `invalid`. Rotacja peppera to więc świadoma operacja: wszystkie organizacje muszą wystawić nowe klucze.
 
-`wa create` nie losuje peppera: `.env.example` zawiera wartość przykładową, którą na produkcji odrzuca walidacja env. Przed wdrożeniem ustaw własną wartość (losowy ciąg, min. 32 znaki) w zmiennych usługi na Railway ([10-wdrozenie.md](10-wdrozenie.md)) i nie zmieniaj jej bez potrzeby.
+`wa create` nie losuje peppera: `.env.example` zawiera wartość przykładową, więc musisz ustawić własną przed wdrożeniem na produkcję (losowy ciąg, min. 32 znaki, w zmiennych usługi na Railway, [10-wdrozenie.md](10-wdrozenie.md#zmienne)) i nie zmieniać jej bez potrzeby.
+
+Uwaga: zmienna należy do schematu env całej aplikacji. Na produkcji brak peppera, wartość krótsza niż 32 znaki albo przykładowa psuje walidację `env` w całej aplikacji: każda strona i akcja odczytująca `env` kończy się błędem 500, a healthcheck dalej odpowiada 200, więc wdrożenie wygląda na udane ([10-wdrozenie.md](10-wdrozenie.md#blad-env)).

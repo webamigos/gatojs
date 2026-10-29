@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak założyć konta na produkcji przez `railway run` i jak przekazać aplikację klientowi, łącznie z odcięciem dostępu Web Amigos po okresie wsparcia;
 - co uruchamia każdy workflow CI i kiedy.
 
-Zweryfikowano z kodem: 25adbb8, 2026-10-28
+Zweryfikowano z kodem: f965e0a, 2026-10-29
 
 Źródła:
 
@@ -220,6 +220,7 @@ Zmienne ustawiasz w usłudze aplikacji na Railway. Schemat w `src/shared/lib/env
 | `APP_URL` | wymagana | Pełny adres `https://`, pod którym użytkownicy otwierają aplikację. | better-auth odrzuca żądania z innego adresu, a linki w mailach prowadzą pod zły adres ([D16](decyzje.md#d16)). |
 | `EMAIL_FROM` | wymagana | Nadawca maili, na przykład `WA App <noreply@example.com>`, z domeny skonfigurowanej w Resend. | Błąd walidacji przy braku. |
 | `RESEND_API_KEY` | wymagana przy `NODE_ENV=production` | Klucz API Resend. | `RESEND_API_KEY: wymagana w produkcji`, także przy ustawionym `SMTP_URL`. |
+| `API_KEY_PEPPER` | wymagana, gdy zainstalowany jest moduł `api-keys` | Losowy napis, co najmniej 32 znaki, na przykład z `openssl rand -base64 32`. Nigdy wartość z `.env.example` (`wa create` ją tam zostawia, więc ustaw własną przed pierwszym wdrożeniem). Zmiana wartości unieważnia wszystkie klucze API ([pepper](12-moduly-kitu.md#api-keys)). | Błąd walidacji dla całej aplikacji, nie tylko dla modułu: każda strona i akcja zwraca 500, a healthcheck dalej odpowiada 200 ([kiedy zobaczysz błąd](#blad-env)). |
 | `SMTP_URL` | nie ustawiaj | Brak. | Ustawiona wygrywa z Resend także na produkcji: maile idą przez SMTP ([D18](decyzje.md#d18)). |
 | `AUTH_PUBLIC_SIGNUP`, `MULTI_ORG`, `ADMIN_IMPERSONATION` | opcjonalne | `true` albo `false`; brak daje `false`. Do czasu założenia kont `AUTH_PUBLIC_SIGNUP=false` ([krok 7](#krok-konta)). | Każda inna wartość, na przykład `1` albo `yes`, to błąd walidacji ([D17](decyzje.md#d17)). Znaczenie flag: [D10](decyzje.md#d10), [D06](decyzje.md#d06), [D20](decyzje.md#d20). |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | schemat nie wymaga, ale ustaw | Adres bazowy odbiornika OTLP przez HTTP, bez `/v1/logs`. | Wpisy `logger` nigdzie nie trafiają ([logi](#logi)). |

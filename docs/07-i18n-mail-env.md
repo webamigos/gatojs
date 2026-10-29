@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak `src/shared/lib/env.ts` sprawdza zmienne środowiskowe i które zmienne kod czyta z pominięciem tej walidacji;
 - które zmienne poza schematem czytają kod aplikacji, Next.js, Docker i testy.
 
-Zweryfikowano z kodem: d416599, 2026-10-28
+Zweryfikowano z kodem: f965e0a, 2026-10-29
 
 Źródła:
 
@@ -365,6 +365,7 @@ export const env = new Proxy({} as CoreEnv, {
 
 Co z tego wynika dla dewelopera (kiedy pojawia się błąd, restart po zmianie `.env`, tabela komunikatów), opisuje [01-uruchomienie.md](01-uruchomienie.md#plik-env). Dwie rzeczy, których tam nie ma:
 
+- Schematy zainstalowanych modułów (`moduleEnvSchemas`) są częścią tej samej walidacji: zła zmienna modułu, na przykład `API_KEY_PEPPER` z modułu `api-keys`, psuje `env` dla całej aplikacji, a nie tylko dla modułu ([12-moduly-kitu.md](12-moduly-kitu.md#api-keys)).
 - Zmiennych spoza schematu wynik nie zawiera: `env.FOO` daje `undefined`, nawet gdy `FOO` jest w `process.env`.
 - Dwa warunki produkcyjne (`RESEND_API_KEY` i sekret z `.env.example`) Zod sprawdza dopiero wtedy, gdy wszystkie pola przejdą podstawowe sprawdzenie. Przy `NODE_ENV=production`, braku `RESEND_API_KEY` i `MULTI_ORG=1` komunikat wymienia tylko `MULTI_ORG`, a błąd `RESEND_API_KEY` pojawia się po jego poprawieniu (sprawdzone).
 
