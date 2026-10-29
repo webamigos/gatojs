@@ -1,0 +1,16 @@
+{
+  "name": "audit-logs",
+  "version": "0.1.0",
+  "description": "Dziennik zdarzen organizacji: model AuditLog, sink i redakcja danych wrazliwych",
+  "requires": [],
+  "files": ["prisma/schema/audit-logs.prisma", "src/features/audit-logs/**"],
+  "dependencies": {},
+  "devDependencies": {},
+  "env": [],
+  "schemaRelations": [
+    { "model": "User", "field": "auditLogs AuditLog[]" },
+    { "model": "Organization", "field": "auditLogs AuditLog[]" }
+  ],
+  "compose": null,
+  "workspaces": []
+}

@@ -1,0 +1,9 @@
+{
+  "nav": "Dziennik zdarzeń",
+  "action-organization-entered": "Wejście do organizacji",
+  "action-member-invited": "Zaproszenie członka",
+  "action-invitation-canceled": "Anulowanie zaproszenia",
+  "action-invitation-accepted": "Przyjęcie zaproszenia",
+  "action-member-role-changed": "Zmiana roli członka",
+  "action-member-removed": "Usunięcie członka"
+}

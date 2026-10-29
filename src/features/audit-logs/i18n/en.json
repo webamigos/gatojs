@@ -1,0 +1,9 @@
+{
+  "nav": "Audit log",
+  "action-organization-entered": "Entered organization",
+  "action-member-invited": "Member invited",
+  "action-invitation-canceled": "Invitation canceled",
+  "action-invitation-accepted": "Invitation accepted",
+  "action-member-role-changed": "Member role changed",
+  "action-member-removed": "Member removed"
+}
