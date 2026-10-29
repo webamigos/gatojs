@@ -3,7 +3,8 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/shared/lib/prisma";
-import { toUserRole } from "@/shared/lib/auth/roles";
+import { trackAudit } from "@/shared/lib/audit";
+import { toUserRole, USER_ROLES } from "@/shared/lib/auth/roles";
 import { handleCommandError } from "@/shared/utils/error-handling";
 import type { OperationResult } from "@/shared/types/common";
 import { canEnterOrganization } from "../organization-access";
@@ -40,6 +41,22 @@ export async function enterOrganizationCommand(
       where: { id: session.session.id },
       data: { activeOrganizationId: parsed.data },
     });
+    if (toUserRole(session.user.role) === USER_ROLES.SUPERADMIN) {
+      const membership = await prisma.member.findFirst({
+        where: { organizationId: parsed.data, userId: session.user.id },
+        select: { id: true },
+      });
+      if (membership === null) {
+        await trackAudit({
+          organizationId: parsed.data,
+          actorUserId: session.user.id,
+          action: "organization.entered",
+          entityType: "organization",
+          entityId: parsed.data,
+          serviceMode: true,
+        });
+      }
+    }
     return { success: true };
   } catch (error) {
     return handleCommandError(error, NO_ACCESS);

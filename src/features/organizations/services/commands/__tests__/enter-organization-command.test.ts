@@ -5,9 +5,10 @@ import {
   type FakeTables,
 } from "@/test/fake-prisma";
 
-const { database, mockGetSession } = vi.hoisted(() => ({
+const { database, mockGetSession, mockTrackAudit } = vi.hoisted(() => ({
   database: { prisma: null as unknown as Record<string, unknown> },
   mockGetSession: vi.fn(),
+  mockTrackAudit: vi.fn(),
 }));
 
 vi.mock("@/shared/lib/prisma", () => ({
@@ -31,6 +32,10 @@ vi.mock("@/i18n/routing", () => ({
   redirect: vi.fn(() => {
     throw new Error("NEXT_REDIRECT");
   }),
+}));
+vi.mock("@/shared/lib/audit", () => ({
+  trackAudit: mockTrackAudit,
+  auditActor: vi.fn(),
 }));
 vi.mock("@/shared/lib/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
@@ -128,6 +133,7 @@ const UNCHANGED = {
 describe("enterOrganizationCommand", () => {
   beforeEach(() => {
     mockGetSession.mockReset();
+    mockTrackAudit.mockReset();
     seed();
   });
 
@@ -315,5 +321,101 @@ describe("enterOrganizationCommand", () => {
     const result = await enterOrganizationCommand("org-b");
 
     expect(result.success).toBe(false);
+  });
+
+  it("superadmin bez członkostwa → jeden wpis organization.entered z serviceMode true", async () => {
+    signInAs(USERS.superadmin);
+
+    await enterOrganizationCommand("org-b");
+
+    expect(mockTrackAudit).toHaveBeenCalledTimes(1);
+    expect(mockTrackAudit.mock.calls[0][0]).toEqual({
+      organizationId: "org-b",
+      actorUserId: "u-sa",
+      action: "organization.entered",
+      entityType: "organization",
+      entityId: "org-b",
+      serviceMode: true,
+    });
+  });
+
+  it("wpis powstaje dopiero po zmianie aktywnej organizacji w sesji", async () => {
+    signInAs(USERS.superadmin);
+    const seenAtCall: unknown[] = [];
+    mockTrackAudit.mockImplementation(async () => {
+      seenAtCall.push(activeOrganizationOf(USERS.superadmin.id));
+    });
+
+    await enterOrganizationCommand("org-b");
+
+    expect(seenAtCall).toEqual(["org-b"]);
+  });
+
+  it("członek wchodzący do swojej organizacji → brak wpisu", async () => {
+    tables.members.push({
+      id: "m-4",
+      organizationId: "org-b",
+      userId: USERS.owner.id,
+      role: "member",
+      createdAt: new Date("2026-03-01"),
+    });
+    signInAs(USERS.owner);
+
+    await enterOrganizationCommand("org-b");
+
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("superadmin będący członkiem organizacji → brak wpisu", async () => {
+    tables.members.push({
+      id: "m-6",
+      organizationId: "org-b",
+      userId: USERS.superadmin.id,
+      role: "member",
+      createdAt: new Date("2026-03-01"),
+    });
+    signInAs(USERS.superadmin);
+
+    const result = await enterOrganizationCommand("org-b");
+
+    expect(result).toMatchObject({ success: true });
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("odmowa dostępu (obca organizacja) → brak wpisu", async () => {
+    signInAs(USERS.owner);
+
+    await enterOrganizationCommand("org-b");
+
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("superadmin → nieistniejąca organizacja → brak wpisu", async () => {
+    signInAs(USERS.superadmin);
+
+    await enterOrganizationCommand("org-missing");
+
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("niepoprawne wejście → brak wpisu", async () => {
+    signInAs(USERS.superadmin);
+
+    await enterOrganizationCommand(42);
+
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("awaria zapisu sesji → brak wpisu", async () => {
+    signInAs(USERS.superadmin);
+    const failure = async () => {
+      throw new Error("db down");
+    };
+    prisma.session.update.mockImplementation(failure);
+    prisma.session.updateMany.mockImplementation(failure);
+
+    await enterOrganizationCommand("org-b");
+
+    expect(mockTrackAudit).not.toHaveBeenCalled();
   });
 });

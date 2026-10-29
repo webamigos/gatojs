@@ -8,6 +8,24 @@ export interface ModuleNavItem {
   order: number;
 }
 
+export interface ModuleAuditAction {
+  action: string;
+  labelKey: string;
+}
+
+export interface ModuleApiScope {
+  key: string;
+  labelKey: string;
+}
+
+export interface ModuleUploadPurpose {
+  key: string;
+  mimeTypes: readonly string[];
+  maxBytes: number;
+  visibility: "public" | "organization";
+  resizeImage?: { maxWidth: number };
+}
+
 export interface ModuleDef {
   key: string;
   nav: ModuleNavItem[];
@@ -16,6 +34,9 @@ export interface ModuleDef {
   public?: boolean;
   adminOnly?: boolean;
   multiOrgRoles?: OrgRole[];
+  auditActions?: ModuleAuditAction[];
+  apiScopes?: ModuleApiScope[];
+  uploadPurposes?: ModuleUploadPurpose[];
 }
 
 export function defineModule<T extends ModuleDef>(definition: T): T {
