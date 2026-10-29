@@ -13,13 +13,6 @@ import type {
 
 const MODULE_KEY = "audit-logs";
 
-function createdAtRange(filters: AuditLogFilters) {
-  if (!filters.from && !filters.to) {
-    return undefined;
-  }
-  return { gte: filters.from, lte: filters.to };
-}
-
 function buildWhere(
   organizationId: string,
   filters: AuditLogFilters,
@@ -30,7 +23,7 @@ function buildWhere(
     action: filters.action,
     entityType: filters.entityType,
     entityId: filters.entityId,
-    createdAt: createdAtRange(filters),
+    createdAt: { gte: filters.from, lte: filters.to },
   };
 }
 

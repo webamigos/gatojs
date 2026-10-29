@@ -109,3 +109,60 @@ describe("auditLogFiltersSchema", () => {
     },
   );
 });
+
+describe("auditLogFiltersSchema: sortDir, przycinanie i wejścia spoza obiektu", () => {
+  it("zachowuje sortDir asc i desc", () => {
+    expect(auditLogFiltersSchema.parse({ sortDir: "asc" }).sortDir).toBe("asc");
+    expect(auditLogFiltersSchema.parse({ sortDir: "desc" }).sortDir).toBe(
+      "desc",
+    );
+  });
+
+  it("nieznany sortDir daje desc", () => {
+    expect(auditLogFiltersSchema.parse({ sortDir: "ASC" }).sortDir).toBe(
+      "desc",
+    );
+  });
+
+  it("przycina filtry tekstowe", () => {
+    const parsed = auditLogFiltersSchema.parse({
+      action: "  member.invited  ",
+      entityType: " delivery ",
+      entityId: " 123 ",
+      userId: " u1 ",
+    });
+    expect(parsed).toMatchObject({
+      action: "member.invited",
+      entityType: "delivery",
+      entityId: "123",
+      userId: "u1",
+    });
+  });
+
+  it("same spacje w filtrze tekstowym nie ustawiają pola", () => {
+    const parsed = auditLogFiltersSchema.parse({
+      action: "   ",
+      entityId: " ",
+    });
+    expect(parsed).toEqual({
+      page: 1,
+      pageSize: 25,
+      sortBy: "createdAt",
+      sortDir: "desc",
+    });
+    expect("action" in parsed).toBe(false);
+    expect("entityId" in parsed).toBe(false);
+  });
+
+  it.each([null, undefined, "tekst", 42, true])(
+    "wejście %s daje same wartości domyślne",
+    (input) => {
+      expect(auditLogFiltersSchema.parse(input)).toEqual({
+        page: 1,
+        pageSize: 25,
+        sortBy: "createdAt",
+        sortDir: "desc",
+      });
+    },
+  );
+});

@@ -64,6 +64,7 @@ async function signInAs(
 }
 
 async function seed(input: {
+  id?: string;
   organizationId: string;
   userId?: string | null;
   action?: string;
@@ -73,6 +74,7 @@ async function seed(input: {
 }) {
   await prisma.auditLog.create({
     data: {
+      ...(input.id ? { id: input.id } : {}),
       organizationId: input.organizationId,
       userId: input.userId ?? null,
       action: input.action ?? "member.invited",
@@ -478,5 +480,96 @@ describe("listAuditLogActorsQuery na prawdziwej bazie", () => {
     await signInAs(world.carol, world.orgA);
 
     await expect(listAuditLogActorsQuery()).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+});
+
+describe("listAuditLogsQuery: zakresy, stabilność i kształt aktora", () => {
+  async function seedDates() {
+    for (const [entityId, iso] of [
+      ["early", "2026-10-28T12:00:00.000Z"],
+      ["mid", "2026-10-29T12:00:00.000Z"],
+      ["late", "2026-10-30T12:00:00.000Z"],
+    ] as const) {
+      await seed({
+        organizationId: world.orgA.id,
+        entityId,
+        createdAt: new Date(iso),
+      });
+    }
+  }
+
+  it("samo from filtruje od daty", async () => {
+    await seedDates();
+    await signInAs(world.alice, world.orgA);
+
+    const result = await listAuditLogsQuery({ from: "2026-10-29" });
+
+    expect(result.items.map((row) => row.entityId).sort()).toEqual([
+      "late",
+      "mid",
+    ]);
+  });
+
+  it("samo to filtruje do daty", async () => {
+    await seedDates();
+    await signInAs(world.alice, world.orgA);
+
+    const result = await listAuditLogsQuery({ to: "2026-10-29" });
+
+    expect(result.items.map((row) => row.entityId).sort()).toEqual([
+      "early",
+      "mid",
+    ]);
+  });
+
+  it("wpisy o identycznym createdAt są w stałej kolejności po id rosnąco", async () => {
+    const sameMoment = new Date("2026-10-29T12:00:00.000Z");
+    for (const id of [
+      "00000000-0000-4000-8000-000000000003",
+      "00000000-0000-4000-8000-000000000001",
+      "00000000-0000-4000-8000-000000000002",
+    ]) {
+      await seed({ id, organizationId: world.orgA.id, createdAt: sameMoment });
+    }
+    await signInAs(world.alice, world.orgA);
+
+    const desc = await listAuditLogsQuery({});
+    const asc = await listAuditLogsQuery({ sortDir: "asc" });
+
+    const expected = [
+      "00000000-0000-4000-8000-000000000001",
+      "00000000-0000-4000-8000-000000000002",
+      "00000000-0000-4000-8000-000000000003",
+    ];
+    expect(desc.items.map((row) => row.id)).toEqual(expected);
+    expect(asc.items.map((row) => row.id)).toEqual(expected);
+  });
+
+  it("actor zawiera dokładnie id, name i email", async () => {
+    await seed({ organizationId: world.orgA.id, userId: world.carol.id });
+    await signInAs(world.alice, world.orgA);
+
+    const result = await listAuditLogsQuery({});
+
+    expect(result.items[0]?.actor).toEqual({
+      id: world.carol.id,
+      name: "carol",
+      email: "carol@a.example",
+    });
+  });
+
+  it("aktorzy są posortowani po name rosnąco", async () => {
+    await seed({ organizationId: world.orgA.id, userId: world.dave.id });
+    await seed({ organizationId: world.orgA.id, userId: world.carol.id });
+    await seed({ organizationId: world.orgA.id, userId: world.alice.id });
+    await signInAs(world.alice, world.orgA);
+
+    const actors = await listAuditLogActorsQuery();
+
+    expect(actors.map((actor) => actor.name)).toEqual([
+      "alice",
+      "carol",
+      "dave",
+    ]);
   });
 });
