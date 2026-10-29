@@ -36,4 +36,13 @@ describe("envSchema api-keys", () => {
       expect(parse(EXAMPLE, nodeEnv).success).toBe(true);
     },
   );
+
+  it("zwraca tylko API_KEY_PEPPER, bez NODE_ENV", () => {
+    expect(
+      envSchema.parse({
+        API_KEY_PEPPER: "q".repeat(40),
+        NODE_ENV: "production",
+      }),
+    ).toStrictEqual({ API_KEY_PEPPER: "q".repeat(40) });
+  });
 });
