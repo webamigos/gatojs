@@ -1,0 +1,16 @@
+- name: Start MinIO
+  run: |
+    docker run -d --name minio -p 9000:9000 \
+      -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+      minio/minio server /data
+    for attempt in $(seq 1 30); do
+      curl -fs http://localhost:9000/minio/health/live && exit 0
+      sleep 2
+    done
+    echo "MinIO did not become healthy" >&2
+    exit 1
+
+- name: Create MinIO bucket
+  run: |
+    docker run --rm --network host --entrypoint sh minio/mc -c \
+      "mc alias set local http://localhost:9000 minioadmin minioadmin && mc mb -p local/wa-app-uploads"

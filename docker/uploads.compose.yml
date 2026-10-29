@@ -1,0 +1,27 @@
+minio:
+  image: minio/minio
+  restart: always
+  command: server /data --console-address ":9001"
+  ports:
+    - "${MINIO_PORT:-9000}:9000"
+    - "${MINIO_CONSOLE_PORT:-9001}:9001"
+  environment:
+    MINIO_ROOT_USER: minioadmin
+    MINIO_ROOT_PASSWORD: minioadmin
+  volumes:
+    - ./volumes/minio:/data
+  healthcheck:
+    test: ["CMD", "mc", "ready", "local"]
+    interval: 10s
+    timeout: 3s
+    retries: 5
+minio-init:
+  image: minio/mc
+  depends_on:
+    minio:
+      condition: service_healthy
+  restart: "no"
+  entrypoint:
+    - sh
+    - -c
+    - "mc alias set local http://minio:9000 minioadmin minioadmin && mc mb -p local/wa-app-uploads"
