@@ -298,8 +298,9 @@ describe("klucze API na prawdziwej bazie", () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 20));
 
-    await revokeApiKeyCommand({ id: key.id });
+    const secondResult = await revokeApiKeyCommand({ id: key.id });
 
+    expect(secondResult).toEqual({ success: true });
     const second = await prisma.apiKey.findUniqueOrThrow({
       where: { id: key.id },
     });
@@ -494,8 +495,9 @@ describe("klucze API na prawdziwej bazie", () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 20));
 
-    await revokeApiKeyCommand({ id: key.id });
+    const secondResult = await revokeApiKeyCommand({ id: key.id });
 
+    expect(secondResult).toEqual({ success: true });
     const second = await prisma.apiKey.findUniqueOrThrow({
       where: { id: key.id },
     });
@@ -507,8 +509,9 @@ describe("klucze API na prawdziwej bazie", () => {
     const key = await seedKey(world.orgA.id, { revokedAt: YESTERDAY });
     await signInAs(world.alice, world.orgA);
 
-    await revokeApiKeyCommand({ id: key.id });
+    const result = await revokeApiKeyCommand({ id: key.id });
 
+    expect(result).toEqual({ success: true });
     expect(mockTrackAudit).not.toHaveBeenCalled();
   });
 
@@ -532,6 +535,24 @@ describe("klucze API na prawdziwej bazie", () => {
       oldData: { name: "do usunięcia", displayPrefix: "pfx_1" },
     });
     expect(JSON.stringify(event)).not.toContain("hash-1");
+  });
+
+  it("delete jednego klucza A usuwa tylko ten klucz, a inne klucze A i klucz B zostają", async () => {
+    const k1 = await seedKey(world.orgA.id, { name: "K1" });
+    const k2 = await seedKey(world.orgA.id, { name: "K2" });
+    const k3 = await seedKey(world.orgB.id, { name: "K3" });
+    await signInAs(world.alice, world.orgA);
+
+    const result = await deleteApiKeyCommand({ id: k1.id });
+
+    expect(result).toEqual({ success: true });
+    const remaining = await prisma.apiKey.findMany({
+      select: { id: true },
+      orderBy: { name: "asc" },
+    });
+    expect(remaining.map((row) => row.id).sort()).toEqual(
+      [k2.id, k3.id].sort(),
+    );
   });
 
   it("delete nieistniejącego id zwraca błąd bez audytu", async () => {
