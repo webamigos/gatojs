@@ -25,7 +25,7 @@ minio-init:
     - sh
     - -c
     - >-
-      for attempt in $$(seq 1 30); do
+      for _ in $$(seq 1 30); do
       aws --endpoint-url http://minio:9000 s3api head-bucket --bucket wa-app-uploads 2>/dev/null
       || aws --endpoint-url http://minio:9000 s3 mb s3://wa-app-uploads 2>/dev/null
       && exit 0; sleep 2; done; echo "bucket creation failed" >&2; exit 1
