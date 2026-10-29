@@ -105,16 +105,22 @@ export function ApiKeysManager({ keys }: { keys: ApiKeyRow[] }) {
     );
   }
 
-  function handleRevoke(id: string) {
+  function handleRevoke(key: ApiKeyRow) {
+    if (!window.confirm(t("revoke-confirm", { name: key.name }))) {
+      return;
+    }
     return execute(
-      () => run(revokeApiKeyCommand, { id }),
+      () => run(revokeApiKeyCommand, { id: key.id }),
       () => toast.success(t("revoked-success")),
     );
   }
 
-  function handleDelete(id: string) {
+  function handleDelete(key: ApiKeyRow) {
+    if (!window.confirm(t("delete-confirm", { name: key.name }))) {
+      return;
+    }
     return execute(
-      () => run(deleteApiKeyCommand, { id }),
+      () => run(deleteApiKeyCommand, { id: key.id }),
       () => toast.success(t("deleted-success")),
     );
   }

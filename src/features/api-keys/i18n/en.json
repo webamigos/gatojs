@@ -36,5 +36,7 @@
   "revoke": "Revoke",
   "delete": "Delete",
   "revoked-success": "Key revoked",
-  "deleted-success": "Key deleted"
+  "deleted-success": "Key deleted",
+  "revoke-confirm": "Revoke key “{name}”? Applications using it will lose access.",
+  "delete-confirm": "Delete key “{name}”? This cannot be undone."
 }

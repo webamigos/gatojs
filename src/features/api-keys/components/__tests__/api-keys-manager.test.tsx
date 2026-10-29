@@ -67,6 +67,9 @@ const messages = {
     "status-expired": "Wygasły",
     revoke: "Unieważnij",
     delete: "Usuń",
+    "revoke-confirm":
+      "Unieważnić klucz „{name}”? Aplikacje używające go stracą dostęp.",
+    "delete-confirm": "Usunąć klucz „{name}”? Tej operacji nie można cofnąć.",
   },
 };
 
@@ -140,6 +143,7 @@ describe("ApiKeysManager", () => {
     });
     mockRevoke.mockResolvedValue({ success: true });
     mockDelete.mockResolvedValue({ success: true });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
   it("pokazuje pusty stan bez tabeli", () => {
@@ -459,5 +463,95 @@ describe("ApiKeysManager", () => {
       ),
     );
     expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  describe("potwierdzenie przed unieważnieniem i usunięciem", () => {
+    const KEY_ID = "6f1c1e0e-5b7a-4a52-9a43-0d6a3a0f1111";
+
+    it("Unieważnij pyta o potwierdzenie z nazwą klucza", async () => {
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+      const user = userEvent.setup();
+      renderManager([makeKey()]);
+      await user.click(
+        within(rowOf("Integracja CRM")).getByRole("button", {
+          name: "Unieważnij",
+        }),
+      );
+
+      expect(confirm).toHaveBeenCalledWith(
+        "Unieważnić klucz „Integracja CRM”? Aplikacje używające go stracą dostęp.",
+      );
+    });
+
+    it("odmowa potwierdzenia unieważnienia → komenda niewołana, bez toasta i odświeżenia", async () => {
+      vi.spyOn(window, "confirm").mockReturnValue(false);
+      const user = userEvent.setup();
+      renderManager([makeKey()], true);
+      await user.click(
+        within(rowOf("Integracja CRM")).getByRole("button", {
+          name: "Unieważnij",
+        }),
+      );
+
+      expect(screen.queryByText("Tryb serwisowy")).not.toBeInTheDocument();
+      expect(mockRevoke).not.toHaveBeenCalled();
+      expect(mockToastError).not.toHaveBeenCalled();
+      expect(mockRefresh).not.toHaveBeenCalled();
+    });
+
+    it("zgoda na unieważnienie → komenda z id", async () => {
+      vi.spyOn(window, "confirm").mockReturnValue(true);
+      const user = userEvent.setup();
+      renderManager([makeKey()]);
+      await user.click(
+        within(rowOf("Integracja CRM")).getByRole("button", {
+          name: "Unieważnij",
+        }),
+      );
+
+      await waitFor(() =>
+        expect(mockRevoke).toHaveBeenCalledWith({ id: KEY_ID }),
+      );
+    });
+
+    it("Usuń pyta o potwierdzenie z nazwą klucza", async () => {
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+      const user = userEvent.setup();
+      renderManager([makeKey()]);
+      await user.click(
+        within(rowOf("Integracja CRM")).getByRole("button", { name: "Usuń" }),
+      );
+
+      expect(confirm).toHaveBeenCalledWith(
+        "Usunąć klucz „Integracja CRM”? Tej operacji nie można cofnąć.",
+      );
+    });
+
+    it("odmowa potwierdzenia usunięcia → komenda niewołana, bez toasta i odświeżenia", async () => {
+      vi.spyOn(window, "confirm").mockReturnValue(false);
+      const user = userEvent.setup();
+      renderManager([makeKey()], true);
+      await user.click(
+        within(rowOf("Integracja CRM")).getByRole("button", { name: "Usuń" }),
+      );
+
+      expect(screen.queryByText("Tryb serwisowy")).not.toBeInTheDocument();
+      expect(mockDelete).not.toHaveBeenCalled();
+      expect(mockToastError).not.toHaveBeenCalled();
+      expect(mockRefresh).not.toHaveBeenCalled();
+    });
+
+    it("zgoda na usunięcie → komenda z id", async () => {
+      vi.spyOn(window, "confirm").mockReturnValue(true);
+      const user = userEvent.setup();
+      renderManager([makeKey()]);
+      await user.click(
+        within(rowOf("Integracja CRM")).getByRole("button", { name: "Usuń" }),
+      );
+
+      await waitFor(() =>
+        expect(mockDelete).toHaveBeenCalledWith({ id: KEY_ID }),
+      );
+    });
   });
 });

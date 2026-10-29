@@ -29,8 +29,8 @@ interface ApiKeyColumnsOptions {
   dateLocale: DateFnsLocale;
   now: Date;
   pending: boolean;
-  onRevoke: (id: string) => void;
-  onDelete: (id: string) => void;
+  onRevoke: (key: ApiKeyRow) => void;
+  onDelete: (key: ApiKeyRow) => void;
 }
 
 export function buildApiKeyColumns({
@@ -118,7 +118,7 @@ export function buildApiKeyColumns({
               variant="outline"
               size="sm"
               disabled={pending}
-              onClick={() => onRevoke(row.original.id)}
+              onClick={() => onRevoke(row.original)}
             >
               {t("revoke")}
             </Button>
@@ -127,7 +127,7 @@ export function buildApiKeyColumns({
             variant="ghost"
             size="sm"
             disabled={pending}
-            onClick={() => onDelete(row.original.id)}
+            onClick={() => onDelete(row.original)}
           >
             {t("delete")}
           </Button>
