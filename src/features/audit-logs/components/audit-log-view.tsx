@@ -245,6 +245,7 @@ export function AuditLogView({ result, filters, actors }: AuditLogViewProps) {
                 {t("filter-entity-type")}
               </Label>
               <Input
+                key={filters.entityType ?? ""}
                 id="audit-log-entity-type"
                 className="w-full sm:w-[180px]"
                 defaultValue={filters.entityType ?? ""}
@@ -256,6 +257,7 @@ export function AuditLogView({ result, filters, actors }: AuditLogViewProps) {
                 {t("filter-entity-id")}
               </Label>
               <Input
+                key={filters.entityId ?? ""}
                 id="audit-log-entity-id"
                 className="w-full sm:w-[200px]"
                 defaultValue={filters.entityId ?? ""}

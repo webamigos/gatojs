@@ -121,4 +121,31 @@ describe("AuditLogView", () => {
 
     expect(screen.getAllByText(/Jan Kowalski/).length).toBeGreaterThan(0);
   });
+
+  it.each([
+    ["entityType", "Typ obiektu", "delivery"],
+    ["entityId", "Identyfikator obiektu", "123"],
+  ] as const)(
+    "po wyczyszczeniu filtra %s pole jest puste",
+    (key, label, value) => {
+      const emptyResult: PaginatedResult<AuditLogRow> = {
+        items: [],
+        totalItems: 0,
+        totalPages: 1,
+        currentPage: 1,
+        pageSize: 25,
+      };
+      const tree = (filters: AuditLogFilters) => (
+        <NextIntlClientProvider locale="pl" messages={messages}>
+          <AuditLogView result={emptyResult} filters={filters} actors={[]} />
+        </NextIntlClientProvider>
+      );
+      const { rerender } = render(tree({ ...FILTERS, [key]: value }));
+      expect(screen.getByLabelText(label)).toHaveValue(value);
+
+      rerender(tree(FILTERS));
+
+      expect(screen.getByLabelText(label)).toHaveValue("");
+    },
+  );
 });
