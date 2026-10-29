@@ -572,4 +572,22 @@ describe("listAuditLogsQuery: zakresy, stabilność i kształt aktora", () => {
       "dave",
     ]);
   });
+
+  it("aktorzy utworzeni w kolejności niealfabetycznej wracają posortowani po name", async () => {
+    const zofia = await createUser({ email: "zofia@a.example" });
+    const adam = await createUser({ email: "adam@a.example" });
+    const marek = await createUser({ email: "marek@a.example" });
+    for (const user of [zofia, adam, marek]) {
+      await seed({ organizationId: world.orgA.id, userId: user.id });
+    }
+    await signInAs(world.alice, world.orgA);
+
+    const actors = await listAuditLogActorsQuery();
+
+    expect(actors.map((actor) => actor.name)).toEqual([
+      "adam",
+      "marek",
+      "zofia",
+    ]);
+  });
 });
