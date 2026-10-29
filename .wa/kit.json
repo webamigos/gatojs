@@ -20,7 +20,8 @@
         "files": [
           "prisma/schema/api-keys.prisma",
           "src/features/api-keys/**",
-          "src/app/api/v1/organization/**"
+          "src/app/api/v1/organization/**",
+          "src/app/[locale]/(app)/api-keys/**"
         ],
         "dependencies": {},
         "devDependencies": {},
