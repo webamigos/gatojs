@@ -205,7 +205,7 @@ Subagenci na `sonnet`. Recenzja Opusem: zadania 2, 6, 9, 10, 16, 17 (bezpieczeń
 **Zachowania:**
 - `auditLogFiltersSchema.parse({})` → `{ page: 1, pageSize: 25, sortBy: "createdAt", sortDir: "desc" }`.
 - `parse({ page: "-1", pageSize: "1000", from: "abc" })` → `page: 1`, `pageSize: 25`, bez `from` (nieprawidłowe wartości zastępowane domyślnymi, `safeParse` per pole; bez wyjątku).
-- `parse({ to: "2026-10-29" })` → `to` = koniec dnia `2026-10-29T23:59:59.999` w strefie serwera.
+- `parse({ to: "2026-10-29" })` → `to` = koniec dnia `2026-10-29T23:59:59.999Z` (UTC).
 - Query z kontekstem owner organizacji A: tylko wiersze A; filtr `entityType: "delivery", entityId: "123"` zwraca wyłącznie wpisy tej rzeczy; filtr `userId` wyłącznie wpisy tej osoby; `totalItems`/`totalPages` zgodne z liczbą wierszy (np. 30 wierszy, `pageSize: 25` → `totalPages: 2`).
 - Kontekst `member` → `requireModuleAccess` woła `notFound()` (test oczekuje błędu `NEXT_NOT_FOUND`), bez zapytania o wiersze.
 - `listAuditLogActorsQuery` zwraca tylko użytkowników z wpisami w aktywnej organizacji.
