@@ -7,7 +7,10 @@ import type { ApiOrgContextResult } from "../contracts/upload.types";
 
 async function hasSession(): Promise<boolean> {
   const { auth } = await import("@/shared/lib/auth");
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await auth.api.getSession({
+    headers: await headers(),
+    query: { disableCookieCache: true },
+  });
   return Boolean(session?.user);
 }
 

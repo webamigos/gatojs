@@ -11,6 +11,7 @@ const {
   mockDeleteObject,
   mockTrackAudit,
   mockRedirect,
+  prepareFailure,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockMemberFindFirst: vi.fn(),
@@ -22,7 +23,24 @@ const {
   mockRedirect: vi.fn(() => {
     throw new Error("NEXT_REDIRECT");
   }),
+  prepareFailure: { value: null as Error | null },
 }));
+
+vi.mock("../../prepare-upload-body", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../prepare-upload-body")>();
+  return {
+    ...actual,
+    prepareUploadBody: (
+      ...args: Parameters<typeof actual.prepareUploadBody>
+    ) => {
+      if (prepareFailure.value) {
+        throw prepareFailure.value;
+      }
+      return actual.prepareUploadBody(...args);
+    },
+  };
+});
 
 vi.mock("@/shared/lib/env", () => ({ env: { MULTI_ORG: false } }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
@@ -133,6 +151,7 @@ function signIn(input: {
 }
 
 beforeEach(() => {
+  prepareFailure.value = null;
   mockPutObject.mockResolvedValue(undefined);
   mockDeleteObject.mockResolvedValue(undefined);
   mockTrackAudit.mockResolvedValue(undefined);
@@ -479,5 +498,118 @@ describe("createUpload awarie zależności", () => {
     expect(result.status).toBe(500);
     expect(mockUploadCreate).not.toHaveBeenCalled();
     expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe("createUpload kody błędów i audyt", () => {
+  it("zwraca dokładny kod unauthorized dla braku sesji", async () => {
+    mockGetSession.mockResolvedValue(null);
+
+    const result = await createUpload(
+      formWith({ file: await makePng(), purpose: "editor-image" }),
+    );
+
+    expect(result).toEqual({ status: 401, body: { error: "unauthorized" } });
+  });
+
+  it("zwraca dokładny kod invalid_input bez pliku", async () => {
+    const result = await createUpload(formWith({ purpose: "editor-image" }));
+
+    expect(result).toEqual({ status: 400, body: { error: "invalid_input" } });
+  });
+
+  it("zwraca dokładny kod unknown_purpose dla nieznanego celu", async () => {
+    const result = await createUpload(
+      formWith({ file: await makePng(), purpose: "nieznany-cel" }),
+    );
+
+    expect(result).toEqual({ status: 400, body: { error: "unknown_purpose" } });
+  });
+
+  it("zwraca dokładny kod storage_failed, gdy zapis obiektu pada", async () => {
+    mockPutObject.mockRejectedValue(new Error("s3 down"));
+
+    const result = await createUpload(
+      formWith({ file: await makePng(), purpose: "editor-image" }),
+    );
+
+    expect(result).toEqual({ status: 500, body: { error: "storage_failed" } });
+  });
+
+  it("zwraca dokładny kod storage_failed, gdy zapis rekordu pada", async () => {
+    mockUploadCreate.mockRejectedValue(new Error("db down"));
+
+    const result = await createUpload(
+      formWith({ file: await makePng(), purpose: "editor-image" }),
+    );
+
+    expect(result).toEqual({ status: 500, body: { error: "storage_failed" } });
+  });
+
+  it("zapisuje audyt z entityType upload i newData z celem, kluczem i rozmiarem", async () => {
+    const result = await createUpload(
+      formWith({ file: await makePng(), purpose: "editor-image" }),
+    );
+
+    expect(result.status).toBe(201);
+    if (result.status !== 201) {
+      return;
+    }
+    expect(mockTrackAudit.mock.calls[0]![0]).toEqual({
+      organizationId: "org-a",
+      actorUserId: "user-1",
+      serviceMode: false,
+      action: "upload.created",
+      entityType: "upload",
+      entityId: result.body.id,
+      newData: {
+        purpose: "editor-image",
+        key: `orgs/org-a/editor-image/${result.body.id}.jpg`,
+        size: result.body.size,
+      },
+    });
+  });
+});
+
+describe("createUpload potwierdzenie i awarie przygotowania", () => {
+  it("zwraca 403 i nic nie zapisuje przy niepoprawnym JSON w serviceModeConfirmation w trybie serwisowym", async () => {
+    signIn({ userRole: "superadmin", memberRole: null });
+
+    const result = await createUpload(
+      formWith({
+        file: await makePng(),
+        purpose: "editor-image",
+        serviceModeConfirmation: "{nie-json",
+      }),
+    );
+
+    expect(result.status).toBe(403);
+    expect(mockPutObject).not.toHaveBeenCalled();
+    expect(mockUploadCreate).not.toHaveBeenCalled();
+  });
+
+  it("zwraca 403 przy niepoprawnym JSON w serviceModeConfirmation także dla członka", async () => {
+    const result = await createUpload(
+      formWith({
+        file: await makePng(),
+        purpose: "editor-image",
+        serviceModeConfirmation: "{nie-json",
+      }),
+    );
+
+    expect(result.status).toBe(403);
+    expect(mockPutObject).not.toHaveBeenCalled();
+  });
+
+  it("rzuca dalej błąd przygotowania inny niż InvalidImageError i nic nie zapisuje", async () => {
+    prepareFailure.value = new Error("sharp boom");
+
+    await expect(
+      createUpload(
+        formWith({ file: await makePng(), purpose: "editor-image" }),
+      ),
+    ).rejects.toThrow("sharp boom");
+    expect(mockPutObject).not.toHaveBeenCalled();
+    expect(mockUploadCreate).not.toHaveBeenCalled();
   });
 });
