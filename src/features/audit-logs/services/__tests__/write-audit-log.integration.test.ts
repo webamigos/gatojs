@@ -163,6 +163,40 @@ describe("writeAuditLog na prawdziwej bazie", () => {
     });
   });
 
+  it("oldData i newData ustawione na null zapisują się jako NULL w bazie", async () => {
+    await writeAuditLog({
+      organizationId: world.orgA.id,
+      actorUserId: world.alice.id,
+      action: "x.y",
+      entityType: "x",
+      oldData: null,
+      newData: null,
+    });
+
+    const row = await prisma.auditLog.findFirstOrThrow({
+      where: { organizationId: world.orgA.id },
+    });
+    expect(row.oldData).toBeNull();
+    expect(row.newData).toBeNull();
+  });
+
+  it("newData null przy niepustym oldData zachowuje oldData i zapisuje NULL w newData", async () => {
+    await writeAuditLog({
+      organizationId: world.orgA.id,
+      actorUserId: world.alice.id,
+      action: "x.deleted",
+      entityType: "x",
+      oldData: { name: "A", password: "p" },
+      newData: null,
+    });
+
+    const row = await prisma.auditLog.findFirstOrThrow({
+      where: { organizationId: world.orgA.id },
+    });
+    expect(row.oldData).toEqual({ name: "A", password: "[REDACTED]" });
+    expect(row.newData).toBeNull();
+  });
+
   it("usunięcie użytkownika zostawia wiersz z userId null", async () => {
     await writeAuditLog({
       organizationId: world.orgA.id,
