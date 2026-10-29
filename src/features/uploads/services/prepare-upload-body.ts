@@ -21,12 +21,13 @@ export async function prepareUploadBody(
   purpose: ModuleUploadPurpose,
   detected: DetectedUploadType,
 ): Promise<{ bytes: Uint8Array; mimeType: string; extension: string }> {
-  if (!purpose.resizeImage) {
+  if (!purpose.resizeImage || !detected.mimeType.startsWith("image/")) {
     return { bytes, ...detected };
   }
   try {
     const resized = await sharp(bytes, { limitInputPixels: MAX_INPUT_PIXELS })
       .rotate()
+      .flatten({ background: "#ffffff" })
       .resize({ width: purpose.resizeImage.maxWidth, withoutEnlargement: true })
       .jpeg({ quality: JPEG_QUALITY })
       .toBuffer();

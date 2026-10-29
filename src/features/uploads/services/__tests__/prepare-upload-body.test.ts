@@ -115,4 +115,45 @@ describe("prepareUploadBody", () => {
     expect(meta.height).toBe(300);
     expect(meta.orientation).toBeUndefined();
   });
+
+  it("spłaszcza przezroczyste tło PNG do białego piksela w rogu", async () => {
+    const transparent = new Uint8Array(
+      await sharp({
+        create: {
+          width: 20,
+          height: 20,
+          channels: 4,
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
+        },
+      })
+        .png()
+        .toBuffer(),
+    );
+
+    const result = await prepareUploadBody(transparent, editorImage, PNG);
+
+    const { data } = await sharp(result.bytes)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    expect([data[0], data[1], data[2]]).toEqual([255, 255, 255]);
+  });
+
+  it("nie zmniejsza ani nie przetwarza typu innego niż obraz w celu z resizeImage", async () => {
+    const pdf = new Uint8Array([
+      0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34,
+    ]);
+    const purpose: ModuleUploadPurpose = {
+      ...editorImage,
+      mimeTypes: ["image/png", "application/pdf"],
+    };
+
+    const result = await prepareUploadBody(pdf, purpose, {
+      mimeType: "application/pdf",
+      extension: "pdf",
+    });
+
+    expect(result.bytes).toEqual(pdf);
+    expect(result.mimeType).toBe("application/pdf");
+    expect(result.extension).toBe("pdf");
+  });
 });

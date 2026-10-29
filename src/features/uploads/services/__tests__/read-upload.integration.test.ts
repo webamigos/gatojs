@@ -28,8 +28,8 @@ vi.mock("@/shared/lib/auth", () => ({
 
 import { prisma } from "@/shared/lib/prisma";
 import { readUploadForDownload } from "../read-upload";
-import { deleteUploadCommand } from "../../commands/upload-commands";
-import { deleteObject, getObject, putObject } from "../../storage";
+import { deleteUploadCommand } from "../commands/upload-commands";
+import { deleteObject, getObject, putObject } from "../storage";
 import {
   createOrganization,
   createSession,
@@ -154,6 +154,7 @@ describe("readUploadForDownload na bazie i storage", () => {
           "inline; filename=\"logo.png\"; filename*=UTF-8''logo.png",
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "public, max-age=31536000, immutable",
+        "Content-Security-Policy": "sandbox; default-src 'none'",
       },
     });
   });

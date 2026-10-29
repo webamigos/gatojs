@@ -38,12 +38,15 @@ function setModules(...purposes: unknown[][]) {
 }
 
 describe("FORBIDDEN_MIME_TYPES", () => {
-  it.each(["image/svg+xml", "text/html", "application/xhtml+xml"])(
-    "zawiera %s",
-    (type) => {
-      expect(FORBIDDEN_MIME_TYPES).toContain(type);
-    },
-  );
+  it.each([
+    "image/svg+xml",
+    "text/html",
+    "application/xhtml+xml",
+    "application/xml",
+    "text/xml",
+  ])("zawiera %s", (type) => {
+    expect(FORBIDDEN_MIME_TYPES).toContain(type);
+  });
 });
 
 describe("listUploadPurposes", () => {
@@ -67,20 +70,23 @@ describe("listUploadPurposes", () => {
     ]);
   });
 
-  it.each(["image/svg+xml", "text/html", "application/xhtml+xml"])(
-    "rzuca z nazwą celu, gdy cel deklaruje %s",
-    (type) => {
-      setModules([
-        {
-          key: "zly-cel",
-          mimeTypes: ["image/png", type],
-          maxBytes: 10,
-          visibility: "public",
-        },
-      ]);
-      expect(() => listUploadPurposes()).toThrow(/zly-cel/);
-    },
-  );
+  it.each([
+    "image/svg+xml",
+    "text/html",
+    "application/xhtml+xml",
+    "application/xml",
+    "text/xml",
+  ])("rzuca z nazwą celu, gdy cel deklaruje %s", (type) => {
+    setModules([
+      {
+        key: "zly-cel",
+        mimeTypes: ["image/png", type],
+        maxBytes: 10,
+        visibility: "public",
+      },
+    ]);
+    expect(() => listUploadPurposes()).toThrow(/zly-cel/);
+  });
 
   it("rzuca z nazwą celu, gdy dwa moduły deklarują ten sam klucz", () => {
     setModules(

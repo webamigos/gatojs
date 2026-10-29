@@ -21,10 +21,6 @@ const UNGUARDED_ALLOWED = new Map([
     "src/features/organizations/services/queries/default-organization-query.ts#getDefaultActiveOrganizationId",
     "wywoływane przez hook session.create.before z userId tworzonej sesji",
   ],
-  [
-    "src/features/uploads/services/queries/read-upload.ts#readUploadForDownload",
-    "pliki publiczne są dostępne bez sesji; pliki organizacji sprawdzane getOrgContext po odczycie widoczności",
-  ],
 ]);
 
 type FunctionLike =

@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { prisma } from "@/shared/lib/prisma";
-import { readOrgContextForApi } from "../api-org-context";
-import { contentDisposition } from "../content-disposition";
-import { getObject } from "../storage";
+import { readOrgContextForApi } from "./api-org-context";
+import { contentDisposition } from "./content-disposition";
+import { getObject } from "./storage";
 
 const PUBLIC_CACHE_CONTROL = "public, max-age=31536000, immutable";
 const ORGANIZATION_CACHE_CONTROL = "private, max-age=300";
@@ -47,6 +47,7 @@ export async function readUploadForDownload(
       "Content-Type": upload.mimeType,
       "Content-Disposition": contentDisposition(upload.fileName, "inline"),
       "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "sandbox; default-src 'none'",
       "Cache-Control": isPublic
         ? PUBLIC_CACHE_CONTROL
         : ORGANIZATION_CACHE_CONTROL,

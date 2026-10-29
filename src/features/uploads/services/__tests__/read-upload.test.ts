@@ -71,7 +71,7 @@ vi.mock("@/shared/lib/prisma", () => ({
     upload: uploadQueries,
   },
 }));
-vi.mock("../../storage", () => ({ getObject: mockGetObject }));
+vi.mock("../storage", () => ({ getObject: mockGetObject }));
 vi.mock("@/shared/lib/logger", () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
@@ -153,6 +153,7 @@ describe("readUploadForDownload", () => {
           "inline; filename=\"logo.png\"; filename*=UTF-8''logo.png",
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "public, max-age=31536000, immutable",
+        "Content-Security-Policy": "sandbox; default-src 'none'",
       },
     });
     expect(mockGetObject).toHaveBeenCalledWith(
@@ -189,6 +190,7 @@ describe("readUploadForDownload", () => {
           "inline; filename=\"raport.pdf\"; filename*=UTF-8''raport.pdf",
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "private, max-age=300",
+        "Content-Security-Policy": "sandbox; default-src 'none'",
       },
     });
   });

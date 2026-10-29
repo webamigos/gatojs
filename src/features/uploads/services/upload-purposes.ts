@@ -8,6 +8,8 @@ export const FORBIDDEN_MIME_TYPES: readonly string[] = [
   "image/svg+xml",
   "text/html",
   "application/xhtml+xml",
+  "application/xml",
+  "text/xml",
 ];
 
 export function listUploadPurposes(): ModuleUploadPurpose[] {

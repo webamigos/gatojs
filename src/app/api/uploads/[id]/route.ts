@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readUploadForDownload } from "@/features/uploads/services/queries/read-upload";
+import { readUploadForDownload } from "@/features/uploads/services/read-upload";
 
 export const runtime = "nodejs";
 
