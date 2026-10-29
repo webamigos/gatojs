@@ -4,4 +4,13 @@ export default defineModule({
   key: "uploads",
   nav: [],
   routePrefixes: [],
+  uploadPurposes: [
+    {
+      key: "editor-image",
+      mimeTypes: ["image/jpeg", "image/png", "image/webp"],
+      maxBytes: 5 * 1024 * 1024,
+      visibility: "public",
+      resizeImage: { maxWidth: 1200 },
+    },
+  ],
 });

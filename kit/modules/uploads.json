@@ -8,7 +8,11 @@
     "docker/uploads.compose.yml",
     "ci/uploads.integration-steps.yml"
   ],
-  "dependencies": { "@aws-sdk/client-s3": "^3.1159.0" },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1159.0",
+    "file-type": "^22.3.0",
+    "sharp": "^0.35.5"
+  },
   "devDependencies": {},
   "env": [
     {
