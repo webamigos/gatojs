@@ -19,7 +19,8 @@
         "requires": [],
         "files": [
           "prisma/schema/api-keys.prisma",
-          "src/features/api-keys/**"
+          "src/features/api-keys/**",
+          "src/app/api/v1/organization/**"
         ],
         "dependencies": {},
         "devDependencies": {},
