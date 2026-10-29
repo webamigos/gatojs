@@ -108,6 +108,7 @@ describe("GET /api/v1/organization", () => {
     await seedKey(world.orgB.id, KEY_B);
     const response = await call(`Bearer ${KEY_A}`);
     expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.json()).resolves.toEqual({
       id: world.orgA.id,
       name: "Org A",
@@ -140,6 +141,7 @@ describe("GET /api/v1/organization", () => {
   it("bez nagłówka zwraca 401 z { error: missing }", async () => {
     const response = await call(null);
     expect(response.status).toBe(401);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.json()).resolves.toEqual({ error: "missing" });
   });
 

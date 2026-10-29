@@ -114,25 +114,19 @@ describe("authenticateApiKey: nagłówek", () => {
   );
 
   it.each([
-    ["bearer małymi literami", `bearer ${KEY}`],
-    ["samo klucz bez schematu", KEY],
-    ["wiodąca spacja przed schematem", ` Bearer ${KEY}`],
-    ["tabulator zamiast spacji", `Bearer\t${KEY}`],
-    ["dwie spacje przed kluczem", `Bearer  ${KEY}`],
-    ["klucz z dopisaną spacją", `Bearer ${KEY} `],
-    ["klucz w cudzysłowie", `Bearer "${KEY}"`],
+    ["bearer małymi literami", `bearer ${KEY}`, "missing"],
+    ["sam klucz bez schematu", KEY, "missing"],
+    ["wiodąca spacja przed schematem", ` Bearer ${KEY}`, "missing"],
+    ["tabulator zamiast spacji", `Bearer\t${KEY}`, "missing"],
+    ["dwie spacje przed kluczem", `Bearer  ${KEY}`, "invalid"],
+    ["klucz z dopisaną spacją", `Bearer ${KEY} `, "invalid"],
+    ["klucz w cudzysłowie", `Bearer "${KEY}"`, "invalid"],
   ])(
-    "nieprawidłowa forma nagłówka (%s) daje 401 bez wyjątku",
-    async (_label, header) => {
-      const result = await authenticateApiKey(
-        requestWith(header),
-        "organization:read",
-      );
-      expect(result.ok).toBe(false);
-      expect(result).toMatchObject({ status: 401 });
-      expect(["missing", "invalid"]).toContain(
-        (result as { error: string }).error,
-      );
+    "nieprawidłowa forma nagłówka (%s) daje 401 %s bez wyjątku",
+    async (_label, header, error) => {
+      await expect(
+        authenticateApiKey(requestWith(header), "organization:read"),
+      ).resolves.toEqual({ ok: false, status: 401, error });
     },
   );
 });
@@ -187,6 +181,13 @@ describe("authenticateApiKey: stan klucza", () => {
       authenticateApiKey(requestWith(`Bearer ${KEY}`), "organization:read"),
     ).resolves.toEqual({ ok: false, status: 401, error: "expired" });
     expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("klucz z expiresAt równym bieżącej chwili zwraca 401 expired", async () => {
+    seed(storedKey({ expiresAt: NOW }));
+    await expect(
+      authenticateApiKey(requestWith(`Bearer ${KEY}`), "organization:read"),
+    ).resolves.toEqual({ ok: false, status: 401, error: "expired" });
   });
 
   it("klucz z expiresAt w przyszłości jest przyjęty", async () => {
