@@ -5,7 +5,11 @@ import coreMessages from "@/app/messages/pl.json";
 import auditLogsPl from "../../i18n/pl.json";
 import type { AuditLogRow } from "../../contracts/audit-log.types";
 
-const messages = { ...coreMessages, "audit-logs": auditLogsPl };
+const messages = {
+  ...coreMessages,
+  "audit-logs": auditLogsPl,
+  warehouse: { auditActions: { deliveryReceived: "Przyjęcie dostawy" } },
+};
 
 const { queryMock } = vi.hoisted(() => ({ queryMock: vi.fn() }));
 
@@ -18,6 +22,29 @@ vi.mock("next-intl/server", () => ({
     } as Parameters<typeof createTranslator>[0]),
   ),
   getLocale: vi.fn(async () => "pl"),
+}));
+vi.mock("@/modules.generated", () => ({
+  modules: [
+    {
+      key: "warehouse",
+      nav: [],
+      routePrefixes: [],
+      auditActions: [
+        {
+          action: "delivery.received",
+          labelKey: "auditActions.deliveryReceived",
+        },
+      ],
+    },
+    {
+      key: "audit-logs",
+      nav: [],
+      routePrefixes: [],
+      auditActions: [
+        { action: "member.invited", labelKey: "action-member-invited" },
+      ],
+    },
+  ],
 }));
 vi.mock("../../services/queries/audit-trail-query", () => ({
   getEntityAuditTrailQuery: queryMock,
@@ -128,5 +155,38 @@ describe("AuditTrail", () => {
     expect(text.indexOf("Pierwszy Autor")).toBeLessThan(
       text.indexOf("Drugi Autor"),
     );
+  });
+
+  it("pokazuje etykietę z namespace modułu deklarującego akcję", async () => {
+    queryMock.mockResolvedValue([makeRow({ action: "delivery.received" })]);
+
+    await renderTrail();
+
+    expect(screen.getByText("Przyjęcie dostawy")).toBeInTheDocument();
+    expect(screen.queryByText("delivery.received")).not.toBeInTheDocument();
+  });
+
+  it("pokazuje etykietę akcji zadeklarowanej przez moduł audit-logs", async () => {
+    queryMock.mockResolvedValue([makeRow({ action: "member.invited" })]);
+
+    await renderTrail();
+
+    expect(screen.getByText("Zaproszenie członka")).toBeInTheDocument();
+  });
+
+  it("pokazuje surowy klucz dla niezadeklarowanej akcji", async () => {
+    queryMock.mockResolvedValue([makeRow({ action: "invoice.voided" })]);
+
+    await renderTrail();
+
+    expect(screen.getByText("invoice.voided")).toBeInTheDocument();
+  });
+
+  it("wpis bez aktora pokazuje tekst Systemu", async () => {
+    queryMock.mockResolvedValue([makeRow({ actor: null })]);
+
+    await renderTrail();
+
+    expect(screen.getByText("System")).toBeInTheDocument();
   });
 });

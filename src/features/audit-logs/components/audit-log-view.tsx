@@ -35,6 +35,7 @@ import {
   type AuditLogRow,
   type AuditLogSortColumn,
 } from "../contracts/audit-log.types";
+import { findAuditActionLabel } from "../services/audit-action-labels";
 
 const DATE_FNS_LOCALES: Record<string, DateFnsLocale> = { pl, en: enUS };
 const ALL = "all";
@@ -110,12 +111,14 @@ export function AuditLogView({ result, filters, actors }: AuditLogViewProps) {
   const dateLocale = DATE_FNS_LOCALES[useLocale()] ?? pl;
   const { update, setFilter, clear } = useUrlParams();
 
-  const actionLabel = useMemo(() => {
-    const labels = new Map(
-      declaredActions.map(({ action, labelKey }) => [action, t(labelKey)]),
-    );
-    return (action: string) => labels.get(action) ?? action;
-  }, [t]);
+  const root = useTranslations();
+  const actionLabel = useMemo(
+    () => (action: string) => {
+      const found = findAuditActionLabel(action, registry);
+      return found ? root(`${found.namespace}.${found.labelKey}`) : action;
+    },
+    [root],
+  );
 
   const sorting: SortingState = [
     { id: filters.sortBy, desc: filters.sortDir === "desc" },

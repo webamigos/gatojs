@@ -237,6 +237,36 @@ describe("getEntityAuditTrailQuery na prawdziwej bazie", () => {
     });
   });
 
+  it("wpisy o identycznym createdAt wracają w kolejności po id rosnąco", async () => {
+    const sameMoment = new Date("2026-03-01T10:00:00Z");
+    const ids = [
+      "00000000-0000-4000-8000-00000000000c",
+      "00000000-0000-4000-8000-00000000000a",
+      "00000000-0000-4000-8000-00000000000b",
+    ];
+    for (const id of ids) {
+      await prisma.auditLog.create({
+        data: {
+          id,
+          organizationId: world.orgA.id,
+          action: "member.invited",
+          entityType: "delivery",
+          entityId: "123",
+          createdAt: sameMoment,
+        },
+      });
+    }
+    await signInAs(world.alice, world.orgA);
+
+    const rows = await getEntityAuditTrailQuery("delivery", "123");
+
+    expect(rows?.map((row) => row.id)).toEqual([
+      "00000000-0000-4000-8000-00000000000a",
+      "00000000-0000-4000-8000-00000000000b",
+      "00000000-0000-4000-8000-00000000000c",
+    ]);
+  });
+
   it("bez sesji nic nie zwraca i rzuca", async () => {
     await seed({ organizationId: world.orgA.id });
 

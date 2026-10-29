@@ -1,5 +1,7 @@
 import { format } from "date-fns";
 import { getTranslations } from "next-intl/server";
+import { modules } from "@/modules.generated";
+import { findAuditActionLabel } from "../services/audit-action-labels";
 import { getEntityAuditTrailQuery } from "../services/queries/audit-trail-query";
 
 interface AuditTrailProps {
@@ -13,6 +15,12 @@ export async function AuditTrail({ entityType, entityId }: AuditTrailProps) {
     return null;
   }
   const t = await getTranslations("audit-logs");
+  const root = await getTranslations();
+
+  function actionLabel(action: string): string {
+    const found = findAuditActionLabel(action, modules);
+    return found ? root(`${found.namespace}.${found.labelKey}`) : action;
+  }
 
   if (rows.length === 0) {
     return <p className="text-muted-foreground text-sm">{t("no-history")}</p>;
@@ -25,7 +33,7 @@ export async function AuditTrail({ entityType, entityId }: AuditTrailProps) {
           <time dateTime={row.createdAt.toISOString()}>
             {format(row.createdAt, "yyyy-MM-dd HH:mm")}
           </time>
-          <span>{row.action}</span>
+          <span>{actionLabel(row.action)}</span>
           <span className="text-muted-foreground">
             {row.actor?.name ?? t("source-system")}
           </span>
