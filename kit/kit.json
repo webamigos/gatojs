@@ -28,9 +28,7 @@
     "src/test/integration/database-url.ts",
     "README.md",
     "docker/uploads.compose.yml",
-    "ci/uploads.integration-steps.yml",
-    "src/features/uploads/__tests__/env.test.ts",
-    "src/features/uploads/services/__tests__/storage.integration.test.ts"
+    "ci/uploads.integration-steps.yml"
   ],
   "generatedFiles": [
     "src/modules.generated.ts",

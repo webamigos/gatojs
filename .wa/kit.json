@@ -281,7 +281,7 @@
           },
           {
             "name": "S3_BUCKET",
-            "example": "wa-app-uploads",
+            "example": "{{projectSlug}}-uploads",
             "required": true
           },
           {

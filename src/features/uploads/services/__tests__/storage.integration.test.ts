@@ -1,15 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/shared/lib/env", () => ({
-  env: {
-    S3_ENDPOINT: process.env.INTEGRATION_S3_ENDPOINT ?? "http://localhost:9000",
-    S3_REGION: "auto",
-    S3_ACCESS_KEY_ID: "minioadmin",
-    S3_SECRET_ACCESS_KEY: "minioadmin",
-    S3_BUCKET: "wa-app-uploads",
-    S3_FORCE_PATH_STYLE: true,
-  },
+const mockEnv = vi.hoisted(() => ({
+  S3_ENDPOINT: process.env.INTEGRATION_S3_ENDPOINT ?? "http://localhost:9000",
+  S3_REGION: "auto",
+  S3_ACCESS_KEY_ID: "minioadmin",
+  S3_SECRET_ACCESS_KEY: "minioadmin",
+  S3_BUCKET: "",
+  S3_FORCE_PATH_STYLE: true,
 }));
+
+vi.mock("@/shared/lib/env", async () => {
+  const { project } = await import("@/shared/config/project");
+  mockEnv.S3_BUCKET =
+    process.env.INTEGRATION_S3_BUCKET ?? `${project.slug}-uploads`;
+  return { env: mockEnv };
+});
 
 import { deleteObject, getObject, putObject } from "../storage";
 
@@ -121,5 +126,15 @@ describe("storage S3 (MinIO)", () => {
     expect(
       Array.from((await getObject(`orgs/o2/test/${suffix}`))!.body),
     ).toEqual([66]);
+  });
+
+  it("odrzuca obietnicę przy błędzie innym niż NoSuchKey", async () => {
+    const original = mockEnv.S3_BUCKET;
+    mockEnv.S3_BUCKET = "no-such-bucket-wa-kit";
+    try {
+      await expect(getObject("orgs/o1/test/a.txt")).rejects.toThrow();
+    } finally {
+      mockEnv.S3_BUCKET = original;
+    }
   });
 });

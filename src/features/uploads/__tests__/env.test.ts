@@ -5,7 +5,7 @@ const VALID = {
   S3_ENDPOINT: "http://localhost:9000",
   S3_ACCESS_KEY_ID: "minioadmin",
   S3_SECRET_ACCESS_KEY: "minioadmin",
-  S3_BUCKET: "wa-app-uploads",
+  S3_BUCKET: "test-bucket",
 };
 
 describe("envSchema uploads", () => {
@@ -21,7 +21,7 @@ describe("envSchema uploads", () => {
       S3_REGION: "auto",
       S3_ACCESS_KEY_ID: "minioadmin",
       S3_SECRET_ACCESS_KEY: "minioadmin",
-      S3_BUCKET: "wa-app-uploads",
+      S3_BUCKET: "test-bucket",
       S3_FORCE_PATH_STYLE: true,
     });
   });

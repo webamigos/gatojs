@@ -23,7 +23,11 @@
       "example": "minioadmin",
       "required": true
     },
-    { "name": "S3_BUCKET", "example": "wa-app-uploads", "required": true },
+    {
+      "name": "S3_BUCKET",
+      "example": "{{projectSlug}}-uploads",
+      "required": true
+    },
     { "name": "S3_FORCE_PATH_STYLE", "example": "true", "required": false }
   ],
   "schemaRelations": [],

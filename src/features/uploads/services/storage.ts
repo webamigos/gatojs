@@ -19,15 +19,15 @@ function uploadsEnv(): CoreEnv & UploadsEnv {
 
 let cachedClient: S3Client | undefined;
 
-function client(): S3Client {
+function client(config: UploadsEnv): S3Client {
   cachedClient ??= new S3Client({
-    endpoint: uploadsEnv().S3_ENDPOINT,
-    region: uploadsEnv().S3_REGION,
+    endpoint: config.S3_ENDPOINT,
+    region: config.S3_REGION,
     credentials: {
-      accessKeyId: uploadsEnv().S3_ACCESS_KEY_ID,
-      secretAccessKey: uploadsEnv().S3_SECRET_ACCESS_KEY,
+      accessKeyId: config.S3_ACCESS_KEY_ID,
+      secretAccessKey: config.S3_SECRET_ACCESS_KEY,
     },
-    forcePathStyle: uploadsEnv().S3_FORCE_PATH_STYLE,
+    forcePathStyle: config.S3_FORCE_PATH_STYLE,
     requestChecksumCalculation: "WHEN_REQUIRED",
     responseChecksumValidation: "WHEN_REQUIRED",
   });
@@ -39,9 +39,10 @@ export async function putObject(
   body: Uint8Array,
   contentType: string,
 ): Promise<void> {
-  await client().send(
+  const config = uploadsEnv();
+  await client(config).send(
     new PutObjectCommand({
-      Bucket: uploadsEnv().S3_BUCKET,
+      Bucket: config.S3_BUCKET,
       Key: key,
       Body: body,
       ContentType: contentType,
@@ -50,14 +51,18 @@ export async function putObject(
 }
 
 export async function getObject(key: string): Promise<StoredObject | null> {
+  const config = uploadsEnv();
   try {
-    const result = await client().send(
-      new GetObjectCommand({ Bucket: uploadsEnv().S3_BUCKET, Key: key }),
+    const result = await client(config).send(
+      new GetObjectCommand({ Bucket: config.S3_BUCKET, Key: key }),
     );
     const body = await result.Body?.transformToByteArray();
     return { body: body ?? new Uint8Array(), contentType: result.ContentType };
   } catch (error) {
-    if (error instanceof NoSuchKey) {
+    if (
+      error instanceof NoSuchKey ||
+      (error instanceof Error && error.name === "NoSuchKey")
+    ) {
       return null;
     }
     throw error;
@@ -65,7 +70,8 @@ export async function getObject(key: string): Promise<StoredObject | null> {
 }
 
 export async function deleteObject(key: string): Promise<void> {
-  await client().send(
-    new DeleteObjectCommand({ Bucket: uploadsEnv().S3_BUCKET, Key: key }),
+  const config = uploadsEnv();
+  await client(config).send(
+    new DeleteObjectCommand({ Bucket: config.S3_BUCKET, Key: key }),
   );
 }

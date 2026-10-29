@@ -43,6 +43,11 @@ export function appEnv(options: {
     AUTH_PUBLIC_SIGNUP: String(options.publicSignup),
     MULTI_ORG: String(options.multiOrg),
     API_KEY_PEPPER: "e2e-api-key-pepper-at-least-32-characters-long",
+    S3_ENDPOINT: process.env.S3_ENDPOINT ?? "http://localhost:9000",
+    S3_ACCESS_KEY_ID: "minioadmin",
+    S3_SECRET_ACCESS_KEY: "minioadmin",
+    S3_BUCKET: "wa-app-uploads",
+    S3_FORCE_PATH_STYLE: "true",
     LOG_LEVEL: "warn",
   };
 }

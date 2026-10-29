@@ -1,3 +1,4 @@
+import { project } from "@/shared/config/project";
 import { integrationDatabaseUrl } from "./database-url";
 
 Object.assign(process.env, {
@@ -9,7 +10,7 @@ Object.assign(process.env, {
   S3_ENDPOINT: process.env.INTEGRATION_S3_ENDPOINT ?? "http://localhost:9000",
   S3_ACCESS_KEY_ID: "minioadmin",
   S3_SECRET_ACCESS_KEY: "minioadmin",
-  S3_BUCKET: "wa-app-uploads",
+  S3_BUCKET: process.env.INTEGRATION_S3_BUCKET ?? `${project.slug}-uploads`,
   MULTI_ORG: "false",
   AUTH_PUBLIC_SIGNUP: "false",
 });
