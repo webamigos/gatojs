@@ -2,22 +2,21 @@ import { describe, expect, it } from "vitest";
 import { fc, test } from "@fast-check/vitest";
 import { redactSensitive } from "../redact";
 
-const SENSITIVE_KEYS = [
+const SENSITIVE_FRAGMENTS = [
   "password",
-  "passwordhash",
   "secret",
   "token",
-  "accesstoken",
-  "refreshtoken",
   "apikey",
-  "hashedkey",
   "authorization",
   "cookie",
+  "privatekey",
+  "hashedkey",
 ];
 
-const safeKey = fc
-  .string({ minLength: 1, maxLength: 8 })
-  .filter((key) => !SENSITIVE_KEYS.includes(key.toLowerCase()));
+const safeKey = fc.string({ minLength: 1, maxLength: 8 }).filter((key) => {
+  const normalized = key.toLowerCase().replaceAll("-", "").replaceAll("_", "");
+  return !SENSITIVE_FRAGMENTS.some((fragment) => normalized.includes(fragment));
+});
 
 const safeJson = fc.letrec((tie) => ({
   node: fc.oneof(
@@ -32,16 +31,17 @@ const safeJson = fc.letrec((tie) => ({
 })).node;
 
 const sensitiveKeyVariant = fc
-  .constantFrom(...SENSITIVE_KEYS)
-  .chain((key) =>
-    fc
-      .array(fc.boolean(), { minLength: key.length, maxLength: key.length })
-      .map((flags) =>
-        [...key]
-          .map((char, index) => (flags[index] ? char.toUpperCase() : char))
-          .join(""),
-      ),
-  );
+  .tuple(
+    fc.constantFrom(...SENSITIVE_FRAGMENTS),
+    fc.constantFrom("", "new", "x", "my"),
+    fc.constantFrom("", "Hint", "s", "Value"),
+    fc.constantFrom("", "-", "_"),
+    fc.boolean(),
+  )
+  .map(([fragment, prefix, suffix, separator, upper]) => {
+    const key = `${prefix}${separator}${fragment}${separator}${suffix}`;
+    return upper ? key.toUpperCase() : key;
+  });
 
 describe("redactSensitive", () => {
   it("zastępuje wartość klucza password", () => {
@@ -100,11 +100,39 @@ describe("redactSensitive", () => {
     });
   });
 
-  it("nie redaguje kluczy, które tylko zawierają wrażliwą nazwę", () => {
+  it("redaguje klucze zawierające wrażliwy fragment", () => {
     expect(redactSensitive({ passwordHint: "h", tokens: 3 })).toEqual({
-      passwordHint: "h",
-      tokens: 3,
+      passwordHint: "[REDACTED]",
+      tokens: "[REDACTED]",
     });
+  });
+
+  it("redaguje warianty z prefiksem, separatorami i inną wielkością liter", () => {
+    expect(
+      redactSensitive({
+        newPassword: "1",
+        currentPassword: "2",
+        api_key: "3",
+        client_secret: "4",
+        privateKey: "5",
+        "set-cookie": "6",
+        "X-API-Key": "7",
+      }),
+    ).toEqual({
+      newPassword: "[REDACTED]",
+      currentPassword: "[REDACTED]",
+      api_key: "[REDACTED]",
+      client_secret: "[REDACTED]",
+      privateKey: "[REDACTED]",
+      "set-cookie": "[REDACTED]",
+      "X-API-Key": "[REDACTED]",
+    });
+  });
+
+  it("zostawia bezpieczne klucze nietknięte", () => {
+    expect(
+      redactSensitive({ name: "A", email: "a@a.pl", role: "admin", id: 1 }),
+    ).toEqual({ name: "A", email: "a@a.pl", role: "admin", id: 1 });
   });
 
   it("zwraca tekst bez zmian", () => {

@@ -1,17 +1,20 @@
 const REDACTED = "[REDACTED]";
 
-const SENSITIVE_KEYS = new Set([
+const SENSITIVE_FRAGMENTS = [
   "password",
-  "passwordhash",
   "secret",
   "token",
-  "accesstoken",
-  "refreshtoken",
   "apikey",
-  "hashedkey",
   "authorization",
   "cookie",
-]);
+  "privatekey",
+  "hashedkey",
+];
+
+function isSensitiveKey(key: string): boolean {
+  const normalized = key.toLowerCase().replace(/[-_]/g, "");
+  return SENSITIVE_FRAGMENTS.some((fragment) => normalized.includes(fragment));
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return (
@@ -29,7 +32,7 @@ export function redactSensitive(value: unknown): unknown {
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) => [
       key,
-      SENSITIVE_KEYS.has(key.toLowerCase()) ? REDACTED : redactSensitive(entry),
+      isSensitiveKey(key) ? REDACTED : redactSensitive(entry),
     ]),
   );
 }

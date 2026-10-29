@@ -8,7 +8,9 @@ import {
 const DEFAULT_PAGE_SIZE = 25;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
-const pageSchema = z.coerce.number().int().min(1);
+const MAX_PAGE = 1_000_000;
+
+const pageSchema = z.coerce.number().int().min(1).max(MAX_PAGE);
 const pageSizeSchema = z.coerce
   .number()
   .pipe(z.union(AUDIT_LOG_PAGE_SIZES.map((size) => z.literal(size))));

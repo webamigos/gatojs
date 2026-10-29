@@ -166,3 +166,19 @@ describe("auditLogFiltersSchema: sortDir, przycinanie i wejścia spoza obiektu",
     },
   );
 });
+
+describe("auditLogFiltersSchema: górna granica page", () => {
+  it("page poza zakresem int64 daje stronę 1", () => {
+    expect(
+      auditLogFiltersSchema.parse({ page: "1000000000000000000" }).page,
+    ).toBe(1);
+  });
+
+  it("page 1000000 jest akceptowany", () => {
+    expect(auditLogFiltersSchema.parse({ page: "1000000" }).page).toBe(1000000);
+  });
+
+  it("page 1000001 daje stronę 1", () => {
+    expect(auditLogFiltersSchema.parse({ page: "1000001" }).page).toBe(1);
+  });
+});
