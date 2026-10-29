@@ -19,6 +19,7 @@ function manifest(
     env: [],
     schemaRelations: [],
     compose: null,
+    ciSteps: null,
     workspaces: [],
   };
 }

@@ -212,8 +212,9 @@ function indicesOf(lines, token) {
 
 // src/generate/targets.ts
 var INDENT = "  ";
-function indent(text) {
-  return text.split("\n").map((line) => line === "" ? line : `${INDENT}${line}`).join("\n");
+var CI_STEPS_INDENT = "      ";
+function indent(text, prefix = INDENT) {
+  return text.split("\n").map((line) => line === "" ? line : `${prefix}${line}`).join("\n");
 }
 function relationsBody(model) {
   return async ({ modules }) => modules.flatMap((m) => m.schemaRelations).filter((relation) => relation.model === model).map((relation) => `${INDENT}${relation.field}`).join("\n");
@@ -245,6 +246,20 @@ async function composeBody({
   }
   return parts.join("\n");
 }
+async function ciStepsBody({
+  modules,
+  projectDir
+}) {
+  const parts = [];
+  for (const m of modules) {
+    if (m.ciSteps === null) {
+      continue;
+    }
+    const content = await readFile(join(projectDir, m.ciSteps), "utf8");
+    parts.push(indent(content.replace(/\n+$/, ""), CI_STEPS_INDENT));
+  }
+  return parts.join("\n\n");
+}
 var regionTargets = [
   {
     file: "prisma/schema/auth.prisma",
@@ -257,7 +272,12 @@ var regionTargets = [
     body: relationsBody("Organization")
   },
   { file: ".env.example", marker: "modules", body: envBody },
-  { file: "docker-compose.yml", marker: "services", body: composeBody }
+  { file: "docker-compose.yml", marker: "services", body: composeBody },
+  {
+    file: ".github/workflows/ci.yml",
+    marker: "ci-integration",
+    body: ciStepsBody
+  }
 ];
 var REGION_FILES = regionTargets.map((target) => target.file).sort(compareCodePoint);
 async function renderRegionTarget(target, context) {
@@ -20239,6 +20259,7 @@ var moduleManifestSchema = external_exports.object({
   ).default([]),
   schemaRelations: external_exports.array(external_exports.object({ model: external_exports.string().min(1), field: external_exports.string().min(1) })).default([]),
   compose: external_exports.string().nullable().default(null),
+  ciSteps: external_exports.string().nullable().default(null),
   workspaces: external_exports.array(external_exports.string()).default([])
 });
 var DEFAULT_KIT_REPO = "https://github.com/webamigos/wa-kit.git";

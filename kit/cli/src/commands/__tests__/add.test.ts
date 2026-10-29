@@ -193,6 +193,7 @@ describe("add", () => {
             env: [],
             schemaRelations: [],
             compose: null,
+            ciSteps: null,
             workspaces: [],
           },
         },

@@ -43,6 +43,7 @@
           }
         ],
         "compose": null,
+        "ciSteps": null,
         "workspaces": []
       },
       "files": {}
@@ -73,15 +74,16 @@
           }
         ],
         "compose": null,
+        "ciSteps": null,
         "workspaces": []
       },
       "files": {}
     },
     "core": {
-      "version": "0.3.0",
+      "version": "0.4.0",
       "manifest": {
         "name": "core",
-        "version": "0.3.0",
+        "version": "0.4.0",
         "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
         "requires": [],
         "files": [
@@ -235,6 +237,7 @@
         "env": [],
         "schemaRelations": [],
         "compose": null,
+        "ciSteps": null,
         "workspaces": []
       },
       "files": {}
