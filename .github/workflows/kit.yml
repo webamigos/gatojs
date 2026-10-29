@@ -46,6 +46,8 @@ jobs:
         combo:
           - name: core
             modules: ""
+          - name: audit-logs
+            modules: "audit-logs"
     services:
       postgres:
         image: postgres:16
