@@ -10,6 +10,7 @@ import { auth } from "@/shared/lib/auth";
 import { prisma } from "@/shared/lib/prisma";
 import {
   createOrganization,
+  createInvitation,
   createSession,
   createUser,
   resetDatabase,
@@ -132,5 +133,61 @@ describe("plugin audit-logs na prawdziwym better-auth", () => {
       organizationId: world.orgA.id,
       oldData: { userId: carol.id, role: "member" },
     });
+  });
+
+  it("anulowanie zaproszenia tworzy invitation.canceled w organizacji zaproszenia", async () => {
+    const invitation = await createInvitation({
+      organizationId: world.orgA.id,
+      inviterId: world.alice.id,
+      email: "nowy@a.example",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+    await auth.api.cancelInvitation({
+      headers: world.headersA,
+      body: { invitationId: invitation.id },
+    });
+    const rows = await prisma.auditLog.findMany();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      organizationId: world.orgA.id,
+      action: "invitation.canceled",
+      entityType: "invitation",
+      entityId: invitation.id,
+      userId: world.alice.id,
+    });
+  });
+
+  it("przyjęcie zaproszenia tworzy invitation.accepted z aktorem przyjmującym", async () => {
+    const dave = await createUser({ email: "dave@a.example" });
+    const invitation = await createInvitation({
+      organizationId: world.orgA.id,
+      inviterId: world.alice.id,
+      email: "dave@a.example",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+    const daveSession = await createSession({
+      userId: dave.id,
+      activeOrganizationId: null,
+    });
+    await auth.api.acceptInvitation({
+      headers: await headersFor(daveSession.id),
+      body: { invitationId: invitation.id },
+    });
+    const rows = await prisma.auditLog.findMany();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      organizationId: world.orgA.id,
+      action: "invitation.accepted",
+      entityType: "invitation",
+      entityId: invitation.id,
+      userId: dave.id,
+    });
+  });
+
+  it("inne endpointy organizacji nie tworzą wpisów", async () => {
+    await auth.api.listOrganizations({ headers: world.headersA });
+    await auth.api.getFullOrganization({ headers: world.headersA });
+    await auth.api.listInvitations({ headers: world.headersA });
+    expect(await prisma.auditLog.count()).toBe(0);
   });
 });

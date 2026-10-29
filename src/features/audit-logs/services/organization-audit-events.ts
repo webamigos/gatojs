@@ -1,5 +1,13 @@
 import type { AuditEvent } from "@/shared/lib/audit";
 
+export const AUDITED_ORGANIZATION_PATHS: ReadonlySet<string> = new Set([
+  "/organization/invite-member",
+  "/organization/cancel-invitation",
+  "/organization/accept-invitation",
+  "/organization/update-member-role",
+  "/organization/remove-member",
+]);
+
 export interface OrganizationAuditInput {
   path: string;
   actorUserId: string | null;

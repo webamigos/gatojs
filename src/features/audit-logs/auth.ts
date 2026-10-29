@@ -1,10 +1,12 @@
 import type { BetterAuthPlugin } from "better-auth";
 import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { trackAudit } from "@/shared/lib/audit";
-import { organizationAuditEvent } from "./services/organization-audit-events";
+import {
+  AUDITED_ORGANIZATION_PATHS,
+  organizationAuditEvent,
+} from "./services/organization-audit-events";
 
 const UPDATE_MEMBER_ROLE_PATH = "/organization/update-member-role";
-const ORGANIZATION_PATH_PREFIX = "/organization/";
 
 function readMemberId(body: unknown): string | null {
   if (typeof body !== "object" || body === null) {
@@ -44,7 +46,7 @@ export const authPlugin = {
     after: [
       {
         matcher: (context) =>
-          context.path?.startsWith(ORGANIZATION_PATH_PREFIX) ?? false,
+          AUDITED_ORGANIZATION_PATHS.has(context.path ?? ""),
         handler: createAuthMiddleware(async (ctx) => {
           const session = await getSessionFromCtx(ctx);
           const event = organizationAuditEvent({

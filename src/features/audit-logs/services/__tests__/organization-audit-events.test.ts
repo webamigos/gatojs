@@ -107,15 +107,78 @@ describe("organizationAuditEvent", () => {
     });
   });
 
-  it("zmiana roli bez znanej poprzedniej roli nie wymyśla oldData.role", () => {
+  it("zmiana roli bez znanej poprzedniej roli nie ma klucza oldData", () => {
     const event = organizationAuditEvent({
       path: "/organization/update-member-role",
       actorUserId: "user-owner",
       body: { memberId: "mem-1", role: "admin" },
       returned: member,
     });
-    expect(event?.action).toBe("member.role_changed");
-    expect(event?.oldData).not.toEqual({ role: "admin" });
+    expect(event).toStrictEqual({
+      organizationId: "org-a",
+      actorUserId: "user-owner",
+      action: "member.role_changed",
+      entityType: "member",
+      entityId: "mem-1",
+      newData: { role: "admin" },
+    });
+    expect(event).not.toHaveProperty("oldData");
+  });
+
+  it.each([
+    [
+      "/organization/invite-member",
+      { id: "inv-1", email: "a@a.example", role: "member" },
+    ],
+    [
+      "/organization/invite-member",
+      { organizationId: "org-a", email: "a@a.example", role: "member" },
+    ],
+    [
+      "/organization/invite-member",
+      { id: "inv-1", organizationId: "org-a", role: "member" },
+    ],
+    [
+      "/organization/invite-member",
+      { id: "inv-1", organizationId: "org-a", email: "a@a.example" },
+    ],
+    [
+      "/organization/cancel-invitation",
+      { id: "inv-1", email: "a@a.example", role: "member" },
+    ],
+    [
+      "/organization/accept-invitation",
+      {
+        invitation: { id: "inv-1", email: "a@a.example", role: "member" },
+        member,
+      },
+    ],
+    [
+      "/organization/update-member-role",
+      { organizationId: "org-a", userId: "u", role: "admin" },
+    ],
+    [
+      "/organization/update-member-role",
+      { id: "mem-1", organizationId: "org-a", userId: "u" },
+    ],
+    [
+      "/organization/remove-member",
+      { member: { organizationId: "org-a", userId: "u", role: "admin" } },
+    ],
+    [
+      "/organization/remove-member",
+      { member: { id: "mem-1", organizationId: "org-a", role: "admin" } },
+    ],
+  ])("%s z odpowiedzią o części pól zwraca null", (path, returned) => {
+    expect(
+      organizationAuditEvent({
+        path,
+        actorUserId: "user-owner",
+        body: {},
+        returned,
+        previousRole: "member",
+      }),
+    ).toBeNull();
   });
 
   it("usunięcie członka zapisuje member.removed z userId i rolą w oldData", () => {
