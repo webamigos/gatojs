@@ -19,7 +19,8 @@
         "requires": [],
         "files": [
           "prisma/schema/audit-logs.prisma",
-          "src/features/audit-logs/**"
+          "src/features/audit-logs/**",
+          "src/app/[locale]/(app)/audit-log/**"
         ],
         "dependencies": {},
         "devDependencies": {},
