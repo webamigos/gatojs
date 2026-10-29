@@ -57,7 +57,8 @@ npx prisma migrate dev --name <nazwa>     # nowa migracja
     organizacji dostaje błąd);
   - UI woła komendę przez `useServiceModeAction().run(command, input)`
     (`src/shared/components/service-mode/use-service-mode-action.tsx`) i renderuje zwrócony `dialog`;
-    po „Anuluj” `run` zwraca `null`. Moduły nie piszą własnego dialogu. Komenda wołana z UI bezpośrednio
+    po „Anuluj” `run` zwraca `null`. Zapis poza akcją serwerową (`fetch` do route handlera) bierze potwierdzenie
+    z `requestConfirmation()` tego samego hooka i przekazuje je serwerowi; `null` oznacza „Anuluj”. Moduły nie piszą własnego dialogu. Komenda wołana z UI bezpośrednio
     w trybie serwisowym kończy się błędem, a tego żaden test nie wychwyci.
 
 ### Bez komentarzy w kodzie

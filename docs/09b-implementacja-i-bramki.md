@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak zadeklarować cel uploadu w module projektu, wstawić `<FileUpload>` i zapisać `id` pliku w encji ([pliki](#pliki-w-funkcji-projektu));
 - co zacommitować i jak dodać kolejną funkcję do feature, który już jest w rejestrze.
 
-Zweryfikowano z kodem: 09744c4, 2026-10-29
+Zweryfikowano z kodem: 14b0ab6, 2026-10-29
 
 Źródła:
 
@@ -223,6 +223,7 @@ Pominięty JSX to karta z formularzem i listą. Formularz ma `FormField` z `Form
 
 - `CreateNoteFormValues` to `z.input<typeof createNoteSchema>`, a `useForm` dostaje trzy parametry typu, bo schemat przycina tytuł ([Formularz](06-wzorce-kodu.md#formularz)).
 - `null` z `run` oznacza „Anuluj” w dialogu trybu serwisowego: komponent nic nie robi.
+- Zmiana danych poza akcją serwerową (na przykład `fetch` do route handlera, jak w `FileUpload`) bierze potwierdzenie z `requestConfirmation()` tego samego hooka i przekazuje je serwerowi (`FileUpload` wysyła je w polu `serviceModeConfirmation` ciała multipart). Funkcja pokazuje dialog w trybie serwisowym i zwraca obiekt potwierdzenia, a poza trybem serwisowym `undefined`; `null` oznacza „Anuluj”, więc komponent przerywa zapis. Dialog nadal renderuje `{serviceModeAction.dialog}`.
 - Po sukcesie `router.refresh()` (z `@/i18n/routing`) pobiera stronę od nowa, więc query wykonuje się ponownie.
 - Bez `{serviceModeAction.dialog}` superadmin w trybie serwisowym nie zobaczy dialogu, a `run` będzie czekać ([`run`](04b-superadmin-i-tryb-serwisowy.md#run)).
 
@@ -440,7 +441,7 @@ uploadPurposes: [
 ],
 ```
 
-`key` musi być unikalny w całym rejestrze modułów. Dla zdjęć dokumentów i danych organizacji wybierz `visibility: "organization"`: adres pliku działa wtedy tylko dla sesji z aktywną organizacją pliku. `"public"` oznacza adres dostępny dla każdego, bez sesji. SVG, HTML i XHTML nie wolno wpisać do `mimeTypes`. Po dodaniu `module.ts` uruchom `npm run wa -- generate` ([Nowa funkcja w istniejącym module](#nowa-funkcja-w-istniejącym-module), punkt 1).
+`key` musi być unikalny w całym rejestrze modułów. Dla zdjęć dokumentów i danych organizacji wybierz `visibility: "organization"`: adres pliku działa wtedy tylko dla sesji z aktywną organizacją pliku. `"public"` oznacza adres dostępny dla każdego, bez sesji. SVG, HTML, XHTML i XML (`image/svg+xml`, `text/html`, `application/xhtml+xml`, `application/xml`, `text/xml`) nie wolno wpisać do `mimeTypes`: SVG albo XHTML z prologiem XML jest wykrywany jako `application/xml` i mógłby wykonać skrypt. Formaty tekstowe (`text/plain`, `text/csv`, `application/json`) nie mają sygnatury w bajtach, więc cel z nimi zawsze odpowiada 415. Po dodaniu `module.ts` uruchom `npm run wa -- generate` ([Nowa funkcja w istniejącym module](#nowa-funkcja-w-istniejącym-module), punkt 1).
 
 2. **Komponent `<FileUpload>`** w formularzu feature (komponent kliencki). Po udanym zapisie woła `onUploaded` z `{ id, url, fileName, mimeType, size }`:
 

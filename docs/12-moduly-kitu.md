@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - co daje moduł `api-keys`: klucze API organizacji, zakresy, uwierzytelnianie tras, limit kluczy i pepper;
 - co daje moduł `uploads`: pliki organizacji w magazynie S3, cele uploadu deklarowane przez moduły, walidacja i skalowanie obrazów, trasy `/api/uploads`, komponent `<FileUpload>` i zmienne S3.
 
-Zweryfikowano z kodem: 09744c4, 2026-10-29
+Zweryfikowano z kodem: 14b0ab6, 2026-10-29
 
 Źródła:
 
@@ -182,12 +182,12 @@ Moduł nie ma własnej strony ani pozycji w menu (`nav` jest puste).
 Cel (`purpose`) opisuje, co wolno wysłać i kto potem plik zobaczy. Moduł deklaruje go w `defineModule({ uploadPurposes })` jako obiekt z polami:
 
 - `key`: unikalna nazwa celu; powtórzenie klucza przez dwa moduły albo cel z zakazanym typem rzuca błąd przy pierwszym użyciu `listUploadPurposes()`;
-- `mimeTypes`: dozwolone typy; typ pliku wykrywa `file-type` po zawartości, a nie po nazwie ani nagłówku `Content-Type` żądania;
+- `mimeTypes`: dozwolone typy; typ pliku wykrywa `file-type` po zawartości, a nie po nazwie ani nagłówku `Content-Type` żądania. Formaty tekstowe (`text/plain`, `text/csv`, `application/json`) nie mają sygnatury w bajtach, więc `file-type` niczego nie wykrywa i cel, który je wymienia, zawsze odpowiada 415;
 - `maxBytes`: limit rozmiaru w bajtach;
 - `visibility`: `"public"` albo `"organization"`;
-- `resizeImage` (opcjonalnie): `{ maxWidth }`.
+- `resizeImage` (opcjonalnie): `{ maxWidth }`; dotyczy tylko obrazów (`image/*`), a plik innego typu z tego samego celu przechodzi bez zmian.
 
-Typy `image/svg+xml`, `text/html` i `application/xhtml+xml` są zakazane dla każdego celu: SVG i HTML mogłyby wykonać skrypt w przeglądarce, która otworzy plik pod adresem aplikacji. Wbudowany cel `editor-image` przyjmuje `image/jpeg`, `image/png` i `image/webp` do 5 MB, jest publiczny i skaluje obrazy do 1200 px szerokości.
+Typy `image/svg+xml`, `text/html`, `application/xhtml+xml`, `application/xml` i `text/xml` są zakazane dla każdego celu: SVG i HTML mogłyby wykonać skrypt w przeglądarce, która otworzy plik pod adresem aplikacji. `application/xml` i `text/xml` są na liście, bo SVG albo XHTML z prologiem XML `file-type` rozpoznaje jako `application/xml`, a taki dokument też mógłby wykonać skrypt. Wbudowany cel `editor-image` przyjmuje `image/jpeg`, `image/png` i `image/webp` do 5 MB, jest publiczny i skaluje obrazy do 1200 px szerokości.
 
 ### `POST /api/uploads`
 
@@ -207,11 +207,11 @@ Gdy zapis w magazynie albo w bazie się nie uda, trasa zwraca 500 (`storage_fail
 
 ### Obrazy
 
-Cel z `resizeImage` przepuszcza obraz przez `sharp`: ogranicza wejście do 40 milionów pikseli, stosuje orientację z EXIF, zmniejsza szerokość do `maxWidth` (bez powiększania) i zapisuje jako JPEG z jakością 82. Zapisany plik ma więc typ `image/jpeg` i rozszerzenie `jpg` bez względu na typ wejściowy, a metadane EXIF nie trafiają do magazynu. Obraz, którego `sharp` nie przetworzy, kończy się odpowiedzią 400 `invalid_image`.
+Cel z `resizeImage` przepuszcza obraz przez `sharp`: ogranicza wejście do 40 milionów pikseli, stosuje orientację z EXIF, spłaszcza przezroczystość na białym tle (`#ffffff`), zmniejsza szerokość do `maxWidth` (bez powiększania) i zapisuje jako JPEG z jakością 82. Przezroczyste PNG i WebP dostają więc białe, a nie czarne tło. Zapisany plik ma więc typ `image/jpeg` i rozszerzenie `jpg` bez względu na typ wejściowy, a metadane EXIF nie trafiają do magazynu. Obraz, którego `sharp` nie przetworzy, kończy się odpowiedzią 400 `invalid_image`.
 
 ### `GET /api/uploads/<id>`
 
-Plik z widocznością `PUBLIC` odczyta każdy, także bez sesji. Plik `ORGANIZATION` odczyta tylko użytkownik z sesją, którego aktywna organizacja jest organizacją pliku; w każdym innym przypadku trasa zwraca 404, tak samo jak dla nieistniejącego `id`, więc nie ujawnia, że plik istnieje. Odpowiedź ma `Content-Type` zapisanego typu, `X-Content-Type-Options: nosniff` i `Content-Disposition: inline` z nazwą pliku w `filename*`. `Cache-Control` to `public, max-age=31536000, immutable` dla plików publicznych i `private, max-age=300` dla plików organizacji.
+Plik z widocznością `PUBLIC` odczyta każdy, także bez sesji. Plik `ORGANIZATION` odczyta tylko użytkownik z sesją, którego aktywna organizacja jest organizacją pliku; w każdym innym przypadku trasa zwraca 404, tak samo jak dla nieistniejącego `id`, więc nie ujawnia, że plik istnieje. Odpowiedź ma `Content-Type` zapisanego typu, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'` i `Content-Disposition: inline` z nazwą pliku w `filename*`. Polityka `sandbox` z `default-src 'none'` na każdej odpowiedzi odbiera plikowi skrypty, formularze i zasoby zewnętrzne także wtedy, gdy przeglądarka otworzy go pod adresem aplikacji. `Cache-Control` to `public, max-age=31536000, immutable` dla plików publicznych i `private, max-age=300` dla plików organizacji.
 
 Adres publicznego pliku nie wygasa i nie da się go cofnąć inaczej niż przez usunięcie pliku, a przeglądarki i pośrednicy mogą trzymać kopię rok. Cel `visibility: "public"` wybieraj tylko dla treści przeznaczonych dla każdego.
 

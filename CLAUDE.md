@@ -13,7 +13,8 @@ Zapytania do danych domenowych zawsze przez `getOrgContext()` i filtr `organizat
 - `getOrgContext()` z `src/shared/lib/auth/org-context.ts` — nie czytaj `activeOrganizationId` z sesji samodzielnie.
 - Strony modułów chroni `requireModuleAccess(key)`; akcje serwerowe sprawdzają uprawnienia same.
 - Komendy na danych organizacji: `(input, confirmation?)`, po `getOrgContext()`/`requireModuleAccess()` wołają
-  `assertServiceModeConfirmed(context, confirmation)` przed Prismą; UI woła je przez `useServiceModeAction().run`.
+  `assertServiceModeConfirmed(context, confirmation)` przed Prismą; UI woła je przez `useServiceModeAction().run`
+  (zapis poza akcją serwerową: `requestConfirmation()` z tego samego hooka, `null` = anulowano).
 
 ## Bez komentarzy w kodzie
 
