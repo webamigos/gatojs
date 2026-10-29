@@ -1,4 +1,8 @@
 {
   "action-upload-created": "File uploaded",
-  "action-upload-deleted": "File deleted"
+  "action-upload-deleted": "File deleted",
+  "error-too-large": "File is too large",
+  "error-unsupported-type": "Unsupported file type",
+  "error-generic": "Could not upload the file",
+  "file-label": "Choose a file"
 }

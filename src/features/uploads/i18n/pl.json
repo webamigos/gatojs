@@ -1,4 +1,8 @@
 {
   "action-upload-created": "Dodanie pliku",
-  "action-upload-deleted": "Usunięcie pliku"
+  "action-upload-deleted": "Usunięcie pliku",
+  "error-too-large": "Plik jest za duży",
+  "error-unsupported-type": "Nieobsługiwany typ pliku",
+  "error-generic": "Nie udało się przesłać pliku",
+  "file-label": "Wybierz plik"
 }

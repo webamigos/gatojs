@@ -25,6 +25,7 @@ export interface ServiceModeActionRunner {
     action: ServiceModeAction<TInput, TResult>,
     input: TInput,
   ): Promise<TResult | null>;
+  requestConfirmation(): Promise<ServiceModeConfirmation | undefined | null>;
   dialog: React.ReactNode;
 }
 
@@ -51,21 +52,29 @@ export function useServiceModeAction(): ServiceModeActionRunner {
     [],
   );
 
+  const requestConfirmation = useCallback(async () => {
+    if (!active) {
+      return undefined;
+    }
+    const confirmed = await askForConfirmation();
+    if (!confirmed) {
+      return null;
+    }
+    return { serviceModeConfirmed: true as const, organizationId };
+  }, [active, organizationId, askForConfirmation]);
+
   const run = useCallback(
     async <TInput, TResult>(
       action: ServiceModeAction<TInput, TResult>,
       input: TInput,
     ): Promise<TResult | null> => {
-      if (!active) {
-        return action(input);
-      }
-      const confirmed = await askForConfirmation();
-      if (!confirmed) {
+      const confirmation = await requestConfirmation();
+      if (confirmation === null) {
         return null;
       }
-      return action(input, { serviceModeConfirmed: true, organizationId });
+      return confirmation ? action(input, confirmation) : action(input);
     },
-    [active, organizationId, askForConfirmation],
+    [requestConfirmation],
   );
 
   const dialog = (
@@ -94,5 +103,5 @@ export function useServiceModeAction(): ServiceModeActionRunner {
     </AlertDialog>
   );
 
-  return { run, dialog };
+  return { run, requestConfirmation, dialog };
 }
