@@ -11,6 +11,7 @@ const {
   mockDeleteObject,
   mockTrackAudit,
   mockRedirect,
+  mockLoggerError,
   prepareFailure,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
@@ -23,6 +24,7 @@ const {
   mockRedirect: vi.fn(() => {
     throw new Error("NEXT_REDIRECT");
   }),
+  mockLoggerError: vi.fn(),
   prepareFailure: { value: null as Error | null },
 }));
 
@@ -65,7 +67,7 @@ vi.mock("@/shared/lib/audit", async (importOriginal) => ({
   trackAudit: (event: unknown) => mockTrackAudit(event),
 }));
 vi.mock("@/shared/lib/logger", () => ({
-  logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
+  logger: { warn: vi.fn(), error: mockLoggerError, info: vi.fn() },
 }));
 vi.mock("@/modules.generated", () => ({
   auditSinks: [],
@@ -485,6 +487,25 @@ describe("createUpload awarie zależności", () => {
     expect(mockDeleteObject.mock.calls[0]![0]).toBe(
       mockPutObject.mock.calls[0]![0],
     );
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("zwraca 500 i loguje upload rollback failed z błędem sprzątania i kluczem, gdy padają zapis rekordu i usunięcie obiektu", async () => {
+    const cleanupError = new Error("s3 delete down");
+    mockUploadCreate.mockRejectedValue(new Error("db down"));
+    mockDeleteObject.mockRejectedValue(cleanupError);
+
+    const result = await createUpload(
+      formWith({ file: await makePng(), purpose: "editor-image" }),
+    );
+
+    expect(result).toEqual({ status: 500, body: { error: "storage_failed" } });
+    const key = mockPutObject.mock.calls[0]![0] as string;
+    expect(key).toMatch(/^.+\.jpg$/);
+    expect(mockLoggerError).toHaveBeenCalledWith("upload rollback failed", {
+      err: cleanupError,
+      key,
+    });
     expect(mockTrackAudit).not.toHaveBeenCalled();
   });
 

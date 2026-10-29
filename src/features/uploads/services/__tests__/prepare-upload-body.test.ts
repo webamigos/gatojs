@@ -156,4 +156,21 @@ describe("prepareUploadBody", () => {
     expect(result.mimeType).toBe("application/pdf");
     expect(result.extension).toBe("pdf");
   });
+
+  it("rzuca InvalidImageError z nazwą, komunikatem i oryginalnym błędem sharp w cause", async () => {
+    const truncated = (await makePng(400, 400)).slice(0, 70);
+
+    const thrown = await prepareUploadBody(truncated, editorImage, PNG).then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+    expect(thrown).toBeInstanceOf(InvalidImageError);
+    const error = thrown as InvalidImageError;
+    expect(error.name).toBe("InvalidImageError");
+    expect(error.message).toBe("Invalid image");
+    expect(error.cause).toBeInstanceOf(Error);
+    expect((error.cause as Error).message).toBe("vipspng: libpng read error");
+    expect(error.cause).not.toBe(error);
+  });
 });
