@@ -3,11 +3,8 @@ import { prisma } from "@/shared/lib/prisma";
 import type { AuditEvent } from "@/shared/lib/audit";
 import { redactSensitive } from "./redact";
 
-function toJson(value: unknown): Prisma.InputJsonValue | undefined {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-  return redactSensitive(value) as Prisma.InputJsonValue;
+function toJson(value: unknown) {
+  return redactSensitive(value) as Prisma.InputJsonValue | undefined;
 }
 
 export async function writeAuditLog(event: AuditEvent): Promise<void> {
