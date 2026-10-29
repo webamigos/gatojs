@@ -3,7 +3,7 @@
 import { auditActor, trackAudit } from "@/shared/lib/audit";
 import { requireModuleAccess } from "@/shared/lib/auth/require-module-access";
 import { assertServiceModeConfirmed } from "@/shared/lib/auth/service-mode";
-import { env } from "@/shared/lib/env";
+import { env, type CoreEnv } from "@/shared/lib/env";
 import { prisma } from "@/shared/lib/prisma";
 import type { OperationResult } from "@/shared/types/common";
 import { DomainError, handleCommandError } from "@/shared/utils/error-handling";
@@ -11,6 +11,7 @@ import {
   apiKeyIdSchema,
   createApiKeySchema,
 } from "../../contracts/api-key.schemas";
+import type { ApiKeysEnv } from "../../env";
 import { generateApiKey, hashApiKey } from "../api-key-secret";
 
 const MODULE_KEY = "api-keys";
@@ -19,7 +20,18 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const KEY_NOT_FOUND = "Nie znaleziono klucza";
 
 function pepper(): string {
-  return (env as unknown as { API_KEY_PEPPER: string }).API_KEY_PEPPER;
+  return (env as CoreEnv & ApiKeysEnv).API_KEY_PEPPER;
+}
+
+async function findOrganizationKey(id: string, organizationId: string) {
+  const key = await prisma.apiKey.findFirst({
+    where: { id, organizationId },
+    select: { name: true, displayPrefix: true, revokedAt: true },
+  });
+  if (key === null) {
+    throw new DomainError(KEY_NOT_FOUND);
+  }
+  return key;
 }
 
 export async function createApiKeyCommand(
@@ -37,6 +49,7 @@ export async function createApiKeyCommand(
         : new Date(now.getTime() + parsed.expiresInDays * DAY_MS);
     const { plaintext, displayPrefix } = generateApiKey();
     const created = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${context.organizationId}))`;
       const activeKeys = await tx.apiKey.count({
         where: {
           organizationId: context.organizationId,
@@ -81,15 +94,12 @@ export async function revokeApiKeyCommand(
   try {
     assertServiceModeConfirmed(context, confirmation);
     const { id } = apiKeyIdSchema.parse(input);
-    const key = await prisma.apiKey.findFirst({
-      where: { id, organizationId: context.organizationId },
-      select: { id: true, name: true, displayPrefix: true, scopes: true },
-    });
-    if (key === null) {
-      throw new DomainError(KEY_NOT_FOUND);
+    const key = await findOrganizationKey(id, context.organizationId);
+    if (key.revokedAt !== null) {
+      return { success: true };
     }
     const { count } = await prisma.apiKey.updateMany({
-      where: { id, organizationId: context.organizationId, revokedAt: null },
+      where: { id, revokedAt: null },
       data: { revokedAt: new Date() },
     });
     if (count > 0) {
@@ -115,19 +125,8 @@ export async function deleteApiKeyCommand(
   try {
     assertServiceModeConfirmed(context, confirmation);
     const { id } = apiKeyIdSchema.parse(input);
-    const key = await prisma.apiKey.findFirst({
-      where: { id, organizationId: context.organizationId },
-      select: { id: true, name: true, displayPrefix: true, scopes: true },
-    });
-    if (key === null) {
-      throw new DomainError(KEY_NOT_FOUND);
-    }
-    const { count } = await prisma.apiKey.deleteMany({
-      where: { id, organizationId: context.organizationId },
-    });
-    if (count === 0) {
-      throw new DomainError(KEY_NOT_FOUND);
-    }
+    const key = await findOrganizationKey(id, context.organizationId);
+    await prisma.apiKey.deleteMany({ where: { id } });
     await trackAudit({
       ...auditActor(context),
       action: "api_key.deleted",

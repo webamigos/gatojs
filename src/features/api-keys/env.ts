@@ -18,3 +18,5 @@ export const envSchema = z
     },
   )
   .transform(({ API_KEY_PEPPER }) => ({ API_KEY_PEPPER }));
+
+export type ApiKeysEnv = z.output<typeof envSchema>;

@@ -26,6 +26,7 @@ const {
       delete: vi.fn(),
     },
     $transaction: vi.fn(),
+    $executeRaw: vi.fn(),
   };
   return {
     PEPPER,
@@ -121,6 +122,7 @@ beforeEach(() => {
   mockPrisma.$transaction.mockImplementation(async (callback: unknown) =>
     typeof callback === "function" ? callback(mockPrisma) : callback,
   );
+  mockPrisma.$executeRaw.mockResolvedValue(0);
   mockPrisma.apiKey.count.mockResolvedValue(0);
   mockPrisma.apiKey.create.mockResolvedValue({ id: KEY_ID });
   mockPrisma.apiKey.findFirst.mockResolvedValue({
@@ -179,6 +181,8 @@ describe("createApiKeyCommand", () => {
       organizationId: "org-1",
       actorUserId: "user-1",
       action: "api_key.created",
+      entityType: "api_key",
+      entityId: KEY_ID,
       newData: {
         name: "Integracja CRM",
         scopes: ["organization:read"],

@@ -1,7 +1,8 @@
 import { createHmac } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { currentSession } = vi.hoisted(() => ({
+const { currentSession, mockTrackAudit } = vi.hoisted(() => ({
+  mockTrackAudit: vi.fn(),
   currentSession: {
     value: null as null | {
       user: { id: string; role: string };
@@ -10,6 +11,10 @@ const { currentSession } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock("@/shared/lib/audit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/shared/lib/audit")>()),
+  trackAudit: (event: unknown) => mockTrackAudit(event),
+}));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next-intl/server", () => ({ getLocale: vi.fn(async () => "pl") }));
@@ -23,10 +28,8 @@ vi.mock("@/i18n/routing", () => ({
     throw new Error("NEXT_REDIRECT");
   }),
 }));
-vi.mock("@/shared/lib/auth", () => ({
-  auth: { api: { getSession: vi.fn(async () => currentSession.value) } },
-}));
 
+import { auth } from "@/shared/lib/auth";
 import { prisma } from "@/shared/lib/prisma";
 import {
   createApiKeyCommand,
@@ -65,13 +68,14 @@ let counter = 0;
 async function signInAs(
   user: { id: string },
   organization: { id: string },
+  role = "user",
 ): Promise<void> {
   const session = await createSession({
     userId: user.id,
     activeOrganizationId: organization.id,
   });
   currentSession.value = {
-    user: { id: user.id, role: "user" },
+    user: { id: user.id, role },
     session: { id: session.id, activeOrganizationId: organization.id },
   };
 }
@@ -83,6 +87,7 @@ async function seedKey(
     revokedAt?: Date | null;
     expiresAt?: Date | null;
     createdById?: string | null;
+    createdAt?: Date;
   } = {},
 ): Promise<{ id: string }> {
   counter += 1;
@@ -96,6 +101,7 @@ async function seedKey(
       revokedAt: overrides.revokedAt ?? null,
       expiresAt: overrides.expiresAt ?? null,
       createdById: overrides.createdById ?? null,
+      ...(overrides.createdAt ? { createdAt: overrides.createdAt } : {}),
     },
     select: { id: true },
   });
@@ -108,9 +114,14 @@ async function seedActiveKeys(organizationId: string, howMany: number) {
 }
 
 beforeEach(async () => {
+  vi.spyOn(auth.api, "getSession").mockImplementation(
+    (async () => currentSession.value) as never,
+  );
   await resetDatabase();
   currentSession.value = null;
   counter = 0;
+  mockTrackAudit.mockReset();
+  mockTrackAudit.mockResolvedValue(undefined);
   const alice = await createUser({ email: "alice@a.example" });
   const bob = await createUser({ email: "bob@b.example" });
   const carol = await createUser({ email: "carol@a.example" });
@@ -426,5 +437,251 @@ describe("klucze API na prawdziwej bazie", () => {
       "unieważniony",
       "wygasły",
     ]);
+  });
+  it("create zapisuje audyt z entityType api_key i entityId nowego klucza", async () => {
+    await signInAs(world.alice, world.orgA);
+
+    const result = await createApiKeyCommand(VALID_INPUT);
+
+    expect(mockTrackAudit).toHaveBeenCalledTimes(1);
+    expect(mockTrackAudit.mock.calls[0]?.[0]).toMatchObject({
+      organizationId: world.orgA.id,
+      actorUserId: world.alice.id,
+      action: "api_key.created",
+      entityType: "api_key",
+      entityId: result.data?.id,
+    });
+    const newData = mockTrackAudit.mock.calls[0]?.[0].newData;
+    expect(Object.keys(newData).sort()).toEqual([
+      "displayPrefix",
+      "name",
+      "scopes",
+    ]);
+    expect(newData.name).toBe("Nowy klucz");
+    expect(newData.scopes).toEqual(["organization:read"]);
+  });
+
+  it("revoke zwraca sukces, ustawia revokedAt i zapisuje jeden audyt bez klucza i hasha", async () => {
+    const key = await seedKey(world.orgA.id, { name: "do unieważnienia" });
+    await signInAs(world.alice, world.orgA);
+
+    const result = await revokeApiKeyCommand({ id: key.id });
+
+    expect(result).toEqual({ success: true });
+    const row = await prisma.apiKey.findUniqueOrThrow({
+      where: { id: key.id },
+    });
+    expect(row.revokedAt).not.toBeNull();
+    expect(mockTrackAudit).toHaveBeenCalledTimes(1);
+    const event = mockTrackAudit.mock.calls[0]?.[0];
+    expect(event).toMatchObject({
+      organizationId: world.orgA.id,
+      actorUserId: world.alice.id,
+      action: "api_key.revoked",
+      entityType: "api_key",
+      entityId: key.id,
+      oldData: { name: "do unieważnienia", displayPrefix: "pfx_1" },
+    });
+    expect(JSON.stringify(event)).not.toContain("hash-1");
+  });
+
+  it("drugie revoke tego samego klucza nie zmienia revokedAt i nie pisze drugiego audytu", async () => {
+    const key = await seedKey(world.orgA.id);
+    await signInAs(world.alice, world.orgA);
+    await revokeApiKeyCommand({ id: key.id });
+    const first = await prisma.apiKey.findUniqueOrThrow({
+      where: { id: key.id },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    await revokeApiKeyCommand({ id: key.id });
+
+    const second = await prisma.apiKey.findUniqueOrThrow({
+      where: { id: key.id },
+    });
+    expect(second.revokedAt?.getTime()).toBe(first.revokedAt?.getTime());
+    expect(mockTrackAudit).toHaveBeenCalledTimes(1);
+  });
+
+  it("revoke już unieważnionego klucza nie pisze audytu", async () => {
+    const key = await seedKey(world.orgA.id, { revokedAt: YESTERDAY });
+    await signInAs(world.alice, world.orgA);
+
+    await revokeApiKeyCommand({ id: key.id });
+
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("delete zwraca sukces, usuwa rekord i zapisuje audyt api_key.deleted", async () => {
+    const key = await seedKey(world.orgA.id, { name: "do usunięcia" });
+    await signInAs(world.alice, world.orgA);
+
+    const result = await deleteApiKeyCommand({ id: key.id });
+
+    expect(result).toEqual({ success: true });
+    expect(
+      await prisma.apiKey.findUnique({ where: { id: key.id } }),
+    ).toBeNull();
+    expect(mockTrackAudit).toHaveBeenCalledTimes(1);
+    const event = mockTrackAudit.mock.calls[0]?.[0];
+    expect(event).toMatchObject({
+      organizationId: world.orgA.id,
+      action: "api_key.deleted",
+      entityType: "api_key",
+      entityId: key.id,
+      oldData: { name: "do usunięcia", displayPrefix: "pfx_1" },
+    });
+    expect(JSON.stringify(event)).not.toContain("hash-1");
+  });
+
+  it("delete nieistniejącego id zwraca błąd bez audytu", async () => {
+    await signInAs(world.alice, world.orgA);
+
+    const result = await deleteApiKeyCommand({
+      id: "00000000-0000-4000-8000-000000000000",
+    });
+
+    expect(result.success).toBe(false);
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("revoke nieistniejącego id nie pisze audytu", async () => {
+    await signInAs(world.alice, world.orgA);
+
+    await revokeApiKeyCommand({ id: "00000000-0000-4000-8000-000000000000" });
+
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("revoke i delete klucza B o tej samej nazwie z kontekstu A zwracają błąd, nie ruszają B i nie piszą audytu", async () => {
+    await seedKey(world.orgA.id, { name: "wspólna" });
+    const keyB = await seedKey(world.orgB.id, { name: "wspólna" });
+    await signInAs(world.alice, world.orgA);
+
+    const revoked = await revokeApiKeyCommand({ id: keyB.id });
+    const deleted = await deleteApiKeyCommand({ id: keyB.id });
+
+    expect(revoked.success).toBe(false);
+    expect(deleted.success).toBe(false);
+    const row = await prisma.apiKey.findUniqueOrThrow({
+      where: { id: keyB.id },
+    });
+    expect(row.revokedAt).toBeNull();
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("listApiKeysQuery zwraca klucze od najnowszego", async () => {
+    await seedKey(world.orgA.id, {
+      name: "środkowy",
+      createdAt: new Date("2026-02-01T00:00:00.000Z"),
+    });
+    await seedKey(world.orgA.id, {
+      name: "najnowszy",
+      createdAt: new Date("2026-03-01T00:00:00.000Z"),
+    });
+    await seedKey(world.orgA.id, {
+      name: "najstarszy",
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    await signInAs(world.alice, world.orgA);
+
+    const rows = await listApiKeysQuery();
+
+    expect(rows.map((row) => row.name)).toEqual([
+      "najnowszy",
+      "środkowy",
+      "najstarszy",
+    ]);
+  });
+
+  it("dwa równoległe create przy 9 aktywnych kluczach dają dokładnie jeden sukces i 10 aktywnych", async () => {
+    await seedActiveKeys(world.orgA.id, 9);
+    await signInAs(world.alice, world.orgA);
+
+    const results = await Promise.all([
+      createApiKeyCommand(VALID_INPUT),
+      createApiKeyCommand(VALID_INPUT),
+    ]);
+
+    expect(results.filter((result) => result.success)).toHaveLength(1);
+    expect(
+      await prisma.apiKey.count({
+        where: { organizationId: world.orgA.id, revokedAt: null },
+      }),
+    ).toBe(10);
+  });
+
+  it("tryb serwisowy: revoke bez potwierdzenia zwraca błąd, nie zmienia klucza i nie pisze audytu", async () => {
+    const key = await seedKey(world.orgA.id);
+    const superadmin = await createUser({
+      email: "super@wa.example",
+      role: "superadmin",
+    });
+    await signInAs(superadmin, world.orgA, "superadmin");
+
+    const result = await revokeApiKeyCommand({ id: key.id });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Potwierdź zmianę w trybie serwisowym",
+    });
+    const row = await prisma.apiKey.findUniqueOrThrow({
+      where: { id: key.id },
+    });
+    expect(row.revokedAt).toBeNull();
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("tryb serwisowy: delete bez potwierdzenia zwraca błąd, zostawia klucz i nie pisze audytu", async () => {
+    const key = await seedKey(world.orgA.id);
+    const superadmin = await createUser({
+      email: "super@wa.example",
+      role: "superadmin",
+    });
+    await signInAs(superadmin, world.orgA, "superadmin");
+
+    const result = await deleteApiKeyCommand({ id: key.id });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Potwierdź zmianę w trybie serwisowym",
+    });
+    expect(
+      await prisma.apiKey.findUnique({ where: { id: key.id } }),
+    ).not.toBeNull();
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("tryb serwisowy: create bez potwierdzenia nie dodaje wiersza", async () => {
+    const superadmin = await createUser({
+      email: "super@wa.example",
+      role: "superadmin",
+    });
+    await signInAs(superadmin, world.orgA, "superadmin");
+
+    const result = await createApiKeyCommand(VALID_INPUT);
+
+    expect(result.success).toBe(false);
+    expect(await prisma.apiKey.count()).toBe(0);
+  });
+
+  it("tryb serwisowy: revoke z potwierdzeniem aktywnej organizacji działa i oznacza audyt serviceMode", async () => {
+    const key = await seedKey(world.orgA.id);
+    const superadmin = await createUser({
+      email: "super@wa.example",
+      role: "superadmin",
+    });
+    await signInAs(superadmin, world.orgA, "superadmin");
+
+    const result = await revokeApiKeyCommand(
+      { id: key.id },
+      { serviceModeConfirmed: true, organizationId: world.orgA.id },
+    );
+
+    expect(result).toEqual({ success: true });
+    expect(mockTrackAudit.mock.calls[0]?.[0]).toMatchObject({
+      action: "api_key.revoked",
+      serviceMode: true,
+    });
   });
 });
