@@ -219,6 +219,43 @@ describe("deleteUploadCommand", () => {
     },
   );
 
+  it("trackAudit dostaje dokładne dane usuniętego pliku i aktora z kontekstu", async () => {
+    await deleteUploadCommand({ id: UPLOAD_ID });
+
+    expect(mockTrackAudit).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      actorUserId: "user-1",
+      serviceMode: false,
+      action: "upload.deleted",
+      entityType: "upload",
+      entityId: UPLOAD_ID,
+      oldData: {
+        purpose: "editor-image",
+        key: "orgs/org-1/editor-image/own.jpg",
+        size: 10,
+      },
+    });
+  });
+
+  it.each(["admin", "superadmin"])(
+    "globalny %s będący zwykłym memberem organizacji usuwa cudzy plik",
+    async (userRole) => {
+      mockGetOrgContext.mockResolvedValue({
+        ...MEMBER_CONTEXT,
+        orgRole: "member",
+        userRole,
+      });
+
+      const result = await deleteUploadCommand({ id: FOREIGN_ID });
+
+      expect(result).toEqual({ success: true });
+      expect(remainingIds()).toEqual([UPLOAD_ID, OTHER_ORG_ID]);
+      expect(mockDeleteObject).toHaveBeenCalledWith(
+        "orgs/org-1/editor-image/foreign.jpg",
+      );
+    },
+  );
+
   it.each(["member", "admin", "owner"])(
     "%s z kontekstu A nie usuwa pliku organizacji B",
     async (orgRole) => {

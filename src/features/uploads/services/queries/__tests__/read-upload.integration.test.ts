@@ -210,6 +210,20 @@ describe("readUploadForDownload na bazie i storage", () => {
     expect(result.status).toBe(200);
   });
 
+  it("użytkownik z usuniętym członkostwem w organizacji pliku dostaje 404 mimo aktywnej organizacji w sesji", async () => {
+    const upload = await seedUpload({
+      organizationId: world.orgA.id,
+      uploadedById: world.alice.id,
+      visibility: "ORGANIZATION",
+    });
+    await signInAs(world.alice, world.orgA);
+    await prisma.member.deleteMany({
+      where: { userId: world.alice.id, organizationId: world.orgA.id },
+    });
+
+    expect(await readUploadForDownload(upload.id)).toEqual({ status: 404 });
+  });
+
   it("użytkownik organizacji B nie czyta pliku ORGANIZATION organizacji A", async () => {
     const upload = await seedUpload({
       organizationId: world.orgA.id,
