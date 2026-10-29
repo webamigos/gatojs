@@ -19,7 +19,7 @@ Opisy modułów: [docs/12-moduly-kitu.md](../docs/12-moduly-kitu.md). Manifesty 
 | Moduł | Co zawiera |
 | --- | --- |
 | `core` | Rdzeń: logowanie, organizacje, użytkownicy, konto, dashboard. Zawsze zainstalowany. |
-| `audit-logs` | Dziennik zdarzeń organizacji: model `AuditLog`, strona `/audit-log`, komponent `<AuditTrail>`, zdarzenia członkostwa. Retencja (usuwanie starych wpisów) nie jest zaimplementowana i pojawi się z modułem `worker`. |
+| `audit-logs` | Dziennik zdarzeń organizacji: model `AuditLog`, strona `/audit-log`, komponent `<AuditTrail>`, zdarzenia członkostwa. Moduł nie ma retencji (usuwania starych wpisów): dziennik rośnie bez limitu. |
 
 ## `wa create <katalog> [opcje]`
 

@@ -7,7 +7,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak uruchomić testy integracyjne i Strykera dla nowego feature i jak czytać ich wynik;
 - co zacommitować i jak dodać kolejną funkcję do feature, który już jest w rejestrze.
 
-Zweryfikowano z kodem: d416599, 2026-10-28
+Zweryfikowano z kodem: 012fe4d, 2026-10-29
 
 Źródła:
 

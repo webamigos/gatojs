@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak aplikacja ustawia aktywną organizację i co widzi użytkownik, który jej nie ma;
 - co zmienia `MULTI_ORG`, a co zostaje takie samo w obu trybach.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: 012fe4d, 2026-10-29
 
 Źródła:
 
@@ -386,7 +386,7 @@ sequenceDiagram
     G-->>L: kontekst nowej organizacji
 ```
 
-`enterOrganizationCommand` przyjmuje identyfikator jako `unknown` i sprawdza go schematem `z.string().min(1)`, bez przycinania spacji. Przy niepoprawnym wejściu, braku sesji, braku prawa wejścia i błędzie zapisu zwraca `{ success: false, error: "Brak dostępu do organizacji" }` i nie zmienia żadnej sesji. Zmienia tylko sesję, z której przyszło żądanie, a inne sesje tego konta zostają przy swojej organizacji (`enter-organization-command.test.ts`). Komenda zapisuje sesję przez Prismę. Endpoint better-auth `/organization/set-active` wymaga członkostwa (bez niego zeruje aktywną organizację i zwraca 403), więc superadmin w trybie serwisowym nie mógłby z niego skorzystać.
+`enterOrganizationCommand` przyjmuje identyfikator jako `unknown` i sprawdza go schematem `z.string().min(1)`, bez przycinania spacji. Przy niepoprawnym wejściu, braku sesji, braku prawa wejścia i błędzie zapisu zwraca `{ success: false, error: "Brak dostępu do organizacji" }` i nie zmienia żadnej sesji. Zmienia tylko sesję, z której przyszło żądanie, a inne sesje tego konta zostają przy swojej organizacji (`enter-organization-command.test.ts`). Komenda zapisuje sesję przez Prismę. Gdy superadmin wchodzi do organizacji bez członkostwa, po zapisie sesji dopisuje do dziennika zdarzeń wpis `organization.entered` ze znacznikiem `serviceMode: true` przez `trackAudit` ([12-moduly-kitu.md](12-moduly-kitu.md)); bez zainstalowanego modułu `audit-logs` wpis nie powstaje. Endpoint better-auth `/organization/set-active` wymaga członkostwa (bez niego zeruje aktywną organizację i zwraca 403), więc superadmin w trybie serwisowym nie mógłby z niego skorzystać.
 
 `activeOrganizationId` może wskazywać organizację, do której konto już nie należy, na przykład po usunięciu członkostwa albo organizacji. Baza tego nie wykrywa, bo kolumna nie ma klucza obcego. Wykrywa to `getOrgContext()`: rzuca `NoOrganizationError`, a layout przenosi użytkownika na `/no-organization`.
 

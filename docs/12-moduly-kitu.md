@@ -5,9 +5,9 @@ Po przeczytaniu będziesz wiedzieć:
 - czym moduł opcjonalny różni się od rdzenia i jak go dodać do projektu albo usunąć z niego;
 - co daje moduł `audit-logs`: model `AuditLog`, stronę `/audit-log`, komponent `<AuditTrail>` i zdarzenia, które loguje sam;
 - jak działa wspólny punkt wejścia `trackAudit` z rdzenia, jeśli moduł nie jest zainstalowany, i jak działa lista ujść (`auditSinks`);
-- co robi redakcja danych wrażliwych i dlaczego retencja jeszcze nie istnieje.
+- co robi redakcja danych wrażliwych i dlaczego moduł nie ma retencji.
 
-Zweryfikowano z kodem: 999e651, 2026-10-29
+Zweryfikowano z kodem: 012fe4d, 2026-10-29
 
 Źródła:
 
@@ -66,7 +66,7 @@ Dziennik zdarzeń organizacji: kto, kiedy i co zmienił w danych organizacji. Mo
 | `member.removed` | hook `/organization/remove-member` | `member` (w `oldData` użytkownik i rola) |
 | `organization.entered` | `enterOrganizationCommand` rdzenia, tylko gdy superadmin wchodzi do organizacji bez członkostwa | `organization` |
 
-Hooki obejmują wyłącznie ścieżki z `AUDITED_ORGANIZATION_PATHS`. Zdarzenie powstaje po udanym wywołaniu, z danych zwróconych przez better-auth. Zmiany wykonane przez superadmina w trybie serwisowym dostają `serviceMode: true`, a strona `/audit-log` oznacza je plakietką.
+Hooki obejmują wyłącznie ścieżki z `AUDITED_ORGANIZATION_PATHS`. Zdarzenie powstaje po udanym wywołaniu, z danych zwróconych przez better-auth. Endpointy better-auth wymagają członkostwa, więc wpisy z hooków nie mają znacznika trybu serwisowego. Znacznik `serviceMode: true` niesie tylko wpis `organization.entered` superadmina, a strona `/audit-log` oznacza go plakietką.
 
 ### Etykiety akcji
 
@@ -74,7 +74,7 @@ Każdy moduł deklaruje swoje akcje w `auditActions` w `module.ts` jako pary `{ 
 
 ### Redakcja danych wrażliwych
 
-Przed zapisem `oldData` i `newData` przechodzą przez `redactSensitive`: wartość pola o nazwie z listy (`password`, `passwordHash`, `secret`, `token`, `accessToken`, `refreshToken`, `apiKey`, `hashedKey`, `authorization`, `cookie`, bez rozróżniania wielkości liter) zamienia się na `[REDACTED]`, także w obiektach zagnieżdżonych i tablicach.
+Przed zapisem `oldData` i `newData` przechodzą przez `redactSensitive`: wartość pola zamienia się na `[REDACTED]`, gdy nazwa pola po normalizacji (małe litery, bez `-` i `_`) zawiera którykolwiek z fragmentów: `password`, `secret`, `token`, `apikey`, `authorization`, `cookie`, `privatekey`, `hashedkey`. Dotyczy to także obiektów zagnieżdżonych i tablic, a nazwy takie jak `accessToken`, `x-api-key` czy `client_secret` są redagowane.
 
 ### Izolacja organizacji
 
@@ -82,6 +82,6 @@ Strona i `<AuditTrail>` czytają wpisy przez `getOrgContext()` i zawsze filtruj�
 
 ### Retencja
 
-Retencji (automatycznego usuwania starych wpisów) jeszcze nie ma. Wpisy rosną bez limitu, dopóki projekt sam ich nie usunie. Retencja pojawi się razem z modułem `worker`, który ma uruchamiać zadania w tle.
+Moduł nie ma retencji (automatycznego usuwania starych wpisów). Dziennik rośnie bez limitu, dopóki projekt sam nie usunie wpisów.
 
 Jak użyć dziennika w funkcji projektu: [09b, sekcja o dzienniku zdarzeń](09b-implementacja-i-bramki.md#dziennik-zdarzen).
