@@ -19,6 +19,7 @@
   "filter-to": "Do",
   "all": "Wszystkie",
   "no-results": "Brak wpisów",
+  "no-history": "Brak historii",
   "results": "{from}–{to} z {total}",
   "page-size": "Wpisów na stronę",
   "previous": "Poprzednia",

@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/shared/lib/prisma";
 import { requireModuleAccess } from "@/shared/lib/auth/require-module-access";
 import type { PaginatedResult } from "@/shared/types/common";
+import { AUDIT_LOG_ACTOR_SELECT, toAuditLogRow } from "../audit-log-mapper";
 import { auditLogFiltersSchema } from "../../contracts/audit-log.schemas";
 import type {
   AuditLogActorOption,
@@ -40,24 +41,13 @@ export async function listAuditLogsQuery(
       orderBy: [{ [filters.sortBy]: filters.sortDir }, { id: "asc" }],
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,
-      include: { user: { select: { id: true, name: true, email: true } } },
+      include: { user: { select: AUDIT_LOG_ACTOR_SELECT } },
     }),
     prisma.auditLog.count({ where }),
   ]);
 
   return {
-    items: rows.map(({ user, ...row }) => ({
-      id: row.id,
-      createdAt: row.createdAt,
-      action: row.action,
-      entityType: row.entityType,
-      entityId: row.entityId,
-      actor: user,
-      oldData: row.oldData,
-      newData: row.newData,
-      channel: row.channel,
-      serviceMode: row.serviceMode,
-    })),
+    items: rows.map(toAuditLogRow),
     totalItems,
     totalPages: Math.ceil(totalItems / filters.pageSize),
     currentPage: filters.page,

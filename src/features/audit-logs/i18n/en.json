@@ -19,6 +19,7 @@
   "filter-to": "To",
   "all": "All",
   "no-results": "No entries",
+  "no-history": "No history",
   "results": "{from}–{to} of {total}",
   "page-size": "Entries per page",
   "previous": "Previous",
