@@ -1,0 +1,9 @@
+{
+  "nav": "Klucze API",
+  "action-api-key-created": "Utworzono klucz API",
+  "action-api-key-revoked": "Unieważniono klucz API",
+  "action-api-key-deleted": "Usunięto klucz API",
+  "scopes": {
+    "organizationRead": "Odczyt danych organizacji"
+  }
+}

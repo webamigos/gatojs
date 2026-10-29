@@ -17,6 +17,7 @@ model User {
   invitations Invitation[]
 
   // wa:relations:start
+  createdApiKeys ApiKey[]
   auditLogs AuditLog[]
   // wa:relations:end
 

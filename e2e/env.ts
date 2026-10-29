@@ -42,6 +42,7 @@ export function appEnv(options: {
     EMAIL_FROM: "WA App <noreply@test.pl>",
     AUTH_PUBLIC_SIGNUP: String(options.publicSignup),
     MULTI_ORG: String(options.multiOrg),
+    API_KEY_PEPPER: "e2e-api-key-pepper-at-least-32-characters-long",
     LOG_LEVEL: "warn",
   };
 }

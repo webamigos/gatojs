@@ -11,6 +11,7 @@ model Organization {
   invitations Invitation[]
 
   // wa:relations:start
+  apiKeys ApiKey[]
   auditLogs AuditLog[]
   // wa:relations:end
 

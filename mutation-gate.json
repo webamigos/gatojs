@@ -6,7 +6,8 @@
     "src/features/users/services/",
     "scripts/lib/mutation-gate.ts",
     "src/shared/lib/audit.ts",
-    "src/features/audit-logs/services/"
+    "src/features/audit-logs/services/",
+    "src/features/api-keys/services/"
   ],
   "allowed": [
     {

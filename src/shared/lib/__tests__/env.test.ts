@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import dotenv from "dotenv";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { EXAMPLE_BETTER_AUTH_SECRET, parseEnv } from "@/shared/lib/env";
+
+vi.mock("@/modules.generated", () => ({ moduleEnvSchemas: [] }));
 
 const validCore = {
   DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/wa",

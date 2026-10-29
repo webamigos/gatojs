@@ -1,0 +1,9 @@
+{
+  "nav": "API keys",
+  "action-api-key-created": "API key created",
+  "action-api-key-revoked": "API key revoked",
+  "action-api-key-deleted": "API key deleted",
+  "scopes": {
+    "organizationRead": "Read organization data"
+  }
+}

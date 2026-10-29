@@ -10,6 +10,41 @@
     "en"
   ],
   "modules": {
+    "api-keys": {
+      "version": "0.1.0",
+      "manifest": {
+        "name": "api-keys",
+        "version": "0.1.0",
+        "description": "Klucze API organizacji: model ApiKey, sekret z pepperem i zakresy",
+        "requires": [],
+        "files": [
+          "prisma/schema/api-keys.prisma",
+          "src/features/api-keys/**"
+        ],
+        "dependencies": {},
+        "devDependencies": {},
+        "env": [
+          {
+            "name": "API_KEY_PEPPER",
+            "example": "dev-only-api-key-pepper-change-me-0123456789",
+            "required": true
+          }
+        ],
+        "schemaRelations": [
+          {
+            "model": "User",
+            "field": "createdApiKeys ApiKey[]"
+          },
+          {
+            "model": "Organization",
+            "field": "apiKeys ApiKey[]"
+          }
+        ],
+        "compose": null,
+        "workspaces": []
+      },
+      "files": {}
+    },
     "audit-logs": {
       "version": "0.1.0",
       "manifest": {
@@ -41,10 +76,10 @@
       "files": {}
     },
     "core": {
-      "version": "0.2.0",
+      "version": "0.3.0",
       "manifest": {
         "name": "core",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
         "requires": [],
         "files": [
