@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - co daje moduł `api-keys`: klucze API organizacji, zakresy, uwierzytelnianie tras, limit kluczy i pepper;
 - co daje moduł `uploads`: pliki organizacji w magazynie S3, cele uploadu deklarowane przez moduły, walidacja i skalowanie obrazów, trasy `/api/uploads`, komponent `<FileUpload>` i zmienne S3.
 
-Zweryfikowano z kodem: 14b0ab6, 2026-10-29
+Zweryfikowano z kodem: a4d5af3, 2026-10-29
 
 Źródła:
 
@@ -58,7 +58,7 @@ Zweryfikowano z kodem: 14b0ab6, 2026-10-29
 - `src/features/uploads/services/api-org-context.ts`
 - `src/features/uploads/services/commands/create-upload.ts`
 - `src/features/uploads/services/commands/upload-commands.ts`
-- `src/features/uploads/services/queries/read-upload.ts`
+- `src/features/uploads/services/read-upload.ts`
 - `src/app/api/uploads/route.ts`
 - `src/app/api/uploads/[id]/route.ts`
 - `src/test/integration/setup-env.ts`
@@ -170,7 +170,7 @@ Pliki organizacji w magazynie zgodnym z S3: komponent do wysyłania, trasy do za
 | Magazyn | `src/features/uploads/services/storage.ts` | `putObject`, `getObject`, `deleteObject` na kliencie `@aws-sdk/client-s3`. Obiekt leży pod kluczem `orgs/<organizationId>/<purpose>/<id>.<rozszerzenie>`. |
 | Cele | `src/features/uploads/module.ts`, `services/upload-purposes.ts` | Moduł deklaruje cele w `uploadPurposes`. Moduł `uploads` deklaruje wbudowany cel `editor-image`. |
 | Zapis | `src/app/api/uploads/route.ts`, `services/commands/create-upload.ts` | `POST /api/uploads`. |
-| Odczyt | `src/app/api/uploads/[id]/route.ts`, `services/queries/read-upload.ts` | `GET /api/uploads/<id>`. |
+| Odczyt | `src/app/api/uploads/[id]/route.ts`, `services/read-upload.ts` | `GET /api/uploads/<id>`. |
 | Usuwanie | `src/features/uploads/services/commands/upload-commands.ts` | `deleteUploadCommand`. |
 | Komponent | `src/features/uploads/components/file-upload.tsx` | `<FileUpload purpose accept onUploaded>`. |
 | Lokalnie | `docker/uploads.compose.yml` | Usługi `minio` i `minio-init` w regionie `wa:services` pliku `docker-compose.yml` ([Uruchomienie](01-uruchomienie.md#minio)). |
@@ -211,7 +211,7 @@ Cel z `resizeImage` przepuszcza obraz przez `sharp`: ogranicza wejście do 40 mi
 
 ### `GET /api/uploads/<id>`
 
-Plik z widocznością `PUBLIC` odczyta każdy, także bez sesji. Plik `ORGANIZATION` odczyta tylko użytkownik z sesją, którego aktywna organizacja jest organizacją pliku; w każdym innym przypadku trasa zwraca 404, tak samo jak dla nieistniejącego `id`, więc nie ujawnia, że plik istnieje. Odpowiedź ma `Content-Type` zapisanego typu, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'` i `Content-Disposition: inline` z nazwą pliku w `filename*`. Polityka `sandbox` z `default-src 'none'` na każdej odpowiedzi odbiera plikowi skrypty, formularze i zasoby zewnętrzne także wtedy, gdy przeglądarka otworzy go pod adresem aplikacji. `Cache-Control` to `public, max-age=31536000, immutable` dla plików publicznych i `private, max-age=300` dla plików organizacji.
+Plik z widocznością `PUBLIC` odczyta każdy, także bez sesji. Plik `ORGANIZATION` odczyta tylko użytkownik z sesją, którego aktywna organizacja jest organizacją pliku; w każdym innym przypadku trasa zwraca 404, tak samo jak dla nieistniejącego `id`, więc nie ujawnia, że plik istnieje. Odpowiedź ma `Content-Type` zapisanego typu, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'` i `Content-Disposition: inline` z nazwą pliku w `filename*`. Polityka `sandbox` z `default-src 'none'` na każdej odpowiedzi odbiera plikowi skrypty, formularze i zasoby zewnętrzne także wtedy, gdy przeglądarka otworzy go pod adresem aplikacji. Przez ten nagłówek przeglądarka może nie pokazać pliku PDF w karcie (piaskownica blokuje wbudowany podgląd PDF); plik nadal da się pobrać. `Cache-Control` to `public, max-age=31536000, immutable` dla plików publicznych i `private, max-age=300` dla plików organizacji.
 
 Adres publicznego pliku nie wygasa i nie da się go cofnąć inaczej niż przez usunięcie pliku, a przeglądarki i pośrednicy mogą trzymać kopię rok. Cel `visibility: "public"` wybieraj tylko dla treści przeznaczonych dla każdego.
 

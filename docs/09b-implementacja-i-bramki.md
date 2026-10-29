@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak zadeklarować cel uploadu w module projektu, wstawić `<FileUpload>` i zapisać `id` pliku w encji ([pliki](#pliki-w-funkcji-projektu));
 - co zacommitować i jak dodać kolejną funkcję do feature, który już jest w rejestrze.
 
-Zweryfikowano z kodem: 14b0ab6, 2026-10-29
+Zweryfikowano z kodem: a4d5af3, 2026-10-29
 
 Źródła:
 
