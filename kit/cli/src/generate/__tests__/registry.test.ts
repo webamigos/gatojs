@@ -12,6 +12,7 @@ const base = {
   hasEnv: false,
   hasAuth: false,
   hasAuthClient: false,
+  hasAuditSink: false,
   locales: [],
 };
 
@@ -25,6 +26,7 @@ describe("renderRegistry", () => {
           hasEnv: true,
           hasAuth: true,
           hasAuthClient: true,
+          hasAuditSink: false,
           locales: ["pl", "en"],
         },
       ],
@@ -110,6 +112,7 @@ describe("renderRegistry", () => {
     hasEnv: true,
     hasAuth: true,
     hasAuthClient: true,
+    hasAuditSink: false,
     locales: ["pl", "en"],
   };
 
@@ -125,6 +128,7 @@ describe("renderRegistry", () => {
         "export const modules = [demoModule];",
         "export const moduleEnvSchemas = [demoEnvSchema];",
         "export const authPlugins = [demoAuthPlugin];",
+        "export const auditSinks: never[] = [];",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
         "",
@@ -165,6 +169,7 @@ describe("renderRegistry", () => {
           hasEnv: false,
           hasAuth: false,
           hasAuthClient: false,
+          hasAuditSink: false,
           locales: [],
         },
       ],
@@ -209,6 +214,7 @@ describe("renderRegistry", () => {
         "export const modules = [demoModule];",
         "export const moduleEnvSchemas = [demoEnvSchema];",
         "export const authPlugins = [demoAuthPlugin];",
+        "export const auditSinks: never[] = [];",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
         "",
@@ -257,6 +263,78 @@ describe("renderRegistry", () => {
   it("renderLocales dla [pl, en] daje nagłówek i stałą as const", () => {
     expect(renderLocales(["pl", "en"])).toBe(
       `${HEADER}\nexport const locales = ["pl", "en"] as const;\n`,
+    );
+  });
+
+  it("moduł z audit-sink.ts daje import i tablicę auditSinks", () => {
+    const { server } = renderRegistry(
+      [{ name: "audit-logs", ...base, hasAuditSink: true }],
+      BOTH,
+    );
+    expect(server.split("\n")).toContain(
+      'import { auditSink as auditLogsAuditSink } from "@/features/audit-logs/audit-sink";',
+    );
+    expect(server.split("\n")).toContain(
+      "export const auditSinks = [auditLogsAuditSink];",
+    );
+  });
+
+  it("brak modułów z audit-sink.ts daje auditSinks jako never[]", () => {
+    const { server } = renderRegistry([{ name: "x", ...base }], BOTH);
+    expect(server.split("\n")).toContain(
+      "export const auditSinks: never[] = [];",
+    );
+    expect(server).not.toContain("audit-sink");
+  });
+
+  it("moduł bez audit-sink.ts nie trafia do importów i tablicy auditSinks", () => {
+    const { server } = renderRegistry(
+      [
+        { name: "audit-logs", ...base, hasAuditSink: true },
+        { name: "b", ...base, hasModuleTs: true },
+      ],
+      BOTH,
+    );
+    expect(server).not.toContain("@/features/b/audit-sink");
+    expect(server).not.toContain("bAuditSink");
+    expect(server.split("\n")).toContain(
+      "export const auditSinks = [auditLogsAuditSink];",
+    );
+  });
+
+  it("dwa moduły z audit-sink.ts zachowują kolejność wejściową", () => {
+    const { server } = renderRegistry(
+      [
+        { name: "alpha", ...base, hasAuditSink: true },
+        { name: "beta", ...base, hasAuditSink: true },
+      ],
+      BOTH,
+    );
+    expect(server.split("\n")).toContain(
+      "export const auditSinks = [alphaAuditSink, betaAuditSink];",
+    );
+    expect(server).toContain(
+      'import { auditSink as alphaAuditSink } from "@/features/alpha/audit-sink";\nimport { auditSink as betaAuditSink } from "@/features/beta/audit-sink";',
+    );
+  });
+
+  it("auditSinks nie trafia do pliku klienta", () => {
+    const { client } = renderRegistry(
+      [{ name: "audit-logs", ...base, hasModuleTs: true, hasAuditSink: true }],
+      BOTH,
+    );
+    expect(client).not.toContain("audit-sink");
+    expect(client).not.toContain("auditSinks");
+    expect(client).not.toContain("AuditSink");
+    expect(client).toBe(
+      [
+        HEADER,
+        'import auditLogsModule from "@/features/audit-logs/module";',
+        "",
+        "export const authClientPlugins: never[] = [];",
+        "export const clientModules = [auditLogsModule];",
+        "",
+      ].join("\n"),
     );
   });
 

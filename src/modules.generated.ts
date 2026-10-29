@@ -9,6 +9,7 @@ import usersModule from "@/features/users/module";
 export const modules = [accountModule, authModule, dashboardModule, organizationsModule, usersModule];
 export const moduleEnvSchemas: never[] = [];
 export const authPlugins: never[] = [];
+export const auditSinks: never[] = [];
 
 export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };
 
