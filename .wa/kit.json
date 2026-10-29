@@ -250,7 +250,9 @@
         "description": "Pliki organizacji w magazynie S3 (MinIO lokalnie)",
         "requires": [],
         "files": [
+          "prisma/schema/uploads.prisma",
           "src/features/uploads/**",
+          "src/app/api/uploads/**",
           "docker/uploads.compose.yml",
           "ci/uploads.integration-steps.yml"
         ],
@@ -292,7 +294,16 @@
             "required": false
           }
         ],
-        "schemaRelations": [],
+        "schemaRelations": [
+          {
+            "model": "User",
+            "field": "uploads Upload[]"
+          },
+          {
+            "model": "Organization",
+            "field": "uploads Upload[]"
+          }
+        ],
         "compose": "docker/uploads.compose.yml",
         "ciSteps": "ci/uploads.integration-steps.yml",
         "workspaces": []

@@ -1,1 +1,4 @@
-{}
+{
+  "action-upload-created": "File uploaded",
+  "action-upload-deleted": "File deleted"
+}

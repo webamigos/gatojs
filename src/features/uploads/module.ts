@@ -4,6 +4,10 @@ export default defineModule({
   key: "uploads",
   nav: [],
   routePrefixes: [],
+  auditActions: [
+    { action: "upload.created", labelKey: "action-upload-created" },
+    { action: "upload.deleted", labelKey: "action-upload-deleted" },
+  ],
   uploadPurposes: [
     {
       key: "editor-image",
