@@ -1,3 +1,4 @@
+import { trackAudit } from "@/shared/lib/audit";
 import { prisma } from "@/shared/lib/prisma";
 import type { OrgRole } from "@/shared/lib/auth/roles";
 
@@ -25,4 +26,11 @@ export async function joinOrganizationCommand(input: {
       data: { status: "accepted" },
     }),
   ]);
+  await trackAudit({
+    organizationId: input.organizationId,
+    actorUserId: input.userId,
+    action: "invitation.accepted",
+    entityType: "invitation",
+    entityId: input.invitationId,
+  });
 }

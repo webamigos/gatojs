@@ -6,11 +6,12 @@ import dashboardModule from "@/features/dashboard/module";
 import organizationsModule from "@/features/organizations/module";
 import usersModule from "@/features/users/module";
 import auditLogsModule from "@/features/audit-logs/module";
+import { authPlugin as auditLogsAuthPlugin } from "@/features/audit-logs/auth";
 import { auditSink as auditLogsAuditSink } from "@/features/audit-logs/audit-sink";
 
 export const modules = [accountModule, authModule, dashboardModule, organizationsModule, usersModule, auditLogsModule];
 export const moduleEnvSchemas: never[] = [];
-export const authPlugins: never[] = [];
+export const authPlugins = [auditLogsAuthPlugin];
 export const auditSinks = [auditLogsAuditSink];
 
 export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };
