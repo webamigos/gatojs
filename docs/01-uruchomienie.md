@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - co zmieniają flagi `MULTI_ORG`, `AUTH_PUBLIC_SIGNUP` i `ADMIN_IMPERSONATION`;
 - jak rozpoznać i naprawić typowe problemy, w tym błędy walidacji zmiennych środowiskowych.
 
-Zweryfikowano z kodem: 25adbb8, 2026-10-28
+Zweryfikowano z kodem: 09744c4, 2026-10-29
 
 Źródła:
 
@@ -18,6 +18,7 @@ Zweryfikowano z kodem: 25adbb8, 2026-10-28
 - `.nvmrc`
 - `Dockerfile`
 - `docker-compose.yml`
+- `docker/uploads.compose.yml`
 - `package.json`
 - `package-lock.json`
 - `prisma.config.ts`
@@ -187,6 +188,22 @@ Nazwy usług (`db` i `mail`) zwraca `docker compose config --services`. Używaj 
 - Dane Postgresa leżą w katalogu `volumes/postgres` (w `.gitignore`). `docker compose down` usuwa kontenery, ale ten katalog zostaje, więc baza przetrwa restart.
 - Na końcu pliku jest region `wa:services:start` / `wa:services:end` na usługi modułów. Wypełnia go generator kitu (`npm run wa -- generate`, opis w [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#regiony)), więc nie edytuj go ręcznie.
 
+<a id="minio"></a>
+
+## MinIO (moduł `uploads`)
+
+Projekt z modułem `uploads` ([12](12-moduly-kitu.md#uploads)) ma w `docker-compose.yml` (w regionie `wa:services`) dwie dodatkowe usługi: `minio` (magazyn zgodny z S3) i `minio-init`, jednorazowy kontener, który tworzy bucket `<slug>-uploads` i kończy pracę. Uruchamia je ten sam `docker compose up -d` z kroku 4 [pierwszego uruchomienia](#pierwsze-uruchomienie); nic więcej nie trzeba robić, a `.env.example` ma już zmienne `S3_*` z wartościami lokalnymi (`S3_ENDPOINT=http://localhost:9000`, klucz i sekret `minioadmin`, bucket `<slug>-uploads`).
+
+| Usługa | Obraz | Port na komputerze (domyślny) | Zmienna portu | Do czego służy |
+| --- | --- | --- | --- | --- |
+| `minio` | `cgr.dev/chainguard/minio:latest` | 9000 (API S3), 9001 (konsola WWW) | `MINIO_PORT`, `MINIO_CONSOLE_PORT` | Magazyn plików. Użytkownik i hasło `minioadmin`. |
+| `minio-init` | `amazon/aws-cli:latest` | brak | brak | Tworzy bucket, gdy go nie ma, ponawiając próbę do 30 razy. |
+
+- Obrazy `minio/minio` i `minio/mc` nie da się już pobrać, dlatego moduł używa obrazu Chainguard i `aws-cli`.
+- `minio` działa jako `user: "0:0"`, bo dane leżą w katalogu `volumes/minio` zamontowanym z hosta (ustawienie tylko dla rozwoju lokalnego). Katalog jest w `.gitignore`, więc dane przetrwają `docker compose down`.
+- Zajęty port zmieniasz tak jak port bazy ([Zmiana portów](#zmiana-portow)): `MINIO_PORT=9100` w `.env` i ten sam port w `S3_ENDPOINT=http://localhost:9100`. Compose czyta tylko `MINIO_PORT`, a aplikacja tylko `S3_ENDPOINT`, więc oba trzeba zmienić razem. Port konsoli zmienia `MINIO_CONSOLE_PORT`.
+- Testy integracyjne czytają adres z `INTEGRATION_S3_ENDPOINT` (domyślnie `http://localhost:9000`) i bucket z `INTEGRATION_S3_BUCKET` (domyślnie `<slug>-uploads`), na przykład `INTEGRATION_S3_ENDPOINT=http://localhost:9100 npm run test:integration`.
+
 <a id="zmiana-portow"></a>
 
 ## Zmiana portów
@@ -237,7 +254,7 @@ Po każdej zmianie portu ustaw ten sam port w `APP_URL`, na przykład `APP_URL=h
 
 - Next.js przy `npm run dev`, `npm run build` i `npm start`;
 - `prisma.config.ts` (komendy `prisma`), `scripts/admin-create.ts` (`npm run admin:create`) i `vitest.setup.ts` (`npm test`) przez bibliotekę dotenv: najpierw `.env.local`, potem `.env`. Wartość z `.env.local` wygrywa z `.env`, a zmienna ustawiona w powłoce wygrywa z obydwoma plikami;
-- Docker Compose, który bierze z niego `DB_PORT`, `MAILPIT_UI_PORT` i `MAILPIT_SMTP_PORT`.
+- Docker Compose, który bierze z niego `DB_PORT`, `MAILPIT_UI_PORT` i `MAILPIT_SMTP_PORT` (oraz `MINIO_PORT` i `MINIO_CONSOLE_PORT` w projekcie z modułem `uploads`).
 
 Prisma i `admin:create` wypisują na starcie linię `◇ injected env (N) from .env.local,.env // tip: …`, w której tekst po `// tip:` jest losową wskazówką. To komunikat dotenv, a nie błąd. `N` to liczba zmiennych ustawionych z plików, bez zmiennych, które były już ustawione w powłoce. `injected env (0)` oznacza, że z plików nic nie wczytano: nie ma `.env`, plik jest pusty albo wszystkie zmienne są już ustawione w powłoce.
 

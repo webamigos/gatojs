@@ -21,6 +21,7 @@ Opisy modułów: [docs/12-moduly-kitu.md](../docs/12-moduly-kitu.md). Manifesty 
 | `core` | Rdzeń: logowanie, organizacje, użytkownicy, konto, dashboard. Zawsze zainstalowany. |
 | `audit-logs` | Dziennik zdarzeń organizacji: model `AuditLog`, strona `/audit-log`, komponent `<AuditTrail>`, zdarzenia członkostwa. Moduł nie ma retencji (usuwania starych wpisów): dziennik rośnie bez limitu. |
 | `api-keys` | Klucze API organizacji: model `ApiKey`, strona `/api-keys` dla ról `owner` i `admin`, uwierzytelnianie tras `authenticateApiKey`, zakresy deklarowane przez moduły (`apiScopes`), przykładowa trasa `GET /api/v1/organization`. Wymaga zmiennej `API_KEY_PEPPER` (min. 32 znaki); `wa create` jej nie losuje, więc na produkcji ustaw własną. |
+| `uploads` | Pliki organizacji w magazynie S3: model `Upload`, trasy `POST /api/uploads` i `GET /api/uploads/<id>`, komponent `<FileUpload>`, cele uploadu deklarowane przez moduły (`uploadPurposes`), skalowanie obrazów. Lokalnie MinIO z `docker-compose.yml`; wymaga zmiennych `S3_*` ([docs/10-wdrozenie.md](../docs/10-wdrozenie.md#zmienne)). |
 
 ## `wa create <katalog> [opcje]`
 
@@ -65,5 +66,5 @@ Po `add` i `remove` zmienia się schemat bazy; migrację trzeba utworzyć i zaco
 - Po zmianie manifestów modułów (`kit/modules/*.json`) albo `kit/kit.json` uruchom `npm run wa -- kit sync`, żeby odświeżyć `.wa/kit.json`.
 - Test własności plików (`kit/cli/src/kit/__tests__/ownership.test.ts`) pilnuje, że każdy plik repozytorium należy do dokładnie jednego modułu albo do `kitOnly`. Nowy plik dopisz do manifestu odpowiedniego modułu.
 - Zmieniasz pliki modułu: podbij `version` w jego manifeście. Wersja kitu (`kit/kit.json`) wyznacza tag.
-- Job `assemble` w `.github/workflows/kit.yml` składa projekt z kitu dla każdej kombinacji modułów (macierz `combo`), uruchamia w nim `verify`, testy integracyjne i budowę obrazu Dockera oraz sprawdza rejestrację modułu projektu. Nowy moduł kitu dopisz do macierzy.
+- Job `assemble` w `.github/workflows/kit.yml` składa projekt z kitu dla każdej kombinacji modułów (macierz `combo`), uruchamia w nim `verify`, testy integracyjne (dla kombinacji z `uploads` po uruchomieniu MinIO i utworzeniu bucketu) i budowę obrazu Dockera (kombinacje `core` i `all`) oraz sprawdza rejestrację modułu projektu. Macierz: `core`, `audit-logs`, `api-keys`, `uploads` i `all` (wszystkie moduły). Nowy moduł kitu dopisz do macierzy i do kombinacji `all`.
 - Tag `v<version>` po zmergowaniu zmiany na `main` ustawia człowiek.

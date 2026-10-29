@@ -120,7 +120,7 @@ Dokumenty 01–11 opisują tylko to, co działa w kodzie z commitu `25adbb8`, a 
 
 | Funkcja zaplanowana | Plan | Gdzie jest opisana |
 | --- | --- | --- |
-| Moduły opcjonalne `uploads`, `worker` i `legal`, dalsze rozszerzenie macierzy składania w CI (`audit-logs` i `api-keys` są opisane w [12](12-moduly-kitu.md)) | Plan 3 | [Design doc, sekcja Moduły opcjonalne](superpowers/specs/2026-10-26-wa-kit-design.md#moduły-opcjonalne-v1) |
+| Moduły opcjonalne `worker` i `legal`, dalsze rozszerzenie macierzy składania w CI (`audit-logs`, `api-keys` i `uploads` są opisane w [12](12-moduly-kitu.md)) | Plan 3 | [Design doc, sekcja Moduły opcjonalne](superpowers/specs/2026-10-26-wa-kit-design.md#moduły-opcjonalne-v1) |
 | `wa update`, `wa diff`, wersjonowanie kitu i modułów, scalanie zmian | Plan 4 | [Design doc, sekcja Wersjonowanie i aktualizacje](superpowers/specs/2026-10-26-wa-kit-design.md#44-wersjonowanie-i-aktualizacje) |
 
 CLI ma komendy `create`, `add`, `remove`, `list`, `generate` i `kit sync`; ich użycie opisuje [kit/README.md](../kit/README.md). W projekcie uruchamia się je jako `npm run wa -- <komenda>`, tak jak w `AGENTS.md` (na przykład `wa generate`, [02b](02b-rejestr-i-generator.md#wa-generate)). Znane luki istniejącego kodu, w tym kierunki ich zamknięcia, są w [znane-ograniczenia.md](znane-ograniczenia.md).

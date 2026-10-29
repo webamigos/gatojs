@@ -6,9 +6,10 @@ Po przeczytaniu będziesz wiedzieć:
 - dlaczego `npm run verify` po dodaniu feature nie wymaga zmiany testów rdzenia i co pilnuje spójności rejestru;
 - jak uruchomić testy integracyjne i Strykera dla nowego feature i jak czytać ich wynik;
 - jak wystawić trasę API uwierzytelnianą kluczem i gdzie umieścić wołany przez nią serwis ([trasy API](#trasy-api));
+- jak zadeklarować cel uploadu w module projektu, wstawić `<FileUpload>` i zapisać `id` pliku w encji ([pliki](#pliki-w-funkcji-projektu));
 - co zacommitować i jak dodać kolejną funkcję do feature, który już jest w rejestrze.
 
-Zweryfikowano z kodem: f965e0a, 2026-10-29
+Zweryfikowano z kodem: 09744c4, 2026-10-29
 
 Źródła:
 
@@ -418,6 +419,55 @@ import { AuditTrail } from "@/features/audit-logs/components/audit-trail";
 ```
 
 Komponent wymaga zainstalowanego `audit-logs`: import z `src/features/audit-logs/` nie skompiluje się w projekcie bez modułu. Feature, który ma działać w obu wariantach, nie osadza komponentu, tylko samo woła `trackAudit`. Komponent nie renderuje nic użytkownikowi bez dostępu do modułu (role `owner` i `admin` organizacji), a pokazuje 50 ostatnich wpisów encji z aktywnej organizacji.
+
+<a id="pliki-w-funkcji-projektu"></a>
+
+## Pliki w funkcji projektu
+
+Ta sekcja dotyczy projektu z zainstalowanym modułem `uploads` ([12-moduly-kitu.md](12-moduly-kitu.md#uploads)). Funkcja, która przyjmuje pliki, robi trzy rzeczy.
+
+1. **Deklaracja celu w `module.ts` feature.** Cel mówi, jakie typy i jak duże pliki przyjmuje funkcja oraz kto je potem zobaczy:
+
+```ts
+uploadPurposes: [
+  {
+    key: "delivery-photo",
+    mimeTypes: ["image/jpeg", "image/png", "image/webp"],
+    maxBytes: 8 * 1024 * 1024,
+    visibility: "organization",
+    resizeImage: { maxWidth: 1600 },
+  },
+],
+```
+
+`key` musi być unikalny w całym rejestrze modułów. Dla zdjęć dokumentów i danych organizacji wybierz `visibility: "organization"`: adres pliku działa wtedy tylko dla sesji z aktywną organizacją pliku. `"public"` oznacza adres dostępny dla każdego, bez sesji. SVG, HTML i XHTML nie wolno wpisać do `mimeTypes`. Po dodaniu `module.ts` uruchom `npm run wa -- generate` ([Nowa funkcja w istniejącym module](#nowa-funkcja-w-istniejącym-module), punkt 1).
+
+2. **Komponent `<FileUpload>`** w formularzu feature (komponent kliencki). Po udanym zapisie woła `onUploaded` z `{ id, url, fileName, mimeType, size }`:
+
+```tsx
+import { FileUpload } from "@/features/uploads/components/file-upload";
+
+<FileUpload
+  purpose="delivery-photo"
+  accept="image/*"
+  onUploaded={(upload) => setPhotoUploadId(upload.id)}
+/>
+```
+
+Komponent sam prosi o potwierdzenie w trybie serwisowym, więc formularz nie dokłada własnego dialogu. `accept` tylko podpowiada przeglądarce: serwer sprawdza typ po zawartości pliku, a `purpose` decyduje o limitach. Komponent wymaga zainstalowanego `uploads`: import z `src/features/uploads/` nie skompiluje się w projekcie bez modułu.
+
+3. **Zapis `id` pliku w encji feature**, w kolumnie ze schematu Prismy (na przykład `photoUploadId String? @db.Uuid`), przekazanej do komendy razem z resztą danych formularza. Komenda zapisuje samo `id`, a nie adres. Adres pliku to zawsze `/api/uploads/<id>`.
+
+```ts
+const photoUrl = delivery.photoUploadId ? `/api/uploads/${delivery.photoUploadId}` : null;
+```
+
+Zwróć uwagę na dwie rzeczy:
+
+- `id` w polu encji nie ma klucza obcego do tabeli `uploads` (moduł nie zna encji projektu), więc komenda, która zapisuje `id` z wejścia, odpowiada za to, że wskazuje plik własnej organizacji. Sprawdź to zapytaniem `prisma.upload.findFirst({ where: { id, organizationId: context.organizationId } })` przed zapisem.
+- Usunięcie encji nie usuwa pliku. Wołaj `deleteUploadCommand` z `src/features/uploads/services/commands/upload-commands.ts` ([12](12-moduly-kitu.md#usuwanie)) w tym samym przepływie, który usuwa encję, albo świadomie zostaw plik.
+
+Test izolacji pliku (odczyt i usunięcie z kontekstem innej organizacji) dostaje moduł `uploads` w swoich testach integracyjnych. Test funkcji projektu pokrywa tylko własną regułę: że komenda odrzuca `id` pliku z innej organizacji.
 
 <a id="trasy-api"></a>
 
