@@ -134,6 +134,7 @@
           "vitest.config.ts",
           "vitest.integration.config.ts",
           "vitest.setup.ts",
+          "src/__tests__/proxy-matcher.test.ts",
           "src/__tests__/server-entrypoints-guard.test.ts",
           "src/app/*",
           "src/app/api/auth/**",
