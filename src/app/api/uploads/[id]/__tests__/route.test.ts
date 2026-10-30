@@ -30,7 +30,7 @@ describe("GET /api/uploads/[id]", () => {
         "Content-Type": "image/png",
         "Content-Disposition": 'inline; filename="a.png"',
         "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "private, max-age=300",
+        "Cache-Control": "private, no-store",
         "Content-Security-Policy": "sandbox; default-src 'none'",
       },
     });
@@ -44,7 +44,7 @@ describe("GET /api/uploads/[id]", () => {
       'inline; filename="a.png"',
     );
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
-    expect(response.headers.get("cache-control")).toBe("private, max-age=300");
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(response.headers.get("content-security-policy")).toBe(
       "sandbox; default-src 'none'",
     );

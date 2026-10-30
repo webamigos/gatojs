@@ -176,7 +176,7 @@ describe("readUploadForDownload", () => {
     expect(mockGetObject).not.toHaveBeenCalled();
   });
 
-  it("plik ORGANIZATION z aktywną organizacją pliku daje 200 z prywatnym cache", async () => {
+  it("plik ORGANIZATION z aktywną organizacją pliku daje 200 z private, no-store, żeby przeglądarka nie oddała pliku po wylogowaniu", async () => {
     signIn(ORG_A);
 
     const result = await readUploadForDownload(PRIVATE_ID);
@@ -189,7 +189,7 @@ describe("readUploadForDownload", () => {
         "Content-Disposition":
           "inline; filename=\"raport.pdf\"; filename*=UTF-8''raport.pdf",
         "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "private, max-age=300",
+        "Cache-Control": "private, no-store",
         "Content-Security-Policy": "sandbox; default-src 'none'",
       },
     });

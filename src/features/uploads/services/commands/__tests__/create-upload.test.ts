@@ -316,6 +316,43 @@ describe("createUpload walidacja wejścia", () => {
   });
 });
 
+describe("createUpload długość nazwy pliku", () => {
+  it("przyjmuje nazwę pliku o długości 255 znaków i zapisuje ją bez zmian", async () => {
+    const name = `${"n".repeat(251)}.png`;
+
+    const result = await createUpload(
+      formWith({ file: await makePng(), purpose: "editor-image" }, name),
+    );
+
+    expect(result.status).toBe(201);
+    expect(mockUploadCreate.mock.calls[0]![0].data.fileName).toBe(name);
+  });
+
+  it("zwraca 400 invalid_input dla nazwy pliku o długości 256 znaków i nic nie zapisuje", async () => {
+    const result = await createUpload(
+      formWith(
+        { file: await makePng(), purpose: "editor-image" },
+        `${"n".repeat(252)}.png`,
+      ),
+    );
+
+    expect(result).toEqual({ status: 400, body: { error: "invalid_input" } });
+    expect(mockPutObject).not.toHaveBeenCalled();
+    expect(mockUploadCreate).not.toHaveBeenCalled();
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("zwraca 400 invalid_input dla pustej nazwy pliku i nic nie zapisuje", async () => {
+    const result = await createUpload(
+      formWith({ file: await makePng(), purpose: "editor-image" }, ""),
+    );
+
+    expect(result).toEqual({ status: 400, body: { error: "invalid_input" } });
+    expect(mockPutObject).not.toHaveBeenCalled();
+    expect(mockUploadCreate).not.toHaveBeenCalled();
+  });
+});
+
 describe("createUpload zapis", () => {
   it("zapisuje PNG jako editor-image: 201, url, rekord organizacji A i obiekt", async () => {
     const result = await createUpload(

@@ -169,7 +169,7 @@ describe("readUploadForDownload na bazie i storage", () => {
     expect(await readUploadForDownload(upload.id)).toEqual({ status: 404 });
   });
 
-  it("plik ORGANIZATION z aktywną organizacją pliku daje 200 z prywatnym cache", async () => {
+  it("plik ORGANIZATION z aktywną organizacją pliku daje 200 z private, no-store, żeby przeglądarka nie oddała pliku po wylogowaniu", async () => {
     const upload = await seedUpload({
       organizationId: world.orgA.id,
       uploadedById: world.alice.id,
@@ -182,7 +182,7 @@ describe("readUploadForDownload na bazie i storage", () => {
     expect(result.status).toBe(200);
     if (result.status === 200) {
       expect(result.body).toEqual(PAYLOAD);
-      expect(result.headers["Cache-Control"]).toBe("private, max-age=300");
+      expect(result.headers["Cache-Control"]).toBe("private, no-store");
       expect(result.headers["X-Content-Type-Options"]).toBe("nosniff");
     }
   });
