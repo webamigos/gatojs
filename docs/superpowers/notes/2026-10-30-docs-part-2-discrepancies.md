@@ -81,3 +81,14 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Kod:** `cloneKit` w `kit/cli/src/kit/source.ts` klonuje `v<kitVersion>`, a `kitVersion` projektu to `version` z `kit/kit.json` (`create.ts`, `kit-sync.ts`). Bez podbicia `kit/kit.json` nowe wydanie miałoby nazwę tagu, który już istnieje i wskazuje poprzedni commit. W planie 3 `core` przeszedł z `0.1.0` do `0.4.0`, a `kit/kit.json` zostało `0.1.0` (pierwszy tag, `v0.1.0`, ustawiono na końcowym commicie planu, więc tu nie było konfliktu).
 - **Propozycja:** dopisać w `kit/CLAUDE.md` krok „podbij `version` w `kit/kit.json`” i polecenie tagu z adnotacją (`git tag -a v<version> -m "wa-kit v<version>"`). Dokumentacja: [16b-rozwoj-kitu.md](../../16b-rozwoj-kitu.md#wydanie), [D46](../../decyzje.md#d46).
 - **Status:** otwarte.
+
+## R12. Reguła „moduł nie edytuje plików rdzenia” a praktyka modułów kitu w planie 3
+
+- **Dokument:** `AGENTS.md`, „Moduły i pliki generowane”: „Moduł nie edytuje plików rdzenia”; `CLAUDE.md`, „Pliki generowane”: to samo zdanie; `kit/CLAUDE.md`, „Moduły i manifest”: „Zmieniasz pliki modułu: podbij jego `version`”, bez słowa o plikach rdzenia, których wymaga moduł.
+- **Kod:** każdy moduł planu 3 wymagał zmian w plikach `core`, a większość weszła w commitach modułów bez podbicia wersji `core` (podbicia tylko w `c8a0ffd`, `102b706`, `2e8db6e`):
+  - szwy: `trackAudit` w `src/features/organizations/services/commands/member-commands.ts` (`9569cbc`), `requestConfirmation` w `src/shared/components/service-mode/use-service-mode-action.tsx` (`6279545`), `src/proxy.ts` (`7b069fc`);
+  - konfiguracja testów: `src/test/integration/setup-env.ts` (`c6c26c4`, `2199cea`, `76b5956`), `e2e/env.ts` (`76b5956`; `102b706` z podbiciem), `vi.mock("@/modules.generated", …)` w `src/shared/lib/__tests__/env.test.ts` (`102b706`), `stryker.integration.config.json` (`04ce5d3`), wyjątek `UNGUARDED_ALLOWED` w `src/__tests__/server-entrypoints-guard.test.ts` (dodany w `b3da758`, usunięty w `0b5c91d`);
+  - bramka mutacji: `critical` i `allowed` w root `mutation-gate.json` (`c8b5f74`, `c6c26c4`, `36dd132`).
+  Skutek: projekt z samym `core` dostaje katalogi `critical` nieobecnych modułów, wpisy `allowed` dla plików `api-keys` i wartości `API_KEY_PEPPER`, `S3_*` w plikach testowych; nieszkodliwe, bo `checkMutationGate` (`scripts/lib/mutation-gate.ts`) ocenia tylko pliki z raportu.
+- **Propozycja:** dopisać w `kit/CLAUDE.md`, że moduł kitu może wymagać zmian plików rdzenia (setup testów, `mutation-gate.json`, szwy), które robi się osobnym commitem `core` z podbiciem jego wersji; albo przenieść wartości testowe modułów do plików modułów (na przykład przez region generowany z manifestu). Dokumentacja: [16b-rozwoj-kitu.md](../../16b-rozwoj-kitu.md#nowy-modul-kitu).
+- **Status:** otwarte.

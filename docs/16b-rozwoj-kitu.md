@@ -90,7 +90,7 @@ kit/cli/reports/
 kit/cli/.stryker-tmp/
 ```
 
-Dlatego `npm run verify` w katalogu głównym nie sprawdza kodu CLI; robi to bramka CLI ([Bramka CLI](#bramka-cli)).
+Te wpisy leżą w plikach `core` (`.gitignore`, `.dockerignore`, `eslint.config.mjs`, `vitest.config.ts`, `tsconfig.json`), więc trafiają też do projektów, gdzie nic nie wskazują. Dlatego `npm run verify` w katalogu głównym nie sprawdza kodu CLI; robi to bramka CLI ([Bramka CLI](#bramka-cli)).
 
 W drugą stronę reguła nie działa: workflowy rdzenia (`ci.yml`, `e2e.yml`, `mutation.yml`, `security-audit.yml`, `security-secret-scan.yml`, `workflow-lint.yml`) należą do `core`, więc trafiają do projektów i działają też w repozytorium kitu, na aplikacji referencyjnej ze wszystkimi modułami. Na przykład region `wa:ci-integration` w `ci.yml` kitu zawiera kroki MinIO modułu `uploads`.
 
@@ -147,7 +147,7 @@ Pola `compose` i `ciSteps` wskazują pliki, które generator czyta z katalogu pr
 - `docker/uploads.compose.yml`: definicje usług (`minio`, `minio-init`) bez klucza `services:`, bo generator wcina treść o dwie spacje i wstawia ją pod `services:` w regionie `wa:services` w `docker-compose.yml`;
 - `ci/uploads.integration-steps.yml`: lista kroków joba (`- name: …`), którą generator wcina o sześć spacji i wstawia w regionie `wa:ci-integration` joba `integration` w `.github/workflows/ci.yml`; fragmenty kilku modułów oddziela pusta linia.
 
-Test własności sprawdza tylko plik z `compose` (`composeOutsideModule`); pliku z `ciSteps` nie sprawdza (rozbieżność R6 w notatce rozbieżności części 2). Na kopii kitu `ciSteps` modułu `uploads` przestawione na plik dopisany do `kitOnly` przeszło test własności, a `create --modules uploads` skończyło się błędem `ENOENT: no such file or directory, open '<projekt>/ci/other.yml'` i usunięciem katalogu projektu (sprawdzone). Plik kroków CI zawsze dopisuj do `files` modułu, którego dotyczy.
+Test własności sprawdza tylko plik z `compose` (`composeOutsideModule`); pliku z `ciSteps` nie sprawdza (R6 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Na kopii kitu `ciSteps` modułu `uploads` przestawione na plik dopisany do `kitOnly` przeszło test własności, a `create --modules uploads` skończyło się błędem `ENOENT: no such file or directory, open '<projekt>/ci/other.yml'` i usunięciem katalogu projektu (sprawdzone). Plik kroków CI zawsze dopisuj do `files` modułu, którego dotyczy.
 
 Oba pliki `uploads` zawierają nazwę bucketu `wa-app-uploads`, dlatego są na liście `placeholderFiles` ([Placeholdery](#placeholdery)).
 
@@ -212,7 +212,7 @@ Na `758b557` przechodzi 16 testów (sprawdzone).
 Granice testu:
 
 - **Widzi tylko indeks gita.** Nowy plik bez właściciela przed `git add` jest niewidoczny i test przechodzi; po `git add` test zgłasza go w `unowned` (sprawdzone na kopii z nowym plikiem w nowym katalogu feature). Uruchamiaj test po `git add`, przed commitem.
-- **Nie liczy właścicieli zależności.** Ta sama zależność w dwóch manifestach, w tej samej sekcji i wersji, przechodzi test mimo jego nazwy (sprawdzone na kopii: `zod` dopisany do `dependencies` `audit-logs` obok `core`). `wa remove` takiego modułu zostawia zależność, dopóki deklaruje ją inny moduł. Rozbieżność R10 w notatce rozbieżności części 2.
+- **Nie liczy właścicieli zależności.** Ta sama zależność w dwóch manifestach, w tej samej sekcji i wersji, przechodzi test mimo jego nazwy (sprawdzone na kopii: `zod` dopisany do `dependencies` `audit-logs` obok `core`). `wa remove` takiego modułu zostawia zależność, dopóki deklaruje ją inny moduł. R10 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md).
 - **Nie sprawdza `ciSteps`** ([wyżej](#pliki-uslug-i-ci)).
 - **Nie trafia do projektu.** Test leży w `kit/cli`; w projekcie klienta nic nie pilnuje kompletności manifestów.
 
@@ -274,7 +274,7 @@ Reguły dla osoby, która dodaje plik do kitu:
 
 - Plik, który zawiera nazwę projektu, slug albo nazwę bazy, dopisz do `placeholderFiles`. Inaczej trafi do projektu z `wa_app` i na przykład kilka projektów na jednej maszynie użyje tej samej bazy testowej `wa_app_test`.
 - W pliku z listy nie używaj tych napisów w innym znaczeniu: zostaną podmienione.
-- Testów nie dopisuj do listy. To tylko konwencja, kod jej nie sprawdza (rozbieżność R7). Plan 3 dopisał na chwilę dwa testy `uploads` i wycofał je w następnym commicie (`c6c26c4`, `76b5956`).
+- Testów nie dopisuj do listy. To tylko konwencja, kod jej nie sprawdza (R7 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Plan 3 dopisał na chwilę dwa testy `uploads` i wycofał je w następnym commicie (`c6c26c4`, `76b5956`).
 
 Job `assemble` w `kit.yml` sprawdza w złożonym projekcie, że poza testami (`**/__tests__/**`, `**/*.test.*`), `package-lock.json` i `.wa/bin/**` nie został żaden z trzech napisów (krok „No placeholders left in the project”). Ten sam `git grep` w projekcie `acme-app` złożonym ze wszystkimi modułami nie znalazł nic (kod 1, sprawdzone).
 
@@ -313,7 +313,7 @@ npm run build --prefix kit/cli
 
 Bundel zawiera komentarze ze ścieżkami modułów, na przykład `// node_modules/zod/v4/core/util.js`, liczonymi od `kit/cli`. Buduj go z zależnościami zainstalowanymi w `kit/cli` przez `npm ci --prefix kit/cli`. Na kopii z `kit/cli/node_modules` jako dowiązaniem symbolicznym do innego katalogu esbuild wpisał w komentarze pełne ścieżki docelowe i zmienił 96 linii bundla bez zmiany kodu (sprawdzone).
 
-**Który krok CI zatrzymuje nieaktualny bundel.** W jobie `cli` w `kit.yml` krok „Verify CLI” (`npm run verify --prefix kit/cli`) kończy się przebudową bundla. Następny krok, „Kit state and generated files are up to date”, robi `git diff --exit-code` na całym drzewie, więc to on zatrzymuje pull request z nieaktualnym bundlem. Na kopii z commitem, który zmienił tekst w `kit/cli/src/bin.ts` bez przebudowy, ten krok wykazał różnicę w `.wa/bin/wa.mjs` (sprawdzone, kroki joba uruchomione lokalnie po kolei). Ostatni krok, „Bundle is up to date” (`git diff --exit-code -- .wa/bin/wa.mjs`), po udanym poprzednim zawsze przechodzi; zdanie w `kit/CLAUDE.md`, że nieaktualny bundel zatrzymuje ten właśnie krok, jest nieścisłe (rozbieżność R3).
+**Który krok CI zatrzymuje nieaktualny bundel.** W jobie `cli` w `kit.yml` krok „Verify CLI” (`npm run verify --prefix kit/cli`) kończy się przebudową bundla. Następny krok, „Kit state and generated files are up to date”, robi `git diff --exit-code` na całym drzewie, więc to on zatrzymuje pull request z nieaktualnym bundlem. Na kopii z commitem, który zmienił tekst w `kit/cli/src/bin.ts` bez przebudowy, ten krok wykazał różnicę w `.wa/bin/wa.mjs` (sprawdzone, kroki joba uruchomione lokalnie po kolei). Ostatni krok, „Bundle is up to date” (`git diff --exit-code -- .wa/bin/wa.mjs`), po udanym poprzednim zawsze przechodzi; zdanie w `kit/CLAUDE.md`, że nieaktualny bundel zatrzymuje ten właśnie krok, jest nieścisłe (R3 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)).
 
 <a id="bramka-cli"></a>
 
@@ -328,7 +328,7 @@ CLI ma osobny `package.json` i `package-lock.json` w `kit/cli`. Zależności ins
 | `npm run typecheck --prefix kit/cli` | `tsc --noEmit` z `kit/cli/tsconfig.json` (bez fikstur). |
 | `npm test --prefix kit/cli` | Vitest w środowisku `node`, pliki `src/**/*.test.ts` (`kit/cli/vitest.config.ts`). Testy kopiują fikstury do katalogu tymczasowego ([08](08-testy.md#cli-hooki)); wyjątkiem jest test własności na repozytorium kitu. |
 | `npm run build --prefix kit/cli` | Typecheck i bundel ([wyżej](#bundel)). |
-| `npm run test:mutation:task --prefix kit/cli -- <pliki>` | Stryker tylko na podanych plikach, ścieżki względem `kit/cli`: plik `kit/cli/src/commands/add.ts` podajesz jako src/commands/add.ts. |
+| `npm run test:mutation:task --prefix kit/cli -- <pliki>` | Stryker tylko na podanych plikach, każda jako ścieżka względem `kit/cli`, zaczynająca się od `src/`. |
 | `npm run test:mutation --prefix kit/cli` | Pełny przebieg Strykera: przyrostowy (`reports/stryker-incremental.json`), próg `break` 75%. |
 | `npm run test:mutation:gate --prefix kit/cli` | Bramka plików krytycznych CLI. |
 
@@ -356,7 +356,7 @@ Workflow `.github/workflows/kit.yml` działa przy pushu do `main` i przy pull re
 | Install CLI dependencies | `npm ci --prefix kit/cli` | Lockfile CLI niezgodny z `kit/cli/package.json`. |
 | Verify CLI | `npm run verify --prefix kit/cli` | Błąd lintu, typów albo testu CLI, w tym testu własności. |
 | Kit state and generated files are up to date | `npm run wa -- kit sync && npm run wa -- generate && git diff --exit-code` | `.wa/kit.json`, pliki generowane albo regiony niezgodne z manifestami; nieaktualny bundel ([wyżej](#bundel)). |
-| Bundle is up to date | `git diff --exit-code -- .wa/bin/wa.mjs` | Nic: po udanym poprzednim kroku zawsze przechodzi (R3). |
+| Bundle is up to date | `git diff --exit-code -- .wa/bin/wa.mjs` | Nic: po udanym poprzednim kroku zawsze przechodzi (R3 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). |
 
 **Job `assemble`** („Assemble (`<combo>`)”) działa po `cli`, z usługą Postgres 16, osobno dla każdej kombinacji modułów:
 
@@ -409,7 +409,7 @@ Wersja kitu to `version` w `kit/kit.json`. Trafia do `kitVersion` każdego noweg
 Kroki wydania:
 
 1. Podbij `version` w manifeście każdego modułu, którego pliki się zmieniły (`kit/CLAUDE.md`, „Moduły i manifest”).
-2. Podbij `version` w `kit/kit.json`. `kit/CLAUDE.md` tego kroku nie wymienia (rozbieżność R11), ale wynika on z kodu: tag nazywa się jak wersja kitu, a tag poprzedniej wersji już istnieje i wskazuje stary commit.
+2. Podbij `version` w `kit/kit.json`. `kit/CLAUDE.md` tego kroku nie wymienia (R11 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)), ale wynika on z kodu: tag nazywa się jak wersja kitu, a tag poprzedniej wersji już istnieje i wskazuje stary commit.
 3. `npm run wa -- kit sync`, potem `npm run wa -- generate`; zacommituj `.wa/kit.json`.
 4. Przejdź obie bramki i scal zmianę do `main`.
 5. Ustaw tag z adnotacją na commicie wydania w `main` i wypchnij go. Tag ustawia człowiek. Tag `v0.1.0` ma adnotację `wa-kit v0.1.0` i wskazuje `76ca2d7` (sprawdzone, `git cat-file -p v0.1.0`):
@@ -423,7 +423,7 @@ Tag z adnotacją wskazuje obiekt tagu, a nie commit, dlatego `git clone --branch
 
 Nic nie sprawdza kroków 1, 2 i 5:
 
-- Zmiana plików modułu bez podbicia jego wersji przechodzi przez obie bramki i CI. W planie 3 `core` przeszedł z `0.1.0` do `0.4.0` w trzech commitach (`c8a0ffd`, `102b706`, `2e8db6e`), ale commit `c6c26c4` zmienił plik rdzenia `src/test/integration/setup-env.ts` bez podbicia `core`. Wersja kitu przez cały plan 3 zostawała `0.1.0`, a tag `v0.1.0` ustawiono 2026-10-30 na końcowym commicie planu.
+- Zmiana plików modułu bez podbicia jego wersji przechodzi przez obie bramki i CI. W planie 3 `core` przeszedł z `0.1.0` do `0.4.0` w trzech commitach (`c8a0ffd`, `102b706`, `2e8db6e`), ale kilka innych zmian plików rdzenia weszło bez podbicia (R12 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Wersja kitu przez cały plan 3 zostawała `0.1.0`, a tag `v0.1.0` ustawiono 2026-10-30 na końcowym commicie planu.
 - Bez tagu one-liner z `--branch v<wersja>` i `wa add` z domyślnym źródłem kończą się błędem pobierania, a `wa list` wypisuje `Dostępne: nie udało się pobrać kitu (<powód>)` z kodem 0 ([16](16-cli-wa.md#wa-list), [znane-ograniczenia.md](znane-ograniczenia.md)).
 
 <a id="nowy-modul-kitu"></a>
@@ -432,20 +432,34 @@ Nic nie sprawdza kroków 1, 2 i 5:
 
 Ta sekcja dotyczy modułu kitu, czyli kodu, który trafi do wielu projektów. Funkcję jednego projektu dodajesz jako moduł projektu ([tutorial 09](09-nowy-modul.md), [16](16-cli-wa.md#moduly-projektu)). Kod feature piszesz tak samo jak w tutorialu ([09b](09b-implementacja-i-bramki.md)); różnią się rejestracja, własność plików i CI.
 
-Kroki są sprawdzone na tym, co zrobił plan 3 dla `audit-logs`, `api-keys` i `uploads` (`git log --oneline 5b2d308..76ca2d7`). Przy każdym kroku stoi commit, który go wykonał.
+Kroki opisują, co zrobił plan 3 ([plan](superpowers/plans/2026-10-29-wa-kit-plan-3-modules.md), który dodał do kitu moduły `audit-logs`, `api-keys` i `uploads`; commity `git log --oneline 5b2d308..76ca2d7`). Przy każdym kroku stoi commit, który go wykonał. To, czego plan 3 nie robił konsekwentnie, a co warto robić, oznacza **Zalecenie**.
 
-1. **Szew w rdzeniu, jeśli moduł go potrzebuje.** Kod modułu nie edytuje plików rdzenia ([AGENTS.md](../AGENTS.md), „Moduły i pliki generowane”), więc punkt wejścia, z którego moduł korzysta, powstaje najpierw w rdzeniu, osobnym commitem, z podbiciem wersji `core`. Plan 3 dodał tak `trackAudit` i deklaracje `auditActions`, `apiScopes`, `uploadPurposes` w `defineModule` (`c8a0ffd`, `core` `0.2.0`). Szew, który wymaga nowego elementu w plikach generowanych albo nowego regionu, jest zmianą CLI: tablica `auditSinks` (`33b4edc`) i pole `ciSteps` z regionem `wa:ci-integration` (`2e8db6e`, markery w `ci.yml` i `core` `0.4.0`). Zmiana CLI przechodzi bramkę CLI i przebudowę bundla ([Bundel](#bundel)). Opis szwów: [12-moduly-kitu.md](12-moduly-kitu.md).
+**Moduł kitu a pliki rdzenia.** `AGENTS.md` („Moduły i pliki generowane”) i `CLAUDE.md` mówią: „Moduł nie edytuje plików rdzenia”. Plan 3 tej reguły nie przestrzegał dosłownie: każdy z trzech modułów wymagał zmian w plikach `core` (szwy, konfiguracja testów, bramka mutacji), a większość tych zmian weszła w commitach modułów, bez podbicia wersji `core`. Rozjazd reguły z praktyką opisuje R12 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md). Kroki 1, 6, 7 i 10 niżej dotyczą plików rdzenia.
+
+1. **Szew w rdzeniu, jeśli moduł go potrzebuje.** Punkty wejścia, z których korzystają moduły planu 3, powstały w rdzeniu:
+   - osobnym commitem z podbiciem `core`: `trackAudit` i deklaracje `auditActions`, `apiScopes`, `uploadPurposes` w `defineModule` (`c8a0ffd`, `core` `0.2.0`);
+   - zmianą CLI z podbiciem `core`: pole `ciSteps` z regionem `wa:ci-integration` (`2e8db6e`, markery w `ci.yml`, `core` `0.4.0`); zmianą CLI bez plików rdzenia: tablica `auditSinks` (`33b4edc`);
+   - wewnątrz commitów modułu, bez podbicia `core`: wywołanie `trackAudit` w `src/features/organizations/services/commands/member-commands.ts` (`9569cbc`, commit `feat(audit-logs)`) i `requestConfirmation` w `src/shared/components/service-mode/use-service-mode-action.tsx` (`6279545`, commit `feat(uploads)`);
+   - osobnym commitem bez podbicia `core`: poprawka `src/proxy.ts` dla ścieżek zaczynających się od `api` (`7b069fc`, przy `api-keys`).
+
+   Zmiana CLI przechodzi bramkę CLI i przebudowę bundla ([Bundel](#bundel)). Opis szwów: [12-moduly-kitu.md](12-moduly-kitu.md). **Zalecenie:** zmianę pliku rdzenia rób osobnym commitem z podbiciem `version` w `kit/modules/core.json`, jak w `c8a0ffd`.
 2. **Kod modułu.** `src/features/<x>/` z `module.ts`, schemat `prisma/schema/<x>.prisma`, strony w `src/app/[locale]/(app)/<x>/`, trasy API w `src/app/api/<x>/` (`c8b5f74`, `102b706`, `c6c26c4` i kolejne `feat(<x>)`). Migracji nie commitujesz, bo kit ich nie commituje ([D13](decyzje.md#d13)).
-3. **Manifest `kit/modules/<x>.json`** z `name` równym nazwie pliku, `version` (plan 3: `0.1.0`), `description`, `files`, `requires`, zależnościami npm, `env`, `schemaRelations`, a w razie potrzeby `compose` i `ciSteps` ([Manifesty](#manifesty)). Każdy nowy katalog modułu dostaje własny wzorzec w `files` w tym samym commicie, w którym powstaje: `audit-logs` dostał `src/app/[locale]/(app)/audit-log/**` razem ze stroną (`1863fb0`), `api-keys` trasę API i stronę w dwóch osobnych commitach (`a6cffb0`, `8a320d2`). Plik usług Dockera i plik kroków CI leżą w `docker/<x>.compose.yml` i `ci/<x>.integration-steps.yml` i należą do `files` modułu ([wyżej](#pliki-uslug-i-ci)). Przykład zmiennej z nazwą projektu zapisz z `{{projectSlug}}` (`76b5956`).
+3. **Manifest `kit/modules/<x>.json`** z `name` równym nazwie pliku, `version` (plan 3: `0.1.0`), `description`, `files`, `requires`, zależnościami npm, `env`, `schemaRelations`, a w razie potrzeby `compose` i `ciSteps` ([Manifesty](#manifesty)). Każdy nowy katalog modułu dostał własny wzorzec w `files` w tym samym commicie, w którym powstał: `audit-logs` dostał `src/app/[locale]/(app)/audit-log/**` razem ze stroną (`1863fb0`), `api-keys` trasę API i stronę w dwóch osobnych commitach (`a6cffb0`, `8a320d2`). Plik usług Dockera i plik kroków CI leżą w `docker/<x>.compose.yml` i `ci/<x>.integration-steps.yml` i należą do `files` modułu ([wyżej](#pliki-uslug-i-ci)). Przykład zmiennej z nazwą projektu zapisz z `{{projectSlug}}` (`76b5956`).
 4. **Zależności npm.** Dopisz je przez npm 11 do `package.json` kitu (z `package-lock.json`) i do manifestu, w tej samej sekcji i wersji (`c6c26c4`, `7438ea8`). Dotyczy to też zależności używanych tylko w testach modułu: `audit-logs` deklaruje `better-call` w `devDependencies` (`8818bba`).
 5. **Placeholdery.** Plik modułu z nazwą projektu albo bazy dopisz do `placeholderFiles` w `kit/kit.json` (`c6c26c4`: `docker/uploads.compose.yml`, `ci/uploads.integration-steps.yml`). Testów nie dopisuj (`76b5956` je wycofał).
-6. **Zmienne w testach aplikacji referencyjnej.** Zmienna wymagana przez schemat `env.ts` modułu musi mieć wartość w testach e2e i integracyjnych kitu, bo kit uruchamia je z modułem. Plan 3 dopisał `API_KEY_PEPPER` i `S3_*` do `e2e/env.ts` i `src/test/integration/setup-env.ts` (`102b706`, `c6c26c4`, `76b5956`). To pliki rdzenia, więc taka zmiana podbija wersję `core` (`102b706`: `0.3.0`).
-7. **`kit sync` i generator.** `npm run wa -- kit sync` i `npm run wa -- generate`. Commit modułu zawiera wynik: `.wa/kit.json`, `src/modules.generated.ts`, `src/modules.client.generated.ts` i regiony w `auth.prisma`, `organizations.prisma`, `.env.example`, `docker-compose.yml`, `ci.yml` (`c8b5f74`, `102b706`, `c6c26c4`).
-8. **Własność i bramka CLI.** `git add` nowych plików, potem test własności albo cała bramka CLI ([Własność](#wlasnosc)).
-9. **Bramka mutacji aplikacji.** Dopisz katalog usług modułu, `src/features/<x>/services/`, do listy `critical` w `mutation-gate.json` w katalogu głównym (`c8b5f74`, `102b706`, `c6c26c4`). Wpisy `allowed` proponujesz, a zatwierdza je człowiek w pull requeście (przykład: `36dd132`).
-10. **Macierz `assemble`.** Dopisz pozycję `{ name: <x>, modules: "<x>" }` i dopisz moduł do listy kombinacji `all` w `.github/workflows/kit.yml` (`309d26e`, `d5b0c98`, `1166d08`). Moduł, którego testy integracyjne potrzebują usługi, dostaje w `assemble` własne kroki z warunkiem `if: contains(matrix.combo.modules, '<x>')` i zmienne dla `Integration tests` (`1166d08` dla MinIO).
-11. **Dokumentacja.** Wiersz modułu w tabeli `kit/README.md`, opis w `docs/12-moduly-kitu.md` i decyzje w [decyzje.md](decyzje.md#statusy-i-numeracja) (`615bda3`, `b1a3a28`, `474aaee`).
-12. **Bramki i wydanie.** `npm run verify`, `npm run verify --prefix kit/cli`, pull request, a po scaleniu wydanie ([wyżej](#wydanie)).
+6. **Zmienne w testach aplikacji referencyjnej.** Kit uruchamia testy e2e i integracyjne z modułem, więc zmienna wymagana przez schemat `env.ts` modułu musi mieć wartość w plikach rdzenia `e2e/env.ts` i `src/test/integration/setup-env.ts`. Plan 3 dopisał tam `API_KEY_PEPPER` i `S3_*` w commitach `102b706` (z podbiciem `core` do `0.3.0`) oraz `c6c26c4`, `2199cea`, `76b5956` (bez podbicia).
+7. **Testy i konfiguracja rdzenia, które dotyka moduł.** Plan 3 zmienił jeszcze trzy pliki rdzenia, każdy w commicie modułu, bez podbicia `core`:
+   - `src/shared/lib/__tests__/env.test.ts` dostał `vi.mock("@/modules.generated", () => ({ moduleEnvSchemas: [] }));` (`102b706`). Test rdzenia sprawdza schemat zmiennych rdzenia; bez atrapy wymagana zmienna modułu (`API_KEY_PEPPER`) psułaby jego przypadki.
+   - `stryker.integration.config.json`: wzorzec `mutate` `src/features/organizations/services/**/*.ts` zamieniony na `src/features/*/services/**/*.ts`, żeby przebieg integracyjny mutował też usługi modułów (`04ce5d3`).
+   - `UNGUARDED_ALLOWED` w `src/__tests__/server-entrypoints-guard.test.ts`: `b3da758` dopisał wyjątek dla `readUploadForDownload` z pliku `read-upload.ts` w katalogu `services/queries/` modułu `uploads` (pliki publiczne czytane bez sesji), a `0b5c91d` go usunął, przenosząc plik do `src/features/uploads/services/read-upload.ts`, poza `services/queries/`, którego reguła guardu dotyczy. Wyjątek jest potrzebny, gdy eksportowana funkcja z pliku `"use server"` albo z `services/queries/` ma świadomie działać bez guardu sesji. Ten sam test sprawdza jednak, że każdy wyjątek z listy istnieje w kodzie („wyjątki z listy UNGUARDED_ALLOWED nadal istnieją”), więc wyjątek dla pliku modułu w tym pliku rdzenia zatrzymałby `npm test` w projekcie bez tego modułu (wniosek z kodu testu, nie z przebiegu). **Zalecenie:** zamiast wyjątku przenieś funkcję poza `services/queries/`, jak `0b5c91d`.
+8. **`kit sync` i generator.** `npm run wa -- kit sync` i `npm run wa -- generate`. Commit modułu zawiera wynik: `.wa/kit.json`, `src/modules.generated.ts`, `src/modules.client.generated.ts` i regiony w `auth.prisma`, `organizations.prisma`, `.env.example`, `docker-compose.yml`, `ci.yml` (`c8b5f74`, `102b706`, `c6c26c4`).
+9. **Własność i bramka CLI.** `git add` nowych plików, potem test własności albo cała bramka CLI ([Własność](#wlasnosc)).
+10. **Bramka mutacji aplikacji.** `mutation-gate.json` w katalogu głównym jest plikiem `core`. Plan 3 dopisał do jego listy `critical` katalogi usług modułów, `src/features/<x>/services/` (`c8b5f74`, `102b706`, `c6c26c4`), a do `allowed` osiem wpisów dla plików `api-keys` (`36dd132`, zatwierdzone przez człowieka w pull requeście); żaden z tych commitów nie podbił `core`.
+11. **Macierz `assemble`.** Dopisz pozycję `{ name: <x>, modules: "<x>" }` i dopisz moduł do listy kombinacji `all` w `.github/workflows/kit.yml` (`309d26e`, `d5b0c98`, `1166d08`). Moduł, którego testy integracyjne potrzebują usługi, dostaje w `assemble` własne kroki z warunkiem `if: contains(matrix.combo.modules, '<x>')` i zmienne dla `Integration tests` (`1166d08` dla MinIO).
+12. **Dokumentacja.** Wiersz modułu w tabeli `kit/README.md`, opis w `docs/12-moduly-kitu.md` i decyzje w [decyzje.md](decyzje.md#statusy-i-numeracja) (`615bda3`, `b1a3a28`, `474aaee`).
+13. **Bramki i wydanie.** `npm run verify`, `npm run verify --prefix kit/cli`, pull request, a po scaleniu wydanie ([wyżej](#wydanie)).
+
+**Co z tego trafia do projektu.** Zmiany z kroków 6, 7 i 10 leżą w plikach `core`, więc dostaje je każdy projekt, także ten z samym rdzeniem. Projekt bez modułów ma w `mutation-gate.json` katalogi `critical` modułów, których nie ma, i wpisy `allowed` dla plików `api-keys`, a w `e2e/env.ts` i `src/test/integration/setup-env.ts` wartości `API_KEY_PEPPER` i `S3_*`. To nieszkodliwe: `checkMutationGate` (`scripts/lib/mutation-gate.ts`) przegląda tylko pliki obecne w raporcie Strykera, a wpis `allowed` uznaje za nieaktualny tylko wtedy, gdy jego plik jest w raporcie (`entry.file in report.files`), a zmienne bez schematu modułu nie są czytane. Job `assemble` składa i weryfikuje projekt `core` z tymi plikami w CI.
 
 Testy rdzenia, które porównują rejestr z literałem, filtrują go do modułów rdzenia (`src/test/core-modules.ts`), więc nowy moduł ich nie psuje ([D37](decyzje.md#d37)). Spójność całego rejestru, z nowym modułem, sprawdza `src/shared/lib/modules/__tests__/registry-consistency.test.ts`.
 
@@ -457,7 +471,7 @@ Testy rdzenia, które porównują rejestr z literałem, filtrują go do modułó
 
 ### `kit/kit.json`
 
-Schemat `kitConfigSchema` z `kit/cli/src/kit/kit-config.ts`. Wszystkie pola są wymagane; brak pliku daje `Brak kit/kit.json w <katalog> — to nie jest repozytorium wa-kit`, a zła treść surowy błąd Zod.
+Schemat `kitConfigSchema` z `kit/cli/src/kit/kit-config.ts`. Wszystkie pola są wymagane; brak pliku daje `Brak kit/kit.json w <katalog> — to nie jest repozytorium wa-kit`, niepoprawny JSON `SyntaxError` z `JSON.parse`, a poprawny JSON o złym kształcie surowy błąd Zod.
 
 | Pole | Typ | Wartość w kicie | Kto czyta |
 | --- | --- | --- | --- |
