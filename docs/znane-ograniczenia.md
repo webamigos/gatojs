@@ -4,10 +4,11 @@ Po przeczytaniu będziesz wiedzieć:
 
 - które zachowania kitu są znanymi lukami, a nie błędem w Twoim kodzie ani w dokumentacji;
 - które dwie pozycje mają wysoki priorytet i jak je ominąć: w testach mutacyjnych i na Railway;
+- jakie luki mają CLI `wa` i moduły kitu `audit-logs`, `api-keys` i `uploads`;
 - gdzie w kodzie siedzi przyczyna każdej pozycji i który plik dokumentacji opisuje ją szczegółowo;
 - czym ograniczenie różni się od decyzji z [rejestru decyzji](decyzje.md).
 
-Zweryfikowano z kodem: d416599, 2026-10-28
+Zweryfikowano z kodem: 75f7322, 2026-10-30 (sekcje [CLI i składanie projektu](#cli) i [Moduły kitu](#moduly-kitu)); pozostałe pozycje: d416599, 2026-10-28
 
 Źródła:
 
@@ -16,6 +17,8 @@ Zweryfikowano z kodem: d416599, 2026-10-28
 - auth, role i tryb serwisowy: `src/shared/lib/auth/index.ts`, `src/shared/lib/auth/admin-access.ts`, `src/shared/lib/auth/admin-guard.ts`, `src/shared/lib/auth/roles.ts`, `src/shared/components/service-mode/use-service-mode-action.tsx`, `src/features/organizations/components/organization-members.tsx`, `src/features/organizations/services/commands/member-commands.ts`, `src/features/organizations/services/queries/switchable-organizations-query.ts`, `src/features/users/services/commands/impersonation-commands.ts`;
 - język, logi i serwer: `src/i18n/routing.ts`, `src/shared/lib/logger.ts`, `src/instrumentation.ts`, `src/app/api/healthcheck/route.ts`, `src/shared/utils/error-handling.ts`, `Dockerfile`, `railway.toml`;
 - testy i proces: `stryker.integration.config.json`, `vitest.integration.config.ts`, `mutation-gate.json`, `scripts/lib/mutation-gate.ts`, `.claude/hooks/protect-tests.mjs`, `.claude/hooks/block-comments.mjs`, `.github/workflows/e2e.yml`, `commitlint.config.mjs`, `.gitignore`;
+- CLI i składanie projektu: `kit/cli/src/args.ts`, `kit/cli/src/bin.ts`, `kit/cli/src/commands/create.ts`, `kit/cli/src/commands/add.ts`, `kit/cli/src/commands/remove.ts`, `kit/cli/src/kit/source.ts`, `kit/cli/src/kit/files.ts`, `kit/cli/src/assemble/copy.ts`, `kit/cli/src/assemble/package-json.ts`, `kit/cli/src/assemble/resolve-modules.ts`, `kit/cli/src/process/runner.ts`, `kit/kit.json`, `kit/modules/*.json`, `.github/workflows/kit.yml`;
+- moduły kitu: `src/features/audit-logs/`, `src/features/api-keys/env.ts`, `src/features/api-keys/services/api-key-secret.ts`, `src/features/uploads/services/commands/create-upload.ts`, `src/features/uploads/services/commands/upload-commands.ts`, `src/features/uploads/services/content-disposition.ts`, `src/features/uploads/services/__tests__/storage.integration.test.ts`, `src/features/audit-logs/components/__tests__/audit-log-view.test.tsx`, `prisma/schema/uploads.prisma`, `.github/workflows/mutation.yml`, `stryker.integration.config.json`;
 - biblioteki (wersje w `package-lock.json`): `node_modules/@stryker-mutator/core/dist/src/concurrent/concurrency-token-provider.js`, `node_modules/better-auth/dist/api/routes/sign-up.mjs`, `node_modules/better-auth/dist/plugins/admin/routes.mjs`, `node_modules/next-intl/dist/esm/development/middleware/resolveLocale.js`.
 
 Ta lista opisuje zachowania, które wyszły przy czytaniu kodu i przy uruchamianiu komend z dokumentacji. Część z nich to luki, które właściciel kitu może zamknąć zmianą kodu. Inne to cena świadomej decyzji. Decyzje i ich powody są w [rejestrze decyzji](decyzje.md), a tu jest to, co z nich wynika dla Ciebie w praktyce, gdy coś zachowuje się niespodziewanie.
@@ -30,7 +33,7 @@ Każda pozycja ma te same pola:
 | Gdzie | Plik z kodem, w którym jest przyczyna. |
 | Obejście | Co zrobić, żeby pracować mimo ograniczenia. „Brak”, gdy go nie ma. |
 | Kierunek zmiany | Propozycja z przeglądu kodu, nie decyzja. Opisuje zmianę, której w kodzie nie ma. Zmianę zatwierdza właściciel kitu (Jakub), więc do tego czasu obowiązuje opis z pola „Skutek”. |
-| Sprawdzono | Skąd wiadomo: **uruchomiono** (skrypt, zbudowany serwer albo lokalny odbiornik z repozytorium), **z kodu** (wniosek z czytania kodu kitu i bibliotek bez uruchomienia) albo **z dokumentacji Railway** (źródło zewnętrzne). |
+| Sprawdzono | Skąd wiadomo: **uruchomiono** (skrypt, zbudowany serwer, lokalny odbiornik z repozytorium albo bundel CLI na projekcie próbnym), **z kodu** (wniosek z czytania kodu kitu i bibliotek bez uruchomienia) albo **z dokumentacji Railway** (źródło zewnętrzne). |
 
 Priorytet „wysoki” dostają pozycje, które dotyczą domyślnej ścieżki startu, wyniku bramki plików krytycznych albo wdrożenia produkcyjnego. Pozostałe są uporządkowane tematycznie. Pozycje z małym skutkiem są w tabelach, bez osobnych nagłówków. Gdy zachowanie kodu różni się od zdania w `AGENTS.md`, dokumentacja idzie za kodem ([kolejność źródeł](11-praca-z-kitem.md#superpowers)).
 
@@ -40,6 +43,8 @@ Priorytet „wysoki” dostają pozycje, które dotyczą domyślnej ścieżki st
 | --- | --- |
 | [Wysoki priorytet](#wysoki-priorytet) | [dwa procesy testów w przebiegu integracyjnym Strykera](#stryker-concurrency), [Railway nie czyta `railway.toml`](#railway-toml) |
 | [Funkcje projektu i rejestr modułów](#funkcje-projektu) | [mniejsze pozycje generatora i rejestru](#rejestr-male) |
+| [CLI i składanie projektu](#cli) | [`wa add` nie uzupełnia `.env`](#add-env), [wydanie bez tagu](#tagi-kitu), [mniejsze pozycje](#cli-male) |
+| [Moduły kitu](#moduly-kitu) | [dziennik i bucket bez sprzątania](#bez-sprzatania), [`API_KEY_PEPPER`](#api-key-pepper), [mniejsze pozycje](#moduly-male) |
 | [Logowanie, role i organizacje](#auth) | [zaproszenie dla istniejącego konta](#zaproszenie-istniejace-konto), [rola z kilkoma wartościami](#rola-wielowartosciowa), [tryb serwisowy](#tryb-serwisowy-luki), [impersonacja i konta serwisowe](#konta-serwisowe), [mniejsze pozycje](#auth-male) |
 | [Język i komunikaty](#jezyk) | [wykrywanie języka](#wykrywanie-jezyka), [komunikaty i strona 404](#jezyk-male) |
 | [Logi, healthcheck i serwer](#serwer) | [logi na produkcji](#logi), [`HOSTNAME=127.0.0.1`](#hostname), [mniejsze pozycje](#serwer-male) |
@@ -61,7 +66,7 @@ Priorytet „wysoki” dostają pozycje, które dotyczą domyślnej ścieżki st
 
 **Obejście.** Brak w konfiguracji. Do czasu zmiany traktuj mutanty zabite tylko w przebiegu integracyjnym jako niepotwierdzone. Nie uruchamiaj w tym czasie `npm run test:integration` na tej samej bazie ani drugiego przebiegu Strykera ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#jeden-stryker)).
 
-**Kierunek zmiany.** Dwie opcje. Osobna baza na proces testów: `src/test/integration/database-url.ts` miałby doklejać do nazwy numer z `STRYKER_MUTATOR_WORKER` tak, żeby nazwa dalej kończyła się na `_test`, a `globalSetup` miałby zakładać każdą z baz. Albo `checkers: []`: wtedy `concurrency: 1` daje jeden proces testów, ale mutanty, które TypeScript odrzuca dziś jako `CompileError`, uruchamiają się w testach. Po zmianie trzeba przebieg i bramkę uruchomić od nowa, bo zapisane wyniki (`reports/stryker-integration-incremental.json`, cache CI) mogą zawierać fałszywie zabite mutanty.
+**Kierunek zmiany.** Dwie opcje. Osobna baza na proces testów: `src/test/integration/database-url.ts` miałby doklejać do nazwy numer z `STRYKER_MUTATOR_WORKER` tak, żeby nazwa dalej kończyła się na `_test`, a `globalSetup` miałby zakładać każdą z baz. Albo `checkers: []`: wtedy `concurrency: 1` daje jeden proces testów, ale mutanty, które TypeScript odrzuca jako `CompileError`, uruchamiają się w testach. Po zmianie trzeba przebieg i bramkę uruchomić od nowa, bo zapisane wyniki (`reports/stryker-integration-incremental.json`, cache CI) mogą zawierać fałszywie zabite mutanty.
 
 **Sprawdzono.** Z kodu Strykera i z symulacji klasy `ConcurrencyTokenProvider`; samego przebiegu nie uruchamiano. Opis w dokumentacji: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#concurrency).
 
@@ -96,6 +101,117 @@ Priorytet „wysoki” dostają pozycje, które dotyczą domyślnej ścieżki st
 | Zmienne feature z `env.ts` nie mają typu | `env.NAZWA` kończy się błędem TypeScript (TS2339), bo `env` ma typ `CoreEnv`. Walidacja działa. Generator nie porównuje pola `env` manifestu z kluczami `envSchema` | `src/shared/lib/env.ts` | [07-i18n-mail-env.md](07-i18n-mail-env.md#env-feature) |
 | Moduł nie wyśle własnego maila bez edycji rdzenia | `mailer.ts` eksportuje tylko trzy funkcje dla maili rdzenia. Wspólna funkcja wyboru transportu nie jest eksportowana, a szablony leżą w `src/app/emails/` | `src/shared/lib/mailer.ts` | Edycja `mailer.ts` (zmiana rdzenia) albo własna wysyłka ([07-i18n-mail-env.md](07-i18n-mail-env.md#szablony)) |
 | `canAccessPath`, `moduleForPath`, eksport `modules` z rejestru i pole `routePrefixes` nie wpływają na działanie | Zmiana `routePrefixes` nie zmienia dostępu: trasę chroni tylko `requireModuleAccess(key)`. Funkcje mają testy, ale nikt ich nie wywołuje | `src/shared/lib/auth/permissions.ts`, `src/modules.generated.ts` | Wołaj `requireModuleAccess(key)` na każdej stronie ([D11](decyzje.md#d11)) |
+
+<a id="cli"></a>
+
+## CLI i składanie projektu
+
+Działanie komend opisuje [16-cli-wa.md](16-cli-wa.md), a pracę nad CLI i wydanie [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md). Pozycje sprawdzono w kodzie `kit/cli/src`. „Uruchomiono” znaczy, że zachowanie potwierdził przebieg bundla opisany w 16 albo 16b.
+
+<a id="add-env"></a>
+
+### `wa add` nie uzupełnia `.env`, a aplikacja bez zmiennej modułu nie wystartuje
+
+**Skutek.** Po `wa add api-keys` albo `wa add uploads` zmienne modułu (`API_KEY_PEPPER`, `S3_*`) trafiają tylko do regionu `wa:modules` w `.env.example`. `.env` się nie zmienia, więc przy pierwszym odczycie `env` aplikacja kończy się błędem `Nieprawidłowe zmienne środowiskowe: …`. Komunikat CLI o tym nie mówi: ostatnia linia to podpowiedź migracji. Symetrycznie `wa remove` zostawia zmienne modułu w `.env`.
+
+**Gdzie.** `kit/cli/src/commands/add.ts` (`add` nie czyta ani nie zapisuje `.env`), `kit/cli/src/commands/create.ts` (`writeEnvFile` tworzy `.env` tylko przy `wa create`).
+
+**Obejście.** Po `wa add` skopiuj nowe zmienne z regionu `wa:modules` w `.env.example` do `.env` i ustaw własne wartości ([16-cli-wa.md](16-cli-wa.md#add-po)). Po `wa remove` usuń je z `.env` i ze zmiennych produkcji.
+
+**Kierunek zmiany.** Wypisywać w `add` listę nowych zmiennych obok podpowiedzi migracji albo dopisywać brakujące zmienne do `.env` z wartościami przykładowymi.
+
+**Sprawdzono.** Uruchomiono: po `wa add api-keys` w projekcie z `uploads` `.env` nie miał `API_KEY_PEPPER`, a po `wa remove uploads` zmienne `S3_*` zostały w `.env` (R8 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)).
+
+<a id="tagi-kitu"></a>
+
+### Wydanie bez tagu `v<wersja>` psuje one-liner i domyślne źródło kitu
+
+**Skutek.** One-liner z `git clone --branch v<wersja>` ([16-cli-wa.md](16-cli-wa.md#one-liner)) kończy się błędem gita, zanim CLI się uruchomi, jeśli tag tej wersji nie istnieje na GitHubie. W projektach tej wersji `wa add` i `wa list` bez `--kit` i bez `WA_KIT_SOURCE` klonują tag `v<kitVersion>`, więc `wa add` kończy się komunikatem `Nie udało się pobrać wa-kit v<wersja> z <adres>. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`, a `wa list` wypisuje `Dostępne: nie udało się pobrać kitu (…)` z kodem 0. Tag `v0.1.0` istnieje; pozycja dotyczy każdego kolejnego wydania.
+
+**Gdzie.** Proces wydania: tag ustawia człowiek po scaleniu do `main` ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#wydanie), [D46](decyzje.md#d46)), a nic w `.github/workflows/kit.yml` nie sprawdza, że tag istnieje albo że `version` w `kit/kit.json` została podbita. Klonowanie: `cloneKit` w `kit/cli/src/kit/source.ts`.
+
+**Obejście.** Załóż projekt z lokalnego klonu kitu ([16-cli-wa.md](16-cli-wa.md#lokalny-klon)). W projekcie podawaj `--kit <klon>` albo ustaw `WA_KIT_SOURCE` na ścieżkę klonu; jego `version` w `kit/kit.json` musi być równa `kitVersion` projektu ([16-cli-wa.md](16-cli-wa.md#lokalny-klon-zrodlo)).
+
+**Kierunek zmiany.** Workflow, który po zmianie `version` w `kit/kit.json` na `main` tworzy tag z adnotacją, albo krok CI, który przy zmianie plików modułu wymaga podbicia jego `version` i wersji kitu.
+
+**Sprawdzono.** Z kodu i z historii repozytorium: przed 2026-10-30 `git ls-remote --tags origin` nie zwracał żadnego tagu, a one-liner i `wa list` z domyślnym źródłem kończyły się błędem pobierania ([notatka recenzji szkicu](superpowers/notes/2026-10-30-docs-part-2-draft-review.md)). Po ustawieniu tagu `v0.1.0` one-liner działa ([16-cli-wa.md](16-cli-wa.md#one-liner)).
+
+<a id="cli-male"></a>
+
+### Mniejsze pozycje
+
+| Ograniczenie | Skutek | Gdzie | Obejście | Sprawdzono |
+| --- | --- | --- | --- | --- |
+| Projekt nie przejdzie na nowszą wersję kitu | `wa add` i `wa list` przyjmują tylko kit w wersji z `kitVersion` projektu (`Kit w <ścieżka> ma wersję <x>, projekt używa <y>`). Zmiany kitu po założeniu projektu przenosisz ręcznie ([plan 4](README.md#plany)) | `kit/cli/src/kit/source.ts` (`resolveKitSource`) | Przenieś zmiany ręcznie ([11-praca-z-kitem.md](11-praca-z-kitem.md#projekt-a-kit)) | z kodu |
+| Lokalny klon jako źródło kitu: CLI porównuje tylko `version` | Klon na innym commicie z tą samą wersją zostanie użyty. Lista plików pochodzi z indeksu gita, a treść z drzewa roboczego, więc niezacommitowana zmiana śledzonego pliku trafia do projektu | `kit/cli/src/kit/source.ts`, `kit/cli/src/kit/files.ts`, `kit/cli/src/assemble/copy.ts` | Używaj czystego klonu na tagu wersji projektu ([16-cli-wa.md](16-cli-wa.md#lokalny-klon-zrodlo)) | uruchomiono |
+| Pusty `WA_KIT_SOURCE` to katalog bieżący | `WA_KIT_SOURCE=` nie wraca do `kitRepo`, tylko wskazuje katalog, w którym uruchomiono komendę, zwykle projekt bez `kit/kit.json` | `kit/cli/src/kit/source.ts` (`??` przepuszcza pusty napis) | Usuń zmienną (`unset WA_KIT_SOURCE`) | uruchomiono |
+| `wa create` wymaga `git` także z `--no-git` | Lista plików kitu pochodzi z `git ls-files`, więc bez `git` w `PATH` komenda kończy się `spawn git ENOENT`, a katalog projektu jest usuwany. Kit bez `.git` daje `<ścieżka> nie jest repozytorium git` | `kit/cli/src/kit/files.ts` (`listKitFiles`) | Zainstaluj `git`; `--no-git` pomija tylko repozytorium projektu ([16-cli-wa.md](16-cli-wa.md#create-opcje)) | uruchomiono |
+| `--title` i `--admin-email` bez walidacji i escapowania | `--title 'Acme "Q"'` psuje składnię `src/shared/config/project.ts` i zostawia niezamknięty cudzysłów w `EMAIL_FROM`. `--title=` daje pustą nazwę, `--admin-email=` pustą linię `ADMIN_EMAIL=`. Tytuł z `wa-app` albo `wa_app` zostanie dodatkowo podmieniony | `kit/cli/src/args.ts`, `kit/cli/src/assemble/project-names.ts`, `kit/cli/src/assemble/placeholders.ts` | Podawaj tytuł bez cudzysłowów i niepusty adres ([16-cli-wa.md](16-cli-wa.md#create-opcje)) | uruchomiono |
+| Błąd po złożeniu projektu w `wa create` niczego nie cofa | Błąd zapisu `.env`, `git init`, `npm install` albo setupu zostawia katalog projektu, a dalsze kroki nie są wykonane ani wypisane. Przy błędzie setupu pierwszy commit już istnieje. Po setupie bez adresu admina CLI nie przypomina o `admin:create` | `kit/cli/src/commands/create.ts` | Wykonaj brakujące kroki ręcznie ([16-cli-wa.md](16-cli-wa.md#create-cofanie), [D35](decyzje.md#d35)) | uruchomiono |
+| `wa add` pobiera kit przed odmowami | `wa add <moduł zainstalowany>` z błędnym `--kit` daje błąd źródła, a przy domyślnym `kitRepo` nawet odmowa wymaga sieci | `kit/cli/src/commands/add.ts` (`addFromSource`) | Sprawdź stan komendą `npm run wa -- list` (działa bez sieci dla sekcji „Zainstalowane”) ([16-cli-wa.md](16-cli-wa.md#add-kolejnosc)) | uruchomiono |
+| Błąd `wa generate` albo `npm install` w `wa add` nie uruchamia cofania | Pliki modułu są skopiowane i opisane w `.wa/kit.json`, a pliki generowane albo `node_modules` nieaktualne | `kit/cli/src/commands/add.ts` (`generate` i `npm install` poza blokiem z `rollbackAdd`) | Usuń przyczynę i uruchom `npm run wa -- generate` albo `npm install` ([16-cli-wa.md](16-cli-wa.md#add-cofanie)) | z kodu |
+| Cofanie w `wa add` nie przywraca pliku, którego nie da się odczytać | Gdy odczyt bieżącej treści `package.json` albo `.wa/kit.json` się nie uda, oryginał nie jest zapisywany, a log ma tylko linię `Nie udało się posprzątać: <ścieżka> (<kod>)`. Oryginał jest czytany jako UTF-8, więc odtworzenie bajt w bajt dotyczy tylko poprawnego UTF-8 | `kit/cli/src/commands/add.ts` (`restoreFile`) | `git restore package.json .wa/kit.json` | z kodu |
+| Wiszący symlink w miejscu katalogu modułu | Kontrola kolizji go nie widzi (`existsSync` i `lstat` na ścieżce pliku zwracają brak), więc `wa add` kończy się surowym błędem `mkdir` zamiast listy kolizji. Cofanie zostawia projekt bez zmian | `kit/cli/src/commands/add.ts` (`missingDirectories`, `pathOccupied`), `kit/cli/src/assemble/copy.ts` | Usuń symlink | z kodu; `mkdir` z `recursive: true` przez wiszący symlink dał w Node 22.12 `ENOTDIR` |
+| `wa remove` nie cofa zmian po błędzie w trakcie usuwania | Błąd po usunięciu części plików (na przykład uprawnienia) zostawia projekt bez tych plików, ale z modułem w `.wa/kit.json` | `kit/cli/src/commands/remove.ts` | Usuń przyczynę i uruchom `wa remove` ponownie; brakujące pliki nie blokują komendy ([16-cli-wa.md](16-cli-wa.md#remove-cofanie)) | z kodu |
+| `wa remove` usuwa zależność modułu także w wersji ustawionej przez projekt | Pakiet z manifestu usuwanego modułu znika z `package.json`, jeśli nie deklaruje go żaden inny manifest w tej samej sekcji, także gdy projekt miał go przed `add`, zmienił jego wersję albo używa go we własnym kodzie | `kit/cli/src/assemble/package-json.ts` (`removeDependencies`) | Pakiet potrzebny funkcji projektu wpisz w jej manifeście w `projectModules`, w tej samej sekcji ([16-cli-wa.md](16-cli-wa.md#moduly-projektu)) | z kodu; ochronę przez manifest projektu uruchomiono |
+| `wa list` kończy się kodem 0, gdy kitu nie da się pobrać | Zamiast listy „Dostępne” pada linia `Dostępne: nie udało się pobrać kitu (<powód>)` na stdout | `kit/cli/src/bin.ts` (`listCommand`) | W skrypcie sprawdzaj tę linię, nie kod wyjścia ([16-cli-wa.md](16-cli-wa.md#wa-list)) | uruchomiono |
+| Wyjście gita przed komunikatem CLI | Przy nieudanym klonie nad komunikatem CLI widać surową linię gita, na przykład `fatal: repository '…' not found`, a przy udanym ostrzeżenie o tagu z adnotacją | `kit/cli/src/process/runner.ts` (`stdio: "inherit"`) | Czytaj ostatnią linię ([16-cli-wa.md](16-cli-wa.md#one-liner)) | uruchomiono |
+| `Dostępne:` bez nazw | W kicie z samym `core` nieznany moduł daje `Nieznany moduł: <x>. Dostępne: ` z pustą listą | `kit/cli/src/assemble/resolve-modules.ts` | `npm run wa -- list` | z kodu |
+| Tłumaczenie błędów opcji zakłada format komunikatu Node | `translateParseError` wycina nazwę opcji spomiędzy apostrofów w komunikacie `parseArgs`. Gdy Node zmieni treść komunikatu, zamiast polskiego błędu pojawi się `TypeError` | `kit/cli/src/args.ts` | Brak | z kodu |
+| Podbicie `version` modułu i kitu to tylko konwencja | Zmiana plików modułu bez podbicia jego `version` i bez podbicia `version` w `kit/kit.json` przechodzi obie bramki i CI | `kit/modules/*.json`, `kit/kit.json`, `.github/workflows/kit.yml` | Lista kroków wydania ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#wydanie)) | z kodu |
+
+<a id="moduly-kitu"></a>
+
+## Moduły kitu
+
+Moduły opisują pliki 13–15 (konfiguracja i szwy) oraz 13b–15b (użycie we własnym kodzie). Tu są tylko skutki i odnośniki.
+
+<a id="bez-sprzatania"></a>
+
+### Dziennik `audit_logs` i bucket `uploads` rosną bez sprzątania
+
+**Skutek.** Dwa powiązane zachowania:
+
+- **`audit-logs` nie ma retencji.** Nic nie usuwa starych wpisów, więc tabela `audit_logs` rośnie bez limitu. Wpisy znikają tylko razem z organizacją ([13-modul-audit-logs.md](13-modul-audit-logs.md#co-robi)).
+- **`uploads` zostawia osierocone obiekty.** Obiekt w buckecie bez rekordu albo rekord bez encji projektu zostaje, gdy użytkownik wgrał plik i nie zapisał formularza (`<FileUpload>` zapisuje plik od razu po wyborze), gdy encja projektu zniknęła bez `deleteUploadCommand`, gdy usunięcie obiektu albo cofnięcie zapisu się nie udało, po usunięciu organizacji (rekordy znikają kaskadowo, obiekty pod `orgs/<organizationId>/` zostają) i po `wa remove uploads` z migracją usuwającą tabelę ([15-modul-uploads.md](15-modul-uploads.md#osierocone)).
+
+**Gdzie.** `src/features/audit-logs/` (brak zadania usuwającego wpisy), `src/features/uploads/services/commands/create-upload.ts` (log `upload rollback failed`), `src/features/uploads/services/commands/upload-commands.ts` (log `upload deleteObject failed`), `prisma/schema/uploads.prisma` (`onDelete: Cascade` na organizacji).
+
+**Obejście.** Retencję robisz w projekcie, na przykład okresowym zapytaniem usuwającym wpisy starsze niż ustalony termin. Obiekty bez rekordu znajdziesz, porównując klucze w buckecie z kolumną `key` tabeli `uploads`; przy usuwaniu encji wołaj `deleteUploadCommand` ([15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#usuwanie-z-encja)).
+
+**Kierunek zmiany.** Retencja dziennika i sprzątanie osieroconych obiektów jako zadania cykliczne modułu `worker` ([D41](decyzje.md#d41), [D44](decyzje.md#d44), [plany](README.md#plany)).
+
+**Sprawdzono.** Z kodu modułów i specu planu 3 (§2 i §9). Osierocone obiekty po cofnięciu i usunięciu opisuje [15-modul-uploads.md](15-modul-uploads.md#osierocone).
+
+<a id="api-key-pepper"></a>
+
+### `API_KEY_PEPPER`: brak wartości od CLI i brak rotacji
+
+**Skutek.** Trzy powiązane zachowania modułu `api-keys`:
+
+- **`wa create` i `wa add` nie losują peppera.** `.env` dostaje wartość przykładową z `.env.example` (przy `wa add` żadnej, [wyżej](#add-env)). Przy `NODE_ENV=production` schemat modułu odrzuca tę wartość, a błąd schematu psuje walidację `env` całej aplikacji, nie tylko modułu: trasy `/api/v1/…` z kluczem zwracają 500 ([14-modul-api-keys.md](14-modul-api-keys.md#pepper)).
+- **Zmiana peppera unieważnia wszystkie klucze.** Klucz jest zapisany jako HMAC-SHA256 z jednym pepperem. Po zmianie żaden zapisany klucz nie zostanie znaleziony (401 `{"error":"invalid"}`), a lista na `/api-keys` dalej pokazuje je jako aktywne.
+- **Nie ma rotacji.** Moduł zna jeden pepper; nie da się przyjmować kluczy ze starym i nowym pepperem w okresie przejściowym.
+
+**Gdzie.** `src/features/api-keys/env.ts` (`envSchema`), `src/features/api-keys/services/api-key-secret.ts` (`createHmac`), `kit/cli/src/commands/create.ts` (`writeEnvFile` losuje tylko `BETTER_AUTH_SECRET`).
+
+**Obejście.** Przed pierwszym wdrożeniem ustaw losowy pepper (co najmniej 32 znaki, na przykład z `openssl rand -base64 32`) i trzymaj go stałym dla środowiska. Po wymuszonej zmianie organizacje wystawiają nowe klucze i usuwają stare ([14-modul-api-keys.md](14-modul-api-keys.md#pepper), [10-wdrozenie.md](10-wdrozenie.md#zmienne)).
+
+**Kierunek zmiany.** Losowanie `API_KEY_PEPPER` w `wa create` i `wa add` tak jak `BETTER_AUTH_SECRET`. Drugi, opcjonalny pepper do weryfikacji w okresie rotacji.
+
+**Sprawdzono.** Uruchomiono na zbudowanym serwerze: wartość przykładowa przy `NODE_ENV=production` i zmiana peppera ([14-modul-api-keys.md](14-modul-api-keys.md#pepper)). Brak losowania i brak rotacji z kodu.
+
+<a id="moduly-male"></a>
+
+### Mniejsze pozycje
+
+| Ograniczenie | Skutek | Gdzie | Obejście | Sprawdzono |
+| --- | --- | --- | --- | --- |
+| Test kitu zakłada, że projekt nie zadeklaruje akcji `delivery.received` | Moduł projektu z tą akcją w `auditActions` psuje `npm run verify`: test `pokazuje surowy action, gdy akcja nie ma deklaracji` renderuje widok na prawdziwym rejestrze i nie znajduje surowego napisu | `src/features/audit-logs/components/__tests__/audit-log-view.test.tsx` | Nazwij akcję inaczej, na przykład `delivery.accepted` ([13b-modul-audit-logs-uzycie.md](13b-modul-audit-logs-uzycie.md#problemy)) | uruchomiono |
+| Jeden plik w dwóch encjach | `uploads` nie wie, które encje wskazują plik. `deleteUploadCommand` usuwa rekord i obiekt bez sprawdzania odwołań, więc druga encja z tym samym `id` pliku wskazuje adres, który daje 404 | `src/features/uploads/services/commands/upload-commands.ts` | Unikalna kolumna z `id` pliku albo sprawdzenie odwołań przed `deleteUploadCommand` ([15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#usuwanie-z-encja)) | z kodu |
+| `filename*` w `Content-Disposition` nie koduje `*`, `(` i `)` | `encodeURIComponent` zostawia te znaki, a RFC 5987 ich nie dopuszcza w `filename*`. Przeglądarki zwykle akceptują taką wartość | `src/features/uploads/services/content-disposition.ts` | Brak ([15-modul-uploads.md](15-modul-uploads.md#get)) | z kodu |
+| `storage.integration.test.ts` nie usuwa swoich obiektów | Po każdym przebiegu testów integracyjnych w buckecie testowym zostają obiekty `orgs/o1/test/…` i `orgs/o2/test/…` | `src/features/uploads/services/__tests__/storage.integration.test.ts` | Nie wskazuj testom bucketu z danymi, które przeglądasz ([15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#testowanie)) | uruchomiono |
+| `mutation.yml` nie uruchamia MinIO | Przebieg integracyjny Strykera obejmuje testy `uploads`, które łączą się z S3 pod `http://localhost:9000`, a workflow ma tylko Postgresa i nie ma regionu `wa:ci-integration`. W kicie i w projekcie z `uploads` ten przebieg najpewniej kończy się błędem | `.github/workflows/mutation.yml`, `stryker.integration.config.json` | Przebieg integracyjny uruchamiaj lokalnie z MinIO ([08-testy.md](08-testy.md#ci)) | z kodu; workflowu nie uruchamiano |
 
 <a id="auth"></a>
 

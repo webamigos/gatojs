@@ -243,7 +243,7 @@ Z tego wynikają trzy reguły dla kodu projektu:
 - **Pliki modułu importujesz tylko wtedy, gdy moduł jest w projekcie.** Import `<AuditTrail>`, `authenticateApiKey` albo `<FileUpload>` w projekcie bez `audit-logs`, `api-keys` albo `uploads` kończy się błędem `TS2307: Cannot find module '@/features/…'` w typechecku i w buildzie (sprawdzone). Taki kod projekt ma tylko razem z modułem, a moduł projektu, który go zawiera, powinien mieć ten moduł w `requires`.
 - **`requireModuleAccess("<moduł>")` dla modułu, którego nie ma, daje użytkownikowi z aktywną organizacją zawsze 404**, bo `moduleByKey` nie znajduje definicji w rejestrze. Kontekst organizacji jest pobierany wcześniej, więc użytkownik bez aktywnej organizacji trafia na `/no-organization`, jak przy każdym module.
 
-Co konkretny moduł robi z deklaracjami i jak ich używać we własnym kodzie, opisują sekcje „Szwy modułu” i „Użycie z własnego kodu” w [13](13-modul-audit-logs.md), [14](14-modul-api-keys.md) i [15](15-modul-uploads.md).
+Co konkretny moduł robi z deklaracjami, opisują sekcje „Szwy modułu” w [13](13-modul-audit-logs.md#szwy), [14](14-modul-api-keys.md#szwy) i [15](15-modul-uploads.md#szwy), a jak ich używać we własnym kodzie, sekcje „Użycie z własnego kodu” w [13b](13b-modul-audit-logs-uzycie.md#uzycie), [14b](14b-modul-api-keys-uzycie.md#uzycie) i [15b](15b-modul-uploads-uzycie.md#uzycie).
 
 <a id="wspolne-zasady"></a>
 
@@ -274,6 +274,7 @@ Kolejne kroki:
 
 - założenie projektu z modułami: [16-cli-wa.md](16-cli-wa.md#wa-create);
 - dodanie i usunięcie modułu w istniejącym projekcie: [16-cli-wa.md](16-cli-wa.md#wa-add), [16-cli-wa.md](16-cli-wa.md#wa-remove);
-- konfiguracja, użycie i bezpieczeństwo każdego modułu: [13-modul-audit-logs.md](13-modul-audit-logs.md), [14-modul-api-keys.md](14-modul-api-keys.md), [15-modul-uploads.md](15-modul-uploads.md);
+- konfiguracja i szwy każdego modułu: [13-modul-audit-logs.md](13-modul-audit-logs.md), [14-modul-api-keys.md](14-modul-api-keys.md), [15-modul-uploads.md](15-modul-uploads.md);
+- użycie modułu we własnym kodzie, bezpieczeństwo i testowanie: [13b-modul-audit-logs-uzycie.md](13b-modul-audit-logs-uzycie.md), [14b-modul-api-keys-uzycie.md](14b-modul-api-keys-uzycie.md), [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md);
 - własna funkcja projektu jako moduł projektu: [09-nowy-modul.md](09-nowy-modul.md);
 - dodanie nowego modułu do kitu: [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#nowy-modul-kitu).

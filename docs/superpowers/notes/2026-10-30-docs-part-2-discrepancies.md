@@ -17,7 +17,7 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Dokument:** `kit/README.md`, sekcja „Rozwój kitu” (linia 64): bramka CLI to „typecheck, testy, build bundla”.
 - **Kod:** `kit/cli/package.json`, skrypt `verify`: `npm run lint && npm run typecheck && npm test && npm run build`. `kit/CLAUDE.md` opisuje to poprawnie („lint → typecheck → testy → build bundla”).
 - **Propozycja:** dopisać lint w `kit/README.md` (zmiana w Task 12 części 2).
-- **Status:** otwarte, naprawia Task 12.
+- **Status:** naprawione w Task 12 (`kit/README.md`, „Rozwój kitu”: „lint → typecheck → testy → build bundla”).
 
 ## R3. Krok „Bundle is up to date” w `kit.yml` nie może się nie udać
 
@@ -59,14 +59,14 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Dokument:** `kit/README.md`, „Komendy w projekcie”: `wa add` „kopiuje pliki modułu i jego zależności, dopisuje zależności npm i uruchamia `wa generate`”; wiersz `api-keys` w tabeli modułów mówi tylko, że `wa create` nie losuje `API_KEY_PEPPER`.
 - **Kod:** `add` w `kit/cli/src/commands/add.ts` nie czyta ani nie zapisuje `.env`; `wa generate` wypełnia tylko region `wa:modules` w `.env.example`. `.env` powstaje raz, w `create` (`writeEnvFile`). Przebieg 2026-10-30 (Task 3): po `wa add api-keys` w projekcie z `uploads` `.env` nie ma `API_KEY_PEPPER`, więc `parseEnv` w `src/shared/lib/env.ts` przy pierwszym odczycie `env` rzuci `Nieprawidłowe zmienne środowiskowe: API_KEY_PEPPER: …`. Symetrycznie `wa remove` zostawia zmienne modułu w `.env` (sprawdzone dla `S3_*`).
 - **Propozycja:** dopisać w `kit/README.md` krok „skopiuj nowe zmienne z regionu `wa:modules` w `.env.example` do `.env`” albo wypisywać go w `add` obok podpowiedzi migracji; pozycja do `znane-ograniczenia.md` (Task 12). Dokumentacja: [16-cli-wa.md](../../16-cli-wa.md#add-po).
-- **Status:** otwarte.
+- **Status:** dokumentacja naprawiona w Task 12: `kit/README.md` („Komendy w projekcie”) mówi, że `add` nie zmienia `.env`, a [znane-ograniczenia.md](../../znane-ograniczenia.md#add-env) ma pozycję. Kod: otwarte (zgłoszenie do kitu).
 
 ## R9. `wa create` wymaga `git` także z `--no-git`
 
 - **Dokument:** `kit/README.md`, tabela opcji `wa create`: `--no-git` „Pomija `git init` i pierwszy commit”; uwaga pod tabelą wiąże wymóg `git` tylko z commitem.
 - **Kod:** `assemblableFiles` → `listKitFiles` w `kit/cli/src/kit/files.ts` uruchamia `git -C <kit> ls-files` przy każdym `create` i `add` z lokalnym źródłem. Bez `git` w `PATH` `create --no-git` kończy się `spawn git ENOENT`, a katalog projektu jest usuwany (przebieg 2026-10-30, Task 3). Katalog kitu bez `.git` daje `<ścieżka> nie jest repozytorium git` także w `create`, nie tylko w `add` (uzupełnienie pkt 8 notatki recenzji szkicu).
 - **Propozycja:** w `kit/README.md` napisać, że `git` jest wymagany zawsze, a `--no-git` pomija tylko repozytorium projektu (Task 12). Dokumentacja: [16-cli-wa.md](../../16-cli-wa.md#create-opcje).
-- **Status:** otwarte.
+- **Status:** naprawione w Task 12: `kit/README.md`, tabela opcji `wa create` (`--no-git`), i pozycja w [znane-ograniczenia.md](../../znane-ograniczenia.md#cli-male).
 
 ## R10. Test własności nie pilnuje „dokładnie jednego właściciela” zależności
 
@@ -112,7 +112,7 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Dokument:** `docs/09b-implementacja-i-bramki.md` („Dziennik zdarzeń w funkcji projektu”, „Trasy API”) i [spec planu 3](../specs/2026-10-28-wa-kit-plan-3-modules-design.md) §5 używają jako przykładu akcji `delivery.received`, którą funkcja projektu deklaruje w `auditActions`.
 - **Kod:** test „pokazuje surowy action, gdy akcja nie ma deklaracji” w `src/features/audit-logs/components/__tests__/audit-log-view.test.tsx` renderuje `AuditLogView` na prawdziwym `clientModules` (bez `vi.mock("@/modules.client.generated")`, inaczej niż `audit-log-view-labels.test.tsx`) i oczekuje surowego napisu `delivery.received`. W przebiegu Task 6 (projekt z `v0.1.0`, `audit-logs` i funkcją projektu deklarującą `delivery.received`) `npm run verify` padł: `Tests  1 failed | 1455 passed (1456)`, `Unable to find an element with the text: delivery.received`. Po zmianie nazwy akcji na `delivery.accepted` przebieg był zielony.
 - **Propozycja:** w teście kitu zamockować rejestr albo użyć nazwy akcji, której projekt nie zadeklaruje (na przykład z prefiksem `test.`); do czasu poprawki przykłady w 09b zmienić na inną akcję. `docs/13b-modul-audit-logs-uzycie.md` opisuje objaw w „Typowych problemach”.
-- **Status:** częściowo naprawione. 09b naprawione w Task 11: sekcje „Dziennik zdarzeń w funkcji projektu” i „Trasa API z kluczem w funkcji projektu” odsyłają do 13b i 14b (przykłady z `delivery.accepted`) i nie zawierają już `delivery.received`. Kod: otwarte (zgłoszenie do kitu).
+- **Status:** częściowo naprawione. 09b naprawione w Task 11: sekcje „Dziennik zdarzeń w funkcji projektu” i „Trasa API z kluczem w funkcji projektu” odsyłają do 13b i 14b (przykłady z `delivery.accepted`) i nie zawierają już `delivery.received`. Kod: otwarte (zgłoszenie do kitu). Pozycja w [znane-ograniczenia.md](../../znane-ograniczenia.md#moduly-male) (Task 12).
 
 ## R16. Spec planu 3 zapowiada kanał `API` dla żądań z kluczem, kod kitu go nie zapisuje
 
@@ -161,7 +161,7 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Dokument:** `AGENTS.md`, „Testy” (testy integracyjne na bazie `_test`; nic o sprzątaniu magazynu).
 - **Kod:** `src/features/uploads/services/__tests__/storage.integration.test.ts` zapisuje obiekty `orgs/o1/test/<uuid>.txt` i `orgs/o2/test/<uuid>.txt` i nie usuwa ich (`read-upload.integration.test.ts` i `uploads-isolation.integration.test.ts` usuwają swoje w `afterAll`). Po przebiegu Task 8 w buckecie `upload-demo-uploads` zostało siedem takich obiektów.
 - **Propozycja:** w teście kitu zbierać klucze i usuwać je w `afterAll` (zgłoszenie do kitu). `docs/15b-modul-uploads-uzycie.md` („Testowanie”) ostrzega przed wskazywaniem testom bucketu z danymi.
-- **Status:** otwarte (kod: zgłoszenie do kitu).
+- **Status:** otwarte (kod: zgłoszenie do kitu). Pozycja w [znane-ograniczenia.md](../../znane-ograniczenia.md#moduly-male) (Task 12).
 
 ## R23. 01 i 09b odsyłają do usuniętych sekcji `uploads` w 12
 
@@ -175,11 +175,11 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Dokument:** RFC 5987/8187 (`attr-char`: litery, cyfry i `!#$&+-.^_`|~`) i [spec planu 3](../specs/2026-10-28-wa-kit-plan-3-modules-design.md) §7 („Poprawny `Content-Disposition` (RFC 6266, `filename*`)”).
 - **Kod:** `src/features/uploads/services/content-disposition.ts` koduje `filename*` przez `encodeURIComponent` i zamienia tylko `'` na `%27`; `encodeURIComponent` zostawia `!~*()` (`encodeURIComponent("a!~*()b.png")` daje `a!~*()b.png`). `*`, `(` i `)` nie są `attr-char`, więc nazwa z nawiasami daje wartość niezgodną ze składnią RFC; przeglądarki zwykle ją akceptują.
 - **Propozycja:** w kodzie kitu zamieniać też `*`, `(`, `)` na `%2A`, `%28`, `%29` i dopisać przypadek testu (zgłoszenie do kitu). `docs/15-modul-uploads.md` („Pobieranie”) opisuje zachowanie z kodu.
-- **Status:** otwarte (kod: zgłoszenie do kitu).
+- **Status:** otwarte (kod: zgłoszenie do kitu). Pozycja w [znane-ograniczenia.md](../../znane-ograniczenia.md#moduly-male) (Task 12).
 
 ## R25. `mutation.yml` nie uruchamia MinIO, a przebieg integracyjny Strykera obejmuje testy `uploads`
 
 - **Dokument:** `AGENTS.md`, „Testy” (`.github/workflows/mutation.yml` uruchamiany ręcznie, pełny przebieg przed releasem kitu) i [D26](../../decyzje.md#d26).
 - **Kod:** `.github/workflows/mutation.yml` ma tylko usługę `postgres:16` i nie ma regionu `wa:ci-integration` ani kroków MinIO, a krok „Run Stryker (integration)” uruchamia `npm run test:mutation:integration` z `vitest.integration.config.ts`, czyli także `src/features/uploads/services/__tests__/*.integration.test.ts`, które łączą się z S3 pod `http://localhost:9000` (`setup-env.ts`, `storage.integration.test.ts`). Lista `mutate` w `stryker.integration.config.json` obejmuje `src/features/*/services/**/*.ts`. Bez MinIO testy `uploads` nie przejdą już w przebiegu początkowym Strykera, więc przebieg integracyjny w tym workflowie w repozytorium kitu i w projekcie z `uploads` najpewniej zakończy się błędem (wniosek z kodu workflowu i testów; workflow nie był uruchamiany). Job `integration` w `ci.yml` ma te kroki w regionie `wa:ci-integration`.
 - **Propozycja:** dodać do `mutation.yml` region `# wa:ci-integration:start/end` przed krokiem „Run Stryker (integration)” i wpisać ten plik do regionów generatora (zgłoszenie do kitu). `docs/08-testy.md` („CI”) opisuje stan z kodu.
-- **Status:** otwarte (kod: zgłoszenie do kitu).
+- **Status:** otwarte (kod: zgłoszenie do kitu). Pozycja w [znane-ograniczenia.md](../../znane-ograniczenia.md#moduly-male) (Task 12).
