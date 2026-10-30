@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { test, fc } from "@fast-check/vitest";
 import { auditLogFiltersSchema } from "../audit-log.schemas";
 
@@ -66,17 +66,6 @@ describe("auditLogFiltersSchema", () => {
       entityType: "delivery",
       entityId: "123",
     });
-  });
-
-  it("ustawia from na początek podanej daty", () => {
-    const parsed = auditLogFiltersSchema.parse({ from: "2026-10-29" });
-    expect(parsed.from).toBeInstanceOf(Date);
-    expect(parsed.from?.toISOString()).toBe("2026-10-29T00:00:00.000Z");
-  });
-
-  it("ustawia to na koniec dnia w UTC", () => {
-    const parsed = auditLogFiltersSchema.parse({ to: "2026-10-29" });
-    expect(parsed.to?.toISOString()).toBe("2026-10-29T23:59:59.999Z");
   });
 
   it("odrzuca nieprawidłowe to bez wyjątku", () => {
@@ -180,5 +169,66 @@ describe("auditLogFiltersSchema: górna granica page", () => {
 
   it("page 1000001 daje stronę 1", () => {
     expect(auditLogFiltersSchema.parse({ page: "1000001" }).page).toBe(1);
+  });
+});
+
+describe("auditLogFiltersSchema: daty w strefie czasowej procesu", () => {
+  beforeAll(() => {
+    vi.stubEnv("TZ", "Europe/Warsaw");
+  });
+
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("strefa czasowa testu różni się od UTC", () => {
+    expect(new Date(2026, 9, 29).toISOString()).toBe(
+      "2026-10-28T23:00:00.000Z",
+    );
+  });
+
+  it("from to północ podanego dnia w lokalnej strefie, nie w UTC", () => {
+    const parsed = auditLogFiltersSchema.parse({ from: "2026-10-29" });
+
+    expect(parsed.from).toBeInstanceOf(Date);
+    expect(parsed.from?.getTime()).toBe(
+      new Date(2026, 9, 29, 0, 0, 0, 0).getTime(),
+    );
+    expect(parsed.from?.toISOString()).toBe("2026-10-28T23:00:00.000Z");
+  });
+
+  it("to to ostatnia milisekunda podanego dnia w lokalnej strefie, nie w UTC", () => {
+    const parsed = auditLogFiltersSchema.parse({ to: "2026-10-29" });
+
+    expect(parsed.to).toBeInstanceOf(Date);
+    expect(parsed.to?.getTime()).toBe(
+      new Date(2026, 9, 29, 23, 59, 59, 999).getTime(),
+    );
+    expect(parsed.to?.toISOString()).toBe("2026-10-29T22:59:59.999Z");
+  });
+
+  it("from i to dla dnia w czasie letnim przesuwają się o dwie godziny względem UTC", () => {
+    const parsed = auditLogFiltersSchema.parse({
+      from: "2026-07-01",
+      to: "2026-07-01",
+    });
+
+    expect(parsed.from?.toISOString()).toBe("2026-06-30T22:00:00.000Z");
+    expect(parsed.to?.toISOString()).toBe("2026-07-01T21:59:59.999Z");
+  });
+
+  it.each([
+    "2026-13-01",
+    "2026-02-30",
+    "0050-01-01",
+    "x",
+    "2026-10-29T10:00",
+    "29-10-2026",
+    "",
+  ])("niepoprawna data %s daje undefined w from i to", (value) => {
+    const parsed = auditLogFiltersSchema.parse({ from: value, to: value });
+
+    expect(parsed.from).toBeUndefined();
+    expect(parsed.to).toBeUndefined();
   });
 });
