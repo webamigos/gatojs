@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { pl, enUS } from "date-fns/locale";
 import type { Locale as DateFnsLocale } from "date-fns";
 import { Copy, KeyRound, Loader2, Plus } from "lucide-react";
@@ -140,20 +140,15 @@ export function ApiKeysManager({ keys }: { keys: ApiKeyRow[] }) {
     }
   }
 
-  const columns = useMemo(
-    () =>
-      buildApiKeyColumns({
-        t,
-        scopeLabel,
-        dateLocale: DATE_FNS_LOCALES[locale] ?? pl,
-        now,
-        pending: busy,
-        onRevoke: handleRevoke,
-        onDelete: handleDelete,
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, root, locale, now, busy, run],
-  );
+  const columns = buildApiKeyColumns({
+    t,
+    scopeLabel,
+    dateLocale: DATE_FNS_LOCALES[locale] ?? pl,
+    now,
+    pending: busy,
+    onRevoke: handleRevoke,
+    onDelete: handleDelete,
+  });
 
   const canSubmit = name.trim().length > 0 && scopes.length > 0 && !busy;
 
