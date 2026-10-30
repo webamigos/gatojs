@@ -5,7 +5,7 @@ import { contentDisposition } from "./content-disposition";
 import { getObject } from "./storage";
 
 const PUBLIC_CACHE_CONTROL = "public, max-age=31536000, immutable";
-const ORGANIZATION_CACHE_CONTROL = "private, max-age=300";
+const ORGANIZATION_CACHE_CONTROL = "private, no-store";
 
 const uploadIdSchema = z.uuid();
 
