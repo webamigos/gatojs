@@ -12,7 +12,7 @@ Wpis zaczyna się kotwicą i nagłówkiem `DNN · tytuł`, a pod nim są te pola
 
 | Pole | Co zawiera |
 | --- | --- |
-| Status | `obowiązuje` albo `zastąpiona przez Dxx`. |
+| Status | `obowiązuje`, `obowiązuje (zastępuje Dxx)` dla decyzji, która zastąpiła wcześniejszą, albo `zastąpiona przez Dxx`. |
 | Data | Dzień, w którym decyzję zapisano albo wdrożono. |
 | Kto zdecydował | Jakub, autor design doc, autor albo wykonawca planu 1, autor specu planu 3 albo wykonawca planu 3 (wyjaśnienie pod tabelą). „Nie zapisano”, gdy źródła tego nie podają. |
 | Kontekst | Problem, który decyzja rozwiązuje, opisany tak, żeby dało się go zrozumieć bez historii projektu. |
@@ -40,6 +40,7 @@ Sposoby egzekwowania różnią się siłą:
 ## Statusy i numeracja
 
 - `obowiązuje`: decyzja jest w kodzie.
+- `obowiązuje (zastępuje Dxx)`: decyzja jest w kodzie i zastąpiła wpis Dxx; zastąpiony wpis ma status `zastąpiona przez` z numerem tej decyzji.
 - `zastąpiona przez Dxx`: decyzja przestała obowiązywać. Wpis zostaje w pliku z nowym statusem i jednym zdaniem o tym, co się zmieniło, a decyzja, która go zastąpiła, ma własny numer i mówi, co zmieniła. Pozostała treść zastąpionego wpisu jest zapisem historii i nie opisuje kodu.
 - Gdy w decyzji zmieniły się tylko fakty (na przykład lista plików generowanych albo miejsc w kodzie), wpis poprawia się w miejscu, bez nowego numeru.
 - Numery `D01`, `D02`… są stałe i nie są używane ponownie. Inne pliki linkują do wpisu przez kotwicę, na przykład `[D07](decyzje.md#d07)`, więc zmiana numeru zepsułaby linki. Odnośnik, który opisuje bieżący stan kodu, wskazuje decyzję obowiązującą, a nie zastąpioną.
@@ -124,8 +125,8 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 | [D35](#d35) | `--setup` przy `wa create` opcjonalny | CLI i składanie projektu | obowiązuje |
 | [D36](#d36) | Funkcje projektu w `projectModules` | CLI i składanie projektu | obowiązuje |
 | [D37](#d37) | Testy rdzenia sprawdzają tylko moduły rdzenia | CLI i składanie projektu | obowiązuje |
-| [D38](#d38) | Własność plików i zależności w manifestach `kit/modules/*.json`, pilnowana testem | Model kitu | obowiązuje |
-| [D39](#d39) | Moduł wpina się przez deklaracje w `defineModule` i punkty wejścia rdzenia | Model kitu | obowiązuje |
+| [D38](#d38) | Własność plików i zależności w manifestach `kit/modules/*.json`, pilnowana testem | Model kitu | obowiązuje (zastępuje [D02](#d02)) |
+| [D39](#d39) | Moduł wpina się przez deklaracje w `defineModule` i punkty wejścia rdzenia | Model kitu | obowiązuje (zastępuje [D01](#d01)) |
 | [D40](#d40) | `trackAudit` w rdzeniu działa bez modułu; ujścia `auditSinks` | Moduły kitu | obowiązuje |
 | [D41](#d41) | Redakcja danych wrażliwych przed zapisem; bez retencji | Moduły kitu | obowiązuje |
 | [D42](#d42) | Zdarzenia organizacji łapane hookami better-auth | Moduły kitu | obowiązuje |
@@ -204,7 +205,7 @@ Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateS
 
 **Kontekst.** Moduły mają się dać włączyć przy tworzeniu projektu i dodać później bez ręcznego wpinania w schemat bazy, nawigację, tłumaczenia i zmienne środowiskowe (design doc §2). Gdyby moduł zmieniał pliki rdzenia, każde dodanie, usunięcie albo aktualizacja modułu oznaczałaby scalanie cudzych zmian w tych samych plikach.
 
-**Decyzja.** Moduł tylko dodaje pliki. Rdzeń „wie” o modułach wyłącznie przez szwy: pliki generowane i regiony między markerami, które przepisuje `wa generate`. Listę szwów podaje `AGENTS.md` („Moduły i pliki generowane”), ale bez regionu `wa:ci-integration` i tablicy `auditSinks` (rozbieżność R1 w notatce rozbieżności części 2); tabela podaje wszystkie szwy z kodu (`kit/cli/src/generate/registry.ts` i `targets.ts`), co do nich trafia i skąd generator to bierze:
+**Decyzja.** Moduł tylko dodaje pliki. Rdzeń „wie” o modułach wyłącznie przez szwy: pliki generowane i regiony między markerami, które przepisuje `wa generate`. Listę szwów podaje `AGENTS.md` („Moduły i pliki generowane”), ale bez pliku `src/i18n/locales.generated.ts`, regionu `wa:ci-integration` i tablicy `auditSinks`; `CLAUDE.md` („Pliki generowane”) też nie wymienia `src/i18n/locales.generated.ts` (rozbieżność R1 w notatce rozbieżności części 2); tabela podaje wszystkie szwy z kodu (`kit/cli/src/generate/registry.ts` i `targets.ts`), co do nich trafia i skąd generator to bierze:
 
 | Szew | Co trafia do środka | Skąd |
 | --- | --- | --- |
@@ -1001,7 +1002,7 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 
 - Kod CLI leży w `kit/cli` jako samodzielna paczka z własnym `package.json` i `package-lock.json`, poza workspace'ami aplikacji. Katalog `kit/**` jest na liście `kitOnly` w `kit/kit.json` i w `.dockerignore`, więc nie trafia do projektu ani do obrazu.
 - esbuild (`kit/cli/bundle.mjs`) buduje z `kit/cli/src/bin.ts` jeden plik `.wa/bin/wa.mjs`. Bundel jest commitowany i należy do modułu `core` (`kit/modules/core.json`). Ten sam plik działa w kicie i w projekcie jako skrypt `wa` (`"wa": "node .wa/bin/wa.mjs"` w `package.json`), więc projekt nie buduje CLI i nie potrzebuje jego `node_modules`.
-- Kit pobiera się przez `git clone --depth 1 --branch v<wersja>` ([D46](#d46)). Nowy projekt powstaje z klonu: `node <klon>/.wa/bin/wa.mjs create <nazwa>`, a domyślnym źródłem kitu dla `create` jest katalog, w którym leży uruchomiony bundel (`bin.ts`). W projekcie `wa add` i `wa list` klonują tag wersji zapisanej w `.wa/kit.json` (`kit/cli/src/kit/source.ts`).
+- Kit pobiera się przez `git clone --depth 1 --branch v<wersja>` ([D46](#d46)). Nowy projekt powstaje z klonu: `node <klon>/.wa/bin/wa.mjs create <nazwa>`, a domyślnym źródłem kitu dla `create` jest katalog główny klonu, z którego uruchomiono bundel (`resolve(dirname(<bundel>), "../..")` w `bin.ts`). W projekcie `wa add` i `wa list` klonują tag wersji zapisanej w `.wa/kit.json` (`kit/cli/src/kit/source.ts`).
 - Komenda nazywa się `wa create`; `create-wa-app` to nazwa one-linera w dokumentacji, a nie osobny program.
 
 **Odrzucone alternatywy.**
@@ -1013,7 +1014,7 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 **Konsekwencje.**
 
 - Po każdej zmianie w `kit/cli/src` trzeba przebudować bundel (`npm run build --prefix kit/cli`) i zacommitować go razem ze zmianą (`kit/CLAUDE.md`, „Bundel CLI”).
-- Bez tagu `v<wersja>` na GitHubie nie działa one-liner ani domyślne źródło `wa add` i `wa list`. Klonowanie tagu z adnotacją przy `--depth 1` wypisuje ostrzeżenie gita i komunikat o odłączonym HEAD; to nie jest błąd.
+- Bez tagu `v<wersja>` na GitHubie nie działa one-liner ani domyślne źródło `wa add`; `wa list` pokazuje wtedy tylko zainstalowane moduły ([D46](#d46)). Klonowanie tagu z adnotacją przy `--depth 1` wypisuje ostrzeżenie gita i komunikat o odłączonym HEAD; to nie jest błąd.
 - `npm run verify` projektu nie testuje CLI: testy CLI leżą w `kit/cli` i działają tylko w repozytorium kitu.
 
 **Jak egzekwowana.**
@@ -1258,7 +1259,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 ## D38 · Aplikacja referencyjna w katalogu głównym; własność plików i zależności w manifestach `kit/modules/*.json`, pilnowana testem
 
-**Status:** obowiązuje (zastępuje [D02](#d02)) · **Data:** 2026-10-28 · **Kto zdecydował:** autor design doc (§4.2 i §7: każdy plik ma dokładnie jednego właściciela, sprawdzane w CI; §9: jedna aplikacja z manifestami własności); położenie manifestów w `kit/modules/`, `wa kit sync` i test własności: plan 2 (zadania 2 i 3, architektura zaakceptowana przez Jakuba razem z decyzjami 2026-10-28)
+**Status:** obowiązuje (zastępuje [D02](#d02)) · **Data:** 2026-10-28 · **Kto zdecydował:** autor design doc (§4.2 i §7: każdy plik ma dokładnie jednego właściciela, sprawdzane w CI; §9: jedna aplikacja z manifestami własności); położenie manifestów w `kit/modules/`, `wa kit sync` i test własności: plan 2 (architektura, zadania 2–3); źródła nie zapisują osobnej akceptacji Jakuba poza sekcją „Decyzje planu 2”
 
 **Kontekst.** Kit trzeba rozwijać i testować jak zwykłą aplikację, a przy tworzeniu projektu musi się dać rozłożyć na rdzeń i moduły. Do tego potrzebna jest pełna informacja, który plik i która zależność należą do którego modułu. W planie 1 manifest leżał tylko w `.wa/kit.json`, nie obejmował wszystkich plików rdzenia i nic nie sprawdzało jego kompletności ([D02](#d02)).
 
@@ -1321,7 +1322,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 - Moduł projektu deklaruje akcje, zakresy i cele we własnym `module.ts`, bez edycji plików kitu. Deklaracje to czyste dane, bo `module.ts` trafia do paczki przeglądarki ([D05](#d05)).
 - Deklaracja bez modułu, który ją czyta, nic nie robi: bez `audit-logs` etykiety akcji nie są nigdzie pokazywane, bez `api-keys` zakresy nie są używane, bez `uploads` cele nie są czytane.
-- Nieznany zakres w kluczu (na przykład po usunięciu modułu, który go deklarował) jest ignorowany ([D43](#d43)). Dwa cele uploadu o tym samym kluczu albo cel z typem `image/svg+xml`, `text/html`, `application/xhtml+xml`, `application/xml` lub `text/xml` kończą się błędem przy pierwszym odczycie celów.
+- Nieznany zakres w kluczu (na przykład po usunięciu modułu, który go deklarował) jest ignorowany ([D43](#d43)). Dwa cele uploadu o tym samym kluczu albo cel z typem `image/svg+xml`, `text/html`, `application/xhtml+xml`, `application/xml` lub `text/xml` kończą się błędem przy każdym odczycie celów (`listUploadPurposes` nie zapamiętuje wyniku). `POST /api/uploads` woła `maxUploadBytes()` przed sprawdzeniem sesji, więc każdy upload kończy się wtedy błędem 500.
 - Komponenty modułu (na przykład `<AuditTrail>` z `audit-logs`) importuje się z katalogu modułu. Bez zainstalowanego modułu taki import nie zbuduje się.
 - Zmiana w skopiowanym kodzie nie wymaga forka ani publikacji paczki. Poprawkę przydatną innym projektom wysyła się jako pull request do `webamigos/wa-kit` ([CLAUDE.md](../CLAUDE.md), „Pochodzenie kodu”); to proces, a nie automat.
 
@@ -1383,7 +1384,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 - Redakcja schodzi rekurencyjnie przez obiekty i tablice. Obiekt z metodą `toJSON` jest redagowany na wyniku tej metody, czyli na tym, co zapisałby `JSON.stringify`.
 - Moduł nie usuwa starych wpisów. Retencja (sprzątanie wpisów starszych niż 60 dni) jest w specu planu 3 nie-celem i ma przyjść z modułem `worker`.
 
-**Odrzucone alternatywy.** Dokładna lista kluczy z porównaniem bez wielkości liter (pierwsza wersja ze specu planu 3, §5); zastąpiona dopasowaniem fragmentów przy recenzji, żeby łapać na przykład `userPassword` albo `x-api-key`.
+**Odrzucone alternatywy.** Dokładna lista kluczy z porównaniem bez wielkości liter (pierwsza wersja ze specu planu 3, §5), zastąpiona dopasowaniem fragmentów przy recenzji. Powodu nie zapisano; skutek: redagowane są też klucze takie jak `userPassword` albo `x-api-key`.
 
 **Konsekwencje.**
 
@@ -1448,6 +1449,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 - Zmiana `API_KEY_PEPPER` unieważnia wszystkie istniejące klucze: żaden nie da tego samego hasha.
 - Trasa z kluczem nie przechodzi przez `getOrgContext()`, więc reguła [D07](#d07) wymaga, żeby autor trasy sam filtrował po `organizationId` z `ApiKeyContext`.
 - Klucz bez zakresów nic nie może. Zakres modułu usuniętego z projektu przestaje działać bez zmiany klucza.
+- `AuditEvent` ma pola `channel` (`WEB` albo `API`) i `credentialId`, ale `auditActor` przyjmuje tylko `OrgContext`. Trasa z kluczem, która zmienia dane, buduje zdarzenie audytu ręcznie z `ApiKeyContext` (`channel: "API"`, `credentialId: apiKeyId`); pilnuje tego tylko konwencja. Jedyna trasa z kluczem w kicie tylko czyta dane i nie zapisuje audytu.
 
 **Jak egzekwowana.**
 
@@ -1470,9 +1472,9 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 - Pliki leżą w magazynie zgodnym z S3: lokalnie MinIO z fragmentu `docker/uploads.compose.yml` (region `wa:services`), na produkcji Railway Bucket albo R2. Zmienne modułu: `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE`.
 - Cel uploadu deklaruje moduł w `uploadPurposes` ([D39](#d39)): dozwolone typy, limit rozmiaru, widoczność i opcjonalne zmniejszenie obrazu. Kit dostarcza cel `editor-image` (JPEG, PNG, WebP, do 5 MB, `public`, szerokość do 1200 px).
-- `POST /api/uploads` wymaga nagłówka `Content-Length` (inaczej 411) z rozmiarem nie większym niż największy limit celu plus 64 KB na narzut formularza (inaczej 413), a przed odczytem ciała sesji i organizacji. Limit konkretnego celu sprawdza się po odczycie pliku. Typ pliku ustala się z zawartości (`file-type`), nie z `file.type`, a rozszerzenie z typu. W trybie serwisowym trasa wymaga potwierdzenia jak komenda ([D22](#d22)). Klucz obiektu: `orgs/<organizationId>/<cel>/<uuid>.<rozszerzenie>`.
+- `POST /api/uploads` (`src/app/api/uploads/route.ts`) najpierw wymaga nagłówka `Content-Length` (inaczej 411) z rozmiarem nie większym niż największy limit celu plus 64 KB na narzut formularza (inaczej 413). Sesję i organizację trasa sprawdza po nagłówku `Content-Length`, a przed odczytem ciała. Limit konkretnego celu sprawdza się po odczycie pliku. Typ pliku ustala się z zawartości (`file-type`), nie z `file.type`, a rozszerzenie z typu. W trybie serwisowym trasa wymaga potwierdzenia jak komenda ([D22](#d22)). Klucz obiektu: `orgs/<organizationId>/<cel>/<uuid>.<rozszerzenie>`.
 - Gdy zapis rekordu `Upload` w bazie się nie uda, obiekt jest usuwany z magazynu (błąd sprzątania tylko w logu). Usunięcie pliku kasuje rekord także wtedy, gdy obiektu nie da się usunąć z magazynu.
-- `GET /api/uploads/<id>`: plik `public` bez logowania z `Cache-Control: public, max-age=31536000, immutable`; plik `organization` tylko wtedy, gdy aktywna organizacja z `getOrgContext()` jest organizacją pliku, z `Cache-Control: private, no-store`, a w innym przypadku 404 bez zdradzania istnienia pliku. Każda odpowiedź ma `X-Content-Type-Options: nosniff` i `Content-Security-Policy: sandbox; default-src 'none'`.
+- `GET /api/uploads/<id>`: plik `public` bez logowania z `Cache-Control: public, max-age=31536000, immutable`; plik `organization` tylko wtedy, gdy aktywna organizacja z `getOrgContext()` jest organizacją pliku, z `Cache-Control: private, no-store`, a w innym przypadku 404 bez zdradzania istnienia pliku. Odpowiedź z plikiem ma `X-Content-Type-Options: nosniff` i `Content-Security-Policy: sandbox; default-src 'none'`; odpowiedź 404 nie ma tych nagłówków.
 
 **Odrzucone alternatywy.**
 
@@ -1541,7 +1543,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 **Konsekwencje.**
 
-- Bez tagu wersji projektu na GitHubie one-liner oraz `wa add` i `wa list` z domyślnym źródłem kończą się błędem pobierania. Wersja bez tagu to znane ryzyko ([znane-ograniczenia.md](znane-ograniczenia.md)).
+- Bez tagu wersji projektu na GitHubie one-liner i `wa add` z domyślnym źródłem kończą się błędem pobierania. `wa list` łapie błąd źródła (`listCommand` w `kit/cli/src/bin.ts`): wypisuje zainstalowane moduły i `Dostępne: nie udało się pobrać kitu (<powód>)` i kończy się kodem 0. Wersja bez tagu to znane ryzyko ([znane-ograniczenia.md](znane-ograniczenia.md)).
 - Lokalny klon porównywany jest tylko po `version`, nie po commicie ani tagu: klon z niezacommitowanymi zmianami w tej samej wersji zostanie użyty.
 - Projekt nie przechodzi na nowszą wersję kitu: nie ma `wa update`.
 
