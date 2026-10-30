@@ -100,6 +100,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const modules = [alphaModule];",
         "export const moduleEnvSchemas = [betaEnvSchema];",
         "export const authPlugins: never[] = [];",
+        "export const auditSinks: never[] = [];",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
         "",
@@ -147,6 +148,29 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
     );
   });
 
+  it("moduł tylko z audit-sink.ts trafia do auditSinks, a nie do klienta", async () => {
+    const dir = await makeProject({
+      alpha: { files: ["src/features/alpha/**"] },
+      beta: { files: ["src/features/beta/**"] },
+    });
+    await put(
+      dir,
+      "src/features/alpha/audit-sink.ts",
+      "export const auditSink = {};",
+    );
+    await put(dir, "src/features/beta/module.ts", "export default {};");
+    await generate(dir);
+    const server = await read(dir, "src/modules.generated.ts");
+    expect(server).toContain(
+      'import { auditSink as alphaAuditSink } from "@/features/alpha/audit-sink";\n',
+    );
+    expect(server).toContain("export const auditSinks = [alphaAuditSink];\n");
+    expect(server).not.toContain("@/features/beta/audit-sink");
+    expect(await read(dir, "src/modules.client.generated.ts")).not.toContain(
+      "audit-sink",
+    );
+  });
+
   it("katalog bez żadnego rozpoznanego pliku nie trafia do rejestru", async () => {
     const dir = await makeProject({
       alpha: { files: ["src/features/alpha/**"] },
@@ -162,6 +186,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const modules: never[] = [];",
         "export const moduleEnvSchemas: never[] = [];",
         "export const authPlugins: never[] = [];",
+        "export const auditSinks: never[] = [];",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
         "",

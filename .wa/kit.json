@@ -10,11 +10,43 @@
     "en"
   ],
   "modules": {
-    "core": {
+    "audit-logs": {
       "version": "0.1.0",
       "manifest": {
-        "name": "core",
+        "name": "audit-logs",
         "version": "0.1.0",
+        "description": "Dziennik zdarzen organizacji: model AuditLog, sink i redakcja danych wrazliwych",
+        "requires": [],
+        "files": [
+          "prisma/schema/audit-logs.prisma",
+          "src/features/audit-logs/**",
+          "src/app/[locale]/(app)/audit-log/**"
+        ],
+        "dependencies": {},
+        "devDependencies": {
+          "better-call": "^1.4.4"
+        },
+        "env": [],
+        "schemaRelations": [
+          {
+            "model": "User",
+            "field": "auditLogs AuditLog[]"
+          },
+          {
+            "model": "Organization",
+            "field": "auditLogs AuditLog[]"
+          }
+        ],
+        "compose": null,
+        "workspaces": []
+      },
+      "files": {}
+    },
+    "core": {
+      "version": "0.2.0",
+      "manifest": {
+        "name": "core",
+        "version": "0.2.0",
         "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
         "requires": [],
         "files": [

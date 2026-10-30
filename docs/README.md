@@ -2,7 +2,7 @@
 
 Ta dokumentacja jest dla dewelopera Web Amigos, który pracuje na wa-kit albo w projekcie zbudowanym z kitu. Zakłada, że znasz Next.js, TypeScript i Prismę. Nie zakłada znajomości better-auth, historii projektu ani procesu testów: każde pojęcie jest wyjaśnione przy pierwszym użyciu albo ma odnośnik do miejsca, które je wyjaśnia ([słownik](#slownik)). Agenci AI korzystają z tej samej dokumentacji przez wskazanie w `AGENTS.md`, ale nie są głównym odbiorcą.
 
-Zweryfikowano z kodem: 25adbb8, 2026-10-28
+Każdy dokument ma własny nagłówek „Zweryfikowano z kodem” z commitem, z którym go sprawdzono. Przy sprawdzaniu zmian w źródłach używaj commitu z nagłówka danego dokumentu.
 
 ## Czego dotyczy
 
@@ -55,6 +55,7 @@ Kolejność to kolejność czytania dla nowej osoby. Podział na pliki z literą
 | [09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md) | Dalszy ciąg tutorialu: query, komenda, komponent i strona, bramki (`npm run verify`, integracja, mutacje) i commit. |
 | [10-wdrozenie.md](10-wdrozenie.md) | Obraz Docker, `railway.toml`, wdrożenie na Railway, konta na produkcji, przekazanie aplikacji klientowi i workflowy CI. |
 | [11-praca-z-kitem.md](11-praca-z-kitem.md) | Zmiany lokalne a poprawki do kitu, commity, bramka `npm run verify`, praca z agentami AI, proces superpowers i pliki generowane. |
+| [12-moduly-kitu.md](12-moduly-kitu.md) | Moduły opcjonalne kitu: czym różnią się od rdzenia, macierz składania w CI i moduł `audit-logs` (model, strona, `<AuditTrail>`, zdarzenia, redakcja, brak retencji). |
 | [decyzje.md](decyzje.md) | Rejestr decyzji D01–D27: dlaczego kit jest zbudowany tak, a nie inaczej, i co pilnuje przestrzegania każdej decyzji. |
 | [znane-ograniczenia.md](znane-ograniczenia.md) | Znane luki kodu z ich skutkami, plikami i obejściami: dwie pozycje o wysokim priorytecie i reszta pogrupowana tematycznie. |
 | README.md | Ten plik: indeks, ścieżki czytania, słownik i zakres dokumentacji. |
@@ -115,11 +116,11 @@ Jedno pojęcie oznacza w całej dokumentacji jedną rzecz. Definicje „moduł�
 
 ## Czego ta dokumentacja nie opisuje
 
-Dokumentacja opisuje tylko to, co działa w kodzie z commitu `25adbb8`. Funkcje zaplanowane i niezrobione są poza nią i rosną razem z kolejnymi planami. Gdy któraś zostanie wdrożona, odpowiedni plik dostanie własną sekcję, a ta tabela straci wiersz.
+Dokumenty opisują tylko to, co działa w kodzie z commitu podanego w nagłówku „Zweryfikowano z kodem” każdego z nich. Funkcje zaplanowane i niezrobione są poza nią i rosną razem z kolejnymi planami. Gdy któraś zostanie wdrożona, odpowiedni plik dostanie własną sekcję, a ta tabela straci wiersz.
 
 | Funkcja zaplanowana | Plan | Gdzie jest opisana |
 | --- | --- | --- |
-| Moduły opcjonalne `api-keys`, `audit-logs`, `uploads`, `worker` i `legal`, rozszerzenie macierzy składania w CI | Plan 3 | [Design doc, sekcja Moduły opcjonalne](superpowers/specs/2026-10-26-wa-kit-design.md#moduły-opcjonalne-v1) |
+| Moduły opcjonalne `api-keys`, `uploads`, `worker` i `legal`, dalsze rozszerzenie macierzy składania w CI (`audit-logs` jest opisany w [12](12-moduly-kitu.md)) | Plan 3 | [Design doc, sekcja Moduły opcjonalne](superpowers/specs/2026-10-26-wa-kit-design.md#moduły-opcjonalne-v1) |
 | `wa update`, `wa diff`, wersjonowanie kitu i modułów, scalanie zmian | Plan 4 | [Design doc, sekcja Wersjonowanie i aktualizacje](superpowers/specs/2026-10-26-wa-kit-design.md#44-wersjonowanie-i-aktualizacje) |
 
 CLI ma komendy `create`, `add`, `remove`, `list`, `generate` i `kit sync`; ich użycie opisuje [kit/README.md](../kit/README.md). W projekcie uruchamia się je jako `npm run wa -- <komenda>`, tak jak w `AGENTS.md` (na przykład `wa generate`, [02b](02b-rejestr-i-generator.md#wa-generate)). Znane luki istniejącego kodu, w tym kierunki ich zamknięcia, są w [znane-ograniczenia.md](znane-ograniczenia.md).

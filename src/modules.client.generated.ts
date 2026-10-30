@@ -4,6 +4,7 @@ import authModule from "@/features/auth/module";
 import dashboardModule from "@/features/dashboard/module";
 import organizationsModule from "@/features/organizations/module";
 import usersModule from "@/features/users/module";
+import auditLogsModule from "@/features/audit-logs/module";
 
 export const authClientPlugins: never[] = [];
-export const clientModules = [accountModule, authModule, dashboardModule, organizationsModule, usersModule];
+export const clientModules = [accountModule, authModule, dashboardModule, organizationsModule, usersModule, auditLogsModule];

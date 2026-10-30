@@ -7,7 +7,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak uruchomić testy integracyjne i Strykera dla nowego feature i jak czytać ich wynik;
 - co zacommitować i jak dodać kolejną funkcję do feature, który już jest w rejestrze.
 
-Zweryfikowano z kodem: d416599, 2026-10-28
+Zweryfikowano z kodem: 012fe4d, 2026-10-29
 
 Źródła:
 
@@ -22,6 +22,9 @@ Zweryfikowano z kodem: d416599, 2026-10-28
 - `src/features/users/components/users-manager.tsx`
 - `src/features/users/components/user-account-columns.tsx`
 - `src/features/organizations/services/queries/organization-queries.ts`
+- `src/shared/lib/audit.ts`
+- `src/features/audit-logs/components/audit-trail.tsx`
+- `src/features/audit-logs/services/audit-action-labels.ts`
 - `src/app/[locale]/(app)/dashboard/page.tsx`
 - `src/__tests__/server-entrypoints-guard.test.ts`
 - `src/shared/lib/modules/__tests__/registry-consistency.test.ts`
@@ -370,6 +373,47 @@ M  src/modules.generated.ts
 Znacznik czasu w nazwie migracji będzie u Ciebie inny. Jeśli `next dev` uruchamiał agent AI, na liście jest też `M  AGENTS.md`: cofnij go przez `git restore --staged --worktree AGENTS.md` (pułapka wyżej).
 
 Zacommituj wszystko razem: pliki generowane i migracja należą do zmiany, która je wywołała ([D04](decyzje.md#d04)). Temat commita według Conventional Commits, małymi literami, na przykład `feat(notes): organization notes`. Przy commicie lint-staged uruchamia `eslint --fix` i Prettiera, a commitlint sprawdza temat. Przy wdrożeniu Railway zastosuje migrację `add-notes` przez `npx prisma migrate deploy` ([10-wdrozenie.md](10-wdrozenie.md)).
+
+<a id="dziennik-zdarzen"></a>
+
+## Dziennik zdarzeń w funkcji projektu
+
+Ta sekcja dotyczy projektu z zainstalowanym modułem `audit-logs` ([12-moduly-kitu.md](12-moduly-kitu.md#audit-logs)). Funkcja, która chce zostawiać ślad zmian, robi trzy rzeczy.
+
+1. **Wywołanie `trackAudit` w komendzie**, po udanym zapisie i po `assertServiceModeConfirmed`. `auditActor(context)` wypełnia organizację, użytkownika i tryb serwisowy:
+
+```ts
+import { auditActor, trackAudit } from "@/shared/lib/audit";
+
+await trackAudit({
+  ...auditActor(context),
+  action: "delivery.received",
+  entityType: "delivery",
+  entityId: delivery.id,
+});
+```
+
+`oldData` i `newData` są opcjonalne; dane wrażliwe z listy modułu zostają zredagowane przed zapisem. Awaria ujścia nie przerywa komendy: `trackAudit` loguje błąd i wraca. `trackAudit` należy do rdzenia, więc kod działa też w projekcie bez `audit-logs` (wtedy nic nie zapisuje).
+
+2. **Deklaracja `auditActions` w `module.ts` feature** z kluczem etykiety w jego własnej przestrzeni nazw tłumaczeń:
+
+```ts
+auditActions: [
+  { action: "delivery.received", labelKey: "action-delivery-received" },
+],
+```
+
+Klucz `action-delivery-received` dodaj do `src/features/<x>/i18n/pl.json` i `en.json` tego samego feature. Strona `/audit-log` i `<AuditTrail>` szukają etykiety w module, który akcję zadeklarował. Akcja bez deklaracji wyświetla się jako surowy napis `delivery.received`.
+
+3. **Historia encji na stronie** przez `<AuditTrail>` z `src/features/audit-logs/components/audit-trail.tsx`:
+
+```tsx
+import { AuditTrail } from "@/features/audit-logs/components/audit-trail";
+
+<AuditTrail entityType="delivery" entityId={delivery.id} />
+```
+
+Komponent wymaga zainstalowanego `audit-logs`: import z `src/features/audit-logs/` nie skompiluje się w projekcie bez modułu. Feature, który ma działać w obu wariantach, nie osadza komponentu, tylko samo woła `trackAudit`. Komponent nie renderuje nic użytkownikowi bez dostępu do modułu (role `owner` i `admin` organizacji), a pokazuje 50 ostatnich wpisów encji z aktywnej organizacji.
 
 <a id="istniejacy-modul"></a>
 

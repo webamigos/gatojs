@@ -4,6 +4,7 @@ export type RegistryModule = {
   hasEnv: boolean;
   hasAuth: boolean;
   hasAuthClient: boolean;
+  hasAuditSink: boolean;
   locales: string[];
 };
 
@@ -42,6 +43,7 @@ export function renderRegistry(
   const withEnv = modules.filter((m) => m.hasEnv);
   const withAuth = modules.filter((m) => m.hasAuth);
   const withAuthClient = modules.filter((m) => m.hasAuthClient);
+  const withAuditSink = modules.filter((m) => m.hasAuditSink);
 
   const server = [
     GENERATED_HEADER,
@@ -58,6 +60,10 @@ export function renderRegistry(
       (m) =>
         `import { authPlugin as ${identifier(m.name, "AuthPlugin")} } from "@/features/${m.name}/auth";`,
     ),
+    ...withAuditSink.map(
+      (m) =>
+        `import { auditSink as ${identifier(m.name, "AuditSink")} } from "@/features/${m.name}/audit-sink";`,
+    ),
     "",
     typedArray(
       "modules",
@@ -70,6 +76,10 @@ export function renderRegistry(
     typedArray(
       "authPlugins",
       withAuth.map((m) => identifier(m.name, "AuthPlugin")),
+    ),
+    typedArray(
+      "auditSinks",
+      withAuditSink.map((m) => identifier(m.name, "AuditSink")),
     ),
     "",
     "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",

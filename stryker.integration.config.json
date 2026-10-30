@@ -7,10 +7,9 @@
   "checkers": ["typescript"],
   "tsconfigFile": "tsconfig.json",
   "mutate": [
-    "src/features/organizations/services/**/*.ts",
+    "src/features/*/services/**/*.ts",
     "src/shared/lib/auth/org-context.ts",
     "src/shared/lib/auth/require-module-access.ts",
-    "src/features/users/services/queries/**/*.ts",
     "!**/__tests__/**"
   ],
   "ignorePatterns": [

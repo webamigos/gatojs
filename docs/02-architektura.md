@@ -7,7 +7,7 @@ Po przeczytaniu będziesz wiedzieć:
 - gdzie w repozytorium leży każdy rodzaj kodu i z czego składa się feature;
 - jak żądanie przechodzi od przeglądarki do bazy i w których miejscach kod sprawdza sesję, uprawnienia i tryb serwisowy.
 
-Zweryfikowano z kodem: d416599, 2026-10-28
+Zweryfikowano z kodem: 012fe4d, 2026-10-29
 
 Źródła:
 
@@ -410,6 +410,9 @@ Typ z `src/shared/lib/modules/define-module.ts`. `OrgRole` to `"owner" | "admin"
 | `public` | `boolean` | nie | `canAccessModule` | `true` daje dostęp bez sprawdzania ról, ale nie bez logowania ([wyżej](#pulapki-definicji)). |
 | `adminOnly` | `boolean` | nie | `canAccessModule` | `true` daje dostęp roli w organizacji tylko przy `MULTI_ORG=true` i tylko rolom z `multiOrgRoles`. |
 | `multiOrgRoles` | `OrgRole[]` | nie | `canAccessModule` | Działa tylko razem z `adminOnly: true`. Bez pola lista jest pusta. |
+| `auditActions` | `{ action, labelKey }[]` | nie | strona dziennika zdarzeń | Akcje modułu z kluczem etykiety w jego tłumaczeniach. Same dane. |
+| `apiScopes` | `{ key, labelKey }[]` | nie | rejestr zakresów API | Zakresy, które moduł udostępnia kluczom API. Same dane. |
+| `uploadPurposes` | `{ key, mimeTypes, maxBytes, visibility, resizeImage? }[]` | nie | rejestr celów przesyłania plików | Cele przesyłania plików modułu: dozwolone typy MIME, limit rozmiaru, widoczność (`public` albo `organization`) i opcjonalne skalowanie obrazu. Same dane. |
 
 Rola globalna `admin` i `superadmin` ma dostęp do każdej definicji niezależnie od pól. Kolejność sprawdzeń: [D05](decyzje.md#d05).
 

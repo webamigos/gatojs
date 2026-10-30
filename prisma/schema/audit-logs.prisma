@@ -1,0 +1,27 @@
+enum AuditChannel {
+  WEB
+  API
+}
+
+model AuditLog {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id")
+  userId         String?      @map("user_id")
+  action         String
+  entityType     String       @map("entity_type")
+  entityId       String?      @map("entity_id")
+  oldData        Json?        @map("old_data")
+  newData        Json?        @map("new_data")
+  channel        AuditChannel @default(WEB)
+  credentialId   String?      @map("credential_id")
+  serviceMode    Boolean      @default(false) @map("service_mode")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, entityType, entityId])
+  @@index([organizationId, userId, createdAt])
+  @@map("audit_logs")
+}

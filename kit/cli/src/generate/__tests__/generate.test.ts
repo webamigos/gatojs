@@ -307,6 +307,7 @@ describe("generate", () => {
         "export const modules = [authModule, demoModule, notesModule];",
         "export const moduleEnvSchemas = [demoEnvSchema];",
         "export const authPlugins = [authAuthPlugin];",
+        "export const auditSinks: never[] = [];",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
         "",

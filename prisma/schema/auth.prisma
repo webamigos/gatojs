@@ -17,6 +17,7 @@ model User {
   invitations Invitation[]
 
   // wa:relations:start
+  auditLogs AuditLog[]
   // wa:relations:end
 
   @@map("users")

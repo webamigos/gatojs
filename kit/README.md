@@ -12,6 +12,15 @@ KIT_DIR=$(mktemp -d) && git clone --depth 1 --branch v0.1.0 https://github.com/w
 
 Zamiast `v0.1.0` podaj tag wersji kitu, którą chcesz.
 
+## Moduły kitu
+
+Opisy modułów: [docs/12-moduly-kitu.md](../docs/12-moduly-kitu.md). Manifesty leżą w `kit/modules/*.json`.
+
+| Moduł | Co zawiera |
+| --- | --- |
+| `core` | Rdzeń: logowanie, organizacje, użytkownicy, konto, dashboard. Zawsze zainstalowany. |
+| `audit-logs` | Dziennik zdarzeń organizacji: model `AuditLog`, strona `/audit-log`, komponent `<AuditTrail>`, zdarzenia członkostwa. Moduł nie ma retencji (usuwania starych wpisów): dziennik rośnie bez limitu. |
+
 ## `wa create <katalog> [opcje]`
 
 | Opcja                   | Znaczenie                                                                                                        |

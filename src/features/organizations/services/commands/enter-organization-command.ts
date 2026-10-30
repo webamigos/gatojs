@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/shared/lib/prisma";
+import { trackAudit } from "@/shared/lib/audit";
 import { toUserRole } from "@/shared/lib/auth/roles";
 import { handleCommandError } from "@/shared/utils/error-handling";
 import type { OperationResult } from "@/shared/types/common";
@@ -36,10 +37,24 @@ export async function enterOrganizationCommand(
     if (!allowed) {
       return { success: false, error: NO_ACCESS };
     }
+    const membership = await prisma.member.findFirst({
+      where: { organizationId: parsed.data, userId: session.user.id },
+      select: { id: true },
+    });
     await prisma.session.update({
       where: { id: session.session.id },
       data: { activeOrganizationId: parsed.data },
     });
+    if (membership === null) {
+      await trackAudit({
+        organizationId: parsed.data,
+        actorUserId: session.user.id,
+        action: "organization.entered",
+        entityType: "organization",
+        entityId: parsed.data,
+        serviceMode: true,
+      });
+    }
     return { success: true };
   } catch (error) {
     return handleCommandError(error, NO_ACCESS);

@@ -175,7 +175,7 @@ Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateS
 
 | Szew | Co trafia do środka | Skąd |
 | --- | --- | --- |
-| `src/modules.generated.ts` | `modules`, `moduleEnvSchemas`, `authPlugins`, `moduleMessages` | `module.ts`, `env.ts`, `auth.ts`, `i18n/<locale>.json` każdego feature |
+| `src/modules.generated.ts` | `modules`, `moduleEnvSchemas`, `authPlugins`, `auditSinks`, `moduleMessages` | `module.ts`, `env.ts`, `auth.ts`, `audit-sink.ts`, `i18n/<locale>.json` każdego feature |
 | `src/modules.client.generated.ts` | `clientModules`, `authClientPlugins` | `module.ts`, `auth-client.ts` |
 | region `wa:relations` w `prisma/schema/auth.prisma` i `prisma/schema/organizations.prisma` | pola relacji zwrotnych w modelach `User` i `Organization` | `schemaRelations` manifestów |
 | region `wa:modules` w `.env.example` | zmienne modułów innych niż `core` | pole `env` manifestu |
@@ -235,7 +235,7 @@ Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateS
 
 **Decyzja.**
 
-- `module.ts` eksportuje domyślnie `defineModule({...})` (ruling R3). `defineModule` w `src/shared/lib/modules/define-module.ts` zwraca przekazany obiekt bez zmian, a TypeScript sprawdza, że pasuje do typu `ModuleDef`. Pliki opcjonalne feature mają nazwane eksporty: `env.ts` → `envSchema`, `auth.ts` → `authPlugin`, `auth-client.ts` → `authClientPlugin`.
+- `module.ts` eksportuje domyślnie `defineModule({...})` (ruling R3). `defineModule` w `src/shared/lib/modules/define-module.ts` zwraca przekazany obiekt bez zmian, a TypeScript sprawdza, że pasuje do typu `ModuleDef`. Pliki opcjonalne feature mają nazwane eksporty: `env.ts` → `envSchema`, `auth.ts` → `authPlugin`, `auth-client.ts` → `authClientPlugin`, `audit-sink.ts` → `auditSink`.
 - `module.ts` zawiera same dane, bez importów serwerowych (ruling R13). Rejestr klienta eksportuje pełne definicje modułów, a nie wybrane pola.
 - Pola `ModuleDef`: `key`, `nav` (pozycje menu: `href`, `labelKey`, opcjonalny `multiOrgLabelKey`, `icon`, `order`), `routePrefixes`, `roles`, `public`, `adminOnly`, `multiOrgRoles`.
 - Dostęp rozstrzyga `canAccessModule` w `src/shared/lib/auth/permissions.ts`, w tej kolejności: rola globalna `admin` lub `superadmin` → dostęp; `public: true` → dostęp; brak roli w organizacji → brak dostępu; `adminOnly: true` → dostęp tylko przy `MULTI_ORG=true` i roli z `multiOrgRoles` (ruling R9); w pozostałych przypadkach dostęp ma każda rola, chyba że `roles` zawęża listę.

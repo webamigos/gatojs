@@ -38,6 +38,7 @@ async function detectFeature(
     hasEnv: await exists(join(base, "env.ts")),
     hasAuth: await exists(join(base, "auth.ts")),
     hasAuthClient: await exists(join(base, "auth-client.ts")),
+    hasAuditSink: await exists(join(base, "audit-sink.ts")),
     locales,
   };
 }
