@@ -280,6 +280,9 @@ var regionTargets = [
   }
 ];
 var REGION_FILES = regionTargets.map((target) => target.file).sort(compareCodePoint);
+function hasAnyRegionMarker(content, marker) {
+  return content.includes(`wa:${marker}:start`) || content.includes(`wa:${marker}:end`);
+}
 async function renderRegionTarget(target, context) {
   let current;
   try {
@@ -291,6 +294,14 @@ async function renderRegionTarget(target, context) {
     throw error62;
   }
   const body = await target.body(context);
+  if (!hasAnyRegionMarker(current, target.marker)) {
+    if (body === "") {
+      return null;
+    }
+    throw new Error(
+      `${target.file}: brak regionu wa:${target.marker}; dodaj linie ze znacznikami wa:${target.marker}:start i wa:${target.marker}:end`
+    );
+  }
   return {
     file: target.file,
     current,

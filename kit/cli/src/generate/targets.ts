@@ -112,6 +112,13 @@ export const REGION_FILES: string[] = regionTargets
   .map((target) => target.file)
   .sort(compareCodePoint);
 
+function hasAnyRegionMarker(content: string, marker: string): boolean {
+  return (
+    content.includes(`wa:${marker}:start`) ||
+    content.includes(`wa:${marker}:end`)
+  );
+}
+
 export async function renderRegionTarget(
   target: RegionTarget,
   context: RegionContext,
@@ -126,6 +133,14 @@ export async function renderRegionTarget(
     throw error;
   }
   const body = await target.body(context);
+  if (!hasAnyRegionMarker(current, target.marker)) {
+    if (body === "") {
+      return null;
+    }
+    throw new Error(
+      `${target.file}: brak regionu wa:${target.marker}; dodaj linie ze znacznikami wa:${target.marker}:start i wa:${target.marker}:end`,
+    );
+  }
   return {
     file: target.file,
     current,
