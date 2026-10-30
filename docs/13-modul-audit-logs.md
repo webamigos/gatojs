@@ -270,7 +270,7 @@ export async function trackAudit(
 - **Co robi.** Woła po kolei każde ujście z `auditSinks` (rejestr w `src/modules.generated.ts`) z tym samym obiektem zdarzenia i czeka na każde.
 - **Błędy.** Błąd ujścia, także synchroniczny wyjątek, trafia do logu jako `trackAudit failed` z nazwą akcji, a kolejne ujścia są wołane dalej. `trackAudit` nigdy nie rzuca, więc **awaria zapisu wpisu nie przerywa komendy i nie cofa jej zapisu** ([D40](decyzje.md#d40)). Użytkownik dostaje sukces, a brak wpisu widać tylko w logach.
 - **Transakcja.** Wpis zapisuje się osobnym zapytaniem, poza transakcją komendy. Komenda, której zapis się powiódł, a zapis wpisu nie, zostawia zmianę bez śladu w dzienniku.
-- **Bez modułu.** `auditSinks` jest puste: wywołanie nic nie zapisuje, nie loguje i nie zgłasza błędu (test „bez sinków → resolves undefined i nic nie loguje” w `src/shared/lib/__tests__/audit.test.ts`; sprawdzone w [12](12-moduly-kitu.md#punkty-wejscia)).
+- **Bez modułu.** Jeśli projekt nie ma też własnego ujścia (`audit-sink.ts` w funkcji projektu), `auditSinks` jest puste: wywołanie nic nie zapisuje, nie loguje i nie zgłasza błędu (test „bez sinków → resolves undefined i nic nie loguje” w `src/shared/lib/__tests__/audit.test.ts`; sprawdzone w [12](12-moduly-kitu.md#punkty-wejscia)).
 - **Bezpieczeństwo.** `audit.ts` nie ma dyrektywy `"use server"` (pilnuje tego test „nie zawiera dyrektywy use server”), więc klient nie może wywołać `trackAudit` i sam dopisać wpisu. Nie eksportuj własnej akcji serwerowej, która przyjmuje zdarzenie od klienta i przekazuje je do `trackAudit`.
 
 <a id="auditactor"></a>

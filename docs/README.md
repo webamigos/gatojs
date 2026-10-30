@@ -6,7 +6,7 @@ Każdy dokument ma własny nagłówek „Zweryfikowano z kodem” z commitem, z 
 
 ## Czego dotyczy
 
-Dokumentacja opisuje kit w wersji `0.1.0`: kod z commitu `76ca2d7` na `main` (koniec planu 3, tag `v0.1.0`). Pliki sprawdzano z różnymi commitami; commit, z którym sprawdzono dany plik, podaje jego nagłówek. Każde twierdzenie o zachowaniu kodu jest sprawdzone w kodzie i wskazuje plik źródłowy. Gdy kod, testy i `AGENTS.md` się różnią, dokumentacja idzie za kodem, potem za testami, potem za `AGENTS.md` i `CLAUDE.md`, a na końcu za specami, planami i notatkami.
+Dokumentacja opisuje kit w wersji `0.1.0`: kod z commitu `76ca2d7` na `main` (koniec planu 3, tag `v0.1.0`). Pliki sprawdzano z różnymi commitami; commit, z którym sprawdzono dany plik, podaje jego nagłówek. Każde twierdzenie o zachowaniu kodu jest sprawdzone w kodzie i wskazuje plik źródłowy. Gdy kod, testy i `AGENTS.md` się różnią, dokumentacja idzie za kodem, potem za testami, potem za `AGENTS.md`, `CLAUDE.md` i `kit/CLAUDE.md` (dla plików w `kit/`), a na końcu za specami, planami i notatkami.
 
 Dokumentacja leży tylko w repozytorium kitu `webamigos/wa-kit`. Opisuje najnowszą wersję kitu, a nie wersję Twojego projektu: wersję projektu podaje `.wa/kit.json`. Jeśli projekt jest starszy niż kit, część opisanych zachowań może w nim wyglądać inaczej.
 
