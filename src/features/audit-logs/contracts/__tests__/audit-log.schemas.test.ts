@@ -220,6 +220,7 @@ describe("auditLogFiltersSchema: daty w strefie czasowej procesu", () => {
   it.each([
     "2026-13-01",
     "2026-02-30",
+    "0050-01-01",
     "x",
     "2026-10-29T10:00",
     "29-10-2026",

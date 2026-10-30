@@ -273,6 +273,26 @@ describe("redactSensitive: instancje klas i obiekty bez prototypu", () => {
     );
   });
 
+  it("redaguje wynik własnej funkcji toJSON zwykłego obiektu", () => {
+    const result = redactSensitive({
+      newData: { toJSON: () => ({ token: "tajne", amount: 1 }) },
+    });
+
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("tajne");
+    expect(serialized).toBe('{"newData":{"token":"[REDACTED]","amount":1}}');
+  });
+
+  it("redaguje wynik własnej funkcji toJSON obiektu z prototypem null", () => {
+    const bare = Object.create(null) as Record<string, unknown>;
+    bare.toJSON = () => ({ password: "tajne" });
+
+    const serialized = JSON.stringify(redactSensitive({ newData: bare }));
+
+    expect(serialized).not.toContain("tajne");
+    expect(serialized).toBe('{"newData":{"password":"[REDACTED]"}}');
+  });
+
   it("redaguje klucz w obiekcie z prototypem null", () => {
     const bare = Object.create(null) as Record<string, unknown>;
     bare.password = "tajne";

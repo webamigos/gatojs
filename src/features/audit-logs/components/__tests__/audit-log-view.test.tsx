@@ -183,6 +183,19 @@ function pushedUrl(): URL {
   return new URL(String(stableRouter.push.mock.calls[0][0]), "http://test");
 }
 
+describe("AuditLogView: czyszczenie filtrów", () => {
+  it("Wyczyść filtry przy aktywnym filtrze przechodzi raz pod adres bez parametrów", async () => {
+    const user = userEvent.setup();
+    currentSearch.value = "entityType=delivery&page=2";
+    render(filterTree({ ...FILTERS, page: 2, entityType: "delivery" }));
+
+    await user.click(screen.getByRole("button", { name: "Wyczyść filtry" }));
+
+    expect(stableRouter.push).toHaveBeenCalledTimes(1);
+    expect(stableRouter.push).toHaveBeenCalledWith("/audit-log");
+  });
+});
+
 describe.each([
   ["entityType", "Typ obiektu"],
   ["entityId", "Identyfikator obiektu"],
