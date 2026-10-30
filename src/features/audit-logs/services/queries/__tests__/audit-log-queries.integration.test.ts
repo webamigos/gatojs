@@ -1,4 +1,12 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 const { currentSession } = vi.hoisted(() => ({
   currentSession: {
@@ -119,7 +127,12 @@ beforeEach(async () => {
   world = { alice, bob, carol, dave, orgA, orgB };
 });
 
+beforeAll(() => {
+  vi.stubEnv("TZ", "Europe/Warsaw");
+});
+
 afterAll(async () => {
+  vi.unstubAllEnvs();
   await prisma.$disconnect();
 });
 
@@ -267,22 +280,22 @@ describe("listAuditLogsQuery na prawdziwej bazie", () => {
     await seed({
       organizationId: world.orgA.id,
       entityId: "before",
-      createdAt: new Date("2026-10-28T23:59:59.999Z"),
+      createdAt: new Date(2026, 9, 28, 23, 59, 59, 999),
     });
     await seed({
       organizationId: world.orgA.id,
       entityId: "start",
-      createdAt: new Date("2026-10-29T00:00:00.000Z"),
+      createdAt: new Date(2026, 9, 29, 0, 0, 0, 0),
     });
     await seed({
       organizationId: world.orgA.id,
       entityId: "end",
-      createdAt: new Date("2026-10-29T23:59:59.999Z"),
+      createdAt: new Date(2026, 9, 29, 23, 59, 59, 999),
     });
     await seed({
       organizationId: world.orgA.id,
       entityId: "after",
-      createdAt: new Date("2026-10-30T00:00:00.000Z"),
+      createdAt: new Date(2026, 9, 30, 0, 0, 0, 0),
     });
     await signInAs(world.alice, world.orgA);
 
