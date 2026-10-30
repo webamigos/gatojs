@@ -196,8 +196,8 @@ Projekt z modułem `uploads` ([12](12-moduly-kitu.md#uploads)) ma w `docker-comp
 
 | Usługa | Obraz | Port na komputerze (domyślny) | Zmienna portu | Do czego służy |
 | --- | --- | --- | --- | --- |
-| `minio` | `cgr.dev/chainguard/minio:latest` | 9000 (API S3), 9001 (konsola WWW) | `MINIO_PORT`, `MINIO_CONSOLE_PORT` | Magazyn plików. Użytkownik i hasło `minioadmin`. |
-| `minio-init` | `amazon/aws-cli:latest` | brak | brak | Tworzy bucket, gdy go nie ma, ponawiając próbę do 30 razy. |
+| `minio` | `cgr.dev/chainguard/minio:latest` przypięty przez digest | 9000 (API S3), 9001 (konsola WWW) | `MINIO_PORT`, `MINIO_CONSOLE_PORT` | Magazyn plików. Użytkownik i hasło `minioadmin`. |
+| `minio-init` | `amazon/aws-cli:2.39.2` | brak | brak | Tworzy bucket, gdy go nie ma, ponawiając próbę do 30 razy. |
 
 - Obrazy `minio/minio` i `minio/mc` nie da się już pobrać, dlatego moduł używa obrazu Chainguard i `aws-cli`.
 - `minio` działa jako `user: "0:0"`, bo dane leżą w katalogu `volumes/minio` zamontowanym z hosta (ustawienie tylko dla rozwoju lokalnego). Katalog jest w `.gitignore`, więc dane przetrwają `docker compose down`.

@@ -161,6 +161,7 @@ Generator uruchom po:
 - dodaniu albo usunięciu w feature pliku `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts`, `audit-sink.ts` albo `i18n/<locale>.json`;
 - dodaniu, usunięciu albo zmianie nazwy katalogu feature;
 - zmianie treści pliku wskazanego w polu `compose` manifestu, bo generator kopiuje ją do `docker-compose.yml`.
+- zmianie treści pliku wskazanego w polu `ciSteps` manifestu, bo generator kopiuje ją do regionu `wa:ci-integration` w `.github/workflows/ci.yml`.
 
 Wynik commitujesz razem ze zmianą, która go wywołała.
 

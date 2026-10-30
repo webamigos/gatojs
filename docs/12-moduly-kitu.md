@@ -223,7 +223,7 @@ Moduł nie ma czyszczenia osieroconych plików: usunięcie encji projektu, któr
 
 ### Lokalnie i w CI
 
-Lokalnie MinIO działa w kontenerze `minio` z `docker-compose.yml`, a kontener `minio-init` tworzy bucket `<slug>-uploads` (idempotentnie, ponawia próbę do 30 razy). Obrazy to `cgr.dev/chainguard/minio:latest` i `amazon/aws-cli:latest`: `minio/minio` i `minio/mc` nie da się już pobrać. Kontener MinIO działa jako `user: "0:0"`, bo katalog `./volumes/minio` jest montowany z hosta. Porty zmieniają `MINIO_PORT` (domyślnie 9000) i `MINIO_CONSOLE_PORT` (9001). Szczegóły: [01-uruchomienie.md](01-uruchomienie.md#minio).
+Lokalnie MinIO działa w kontenerze `minio` z `docker-compose.yml`, a kontener `minio-init` tworzy bucket `<slug>-uploads` (idempotentnie, ponawia próbę do 30 razy). Obrazy to `cgr.dev/chainguard/minio:latest` przypięty przez digest (Chainguard udostępnia bez opłat tylko tag `latest`) i `amazon/aws-cli:2.39.2`: `minio/minio` i `minio/mc` nie da się już pobrać. Kontener MinIO działa jako `user: "0:0"`, bo katalog `./volumes/minio` jest montowany z hosta. Porty zmieniają `MINIO_PORT` (domyślnie 9000) i `MINIO_CONSOLE_PORT` (9001). Szczegóły: [01-uruchomienie.md](01-uruchomienie.md#minio).
 
 W CI projektu `ci/uploads.integration-steps.yml` wypełnia region `wa:ci-integration` w `.github/workflows/ci.yml`: uruchamia MinIO, czeka na jego gotowość i tworzy bucket przed testami integracyjnymi. Testy integracyjne czytają `INTEGRATION_S3_ENDPOINT` (domyślnie `http://localhost:9000`) i `INTEGRATION_S3_BUCKET` (domyślnie `<slug>-uploads`). Projekt bez `uploads` ma region pusty i nie startuje MinIO.
 
