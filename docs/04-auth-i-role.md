@@ -391,7 +391,7 @@ Tryby różnią się tylko wierszem `users` z rolą globalną `user`. Przy `MULT
 
 ### Menu
 
-Menu boczne pokazuje dokładnie pozycje definicji, do których `canAccessModule` daje dostęp (decyzja 3). Tabela jest przepisana ze stałej `NAV` w tym samym teście (24 kombinacje). Ścieżki etykiet, czyli `<key>.<labelKey>` ([02-architektura.md](02-architektura.md#definicja-modulu)), podaje linia pod tabelą.
+Menu boczne pokazuje dokładnie pozycje definicji, do których `canAccessModule` daje dostęp (decyzja 3). Macierz i tabela menu obejmują tylko definicje modułów rdzenia, bo test bierze je z `coreClientModules` (`src/test/core-modules.ts`). Strony modułów kitu (`/audit-log`, `/api-keys`) też chroni `requireModuleAccess`; ich dostęp opisują [13-modul-audit-logs.md](13-modul-audit-logs.md#dostep), [14-modul-api-keys.md](14-modul-api-keys.md#dostep) i [15-modul-uploads.md](15-modul-uploads.md#dostep). Tabela jest przepisana ze stałej `NAV` w tym samym teście (24 kombinacje). Ścieżki etykiet, czyli `<key>.<labelKey>` ([02-architektura.md](02-architektura.md#definicja-modulu)), podaje linia pod tabelą.
 
 | `MULTI_ORG` | Rola globalna | `owner` | `admin` | `member` | bez członkostwa |
 | --- | --- | --- | --- | --- | --- |
@@ -454,7 +454,7 @@ npm run admin:create -- --email <email> --role superadmin
 
 1. **Rola.** `--role` albo `admin`. Inna wartość kończy się błędem `Nieznana rola: <rola> (dozwolone: admin, superadmin)` przed jakimkolwiek zapisem.
 2. **Adres** jest zapisywany małymi literami.
-3. **Nowe konto** powstaje przez `auth.api.createUser` bez nagłówków. Hook `before` i sprawdzenie uprawnień pluginu `admin` pomijają takie wywołanie z serwera, dlatego skrypt może założyć konto `superadmin` ([04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md#wywolania-z-serwera)). Konto dostaje wybraną rolę, potwierdzony adres i imię z `--name` albo część adresu przed `@`. Hasło pochodzi z `--password`, z `ADMIN_PASSWORD` albo jest generowane (20 znaków) i wypisywane raz. Pusta `ADMIN_PASSWORD=` daje konto bez hasła ([niżej](#pusta-admin-password)).
+3. **Nowe konto** powstaje przez `auth.api.createUser` bez nagłówków. Hook `before` i sprawdzenie uprawnień pluginu `admin` pomijają takie wywołanie z serwera, dlatego skrypt może założyć konto `superadmin` ([04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md#wywolania-z-serwera)). Konto dostaje wybraną rolę, potwierdzony adres i imię z `--name` albo część adresu przed `@`. Hasło pochodzi z `--password`, z `ADMIN_PASSWORD` albo jest generowane (20 znaków) i wypisywane raz. Pusta `ADMIN_PASSWORD=` albo same białe znaki znaczą brak hasła: skrypt je generuje i wypisuje ([niżej](#pusta-admin-password)).
 4. **Istniejące konto** zachowuje hasło i imię. Niższą rolę skrypt podnosi tylko po zgodzie na pytanie `Użytkownik <email> istnieje. Nadać rolę <rola>? [t/N]` (zgoda to `t`, `tak`, `y` albo `yes`, wielkość liter bez znaczenia) albo z `--yes`, a bez zgody kończy się komunikatem `Przerwano`. Roli nigdy nie obniża. Przypadki są w tabeli niżej.
 5. **Organizacja** (w jednej transakcji). Na pustej bazie powstaje organizacja o nazwie z `--org-name` albo `WA App`, a konto zostaje jej `owner`. Gdy organizacja już jest, konto dostaje członkostwo `owner` w najstarszej, chyba że już w niej jest: wtedy jego rola w organizacji się nie zmienia.
 6. **Częściowy błąd.** Gdy konto z wygenerowanym hasłem powstało, a krok organizacji się nie udał, skrypt wypisuje `Użytkownik został utworzony. Wygenerowane hasło (pokazane raz): <hasło>` i komunikat błędu.
