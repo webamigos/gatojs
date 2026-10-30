@@ -127,3 +127,17 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Kod:** `src/test/integration/global-setup.ts` uruchamia `npx prisma db push` ze schematem projektu. Projekt z samym `audit-logs` nie ma tabel `api_keys` i `uploads`, więc `db push` na `wa_app_test` (z wierszem w `api_keys`) zatrzymał się na ``You are about to drop the `api_keys` table, which is not empty (1 rows).`` i testy się nie uruchomiły. Wymuszenie (`--accept-data-loss`) skasowałoby dane bazy testowej kitu.
 - **Propozycja:** w przejściach Task 7–8 używać osobnej bazy `<slug>_runs_test` w `wa-kit-db-1` (tworzy ją `globalSetup`); Task 6 użył `audit_demo_runs_test`. Dopisać tę bazę do listy baz z przejść w raporcie Task 13.
 - **Status:** obejście zastosowane w Task 6.
+
+## R18. Komendy `api-keys` sprawdzają dostęp przed walidacją, a błąd walidacji daje ogólny komunikat
+
+- **Dokument:** `AGENTS.md`, „Struktura”: „Akcje serwerowe: walidacja → autoryzacja → wywołanie serwisu”; `docs/06-wzorce-kodu.md` („Kolejność kroków w nowej komendzie”: `try` obejmuje całe ciało, walidacja przed kontekstem).
+- **Kod:** `createApiKeyCommand`, `revokeApiKeyCommand` i `deleteApiKeyCommand` (`src/features/api-keys/services/commands/api-key-commands.ts`) wołają `requireModuleAccess` przed `try`, potem `assertServiceModeConfirmed`, a dopiero potem `parse` schematu. `ZodError` nie jest `DomainError`, więc `handleCommandError` zwraca ogólny komunikat („Nie udało się utworzyć klucza”) i loguje błąd na poziomie `error`. Bezpieczeństwa to nie narusza (Prisma jest za guardem i potwierdzeniem); ten sam rodzaj odstępstwa w rdzeniu opisuje R37 notatki części 1.
+- **Propozycja:** brak zmiany w kodzie; `docs/14-modul-api-keys.md` („Komponenty, komendy i serwisy”) opisuje komunikaty, a przykład własnej trasy w `14b` waliduje wejście w serwisie.
+- **Status:** informacyjne.
+
+## R19. Odnośniki do opisu peppera i trasy z kluczem prowadzą do skróconej sekcji w 12
+
+- **Dokument:** `docs/10-wdrozenie.md` („Zmienne produkcyjne”, wiersz `API_KEY_PEPPER`, odnośnik „pepper”), `docs/07-i18n-mail-env.md` („Kiedy i jak działa walidacja”) i `docs/09b-implementacja-i-bramki.md` („Trasa API z kluczem w funkcji projektu”) odsyłają do `12-moduly-kitu.md#api-keys`; po przepisaniu 12 ta sekcja ma jedno zdanie, a pepper, kontrakt `authenticateApiKey` i trasa z kluczem są w [14-modul-api-keys.md](../../14-modul-api-keys.md#pepper) i [14b-modul-api-keys-uzycie.md](../../14b-modul-api-keys-uzycie.md#wlasna-trasa).
+- **Kod:** nie dotyczy.
+- **Propozycja:** w Task 11 zmienić odnośniki na sekcje „Konfiguracja peppera” w 14 i „Trasa z kluczem i serwis z filtrem organizacji” w 14b; przykład w 09b z akcją `delivery.received` poprawić zgodnie z R15.
+- **Status:** otwarte, naprawia Task 11.
