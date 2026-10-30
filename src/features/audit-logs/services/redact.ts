@@ -16,11 +16,6 @@ function isSensitiveKey(key: string): boolean {
   return SENSITIVE_FRAGMENTS.some((fragment) => normalized.includes(fragment));
 }
 
-function isPlainObject(value: object): value is Record<string, unknown> {
-  const prototype: unknown = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-
 function hasToJSON(value: object): value is { toJSON: () => unknown } {
   return typeof (value as { toJSON?: unknown }).toJSON === "function";
 }
@@ -56,7 +51,7 @@ export function redactSensitive(value: unknown): unknown {
   if (!isRedactableObject(value)) {
     return value;
   }
-  if (!isPlainObject(value) && hasToJSON(value)) {
+  if (hasToJSON(value)) {
     return redactSerialized(value.toJSON());
   }
   return redactEntries(value);
