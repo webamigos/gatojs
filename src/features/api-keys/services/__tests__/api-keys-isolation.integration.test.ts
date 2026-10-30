@@ -1,5 +1,13 @@
 import { createHmac } from "node:crypto";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 const { currentSession, mockTrackAudit } = vi.hoisted(() => ({
   mockTrackAudit: vi.fn(),
@@ -615,23 +623,6 @@ describe("klucze API na prawdziwej bazie", () => {
     ]);
   });
 
-  it("dwa równoległe create przy 9 aktywnych kluczach dają dokładnie jeden sukces i 10 aktywnych", async () => {
-    await seedActiveKeys(world.orgA.id, 9);
-    await signInAs(world.alice, world.orgA);
-
-    const results = await Promise.all([
-      createApiKeyCommand(VALID_INPUT),
-      createApiKeyCommand(VALID_INPUT),
-    ]);
-
-    expect(results.filter((result) => result.success)).toHaveLength(1);
-    expect(
-      await prisma.apiKey.count({
-        where: { organizationId: world.orgA.id, revokedAt: null },
-      }),
-    ).toBe(10);
-  });
-
   it("tryb serwisowy: revoke bez potwierdzenia zwraca błąd, nie zmienia klucza i nie pisze audytu", async () => {
     const key = await seedKey(world.orgA.id);
     const superadmin = await createUser({
@@ -704,5 +695,168 @@ describe("klucze API na prawdziwej bazie", () => {
       action: "api_key.revoked",
       serviceMode: true,
     });
+  });
+});
+
+describe("zmiana wiersza między odczytem a zapisem", () => {
+  let restoreRead: (() => void) | null = null;
+
+  function afterKeyRead(sideEffect: () => Promise<unknown>) {
+    const originalFindFirst = prisma.apiKey.findFirst.bind(prisma.apiKey);
+    const spy = vi.spyOn(prisma.apiKey, "findFirst").mockImplementation((async (
+      args: Parameters<typeof prisma.apiKey.findFirst>[0],
+    ) => {
+      const row = await originalFindFirst(args);
+      await sideEffect();
+      return row;
+    }) as never);
+    restoreRead = () => spy.mockRestore();
+  }
+
+  afterEach(() => {
+    restoreRead?.();
+    restoreRead = null;
+  });
+
+  it("delete, gdy inne żądanie usunęło klucz po odczycie, zwraca sukces i nie zapisuje audytu api_key.deleted", async () => {
+    const key = await seedKey(world.orgA.id);
+    await signInAs(world.alice, world.orgA);
+    afterKeyRead(() => prisma.apiKey.delete({ where: { id: key.id } }));
+
+    const result = await deleteApiKeyCommand({ id: key.id });
+
+    expect(result).toEqual({ success: true });
+    expect(
+      await prisma.apiKey.findUnique({ where: { id: key.id } }),
+    ).toBeNull();
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("revoke nie unieważnia wiersza, który w chwili zapisu należy do organizacji B, i nie zapisuje audytu", async () => {
+    const key = await seedKey(world.orgA.id);
+    await signInAs(world.alice, world.orgA);
+    afterKeyRead(() =>
+      prisma.apiKey.update({
+        where: { id: key.id },
+        data: { organizationId: world.orgB.id },
+      }),
+    );
+
+    await revokeApiKeyCommand({ id: key.id });
+
+    const row = await prisma.apiKey.findUniqueOrThrow({
+      where: { id: key.id },
+    });
+    expect(row.organizationId).toBe(world.orgB.id);
+    expect(row.revokedAt).toBeNull();
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("delete nie usuwa wiersza, który w chwili zapisu należy do organizacji B, i nie zapisuje audytu", async () => {
+    const key = await seedKey(world.orgA.id);
+    await signInAs(world.alice, world.orgA);
+    afterKeyRead(() =>
+      prisma.apiKey.update({
+        where: { id: key.id },
+        data: { organizationId: world.orgB.id },
+      }),
+    );
+
+    await deleteApiKeyCommand({ id: key.id });
+
+    const row = await prisma.apiKey.findUnique({ where: { id: key.id } });
+    expect(row?.organizationId).toBe(world.orgB.id);
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe("równoległe tworzenie kluczy przy limicie", () => {
+  const BARRIER_TIMEOUT_MS = 1_000;
+  let restoreTransaction: (() => void) | null = null;
+
+  function bindMember(target: object, property: string | symbol) {
+    const value: unknown = Reflect.get(target, property);
+    return typeof value === "function" ? value.bind(target) : value;
+  }
+
+  function holdEveryCountUntilBothCounted() {
+    let counted = 0;
+    let releaseAll: () => void = () => undefined;
+    const bothCounted = new Promise<void>((resolve) => {
+      releaseAll = resolve;
+    });
+    const waitForOther = () => {
+      counted += 1;
+      if (counted >= 2) {
+        releaseAll();
+      }
+      return Promise.race([
+        bothCounted,
+        new Promise((resolve) => setTimeout(resolve, BARRIER_TIMEOUT_MS)),
+      ]);
+    };
+    const withHeldCount = (tx: object) =>
+      new Proxy(tx, {
+        get(target, property) {
+          if (property !== "apiKey") {
+            return bindMember(target, property);
+          }
+          const apiKey = Reflect.get(target, property) as object;
+          return new Proxy(apiKey, {
+            get(delegate, method) {
+              if (method !== "count") {
+                return bindMember(delegate, method);
+              }
+              return async (args: unknown) => {
+                const count = await (
+                  delegate as { count: (a: unknown) => Promise<number> }
+                ).count(args);
+                await waitForOther();
+                return count;
+              };
+            },
+          });
+        },
+      });
+    const originalTransaction = prisma.$transaction.bind(prisma);
+    const spy = vi
+      .spyOn(prisma, "$transaction")
+      .mockImplementation(((
+        callback: (tx: object) => Promise<unknown>,
+        options?: unknown,
+      ) =>
+        (
+          originalTransaction as (
+            fn: (tx: object) => Promise<unknown>,
+            opts?: unknown,
+          ) => Promise<unknown>
+        )((tx) => callback(withHeldCount(tx)), options)) as never);
+    restoreTransaction = () => spy.mockRestore();
+  }
+
+  afterEach(() => {
+    restoreTransaction?.();
+    restoreTransaction = null;
+  });
+
+  it("dwa równoległe create przy 9 aktywnych kluczach dają jeden sukces, jeden błąd limitu i 10 aktywnych", async () => {
+    await seedActiveKeys(world.orgA.id, 9);
+    await signInAs(world.alice, world.orgA);
+    holdEveryCountUntilBothCounted();
+
+    const results = await Promise.all([
+      createApiKeyCommand(VALID_INPUT),
+      createApiKeyCommand(VALID_INPUT),
+    ]);
+
+    expect(results.filter((result) => result.success)).toHaveLength(1);
+    expect(results.filter((result) => !result.success)).toEqual([
+      { success: false, error: "Osiągnięto limit 10 aktywnych kluczy" },
+    ]);
+    expect(
+      await prisma.apiKey.count({
+        where: { organizationId: world.orgA.id, revokedAt: null },
+      }),
+    ).toBe(10);
   });
 });

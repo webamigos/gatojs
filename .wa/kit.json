@@ -61,7 +61,9 @@
           "src/app/[locale]/(app)/audit-log/**"
         ],
         "dependencies": {},
-        "devDependencies": {},
+        "devDependencies": {
+          "better-call": "^1.4.4"
+        },
         "env": [],
         "schemaRelations": [
           {

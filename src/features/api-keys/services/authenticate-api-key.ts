@@ -1,8 +1,7 @@
-import { env, type CoreEnv } from "@/shared/lib/env";
 import { logger } from "@/shared/lib/logger";
 import { prisma } from "@/shared/lib/prisma";
-import type { ApiKeysEnv } from "../env";
 import { knownApiScopes } from "./api-scopes";
+import { apiKeyPepper } from "./api-key-pepper";
 import { hashApiKey } from "./api-key-secret";
 
 const BEARER_PREFIX = "Bearer ";
@@ -20,10 +19,6 @@ export type ApiKeyAuthResult =
       status: 401 | 403;
       error: "missing" | "invalid" | "revoked" | "expired" | "scope";
     };
-
-function pepper(): string {
-  return (env as CoreEnv & ApiKeysEnv).API_KEY_PEPPER;
-}
 
 function readBearerToken(request: Request): string | null {
   const header = request.headers.get("authorization");
@@ -54,7 +49,7 @@ export async function authenticateApiKey(
     return { ok: false, status: 401, error: "missing" };
   }
   const record = await prisma.apiKey.findUnique({
-    where: { hashedKey: hashApiKey(token, pepper()) },
+    where: { hashedKey: hashApiKey(token, apiKeyPepper()) },
     select: {
       id: true,
       organizationId: true,

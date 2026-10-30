@@ -38,6 +38,7 @@ Zweryfikowano z kodem: a4d5af3, 2026-10-29
 - `src/features/api-keys/services/api-scopes.ts`
 - `src/features/api-keys/services/api-scope-labels.ts`
 - `src/features/api-keys/services/authenticate-api-key.ts`
+- `src/features/api-keys/services/api-key-pepper.ts`
 - `src/features/api-keys/services/organization-api.ts`
 - `src/features/api-keys/services/commands/api-key-commands.ts`
 - `src/features/api-keys/services/queries/api-key-queries.ts`
@@ -100,7 +101,7 @@ Dziennik zdarzeń organizacji: kto, kiedy i co zmienił w danych organizacji. Mo
 | `member.removed` | hook `/organization/remove-member` | `member` (w `oldData` użytkownik i rola) |
 | `organization.entered` | `enterOrganizationCommand` rdzenia, tylko gdy superadmin wchodzi do organizacji bez członkostwa | `organization` |
 
-Hooki obejmują wyłącznie ścieżki z `AUDITED_ORGANIZATION_PATHS`. Zdarzenie powstaje po udanym wywołaniu, z danych zwróconych przez better-auth. Endpointy better-auth wymagają członkostwa, więc wpisy z hooków nie mają znacznika trybu serwisowego. Znacznik `serviceMode: true` niesie tylko wpis `organization.entered` superadmina, a strona `/audit-log` oznacza go plakietką.
+Hooki obejmują wyłącznie ścieżki z `AUDITED_ORGANIZATION_PATHS`. Zdarzenie powstaje po udanym wywołaniu, z danych zwróconych przez better-auth. Endpointy better-auth wymagają członkostwa, więc wpisy z hooków nie mają znacznika trybu serwisowego. Znacznik `serviceMode: true` niesie wpis `organization.entered` superadmina oraz każde zdarzenie komendy, która przekazuje `auditActor(context)` w trybie serwisowym, także komendy modułów i funkcji projektu ([09b](09b-implementacja-i-bramki.md)). Strona `/audit-log` oznacza takie wpisy plakietką.
 
 ### Etykiety akcji
 

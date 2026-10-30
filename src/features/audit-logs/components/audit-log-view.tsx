@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { format } from "date-fns";
 import { pl, enUS } from "date-fns/locale";
 import type { Locale as DateFnsLocale } from "date-fns";
@@ -51,8 +51,10 @@ const declaredActions = registry.flatMap(
   (moduleDef) => moduleDef.auditActions ?? [],
 );
 
-function formatDateInput(date: Date | undefined): string {
-  return date ? date.toISOString().slice(0, 10) : "";
+function dateInputValue(date: Date | undefined, raw: string | null): string {
+  // WHY: the filter date is local midnight in the server zone; the browser
+  // zone may differ, so the input shows the validated day from the URL.
+  return date && raw ? raw : "";
 }
 
 function isSortColumn(id: string): id is AuditLogSortColumn {
@@ -80,7 +82,93 @@ function useUrlParams() {
     });
   }
 
-  return { update, setFilter, clear: () => router.push("/audit-log") };
+  return {
+    searchParams,
+    update,
+    setFilter,
+    clear: () => router.push("/audit-log"),
+  };
+}
+
+function subscribeToNothing() {
+  return () => {};
+}
+
+function useIsMounted(): boolean {
+  return useSyncExternalStore(
+    subscribeToNothing,
+    () => true,
+    () => false,
+  );
+}
+
+function CreatedAtCell({
+  createdAt,
+  locale,
+}: {
+  createdAt: Date;
+  locale: DateFnsLocale;
+}) {
+  const isMounted = useIsMounted();
+  return (
+    <time
+      dateTime={createdAt.toISOString()}
+      className="whitespace-nowrap text-xs text-muted-foreground"
+    >
+      {isMounted ? format(createdAt, "d MMM yyyy HH:mm:ss", { locale }) : null}
+    </time>
+  );
+}
+
+interface TextFilterFieldProps {
+  id: string;
+  label: string;
+  className: string;
+  value: string | undefined;
+  onCommit: (value: string) => void;
+}
+
+function TextFilterField({
+  id,
+  label,
+  className,
+  value,
+  onCommit,
+}: TextFilterFieldProps) {
+  const current = value ?? "";
+  const [draft, setDraft] = useState(current);
+  const [syncedValue, setSyncedValue] = useState(current);
+  const [isFocused, setIsFocused] = useState(false);
+
+  if (current !== syncedValue) {
+    setSyncedValue(current);
+    if (!isFocused) {
+      setDraft(current);
+    }
+  }
+
+  function handleBlur(text: string) {
+    setIsFocused(false);
+    if (text.trim() !== current) {
+      onCommit(text);
+    }
+  }
+
+  return (
+    <div className="w-full space-y-1 sm:w-auto">
+      <Label className="text-xs" htmlFor={id}>
+        {label}
+      </Label>
+      <Input
+        id={id}
+        className={className}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onFocus={() => setIsFocused(true)}
+        onBlur={(event) => handleBlur(event.target.value)}
+      />
+    </div>
+  );
 }
 
 function ChangeDetails({ row }: { row: AuditLogRow }) {
@@ -109,7 +197,7 @@ export function AuditLogView({ result, filters, actors }: AuditLogViewProps) {
   const t = useTranslations("audit-logs");
   const tc = useTranslations("common");
   const dateLocale = DATE_FNS_LOCALES[useLocale()] ?? pl;
-  const { update, setFilter, clear } = useUrlParams();
+  const { searchParams, update, setFilter, clear } = useUrlParams();
 
   const root = useTranslations();
   const actionLabel = useMemo(
@@ -146,11 +234,10 @@ export function AuditLogView({ result, filters, actors }: AuditLogViewProps) {
         header: t("col-date"),
         meta: { label: t("col-date") },
         cell: ({ row }) => (
-          <span className="whitespace-nowrap text-xs text-muted-foreground">
-            {format(row.original.createdAt, "d MMM yyyy HH:mm:ss", {
-              locale: dateLocale,
-            })}
-          </span>
+          <CreatedAtCell
+            createdAt={row.original.createdAt}
+            locale={dateLocale}
+          />
         ),
       },
       {
@@ -240,30 +327,20 @@ export function AuditLogView({ result, filters, actors }: AuditLogViewProps) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-full space-y-1 sm:w-auto">
-              <Label className="text-xs" htmlFor="audit-log-entity-type">
-                {t("filter-entity-type")}
-              </Label>
-              <Input
-                key={filters.entityType ?? ""}
-                id="audit-log-entity-type"
-                className="w-full sm:w-[180px]"
-                defaultValue={filters.entityType ?? ""}
-                onBlur={(event) => setFilter("entityType", event.target.value)}
-              />
-            </div>
-            <div className="w-full space-y-1 sm:w-auto">
-              <Label className="text-xs" htmlFor="audit-log-entity-id">
-                {t("filter-entity-id")}
-              </Label>
-              <Input
-                key={filters.entityId ?? ""}
-                id="audit-log-entity-id"
-                className="w-full sm:w-[200px]"
-                defaultValue={filters.entityId ?? ""}
-                onBlur={(event) => setFilter("entityId", event.target.value)}
-              />
-            </div>
+            <TextFilterField
+              id="audit-log-entity-type"
+              label={t("filter-entity-type")}
+              className="w-full sm:w-[180px]"
+              value={filters.entityType}
+              onCommit={(value) => setFilter("entityType", value)}
+            />
+            <TextFilterField
+              id="audit-log-entity-id"
+              label={t("filter-entity-id")}
+              className="w-full sm:w-[200px]"
+              value={filters.entityId}
+              onCommit={(value) => setFilter("entityId", value)}
+            />
             {actors.length > 0 && (
               <div className="w-full space-y-1 sm:w-auto">
                 <Label className="text-xs">{t("filter-user")}</Label>
@@ -292,7 +369,7 @@ export function AuditLogView({ result, filters, actors }: AuditLogViewProps) {
               <Input
                 id="audit-log-from"
                 type="date"
-                value={formatDateInput(filters.from)}
+                value={dateInputValue(filters.from, searchParams.get("from"))}
                 onChange={(event) => setFilter("from", event.target.value)}
               />
             </div>
@@ -303,7 +380,7 @@ export function AuditLogView({ result, filters, actors }: AuditLogViewProps) {
               <Input
                 id="audit-log-to"
                 type="date"
-                value={formatDateInput(filters.to)}
+                value={dateInputValue(filters.to, searchParams.get("to"))}
                 onChange={(event) => setFilter("to", event.target.value)}
               />
             </div>

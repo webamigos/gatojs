@@ -192,3 +192,137 @@ describe("redactSensitive", () => {
     },
   );
 });
+
+class Money {
+  constructor(public cents: number) {}
+
+  toJSON() {
+    return "1.50";
+  }
+}
+
+class Credentials {
+  constructor(
+    public token: string,
+    public amount: number,
+  ) {}
+
+  toJSON() {
+    return { token: this.token, amount: this.amount };
+  }
+}
+
+class Account {
+  constructor(
+    public password: string,
+    public name: string,
+  ) {}
+}
+
+describe("redactSensitive: instancje klas i obiekty bez prototypu", () => {
+  it("instancję klasy z toJSON zastępuje wynikiem toJSON", () => {
+    const result = redactSensitive({ newData: { amount: new Money(150) } }) as {
+      newData: { amount: unknown };
+    };
+
+    expect(result.newData.amount).toBe("1.50");
+  });
+
+  it("serializacja wyniku używa toJSON instancji klasy", () => {
+    const result = redactSensitive({ newData: { amount: new Money(150) } });
+
+    expect(JSON.stringify(result)).toBe('{"newData":{"amount":"1.50"}}');
+  });
+
+  it("redaguje klucze w wyniku toJSON instancji klasy", () => {
+    const result = redactSensitive({
+      newData: { credentials: new Credentials("x", 1) },
+    }) as { newData: { credentials: unknown } };
+
+    expect(result.newData.credentials).toEqual({
+      token: "[REDACTED]",
+      amount: 1,
+    });
+    expect(result.newData.credentials).not.toBeInstanceOf(Credentials);
+  });
+
+  it("instancję klasy bez toJSON zamienia na zwykły obiekt z redakcją", () => {
+    const result = redactSensitive({
+      newData: { account: new Account("tajne", "Jan") },
+    }) as { newData: { account: unknown } };
+
+    expect(result.newData.account).toEqual({
+      password: "[REDACTED]",
+      name: "Jan",
+    });
+    expect(result.newData.account).not.toBeInstanceOf(Account);
+    expect(JSON.stringify(result)).not.toContain("tajne");
+  });
+
+  it("obok instancji klasy nadal redaguje zwykłe obiekty zagnieżdżone", () => {
+    const result = redactSensitive({
+      newData: {
+        amount: new Money(150),
+        secret: "s",
+        profile: { token: "t", name: "Jan" },
+      },
+    });
+
+    expect(JSON.stringify(result)).toBe(
+      '{"newData":{"amount":"1.50","secret":"[REDACTED]","profile":{"token":"[REDACTED]","name":"Jan"}}}',
+    );
+  });
+
+  it("redaguje wynik własnej funkcji toJSON zwykłego obiektu", () => {
+    const result = redactSensitive({
+      newData: { toJSON: () => ({ token: "tajne", amount: 1 }) },
+    });
+
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("tajne");
+    expect(serialized).toBe('{"newData":{"token":"[REDACTED]","amount":1}}');
+  });
+
+  it("redaguje wynik własnej funkcji toJSON obiektu z prototypem null", () => {
+    const bare = Object.create(null) as Record<string, unknown>;
+    bare.toJSON = () => ({ password: "tajne" });
+
+    const serialized = JSON.stringify(redactSensitive({ newData: bare }));
+
+    expect(serialized).not.toContain("tajne");
+    expect(serialized).toBe('{"newData":{"password":"[REDACTED]"}}');
+  });
+
+  it("redaguje klucz w obiekcie z prototypem null", () => {
+    const bare = Object.create(null) as Record<string, unknown>;
+    bare.password = "tajne";
+    bare.name = "A";
+
+    const result = redactSensitive({ newData: bare }) as {
+      newData: Record<string, unknown>;
+    };
+
+    expect(result.newData.password).toBe("[REDACTED]");
+    expect(result.newData.name).toBe("A");
+    expect(JSON.stringify(result)).not.toContain("tajne");
+  });
+
+  it("redaguje obiekt z prototypem null podany na najwyższym poziomie", () => {
+    const bare = Object.create(null) as Record<string, unknown>;
+    bare.apiKey = "k-123";
+
+    expect(JSON.stringify(redactSensitive(bare))).toBe(
+      '{"apiKey":"[REDACTED]"}',
+    );
+  });
+
+  it("datę zostawia tą samą referencją", () => {
+    const at = new Date("2026-01-02T03:04:05.000Z");
+
+    const result = redactSensitive({ newData: { at } }) as {
+      newData: { at: unknown };
+    };
+
+    expect(result.newData.at).toBe(at);
+  });
+});

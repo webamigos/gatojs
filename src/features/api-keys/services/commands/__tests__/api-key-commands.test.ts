@@ -456,3 +456,143 @@ describe("deleteApiKeyCommand", () => {
     expectNoWrites();
   });
 });
+
+interface StoredKey {
+  id: string;
+  organizationId: string;
+  name: string;
+  displayPrefix: string;
+  scopes: string[];
+  revokedAt: Date | null;
+}
+
+let storedKeys: StoredKey[] = [];
+
+function rowMatches(row: StoredKey, where: Record<string, unknown>): boolean {
+  return Object.entries(where).every(([field, condition]) => {
+    if (condition !== null && typeof condition === "object") {
+      throw new Error(`nieobsługiwany warunek w fake: ${field}`);
+    }
+    return row[field as keyof StoredKey] === condition;
+  });
+}
+
+function installKeyTable(afterRead: () => void) {
+  storedKeys = [
+    {
+      id: KEY_ID,
+      organizationId: "org-1",
+      name: "Integracja CRM",
+      displayPrefix: "wa_app_live_abcdef",
+      scopes: ["organization:read"],
+      revokedAt: null,
+    },
+  ];
+  mockPrisma.apiKey.findFirst.mockImplementation(async () => {
+    const snapshot = { ...storedKeys[0] };
+    afterRead();
+    return snapshot;
+  });
+  mockPrisma.apiKey.updateMany.mockImplementation(
+    async ({
+      where,
+      data,
+    }: {
+      where: Record<string, unknown>;
+      data: Partial<StoredKey>;
+    }) => {
+      const matching = storedKeys.filter((row) => rowMatches(row, where));
+      matching.forEach((row) => Object.assign(row, data));
+      return { count: matching.length };
+    },
+  );
+  mockPrisma.apiKey.deleteMany.mockImplementation(
+    async ({ where }: { where: Record<string, unknown> }) => {
+      const before = storedKeys.length;
+      storedKeys = storedKeys.filter((row) => !rowMatches(row, where));
+      return { count: before - storedKeys.length };
+    },
+  );
+}
+
+function moveKeyToOtherOrganization() {
+  const row = storedKeys.find((key) => key.id === KEY_ID);
+  if (row) {
+    row.organizationId = "org-2";
+  }
+}
+
+function removeKeyByOtherRequest() {
+  storedKeys = storedKeys.filter((key) => key.id !== KEY_ID);
+}
+
+describe("revokeApiKeyCommand: zapis ograniczony do aktywnej organizacji", () => {
+  it("unieważnia klucz aktywnej organizacji i zapisuje jedno zdarzenie api_key.revoked", async () => {
+    installKeyTable(() => undefined);
+
+    const result = await revokeApiKeyCommand({ id: KEY_ID });
+
+    expect(result).toEqual({ success: true });
+    expect(storedKeys[0]?.revokedAt).toEqual(NOW);
+    expect(mockTrackAudit).toHaveBeenCalledTimes(1);
+    expect(mockTrackAudit.mock.calls[0]?.[0]).toMatchObject({
+      organizationId: "org-1",
+      action: "api_key.revoked",
+      entityId: KEY_ID,
+    });
+  });
+
+  it("gdy wiersz o tym id należy w chwili zapisu do innej organizacji, nie unieważnia go i nie zapisuje audytu", async () => {
+    installKeyTable(moveKeyToOtherOrganization);
+
+    await revokeApiKeyCommand({ id: KEY_ID });
+
+    expect(storedKeys).toEqual([
+      expect.objectContaining({
+        id: KEY_ID,
+        organizationId: "org-2",
+        revokedAt: null,
+      }),
+    ]);
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteApiKeyCommand: zapis ograniczony do aktywnej organizacji", () => {
+  it("usuwa klucz aktywnej organizacji i zapisuje dokładnie jedno zdarzenie api_key.deleted", async () => {
+    installKeyTable(() => undefined);
+
+    const result = await deleteApiKeyCommand({ id: KEY_ID });
+
+    expect(result).toEqual({ success: true });
+    expect(storedKeys).toEqual([]);
+    expect(mockTrackAudit).toHaveBeenCalledTimes(1);
+    expect(mockTrackAudit.mock.calls[0]?.[0]).toMatchObject({
+      organizationId: "org-1",
+      action: "api_key.deleted",
+      entityType: "api_key",
+      entityId: KEY_ID,
+      oldData: { name: "Integracja CRM", displayPrefix: "wa_app_live_abcdef" },
+    });
+  });
+
+  it("gdy inne żądanie usunęło klucz między odczytem a zapisem, zwraca sukces bez zdarzenia audytu", async () => {
+    installKeyTable(removeKeyByOtherRequest);
+
+    const result = await deleteApiKeyCommand({ id: KEY_ID });
+
+    expect(result).toEqual({ success: true });
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("gdy wiersz o tym id należy w chwili zapisu do innej organizacji, nie usuwa go i nie zapisuje audytu", async () => {
+    installKeyTable(moveKeyToOtherOrganization);
+
+    await deleteApiKeyCommand({ id: KEY_ID });
+
+    expect(storedKeys).toEqual([
+      expect.objectContaining({ id: KEY_ID, organizationId: "org-2" }),
+    ]);
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+});

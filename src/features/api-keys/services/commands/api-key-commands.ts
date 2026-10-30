@@ -3,7 +3,6 @@
 import { auditActor, trackAudit } from "@/shared/lib/audit";
 import { requireModuleAccess } from "@/shared/lib/auth/require-module-access";
 import { assertServiceModeConfirmed } from "@/shared/lib/auth/service-mode";
-import { env, type CoreEnv } from "@/shared/lib/env";
 import { prisma } from "@/shared/lib/prisma";
 import type { OperationResult } from "@/shared/types/common";
 import { DomainError, handleCommandError } from "@/shared/utils/error-handling";
@@ -11,17 +10,13 @@ import {
   apiKeyIdSchema,
   createApiKeySchema,
 } from "../../contracts/api-key.schemas";
-import type { ApiKeysEnv } from "../../env";
+import { apiKeyPepper } from "../api-key-pepper";
 import { generateApiKey, hashApiKey } from "../api-key-secret";
 
 const MODULE_KEY = "api-keys";
 const ACTIVE_KEY_LIMIT = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const KEY_NOT_FOUND = "Nie znaleziono klucza";
-
-function pepper(): string {
-  return (env as CoreEnv & ApiKeysEnv).API_KEY_PEPPER;
-}
 
 async function findOrganizationKey(id: string, organizationId: string) {
   const key = await prisma.apiKey.findFirst({
@@ -66,7 +61,7 @@ export async function createApiKeyCommand(
           createdById: context.userId,
           name: parsed.name,
           displayPrefix,
-          hashedKey: hashApiKey(plaintext, pepper()),
+          hashedKey: hashApiKey(plaintext, apiKeyPepper()),
           scopes: parsed.scopes,
           expiresAt,
         },
@@ -99,7 +94,7 @@ export async function revokeApiKeyCommand(
       return { success: true };
     }
     const { count } = await prisma.apiKey.updateMany({
-      where: { id, revokedAt: null },
+      where: { id, organizationId: context.organizationId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
     if (count > 0) {
@@ -126,14 +121,18 @@ export async function deleteApiKeyCommand(
     assertServiceModeConfirmed(context, confirmation);
     const { id } = apiKeyIdSchema.parse(input);
     const key = await findOrganizationKey(id, context.organizationId);
-    await prisma.apiKey.deleteMany({ where: { id } });
-    await trackAudit({
-      ...auditActor(context),
-      action: "api_key.deleted",
-      entityType: "api_key",
-      entityId: id,
-      oldData: { name: key.name, displayPrefix: key.displayPrefix },
+    const { count } = await prisma.apiKey.deleteMany({
+      where: { id, organizationId: context.organizationId },
     });
+    if (count > 0) {
+      await trackAudit({
+        ...auditActor(context),
+        action: "api_key.deleted",
+        entityType: "api_key",
+        entityId: id,
+        oldData: { name: key.name, displayPrefix: key.displayPrefix },
+      });
+    }
     return { success: true };
   } catch (error) {
     return handleCommandError(error, "Nie udało się usunąć klucza");
