@@ -5,6 +5,7 @@ Object.assign(process.env, {
   BETTER_AUTH_SECRET: "integration-secret-".padEnd(48, "x"),
   APP_URL: "http://localhost:3000",
   EMAIL_FROM: "WA Test <noreply@example.com>",
+  API_KEY_PEPPER: "integration-pepper-".padEnd(48, "x"),
   MULTI_ORG: "false",
   AUTH_PUBLIC_SIGNUP: "false",
 });

@@ -48,6 +48,8 @@ jobs:
             modules: ""
           - name: audit-logs
             modules: "audit-logs"
+          - name: api-keys
+            modules: "api-keys"
     services:
       postgres:
         image: postgres:16

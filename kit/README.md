@@ -20,6 +20,7 @@ Opisy modułów: [docs/12-moduly-kitu.md](../docs/12-moduly-kitu.md). Manifesty 
 | --- | --- |
 | `core` | Rdzeń: logowanie, organizacje, użytkownicy, konto, dashboard. Zawsze zainstalowany. |
 | `audit-logs` | Dziennik zdarzeń organizacji: model `AuditLog`, strona `/audit-log`, komponent `<AuditTrail>`, zdarzenia członkostwa. Moduł nie ma retencji (usuwania starych wpisów): dziennik rośnie bez limitu. |
+| `api-keys` | Klucze API organizacji: model `ApiKey`, strona `/api-keys` dla ról `owner` i `admin`, uwierzytelnianie tras `authenticateApiKey`, zakresy deklarowane przez moduły (`apiScopes`), przykładowa trasa `GET /api/v1/organization`. Wymaga zmiennej `API_KEY_PEPPER` (min. 32 znaki); `wa create` jej nie losuje, więc na produkcji ustaw własną. |
 
 ## `wa create <katalog> [opcje]`
 

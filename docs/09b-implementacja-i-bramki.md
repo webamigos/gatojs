@@ -5,9 +5,10 @@ Po przeczytaniu będziesz wiedzieć:
 - jak napisać query, komendę, komponent i stronę feature tak, żeby testy z części pierwszej przeszły;
 - dlaczego `npm run verify` po dodaniu feature nie wymaga zmiany testów rdzenia i co pilnuje spójności rejestru;
 - jak uruchomić testy integracyjne i Strykera dla nowego feature i jak czytać ich wynik;
+- jak wystawić trasę API uwierzytelnianą kluczem i gdzie umieścić wołany przez nią serwis ([trasy API](#trasy-api));
 - co zacommitować i jak dodać kolejną funkcję do feature, który już jest w rejestrze.
 
-Zweryfikowano z kodem: 012fe4d, 2026-10-29
+Zweryfikowano z kodem: f965e0a, 2026-10-29
 
 Źródła:
 
@@ -25,6 +26,9 @@ Zweryfikowano z kodem: 012fe4d, 2026-10-29
 - `src/shared/lib/audit.ts`
 - `src/features/audit-logs/components/audit-trail.tsx`
 - `src/features/audit-logs/services/audit-action-labels.ts`
+- `src/features/api-keys/services/authenticate-api-key.ts`
+- `src/features/api-keys/services/api-scopes.ts`
+- `src/app/api/v1/organization/route.ts`
 - `src/app/[locale]/(app)/dashboard/page.tsx`
 - `src/__tests__/server-entrypoints-guard.test.ts`
 - `src/shared/lib/modules/__tests__/registry-consistency.test.ts`
@@ -414,6 +418,66 @@ import { AuditTrail } from "@/features/audit-logs/components/audit-trail";
 ```
 
 Komponent wymaga zainstalowanego `audit-logs`: import z `src/features/audit-logs/` nie skompiluje się w projekcie bez modułu. Feature, który ma działać w obu wariantach, nie osadza komponentu, tylko samo woła `trackAudit`. Komponent nie renderuje nic użytkownikowi bez dostępu do modułu (role `owner` i `admin` organizacji), a pokazuje 50 ostatnich wpisów encji z aktywnej organizacji.
+
+<a id="trasy-api"></a>
+
+## Trasa API z kluczem w funkcji projektu
+
+Ta sekcja dotyczy projektu z zainstalowanym modułem `api-keys` ([12-moduly-kitu.md](12-moduly-kitu.md#api-keys)). Funkcja, która wystawia trasę dla zewnętrznych systemów, robi trzy rzeczy.
+
+1. **Deklaracja zakresu w `module.ts` feature** z kluczem etykiety w jego własnej przestrzeni nazw tłumaczeń:
+
+```ts
+apiScopes: [
+  { key: "deliveries:write", labelKey: "scopes.deliveriesWrite" },
+],
+```
+
+Klucz `scopes.deliveriesWrite` dodaj do `src/features/<x>/i18n/pl.json` i `en.json` tego samego feature. Strona `/api-keys` pokazuje zakresy wszystkich zainstalowanych modułów i szuka etykiety w module, który zakres zadeklarował. Zakres z `apiScopes` trafia do `knownApiScopes()` dopiero po `npm run wa -- generate`, bo rejestr `modules` pochodzi z pliku generowanego.
+
+2. **Trasa w `src/app/api/v1/<zasób>/route.ts`**, która najpierw woła `authenticateApiKey`, a dopiero potem dotyka danych. Wszystkie zapytania filtrują po `context.organizationId`; organizacji nie bierze się z treści żądania:
+
+```ts
+import { authenticateApiKey } from "@/features/api-keys/services/authenticate-api-key";
+import { receiveDelivery } from "@/features/deliveries/services/receive-delivery";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const NO_STORE = { "Cache-Control": "no-store" };
+
+export async function POST(request: Request) {
+  const auth = await authenticateApiKey(request, "deliveries:write");
+  if (!auth.ok) {
+    return Response.json(
+      { error: auth.error },
+      { status: auth.status, headers: NO_STORE },
+    );
+  }
+  const delivery = await receiveDelivery(auth.context, await request.json());
+  return Response.json(delivery, { status: 201, headers: NO_STORE });
+}
+```
+
+Trasa przekazuje `auth.context` do serwisu, który waliduje wejście Zod-em; logiki biznesowej nie trzyma w pliku `route.ts`. Serwis wołany z trasy z kluczem przyjmuje `ApiKeyContext` i leży w katalogu głównym `services/` feature, w pliku bez `"use server"` (jak `services/organization-api.ts` w module `api-keys`). Nie kładź go w `services/queries/`, bo test architektury wymaga tam guarda sesji. Nie kładź go też w pliku komend z `"use server"`: każda eksportowana funkcja takiego pliku to publiczna akcja serwerowa, w której wywołujący sam wybierałby `organizationId`. Odpowiedź ma `Cache-Control: no-store`, tak jak trasa przykładowa `GET /api/v1/organization`. Klucz nie jest sesją, więc `getOrgContext()` i `assertServiceModeConfirmed` nie mają tu zastosowania: tożsamością jest `context.organizationId`, a zakres sprawdza `authenticateApiKey`.
+
+3. **Audyt zapisu wykonanego kluczem** przez `trackAudit` z kanałem `API`. Zdarzenie nie ma użytkownika, a identyfikatorem poświadczenia jest id klucza:
+
+```ts
+import { trackAudit } from "@/shared/lib/audit";
+
+await trackAudit({
+  organizationId: context.organizationId,
+  actorUserId: null,
+  action: "delivery.received",
+  entityType: "delivery",
+  entityId: delivery.id,
+  channel: "API",
+  credentialId: context.apiKeyId,
+});
+```
+
+Dzięki temu strona `/audit-log` odróżnia zapis z API od zapisu z interfejsu, a wpis wskazuje klucz, który go wykonał. Akcję deklaruje się w `auditActions` jak w [sekcji o dzienniku zdarzeń](#dziennik-zdarzen).
 
 <a id="istniejacy-modul"></a>
 

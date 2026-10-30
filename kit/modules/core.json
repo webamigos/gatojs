@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
   "requires": [],
   "files": [
@@ -53,6 +53,7 @@
     "vitest.config.ts",
     "vitest.integration.config.ts",
     "vitest.setup.ts",
+    "src/__tests__/proxy-matcher.test.ts",
     "src/__tests__/server-entrypoints-guard.test.ts",
     "src/app/*",
     "src/app/api/auth/**",

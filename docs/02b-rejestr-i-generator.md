@@ -74,7 +74,7 @@ Każdy z plików, które generator czyta z feature, trafia do innej tablicy:
 | `audit-sink.ts` | `auditSink` | `auditSinks` | `src/modules.generated.ts` | lista ujść zapisu zdarzeń audytu w `src/shared/lib/audit` (opcjonalny, ma go moduł `audit-logs`) |
 | `i18n/pl.json`, `i18n/en.json` | treść JSON | `moduleMessages.pl`, `moduleMessages.en`: lista `{ key, load }`, gdzie `key` to nazwa katalogu feature | `src/modules.generated.ts` | `src/i18n/request.ts`, który przez `mergeMessages` umieszcza teksty pod namespace `key` |
 
-- Feature trafia do każdej tablicy osobno, według plików, które ma. Feature z samymi tłumaczeniami pojawi się w `moduleMessages`, ale nie w `modules` ani `clientModules`. Żaden feature rdzenia nie ma `env.ts`, `auth.ts`, `auth-client.ts` ani `audit-sink.ts`, więc w kicie bez modułów te tablice są puste. Moduł `audit-logs` dokłada `authPlugins` i `auditSinks`.
+- Feature trafia do każdej tablicy osobno, według plików, które ma. Feature z samymi tłumaczeniami pojawi się w `moduleMessages`, ale nie w `modules` ani `clientModules`. Żaden feature rdzenia nie ma `env.ts`, `auth.ts`, `auth-client.ts` ani `audit-sink.ts`, więc w kicie bez modułów te tablice są puste. Moduł `api-keys` dokłada `moduleEnvSchemas`, a moduł `audit-logs` dokłada `authPlugins` i `auditSinks`.
 - Rejestr importuje pliki feature, a nie kopiuje ich treści. Zmiana wewnątrz `module.ts`, `env.ts` albo pliku tłumaczeń nie wymaga więc ponownego uruchomienia generatora. Wymaga go dopiero dodanie albo usunięcie takiego pliku.
 - Są dwa pliki, bo plik kliencki trafia do paczki przeglądarki (przez menu boczne i klienta better-auth), więc importuje tylko `module.ts` i `auth-client.ts`. Plik serwerowy importuje schematy env, pluginy serwerowe better-auth i loadery tłumaczeń, które w przeglądarce nie są potrzebne. Plik kliencki czyta też guard na serwerze, więc menu i guard zawsze widzą te same definicje.
 - Kolejność: najpierw feature modułu `core`, potem feature pozostałych modułów w kolejności nazw modułów. W obrębie modułu feature są ułożone według nazwy katalogu. Kolejność nie wpływa na menu, które sortuje po `order`.
@@ -319,7 +319,7 @@ Schematy `kitStateSchema` i `moduleManifestSchema` z `kit/cli/src/manifest/schem
 
 | Plik | Co zawiera | Kto generuje |
 | --- | --- | --- |
-| `src/modules.generated.ts` | `modules`, `moduleEnvSchemas`, `authPlugins`, typ `MessageLoader`, `moduleMessages` | `wa generate` |
+| `src/modules.generated.ts` | `modules`, `moduleEnvSchemas`, `authPlugins`, `auditSinks`, typ `MessageLoader`, `moduleMessages` | `wa generate` |
 | `src/modules.client.generated.ts` | `authClientPlugins`, `clientModules` | `wa generate` |
 | region `wa:relations` w `prisma/schema/auth.prisma` | relacje zwrotne modelu `User` | `wa generate` |
 | region `wa:relations` w `prisma/schema/organizations.prisma` | relacje zwrotne modelu `Organization` | `wa generate` |
