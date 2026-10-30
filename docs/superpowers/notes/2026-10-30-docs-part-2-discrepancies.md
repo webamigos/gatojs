@@ -147,14 +147,14 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Dokument:** [D44](../../decyzje.md#d44), „Decyzja”, ostatni punkt: „odpowiedź 404 nie ma tych nagłówków” (`X-Content-Type-Options: nosniff` i `Content-Security-Policy`).
 - **Kod:** `readUploadForDownload` dodaje te nagłówki tylko do odpowiedzi 200, ale `next.config.ts` dokłada nagłówki bezpieczeństwa (w tym `X-Content-Type-Options: nosniff`) do każdej ścieżki (`source: "/(.*)"`). Na zbudowanym serwerze w przebiegu Task 8 odpowiedź 404 miała `X-Content-Type-Options: nosniff`, a nie miała `Content-Security-Policy`.
 - **Propozycja:** w D44 zawęzić zdanie do nagłówków ustawianych przez trasę („trasa nie dodaje do 404 nagłówków pliku ani `Content-Security-Policy`”). `docs/15-modul-uploads.md` („Pobieranie”) opisuje stan z przebiegu.
-- **Status:** otwarte (decyzje: Task 13 albo Jakub).
+- **Status:** naprawione w D44 (Task 8).
 
 ## R21. D45: lokalne testy integracyjne z MinIO nie wymagają `INTEGRATION_S3_ENDPOINT`
 
 - **Dokument:** [D45](../../decyzje.md#d45), „Konsekwencje”: „Lokalne testy integracyjne z MinIO wymagają `INTEGRATION_S3_ENDPOINT` i własnego kontenera; region działa tylko w CI.”
 - **Kod:** `src/test/integration/setup-env.ts` ma domyślne `http://localhost:9000` i bucket `<slug>-uploads`, czyli wartości MinIO z `docker-compose.yml` projektu (usługi `minio` i `minio-init`). Zmienna jest potrzebna tylko wtedy, gdy MinIO działa na innym porcie (w przebiegu Task 8 port 9000 zajmował MinIO innego projektu, więc testy dostały `INTEGRATION_S3_ENDPOINT=http://localhost:9100`).
 - **Propozycja:** w D45 napisać, że lokalnie testy korzystają z MinIO z `docker compose up -d`, a `INTEGRATION_S3_ENDPOINT`/`INTEGRATION_S3_BUCKET` zmieniają adres i bucket. `docs/15b-modul-uploads-uzycie.md` („Testowanie”) opisuje to z kodu.
-- **Status:** otwarte (decyzje: Task 13 albo Jakub).
+- **Status:** naprawione w D45 (Task 8).
 
 ## R22. `storage.integration.test.ts` zostawia obiekty w buckecie testowym
 
@@ -169,3 +169,10 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Kod:** nie dotyczy.
 - **Propozycja:** w Task 11 zmienić odnośniki na [15-modul-uploads.md](../../15-modul-uploads.md) (`#minio`, `#usuwanie`) i [15b-modul-uploads-uzycie.md](../../15b-modul-uploads-uzycie.md#uzycie); w 09b przykład celu `delivery-photo` jest zgodny z przebiegiem Task 8.
 - **Status:** otwarte, naprawia Task 11.
+
+## R24. `filename*` w `Content-Disposition` zostawia `*`, `(` i `)` bez kodowania
+
+- **Dokument:** RFC 5987/8187 (`attr-char`: litery, cyfry i `!#$&+-.^_`|~`) i [spec planu 3](../specs/2026-10-28-wa-kit-plan-3-modules-design.md) §7 („Poprawny `Content-Disposition` (RFC 6266, `filename*`)”).
+- **Kod:** `src/features/uploads/services/content-disposition.ts` koduje `filename*` przez `encodeURIComponent` i zamienia tylko `'` na `%27`; `encodeURIComponent` zostawia `!~*()` (`encodeURIComponent("a!~*()b.png")` daje `a!~*()b.png`). `*`, `(` i `)` nie są `attr-char`, więc nazwa z nawiasami daje wartość niezgodną ze składnią RFC; przeglądarki zwykle ją akceptują.
+- **Propozycja:** w kodzie kitu zamieniać też `*`, `(`, `)` na `%2A`, `%28`, `%29` i dopisać przypadek testu (zgłoszenie do kitu). `docs/15-modul-uploads.md` („Pobieranie”) opisuje zachowanie z kodu.
+- **Status:** otwarte (kod: zgłoszenie do kitu).

@@ -1474,7 +1474,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 - Cel uploadu deklaruje moduł w `uploadPurposes` ([D39](#d39)): dozwolone typy, limit rozmiaru, widoczność i opcjonalne zmniejszenie obrazu. Kit dostarcza cel `editor-image` (JPEG, PNG, WebP, do 5 MB, `public`, szerokość do 1200 px).
 - `POST /api/uploads` (`src/app/api/uploads/route.ts`) najpierw wymaga nagłówka `Content-Length` (inaczej 411) z rozmiarem nie większym niż największy limit celu plus 64 KB na narzut formularza (inaczej 413). Sesję i organizację trasa sprawdza po nagłówku `Content-Length`, a przed odczytem ciała. Limit konkretnego celu sprawdza się po odczycie pliku. Typ pliku ustala się z zawartości (`file-type`), nie z `file.type`, a rozszerzenie z typu. W trybie serwisowym trasa wymaga potwierdzenia jak komenda ([D22](#d22)). Klucz obiektu: `orgs/<organizationId>/<cel>/<uuid>.<rozszerzenie>`.
 - Gdy zapis rekordu `Upload` w bazie się nie uda, obiekt jest usuwany z magazynu (błąd sprzątania tylko w logu). Usunięcie pliku kasuje rekord także wtedy, gdy obiektu nie da się usunąć z magazynu.
-- `GET /api/uploads/<id>`: plik `public` bez logowania z `Cache-Control: public, max-age=31536000, immutable`; plik `organization` tylko wtedy, gdy aktywna organizacja z `getOrgContext()` jest organizacją pliku, z `Cache-Control: private, no-store`, a w innym przypadku 404 bez zdradzania istnienia pliku. Odpowiedź z plikiem ma `X-Content-Type-Options: nosniff` i `Content-Security-Policy: sandbox; default-src 'none'`; odpowiedź 404 nie ma tych nagłówków.
+- `GET /api/uploads/<id>`: plik `public` bez logowania z `Cache-Control: public, max-age=31536000, immutable`; plik `organization` tylko wtedy, gdy aktywna organizacja z `getOrgContext()` jest organizacją pliku, z `Cache-Control: private, no-store`, a w innym przypadku 404 bez zdradzania istnienia pliku. Odpowiedź z plikiem ma `X-Content-Type-Options: nosniff` i `Content-Security-Policy: sandbox; default-src 'none'`; do odpowiedzi 404 trasa nie dodaje nagłówków pliku ani `Content-Security-Policy`, a `X-Content-Type-Options: nosniff` ma ona z nagłówków bezpieczeństwa, które `next.config.ts` dokłada do każdej ścieżki.
 
 **Odrzucone alternatywy.**
 
@@ -1520,7 +1520,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 - `e2e.yml` nie ma regionu: kroki modułów działają tylko w jobie `integration`.
 - `AGENTS.md` nie wymienia regionu ani pola `ciSteps` (rozbieżność R1).
 - Test własności sprawdza, że plik z `compose` należy do modułu, ale pliku z `ciSteps` nie sprawdza ([D38](#d38)).
-- Lokalne testy integracyjne z MinIO wymagają `INTEGRATION_S3_ENDPOINT` i własnego kontenera; region działa tylko w CI.
+- Region działa tylko w CI. Lokalnie testy integracyjne korzystają z MinIO z `docker compose up -d` projektu: domyślne wartości w `src/test/integration/setup-env.ts` (`http://localhost:9000`, bucket `<slug>-uploads`) odpowiadają usługom `minio` i `minio-init`. `INTEGRATION_S3_ENDPOINT` i `INTEGRATION_S3_BUCKET` zmieniają adres i bucket, gdy MinIO działa gdzie indziej.
 
 **Jak egzekwowana.** Bramka CLI: `kit/cli/src/generate/__tests__/ci-steps.test.ts` (wcięcie, kolejność, „ci.yml bez markerów i bez ciSteps → sukces, ci.yml bajt w bajt bez zmian”, „ci.yml bez markerów, a moduł ma ciSteps → błąd brak regionu i żaden plik nie zmieniony”). Zgodność regionu z manifestami: job `verify` w `.github/workflows/ci.yml` ([D04](#d04)). Job `assemble` w `.github/workflows/kit.yml` uruchamia MinIO własnymi krokami dla kombinacji z `uploads`.
 

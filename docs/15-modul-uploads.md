@@ -195,7 +195,7 @@ Definicja modułu (`src/features/uploads/module.ts`):
 | `visibility` | `visibility`, `UploadVisibility` | `PUBLIC` albo `ORGANIZATION`, z celu w chwili zapisu. |
 | `createdAt` | `created_at`, `timestamptz` | Czas zapisu. |
 
-Indeks `(organizationId, createdAt)` i unikalny `key`. Zachowanie przy usuwaniu: **usunięcie organizacji** usuwa jej rekordy (`onDelete: Cascade`, test „usunięcie organizacji kasuje jej rekordy uploadów”), ale nie obiekty w buckecie; **usunięcie użytkownika** zostawia plik z `uploadedById` równym `null`, a wtedy usunąć go mogą tylko owner, admin organizacji i admin globalny. Widoczność i limity są zapisane w rekordzie albo sprawdzone przy zapisie: zmiana celu w `module.ts` nie zmienia plików już wgranych.
+Indeks `(organizationId, createdAt)` i unikalny `key`. Zachowanie przy usuwaniu: **usunięcie organizacji** usuwa jej rekordy (`onDelete: Cascade`, test „usunięcie organizacji kasuje jej rekordy uploadów”), ale nie obiekty w buckecie; **usunięcie użytkownika** zostawia plik z `uploadedById` równym `null`, a wtedy usunąć go mogą tylko owner i admin organizacji oraz admin i superadmin globalny. Widoczność i limity są zapisane w rekordzie albo sprawdzone przy zapisie: zmiana celu w `module.ts` nie zmienia plików już wgranych.
 
 <a id="post"></a>
 
@@ -263,7 +263,7 @@ Nagłówki odpowiedzi 200:
 Odpowiedzi z przebiegu (sprawdzone): plik `editor-image` bez sesji 200 z `cache-control: public, max-age=31536000, immutable`; plik `delivery-photo` bez sesji 404, z sesją 200 z `cache-control: private, no-store`; `/api/uploads/abc` 404.
 
 - **`Cache-Control`.** Plik publiczny przeglądarka i pośrednicy mogą trzymać rok, a adresu nie da się unieważnić inaczej niż usunięciem pliku. Plik organizacji nie trafia do cache, żeby przeglądarka nie oddała go po wylogowaniu ([D44](decyzje.md#d44)).
-- **`Content-Disposition`.** `contentDisposition` (`services/content-disposition.ts`) w `filename` zamienia na `_` znaki spoza ASCII 0x20–0x7E, cudzysłów, średnik i ukośnik odwrotny, więc nowa linia nie wejdzie do nagłówka; `filename*` koduje całą nazwę procentowo, także apostrof (RFC 5987). Plik `zdjęcie dostawy "A".png` dostał `filename="zdj_cie dostawy _A_.png"; filename*=UTF-8''zdj%C4%99cie%20dostawy%20%22A%22.png` (sprawdzone). Trasa zawsze używa `inline`, więc przeglądarka pokazuje obraz; pobranie wymusza atrybut `download` linku.
+- **`Content-Disposition`.** `contentDisposition` (`services/content-disposition.ts`) w `filename` zamienia na `_` znaki spoza ASCII 0x20–0x7E, cudzysłów, średnik i ukośnik odwrotny, więc nowa linia nie wejdzie do nagłówka; `filename*` koduje nazwę przez `encodeURIComponent` i dodatkowo zamienia apostrof na `%27`, więc litery, cyfry i `-_.!~*()` zostają bez kodowania; `*`, `(` i `)` nie należą do znaków dozwolonych w RFC 5987 (R24 w notatce rozbieżności). Plik `zdjęcie dostawy "A".png` dostał `filename="zdj_cie dostawy _A_.png"; filename*=UTF-8''zdj%C4%99cie%20dostawy%20%22A%22.png` (sprawdzone). Trasa zawsze używa `inline`, więc przeglądarka pokazuje obraz; pobranie wymusza atrybut `download` linku.
 - **Piaskownica.** `sandbox; default-src 'none'` odbiera plikowi skrypty, formularze i zasoby zewnętrzne, także gdy przeglądarka otworzy go pod adresem aplikacji. Wbudowany podgląd PDF w przeglądarce może przez to nie działać.
 - **Odpowiedź 404** nie ma nagłówków pliku ani `Content-Security-Policy` z trasy. Na zbudowanym serwerze miała `X-Content-Type-Options: nosniff` i inne nagłówki bezpieczeństwa, ale z `next.config.ts`, które dokłada je do każdej ścieżki (sprawdzone).
 
@@ -305,7 +305,7 @@ Moduł nie ma zadania, które to sprząta ([D44](decyzje.md#d44): sprzątanie ma
 | Plik | Eksport | Co robi |
 | --- | --- | --- |
 | `components/file-upload.tsx` | `FileUpload` | Pole pliku, wysyłka do `POST /api/uploads`, komunikat błędu, podgląd obrazu ([kontrakt](#file-upload)). |
-| `services/commands/create-upload.ts` | `createUpload(formData)` | Kroki 3–14 zapisu; zwraca `{ status, body }` dla trasy. |
+| `services/commands/create-upload.ts` | `createUpload(formData)` | Powtarza kroki 3–4 i wykonuje kroki 6–14 zapisu (krok 5, odczyt `FormData`, robi trasa); zwraca `{ status, body }` dla trasy. |
 | `services/commands/upload-commands.ts` | `deleteUploadCommand(input, confirmation?)` | Usunięcie pliku ([Usuwanie](#usuwanie)). |
 | `services/read-upload.ts` | `readUploadForDownload(id)` | Odczyt dla trasy `GET` ([Pobieranie](#get)). |
 | `services/api-org-context.ts` | `readOrgContextForApi()` | Sesja i `OrgContext` dla tras: 401 bez sesji, 403 bez organizacji, bez przekierowania. |
@@ -345,7 +345,7 @@ Szwy generowane ([12](12-moduly-kitu.md#szwy-generowane)):
 | Region `wa:ci-integration` w `ci.yml` | Kroki „Start MinIO” i „Create MinIO bucket” z `ci/uploads.integration-steps.yml`. |
 | `authPlugins`, `authClientPlugins`, `auditSinks` | Nic. |
 
-Punkty wejścia z kontraktem: deklaracja `uploadPurposes` w `defineModule` (istnieje zawsze), komponent `<FileUpload>` i komenda `deleteUploadCommand` (pliki modułu, istnieją tylko z modułem), `requestConfirmation()` z `useServiceModeAction` (rdzeń, z którego korzysta `<FileUpload>`) i zdarzenia dziennika przez `trackAudit` z rdzenia.
+Punkty wejścia z kontraktem: deklaracja `uploadPurposes` w `defineModule` (istnieje zawsze), komponent `<FileUpload>` ([kontrakt](#file-upload)) i komenda `deleteUploadCommand` ([kontrakt](#usuwanie)) (pliki modułu, istnieją tylko z modułem; bez modułu import kończy się `TS2307`, [15b](15b-modul-uploads-uzycie.md#bez-modulu)), `requestConfirmation()` z `useServiceModeAction` (rdzeń, z którego korzysta `<FileUpload>`) i zdarzenia dziennika przez `trackAudit` z rdzenia.
 
 <a id="cel-uploadu"></a>
 

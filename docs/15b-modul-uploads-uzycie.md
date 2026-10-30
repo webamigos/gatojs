@@ -204,6 +204,8 @@ Plik `organization` przeglądarka pobiera z ciasteczkiem sesji, więc działa w 
 
 Kolejność ma skutki. `deleteUploadCommand` ma własne reguły ([Usuwanie](15-modul-uploads.md#usuwanie)): `member` nie usunie zdjęcia, które wgrał ktoś inny. Przykład usuwa najpierw dostawę, a niepowodzenie przy pliku tylko loguje, więc plik zostaje osierocony, ale dostawa znika. Jeśli wolisz zatrzymać usunięcie encji, gdy pliku nie da się usunąć, wołaj `deleteUploadCommand` przed usunięciem encji i przerwij przy błędzie.
 
+Komenda z przebiegu nie pilnuje, żeby jeden plik był podpięty do jednej dostawy: to samo `photoUploadId` można zapisać w dwóch dostawach, a usunięcie jednej usunie plik, więc druga będzie wskazywać adres z 404. Dodaj unikalność kolumny (`@unique` na `photoUploadId`) albo przed `deleteUploadCommand` sprawdź, czy inne encje nie wskazują tego pliku.
+
 <a id="bez-modulu"></a>
 
 ### Kod, który ma działać bez modułu
@@ -316,7 +318,7 @@ async function uploadPhoto(width: number): Promise<{ id: string; key: string }> 
 | Upload kończy się „Nie udało się przesłać pliku”; trasa zwraca 500 `storage_failed`, w logu `upload putObject failed` | Magazyn nieosiągalny, zły endpoint, klucze albo region, brak bucketu, `S3_FORCE_PATH_STYLE` nie pasuje do dostawcy. | Sprawdź MinIO (`docker compose up -d`, `minio-init`) albo dane magazynu produkcyjnego i bucket. |
 | Każdy upload zwraca 500, w logu `Duplicate upload purpose key: …` albo `… declares forbidden type …` | Dwa cele z tym samym kluczem albo zakazany typ w `mimeTypes` (sprawdzone dla duplikatu). | Popraw deklarację celu ([Kontrakt celu](15-modul-uploads.md#cel-uploadu)). |
 | 411 `length_required` | Klient wysyła ciało bez `Content-Length` (`Transfer-Encoding: chunked`, strumień) (sprawdzone). | Wysyłaj `FormData` z pliku, jak `<FileUpload>`; przeglądarka ustawia długość. |
-| 413 dla pliku mniejszego niż limit celu w deklaracji | Limit celu jest w bajtach, a `5 * 1024 * 1024` to 5 MiB; albo plik przekracza limit innego celu niż zamierzony. | Sprawdź `maxBytes` i `purpose`. |
+| 413 dla pliku, który według systemu operacyjnego ma mniej niż limit | Limit celu jest w bajtach: `5 * 1024 * 1024` to 5 242 880 B (5 MiB), a menedżer plików może pokazywać megabajty dziesiętne albo zaokrąglać; albo plik idzie do innego celu niż zamierzony. | Sprawdź rozmiar pliku w bajtach, `maxBytes` i `purpose`. |
 | 415 dla pliku CSV, TXT albo JSON | Formaty tekstowe nie mają sygnatury i `file-type` ich nie wykrywa. | Moduł ich nie przyjmuje; zmiana wymaga zmiany kodu modułu. |
 | 415 dla obrazu z dobrym rozszerzeniem | Treść pliku jest innego typu (na przykład SVG albo HTML z rozszerzeniem `.png`) (sprawdzone). | Wgraj prawdziwy obraz. |
 | 400 `unknown_purpose` | Cel nie jest zadeklarowany albo `module.ts` funkcji nie ma w rejestrze (sprawdzone dla nieznanego klucza). | Dodaj cel; dla nowego `module.ts` uruchom `npm run wa -- generate`. |
