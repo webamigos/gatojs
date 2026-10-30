@@ -101,7 +101,7 @@ Trzeci plik generowany, `src/i18n/locales.generated.ts`, nie należy do rejestru
 
 ## `.wa/kit.json`
 
-Plik opisuje, z jakich modułów kitu składa się projekt i jakie ma funkcje własne. W repozytorium kitu zapisuje go `wa kit sync` z manifestów w `kit/modules/` ([16b](16b-rozwoj-kitu.md#kit-sync)), a w projekcie `wa create`, `wa add` i `wa remove` ([16](16-cli-wa.md)). Wpisy w `projectModules` dopisuje ręcznie zespół projektu. W kicie plik wygląda tak (skrócony, pełny manifest modułu `uploads`):
+Plik opisuje, z jakich modułów kitu składa się projekt i jakie ma funkcje własne. W repozytorium kitu zapisuje go `wa kit sync` z manifestów w `kit/modules/` ([16b](16b-rozwoj-kitu.md#kit-sync)), a w projekcie `wa create`, `wa add` i `wa remove` ([16](16-cli-wa.md)). Wpisy w `projectModules` dopisuje ręcznie zespół projektu. W kicie plik wygląda tak (skrócony; manifest modułu `uploads` ze skróconą listą `env`):
 
 `.wa/kit.json`
 
@@ -341,8 +341,8 @@ Reguły regionów:
 
 - W pliku musi być dokładnie jedna linia z markerem początku i jedna z markerem końca, a koniec musi być niżej niż początek, więc oba markery nie mogą stać w jednej linii. Treść regionu nie może zawierać markera tego samego regionu. Jeśli plik ma gdziekolwiek końce linii CRLF, cały wynik ma końce CRLF. Tego pilnuje `replaceRegion` w `kit/cli/src/generate/regions.ts`.
 - Plik docelowy, którego nie ma na dysku, jest pomijany bez błędu.
-- Plik docelowy bez żadnego z dwóch markerów jest pomijany, gdy region byłby pusty. Gdy któryś moduł ma dla niego treść, generator przerywa się błędem `brak regionu` i żaden plik się nie zmienia ([D45](decyzje.md#d45), testy z `describe("generate: plik bez markerów regionu")` w `ci-steps.test.ts`). Projekt, który usunął markery z `ci.yml`, działa więc bez modułów z `ciSteps`. `wa add uploads` skopiuje w nim pliki modułu i zapisze `.wa/kit.json`, a dopiero generator zakończy się błędem; tego kroku `wa add` nie cofa, więc po dodaniu markerów uruchom `npm run wa -- generate` i `npm install` (`add.ts`). Plik z jednym markerem z pary daje błąd `uszkodzony region` także przy pustej treści.
-- Brak pliku z pola `compose` albo `ciSteps` przerywa generator (`composeBody`, `ciStepsBody`). Wszystkie te funkcje są w `kit/cli/src/generate/targets.ts`.
+- Plik docelowy bez żadnego z dwóch markerów jest pomijany, gdy region byłby pusty. Gdy któryś moduł ma dla niego treść, generator przerywa się błędem `brak regionu` i żaden plik się nie zmienia ([D45](decyzje.md#d45), testy z `describe("generate: plik bez markerów regionu")` w `ci-steps.test.ts`). Projekt, który usunął markery z `ci.yml`, działa więc bez modułów z `ciSteps`. `wa add uploads` skopiuje w nim pliki modułu, dopisze jego zależności do `package.json` i zapisze `.wa/kit.json`, a dopiero generator zakończy się błędem. Tych zmian `wa add` nie cofa. Po dodaniu markerów uruchom `npm run wa -- generate` i `npm install` (`kit/cli/src/commands/add.ts`, [16](16-cli-wa.md#add-cofanie)). Plik z jednym markerem z pary daje błąd `uszkodzony region` także przy pustej treści.
+- Brak pliku z pola `compose` albo `ciSteps` przerywa generator, gdy plik docelowy regionu istnieje (`composeBody`, `ciStepsBody`); bez pliku docelowego `renderRegionTarget` pomija region, zanim sięgnie po treść. Wszystkie te funkcje są w `kit/cli/src/generate/targets.ts`.
 
 Komunikaty błędów podaje [Referencja](#referencja-komunikaty).
 
@@ -370,7 +370,8 @@ Samo CLI ma własną bramkę (`npm run verify --prefix kit/cli`), uruchamianą w
 | --- | --- | --- |
 | Feature nie ma pozycji w menu, a jego strona zwraca 404. | Brak wzorca `src/features/<x>/...` w manifeście, wzorzec z `{}` albo `*` po `src/features/`, albo generator nie został uruchomiony. | Dodaj osobny wzorzec dla feature: w projekcie w `projectModules`, w kicie w `kit/modules/<nazwa>.json` i uruchom `npm run wa -- kit sync` ([wyżej](#kit-json)). Uruchom generator i sprawdź, czy `src/modules.client.generated.ts` importuje `@/features/<x>/module`. |
 | Pozycja w menu nie ma przetłumaczonej etykiety. | `key` w `module.ts` różni się od nazwy katalogu feature albo w `i18n/<locale>.json` brakuje klucza z `labelKey`. | Ustaw `key` równy nazwie katalogu ([D27](decyzje.md#d27)) i dodaj brakujący klucz. |
-| Tłumaczenia feature w jednym języku się nie ładują, a plik `i18n/<język>.json` istnieje. | Języka nie ma w `locales` w `.wa/kit.json`. | Dodaj język do `locales` albo usuń zbędny plik ([D33](decyzje.md#d33)). |
+| Cała wersja językowa (na przykład `/en/...`) zwraca 404. | Języka nie ma w `locales` w `.wa/kit.json`, więc nie ma go w `src/i18n/locales.generated.ts` ani w `routing.locales`, a `LocaleLayout` w `src/app/[locale]/layout.tsx` woła `notFound()`. | Dodaj język do `locales` i uruchom generator ([D33](decyzje.md#d33)). |
+| Tłumaczenia feature w jednym z języków projektu się nie ładują, choć plik `i18n/<język>.json` istnieje. | Plik dodano bez ponownego uruchomienia generatora, więc w `moduleMessages` nie ma jego loadera (`detectFeature` w `kit/cli/src/generate/index.ts`). | Uruchom generator i zacommituj wynik. |
 | Strona feature w języku domyślnym zwraca 404, a pod `/en/...` działa. | Trasa to `/api`, leży pod `/api/` albo zawiera kropkę, więc proxy jej nie obsługuje. | Zmień trasę ([Proxy i język](02-architektura.md#proxy)). |
 | CI pada na kroku „Generated files are up to date”. | Plik generowany albo region zmieniony ręcznie albo zmiana feature bez przebiegu generatora. | Uruchom generator i zacommituj wynik. |
 | Generator kończy się błędem. | Uszkodzony `.wa/kit.json`, błędny wpis w `projectModules`, brak albo uszkodzenie markera regionu, brak pliku z `compose` albo `ciSteps`. | Znajdź komunikat w [Referencji](#referencja-komunikaty). |
@@ -457,6 +458,6 @@ Komunikaty błędów CLI wypisuje na stderr bez śladu stosu.
 | Plik docelowy bez markerów, a moduł ma treść dla regionu | `<plik>: brak regionu wa:<marker>; dodaj linie ze znacznikami wa:<marker>:start i wa:<marker>:end` | 1 |
 | Brakujący, podwójny albo odwrócony marker regionu | `<plik>: uszkodzony region wa:<marker>` | 1 |
 | Treść regionu zawiera jego marker | `<plik>: treść regionu wa:<marker> zawiera znacznik regionu` | 1 |
-| Brak pliku z pola `compose` albo `ciSteps` | `ENOENT: no such file or directory, open '<ścieżka>'` | 1 |
+| Brak pliku z pola `compose` albo `ciSteps`, gdy plik docelowy regionu istnieje | `ENOENT: no such file or directory, open '<ścieżka>'` | 1 |
 
 Przy każdym błędzie z tej tabeli żaden plik nie zostaje zmieniony. Komunikaty pozostałych komend CLI podają [16](16-cli-wa.md#referencja-komunikaty) i [16b](16b-rozwoj-kitu.md#referencja-komunikaty).
