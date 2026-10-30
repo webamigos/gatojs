@@ -53,3 +53,17 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Kod:** `applyPlaceholders` w `kit/cli/src/assemble/placeholders.ts` sprawdza tylko obecność pliku na liście `placeholderFiles`. Test dopisany do listy zostałby zmieniony. Krok „No placeholders left in the project” w `kit.yml` pomija testy w `git grep`, więc też tego nie zatrzyma (pierwotne źródło: notatka recenzji szkicu, pkt 16).
 - **Propozycja:** test w `kit/cli`, który odrzuca wpisy `placeholderFiles` pasujące do `__tests__/` albo `*.test.*`. Dokumentacja: [D32](../../decyzje.md#d32).
 - **Status:** otwarte.
+
+## R8. `wa add` nie dopisuje zmiennych modułu do `.env`; `kit/README.md` o tym nie mówi
+
+- **Dokument:** `kit/README.md`, „Komendy w projekcie”: `wa add` „kopiuje pliki modułu i jego zależności, dopisuje zależności npm i uruchamia `wa generate`”; wiersz `api-keys` w tabeli modułów mówi tylko, że `wa create` nie losuje `API_KEY_PEPPER`.
+- **Kod:** `add` w `kit/cli/src/commands/add.ts` nie czyta ani nie zapisuje `.env`; `wa generate` wypełnia tylko region `wa:modules` w `.env.example`. `.env` powstaje raz, w `create` (`writeEnvFile`). Przebieg 2026-10-30 (Task 3): po `wa add api-keys` w projekcie z `uploads` `.env` nie ma `API_KEY_PEPPER`, więc `parseEnv` w `src/shared/lib/env.ts` przy pierwszym odczycie `env` rzuci `Nieprawidłowe zmienne środowiskowe: API_KEY_PEPPER: …`. Symetrycznie `wa remove` zostawia zmienne modułu w `.env` (sprawdzone dla `S3_*`).
+- **Propozycja:** dopisać w `kit/README.md` krok „skopiuj nowe zmienne z regionu `wa:modules` w `.env.example` do `.env`” albo wypisywać go w `add` obok podpowiedzi migracji; pozycja do `znane-ograniczenia.md` (Task 12). Dokumentacja: [16-cli-wa.md](../../16-cli-wa.md#add-po).
+- **Status:** otwarte.
+
+## R9. `wa create` wymaga `git` także z `--no-git`
+
+- **Dokument:** `kit/README.md`, tabela opcji `wa create`: `--no-git` „Pomija `git init` i pierwszy commit”; uwaga pod tabelą wiąże wymóg `git` tylko z commitem.
+- **Kod:** `assemblableFiles` → `listKitFiles` w `kit/cli/src/kit/files.ts` uruchamia `git -C <kit> ls-files` przy każdym `create` i `add` z lokalnym źródłem. Bez `git` w `PATH` `create --no-git` kończy się `spawn git ENOENT`, a katalog projektu jest usuwany (przebieg 2026-10-30, Task 3). Katalog kitu bez `.git` daje `<ścieżka> nie jest repozytorium git` także w `create`, nie tylko w `add` (uzupełnienie pkt 8 notatki recenzji szkicu).
+- **Propozycja:** w `kit/README.md` napisać, że `git` jest wymagany zawsze, a `--no-git` pomija tylko repozytorium projektu (Task 12). Dokumentacja: [16-cli-wa.md](../../16-cli-wa.md#create-opcje).
+- **Status:** otwarte.
