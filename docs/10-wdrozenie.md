@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak założyć konta na produkcji przez `railway run` i jak przekazać aplikację klientowi, łącznie z odcięciem dostępu Web Amigos po okresie wsparcia;
 - co uruchamia każdy workflow CI i kiedy.
 
-Zweryfikowano z kodem: f965e0a, 2026-10-29
+Zweryfikowano z kodem: 09744c4, 2026-10-29
 
 Źródła:
 
@@ -221,6 +221,8 @@ Zmienne ustawiasz w usłudze aplikacji na Railway. Schemat w `src/shared/lib/env
 | `EMAIL_FROM` | wymagana | Nadawca maili, na przykład `WA App <noreply@example.com>`, z domeny skonfigurowanej w Resend. | Błąd walidacji przy braku. |
 | `RESEND_API_KEY` | wymagana przy `NODE_ENV=production` | Klucz API Resend. | `RESEND_API_KEY: wymagana w produkcji`, także przy ustawionym `SMTP_URL`. |
 | `API_KEY_PEPPER` | wymagana, gdy zainstalowany jest moduł `api-keys` | Losowy napis, co najmniej 32 znaki, na przykład z `openssl rand -base64 32`. Nigdy wartość z `.env.example` (`wa create` ją tam zostawia, więc ustaw własną przed pierwszym wdrożeniem). Zmiana wartości unieważnia wszystkie klucze API ([pepper](12-moduly-kitu.md#api-keys)). | Błąd walidacji dla całej aplikacji, nie tylko dla modułu: każda strona i akcja zwraca 500, a healthcheck dalej odpowiada 200 ([kiedy zobaczysz błąd](#blad-env)). |
+| `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET` | wymagane, gdy zainstalowany jest moduł `uploads` | Dane dostępowe do magazynu zgodnego z S3: Railway Bucket (zasób w projekcie Railway) albo Cloudflare R2. Wartości weź z panelu magazynu, a nie z `.env.example` (tam jest lokalny MinIO z hasłem `minioadmin`). Bucket musi istnieć przed pierwszym wdrożeniem: aplikacja go nie tworzy. | Błąd walidacji dla całej aplikacji: każda strona i akcja zwraca 500, a healthcheck dalej odpowiada 200 ([kiedy zobaczysz błąd](#blad-env)). |
+| `S3_REGION`, `S3_FORCE_PATH_STYLE` | opcjonalne | `S3_REGION` domyślnie `auto` (tak działa R2; dla dostawcy z regionami podaj jego nazwę). `S3_FORCE_PATH_STYLE=true` włącza adresowanie `endpoint/bucket/klucz` zamiast `bucket.endpoint`; ustaw je, gdy dostawca nie obsługuje adresów z nazwą bucketu w domenie. Brak daje `false`. | Zła wartość regionu albo stylu adresowania kończy się błędem przy pierwszym zapisie pliku (500 `storage_failed`), a nie przy starcie. |
 | `SMTP_URL` | nie ustawiaj | Brak. | Ustawiona wygrywa z Resend także na produkcji: maile idą przez SMTP ([D18](decyzje.md#d18)). |
 | `AUTH_PUBLIC_SIGNUP`, `MULTI_ORG`, `ADMIN_IMPERSONATION` | opcjonalne | `true` albo `false`; brak daje `false`. Do czasu założenia kont `AUTH_PUBLIC_SIGNUP=false` ([krok 7](#krok-konta)). | Każda inna wartość, na przykład `1` albo `yes`, to błąd walidacji ([D17](decyzje.md#d17)). Znaczenie flag: [D10](decyzje.md#d10), [D06](decyzje.md#d06), [D20](decyzje.md#d20). |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | schemat nie wymaga, ale ustaw | Adres bazowy odbiornika OTLP przez HTTP, bez `/v1/logs`. | Wpisy `logger` nigdzie nie trafiają ([logi](#logi)). |

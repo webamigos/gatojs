@@ -51,6 +51,7 @@ function projectManifest(
     env: [],
     schemaRelations: [],
     compose: null,
+    ciSteps: null,
     workspaces: [],
     ...overrides,
   };

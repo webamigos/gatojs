@@ -16,6 +16,7 @@ export function manifestOf(
     env: [],
     schemaRelations: [],
     compose: null,
+    ciSteps: null,
     workspaces: [],
     ...overrides,
   };

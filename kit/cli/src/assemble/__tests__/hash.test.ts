@@ -237,12 +237,27 @@ describe("fileHash", () => {
     ).toBe("6a6e6599d88a9a8c7831b7de8a5451e9a2ccab385dafe8dfcf0a2db44894128c");
   });
 
-  it("REGION_FILES to dokladnie cztery pliki z regionami generatora", () => {
+  it("REGION_FILES to dokladnie piec plikow z regionami generatora", () => {
     expect(REGION_FILES).toEqual([
       ".env.example",
+      ".github/workflows/ci.yml",
       "docker-compose.yml",
       "prisma/schema/auth.prisma",
       "prisma/schema/organizations.prisma",
     ]);
+  });
+
+  it("ci.yml: hash nie zalezy od tresci regionu ci-integration", () => {
+    const wrap = (inner: string): Buffer =>
+      Buffer.from(
+        `jobs:\n  integration:\n    steps:\n      # wa:ci-integration:start\n${inner}      # wa:ci-integration:end\n      - run: x\n`,
+      );
+    expect(
+      fileHash(
+        ".github/workflows/ci.yml",
+        wrap("      - run: a\n"),
+        testConfig,
+      ),
+    ).toBe(fileHash(".github/workflows/ci.yml", wrap(""), testConfig));
   });
 });

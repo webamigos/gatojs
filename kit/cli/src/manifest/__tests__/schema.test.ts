@@ -25,8 +25,30 @@ describe("moduleManifestSchema", () => {
       env: [],
       schemaRelations: [],
       compose: null,
+      ciSteps: null,
       workspaces: [],
     });
+  });
+
+  it("przyjmuje ciSteps jako sciezke pliku", () => {
+    const parsed = moduleManifestSchema.parse({
+      name: "uploads",
+      version: "1.0.0",
+      description: "Uploads",
+      ciSteps: "ci/uploads.integration-steps.yml",
+    });
+    expect(parsed.ciSteps).toBe("ci/uploads.integration-steps.yml");
+  });
+
+  it("odrzuca ciSteps niebedace tekstem", () => {
+    expect(
+      moduleManifestSchema.safeParse({
+        name: "uploads",
+        version: "1.0.0",
+        description: "Uploads",
+        ciSteps: 5,
+      }).success,
+    ).toBe(false);
   });
 });
 

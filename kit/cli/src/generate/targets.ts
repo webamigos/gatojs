@@ -17,11 +17,12 @@ export type RegionTarget = {
 };
 
 const INDENT = "  ";
+const CI_STEPS_INDENT = "      ";
 
-function indent(text: string): string {
+function indent(text: string, prefix: string = INDENT): string {
   return text
     .split("\n")
-    .map((line) => (line === "" ? line : `${INDENT}${line}`))
+    .map((line) => (line === "" ? line : `${prefix}${line}`))
     .join("\n");
 }
 
@@ -72,6 +73,21 @@ async function composeBody({
   return parts.join("\n");
 }
 
+async function ciStepsBody({
+  modules,
+  projectDir,
+}: RegionContext): Promise<string> {
+  const parts: string[] = [];
+  for (const m of modules) {
+    if (m.ciSteps === null) {
+      continue;
+    }
+    const content = await readFile(join(projectDir, m.ciSteps), "utf8");
+    parts.push(indent(content.replace(/\n+$/, ""), CI_STEPS_INDENT));
+  }
+  return parts.join("\n\n");
+}
+
 export const regionTargets: RegionTarget[] = [
   {
     file: "prisma/schema/auth.prisma",
@@ -85,11 +101,23 @@ export const regionTargets: RegionTarget[] = [
   },
   { file: ".env.example", marker: "modules", body: envBody },
   { file: "docker-compose.yml", marker: "services", body: composeBody },
+  {
+    file: ".github/workflows/ci.yml",
+    marker: "ci-integration",
+    body: ciStepsBody,
+  },
 ];
 
 export const REGION_FILES: string[] = regionTargets
   .map((target) => target.file)
   .sort(compareCodePoint);
+
+function hasAnyRegionMarker(content: string, marker: string): boolean {
+  return (
+    content.includes(`wa:${marker}:start`) ||
+    content.includes(`wa:${marker}:end`)
+  );
+}
 
 export async function renderRegionTarget(
   target: RegionTarget,
@@ -105,6 +133,14 @@ export async function renderRegionTarget(
     throw error;
   }
   const body = await target.body(context);
+  if (!hasAnyRegionMarker(current, target.marker)) {
+    if (body === "") {
+      return null;
+    }
+    throw new Error(
+      `${target.file}: brak regionu wa:${target.marker}; dodaj linie ze znacznikami wa:${target.marker}:start i wa:${target.marker}:end`,
+    );
+  }
   return {
     file: target.file,
     current,

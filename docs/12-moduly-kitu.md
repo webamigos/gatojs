@@ -6,9 +6,10 @@ Po przeczytaniu będziesz wiedzieć:
 - co daje moduł `audit-logs`: model `AuditLog`, stronę `/audit-log`, komponent `<AuditTrail>` i zdarzenia, które loguje sam;
 - jak działa wspólny punkt wejścia `trackAudit` z rdzenia, jeśli moduł nie jest zainstalowany, i jak działa lista ujść (`auditSinks`);
 - co robi redakcja danych wrażliwych i dlaczego moduł nie ma retencji;
-- co daje moduł `api-keys`: klucze API organizacji, zakresy, uwierzytelnianie tras, limit kluczy i pepper.
+- co daje moduł `api-keys`: klucze API organizacji, zakresy, uwierzytelnianie tras, limit kluczy i pepper;
+- co daje moduł `uploads`: pliki organizacji w magazynie S3, cele uploadu deklarowane przez moduły, walidacja i skalowanie obrazów, trasy `/api/uploads`, komponent `<FileUpload>` i zmienne S3.
 
-Zweryfikowano z kodem: f965e0a, 2026-10-29
+Zweryfikowano z kodem: a4d5af3, 2026-10-29
 
 Źródła:
 
@@ -43,6 +44,25 @@ Zweryfikowano z kodem: f965e0a, 2026-10-29
 - `src/features/api-keys/services/queries/api-key-queries.ts`
 - `src/app/api/v1/organization/route.ts`
 - `src/app/[locale]/(app)/api-keys/page.tsx`
+- `kit/modules/uploads.json`
+- `prisma/schema/uploads.prisma`
+- `docker/uploads.compose.yml`
+- `ci/uploads.integration-steps.yml`
+- `src/features/uploads/module.ts`
+- `src/features/uploads/env.ts`
+- `src/features/uploads/components/file-upload.tsx`
+- `src/features/uploads/services/storage.ts`
+- `src/features/uploads/services/upload-purposes.ts`
+- `src/features/uploads/services/validate-upload.ts`
+- `src/features/uploads/services/prepare-upload-body.ts`
+- `src/features/uploads/services/content-disposition.ts`
+- `src/features/uploads/services/api-org-context.ts`
+- `src/features/uploads/services/commands/create-upload.ts`
+- `src/features/uploads/services/commands/upload-commands.ts`
+- `src/features/uploads/services/read-upload.ts`
+- `src/app/api/uploads/route.ts`
+- `src/app/api/uploads/[id]/route.ts`
+- `src/test/integration/setup-env.ts`
 
 ## Moduł kitu a rdzeń
 
@@ -50,7 +70,7 @@ Rdzeń (`core`) ma każdy projekt. Moduł opcjonalny to osobny wpis w `.wa/kit.j
 
 Rdzeń nie importuje plików modułów opcjonalnych. Łączą się przez pliki generowane ([02b](02b-rejestr-i-generator.md#rejestr-modulow)): `wa generate` dopisuje moduł do tablicy `modules` w `src/modules.generated.ts`, a pliki `auth.ts` i `audit-sink.ts` modułu do tablic `authPlugins` i `auditSinks`. Rdzeń czyta te tablice, więc działa tak samo z modułem i bez niego.
 
-Instalowanych kombinacji pilnuje job `assemble` w `.github/workflows/kit.yml`: dla każdego wpisu macierzy `combo` składa projekt z kitu i uruchamia w nim bramki. Macierz zawiera kombinacje `core` (sam rdzeń), `audit-logs` i `api-keys`.
+Instalowanych kombinacji pilnuje job `assemble` w `.github/workflows/kit.yml`: dla każdego wpisu macierzy `combo` składa projekt z kitu i uruchamia w nim bramki. Macierz zawiera kombinacje `core` (sam rdzeń), `audit-logs`, `api-keys`, `uploads` i `all` (`audit-logs,api-keys,uploads`). Dla kombinacji z `uploads` job przed testami integracyjnymi uruchamia MinIO i tworzy bucket `matrix-app-uploads`, a obraz Dockera buduje dla `core` i `all`.
 
 ## `audit-logs`
 
@@ -139,3 +159,73 @@ Klucze są haszowane HMAC-SHA256 z `API_KEY_PEPPER`. Zmiana peppera unieważnia 
 `wa create` nie losuje peppera: `.env.example` zawiera wartość przykładową, więc musisz ustawić własną przed wdrożeniem na produkcję (losowy ciąg, min. 32 znaki, w zmiennych usługi na Railway, [10-wdrozenie.md](10-wdrozenie.md#zmienne)) i nie zmieniać jej bez potrzeby.
 
 Uwaga: zmienna należy do schematu env całej aplikacji. Na produkcji brak peppera, wartość krótsza niż 32 znaki albo przykładowa psuje walidację `env` w całej aplikacji: każda strona i akcja odczytująca `env` kończy się błędem 500, a healthcheck dalej odpowiada 200, więc wdrożenie wygląda na udane ([10-wdrozenie.md](10-wdrozenie.md#blad-env)).
+
+## `uploads`
+
+Pliki organizacji w magazynie zgodnym z S3: komponent do wysyłania, trasy do zapisu i odczytu oraz cele uploadu, które deklarują moduły. Moduł wymaga tylko rdzenia (`requires` jest puste). `audit-logs` nie jest potrzebny, ale jeśli jest zainstalowany, zapisuje zdarzenia `upload.created` i `upload.deleted`.
+
+| Część | Plik | Co robi |
+| --- | --- | --- |
+| Model | `prisma/schema/uploads.prisma` | Tabela `uploads` z modelem `Upload` (organizacja, opcjonalny `uploadedById`, `purpose`, unikalny `key`, `fileName`, `mimeType`, `size`, `visibility` `PUBLIC` albo `ORGANIZATION`, `createdAt`). Usunięcie organizacji kasuje wiersze, usunięcie użytkownika zeruje `uploadedById`. |
+| Zmienne | `src/features/uploads/env.ts` | `S3_ENDPOINT`, `S3_REGION` (domyślnie `auto`), `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE` (`true` albo `false`). Bez wymaganej zmiennej walidacja `env` całej aplikacji zgłasza błąd. |
+| Magazyn | `src/features/uploads/services/storage.ts` | `putObject`, `getObject`, `deleteObject` na kliencie `@aws-sdk/client-s3`. Obiekt leży pod kluczem `orgs/<organizationId>/<purpose>/<id>.<rozszerzenie>`. |
+| Cele | `src/features/uploads/module.ts`, `services/upload-purposes.ts` | Moduł deklaruje cele w `uploadPurposes`. Moduł `uploads` deklaruje wbudowany cel `editor-image`. |
+| Zapis | `src/app/api/uploads/route.ts`, `services/commands/create-upload.ts` | `POST /api/uploads`. |
+| Odczyt | `src/app/api/uploads/[id]/route.ts`, `services/read-upload.ts` | `GET /api/uploads/<id>`. |
+| Usuwanie | `src/features/uploads/services/commands/upload-commands.ts` | `deleteUploadCommand`. |
+| Komponent | `src/features/uploads/components/file-upload.tsx` | `<FileUpload purpose accept onUploaded>`. |
+| Lokalnie | `docker/uploads.compose.yml` | Usługi `minio` i `minio-init` w regionie `wa:services` pliku `docker-compose.yml` ([Uruchomienie](01-uruchomienie.md#minio)). |
+
+Moduł nie ma własnej strony ani pozycji w menu (`nav` jest puste).
+
+### Cele uploadu
+
+Cel (`purpose`) opisuje, co wolno wysłać i kto potem plik zobaczy. Moduł deklaruje go w `defineModule({ uploadPurposes })` jako obiekt z polami:
+
+- `key`: unikalna nazwa celu; powtórzenie klucza przez dwa moduły albo cel z zakazanym typem rzuca błąd przy pierwszym użyciu `listUploadPurposes()`;
+- `mimeTypes`: dozwolone typy; typ pliku wykrywa `file-type` po zawartości, a nie po nazwie ani nagłówku `Content-Type` żądania. Formaty tekstowe (`text/plain`, `text/csv`, `application/json`) nie mają sygnatury w bajtach, więc `file-type` niczego nie wykrywa i cel, który je wymienia, zawsze odpowiada 415;
+- `maxBytes`: limit rozmiaru w bajtach;
+- `visibility`: `"public"` albo `"organization"`;
+- `resizeImage` (opcjonalnie): `{ maxWidth }`; dotyczy tylko obrazów (`image/*`), a plik innego typu z tego samego celu przechodzi bez zmian.
+
+Typy `image/svg+xml`, `text/html`, `application/xhtml+xml`, `application/xml` i `text/xml` są zakazane dla każdego celu: SVG i HTML mogłyby wykonać skrypt w przeglądarce, która otworzy plik pod adresem aplikacji. `application/xml` i `text/xml` są na liście, bo SVG albo XHTML z prologiem XML `file-type` rozpoznaje jako `application/xml`, a taki dokument też mógłby wykonać skrypt. Wbudowany cel `editor-image` przyjmuje `image/jpeg`, `image/png` i `image/webp` do 5 MB, jest publiczny i skaluje obrazy do 1200 px szerokości.
+
+### `POST /api/uploads`
+
+Żądanie `multipart/form-data` z polami `file`, `purpose` i opcjonalnym `serviceModeConfirmation` (JSON z potwierdzeniem trybu serwisowego, [09b](09b-implementacja-i-bramki.md#komenda)). Trasa odpowiada kolejno:
+
+| Status | Kiedy |
+| --- | --- |
+| 411 | Brak nagłówka `Content-Length`. |
+| 413 | Zadeklarowana długość przekracza największy `maxBytes` ze wszystkich celów plus 64 KB na obwiednię multipart, albo plik przekracza `maxBytes` celu (`too_large`). |
+| 401 | Brak sesji. Sesję sprawdza trasa przed odczytem treści żądania. |
+| 403 | Użytkownik nie ma aktywnej organizacji albo tryb serwisowy bez potwierdzenia. |
+| 400 | Błędne wejście (`invalid_input`), nieznany cel (`unknown_purpose`), pusty plik (`empty`) albo obraz, którego nie da się przetworzyć (`invalid_image`). |
+| 415 | Typ pliku spoza `mimeTypes` celu albo zakazany (`unsupported_type`). |
+| 201 | Odpowiedź `{ id, url, fileName, mimeType, size }`, gdzie `url` to `/api/uploads/<id>`. |
+
+Gdy zapis w magazynie albo w bazie się nie uda, trasa zwraca 500 (`storage_failed`); po nieudanym zapisie wiersza usuwa już zapisany obiekt. Udany zapis wpisuje do audytu `upload.created`.
+
+### Obrazy
+
+Cel z `resizeImage` przepuszcza obraz przez `sharp`: ogranicza wejście do 40 milionów pikseli, stosuje orientację z EXIF, spłaszcza przezroczystość na białym tle (`#ffffff`), zmniejsza szerokość do `maxWidth` (bez powiększania) i zapisuje jako JPEG z jakością 82. Przezroczyste PNG i WebP dostają więc białe, a nie czarne tło. Zapisany plik ma więc typ `image/jpeg` i rozszerzenie `jpg` bez względu na typ wejściowy, a metadane EXIF nie trafiają do magazynu. Obraz, którego `sharp` nie przetworzy, kończy się odpowiedzią 400 `invalid_image`.
+
+### `GET /api/uploads/<id>`
+
+Plik z widocznością `PUBLIC` odczyta każdy, także bez sesji. Plik `ORGANIZATION` odczyta tylko użytkownik z sesją, którego aktywna organizacja jest organizacją pliku; w każdym innym przypadku trasa zwraca 404, tak samo jak dla nieistniejącego `id`, więc nie ujawnia, że plik istnieje. Odpowiedź ma `Content-Type` zapisanego typu, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'` i `Content-Disposition: inline` z nazwą pliku w `filename*`. Polityka `sandbox` z `default-src 'none'` na każdej odpowiedzi odbiera plikowi skrypty, formularze i zasoby zewnętrzne także wtedy, gdy przeglądarka otworzy go pod adresem aplikacji. Przez ten nagłówek przeglądarka może nie pokazać pliku PDF w karcie (piaskownica blokuje wbudowany podgląd PDF); plik nadal da się pobrać. `Cache-Control` to `public, max-age=31536000, immutable` dla plików publicznych i `private, max-age=300` dla plików organizacji.
+
+Adres publicznego pliku nie wygasa i nie da się go cofnąć inaczej niż przez usunięcie pliku, a przeglądarki i pośrednicy mogą trzymać kopię rok. Cel `visibility: "public"` wybieraj tylko dla treści przeznaczonych dla każdego.
+
+### Usuwanie
+
+`deleteUploadCommand({ id }, confirmation?)` działa przez `getOrgContext()` i `assertServiceModeConfirmed`. Plik w innej organizacji jest dla niej nieistniejący (filtr `organizationId`). Usunąć może autor pliku, `owner` i `admin` organizacji oraz administrator globalny; pozostali dostają „Brak uprawnień do usunięcia pliku”. Komenda usuwa obiekt z magazynu (błąd usuwania jest tylko logowany), potem wiersz, i zapisuje `upload.deleted` w audycie. Wołaj ją z UI przez `useServiceModeAction().run`.
+
+Moduł nie ma czyszczenia osieroconych plików: usunięcie encji projektu, która trzyma `id` pliku, nie usuwa pliku. Usuwa go dopiero komenda `deleteUploadCommand`, którą woła kod projektu.
+
+### Lokalnie i w CI
+
+Lokalnie MinIO działa w kontenerze `minio` z `docker-compose.yml`, a kontener `minio-init` tworzy bucket `<slug>-uploads` (idempotentnie, ponawia próbę do 30 razy). Obrazy to `cgr.dev/chainguard/minio:latest` przypięty przez digest (Chainguard udostępnia bez opłat tylko tag `latest`) i `amazon/aws-cli:2.39.2`: `minio/minio` i `minio/mc` nie da się już pobrać. Kontener MinIO działa jako `user: "0:0"`, bo katalog `./volumes/minio` jest montowany z hosta. Porty zmieniają `MINIO_PORT` (domyślnie 9000) i `MINIO_CONSOLE_PORT` (9001). Szczegóły: [01-uruchomienie.md](01-uruchomienie.md#minio).
+
+W CI projektu `ci/uploads.integration-steps.yml` wypełnia region `wa:ci-integration` w `.github/workflows/ci.yml`: uruchamia MinIO, czeka na jego gotowość i tworzy bucket przed testami integracyjnymi. Testy integracyjne czytają `INTEGRATION_S3_ENDPOINT` (domyślnie `http://localhost:9000`) i `INTEGRATION_S3_BUCKET` (domyślnie `<slug>-uploads`). Projekt bez `uploads` ma region pusty i nie startuje MinIO.
+
+Jak użyć uploadu w funkcji projektu: [09b, sekcja o plikach](09b-implementacja-i-bramki.md#pliki-w-funkcji-projektu). Zmienne produkcyjne: [10-wdrozenie.md](10-wdrozenie.md#zmienne).

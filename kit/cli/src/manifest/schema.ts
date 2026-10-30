@@ -21,6 +21,7 @@ export const moduleManifestSchema = z.object({
     .array(z.object({ model: z.string().min(1), field: z.string().min(1) }))
     .default([]),
   compose: z.string().nullable().default(null),
+  ciSteps: z.string().nullable().default(null),
   workspaces: z.array(z.string()).default([]),
 });
 

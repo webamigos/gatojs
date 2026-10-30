@@ -394,4 +394,136 @@ describe("useServiceModeAction", () => {
       expect(screen.queryByText("Tryb serwisowy")).not.toBeInTheDocument();
     });
   });
+
+  describe("requestConfirmation", () => {
+    function ConfirmationRunner() {
+      const { requestConfirmation, dialog } = useServiceModeAction();
+      const [outcome, setOutcome] = useState("brak");
+      return (
+        <>
+          <button
+            type="button"
+            onClick={async () => {
+              const result = await requestConfirmation();
+              setOutcome(
+                result === undefined ? "undefined" : JSON.stringify(result),
+              );
+            }}
+          >
+            Poproś
+          </button>
+          <output data-testid="confirmation-outcome">{outcome}</output>
+          {dialog}
+        </>
+      );
+    }
+
+    it("poza trybem serwisowym zwraca undefined bez otwierania okna", async () => {
+      const user = userEvent.setup();
+      render(
+        providerTree({
+          active: false,
+          organizationId: "org-7",
+          children: <ConfirmationRunner />,
+        }),
+      );
+
+      await user.click(screen.getByRole("button", { name: "Poproś" }));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("confirmation-outcome")).toHaveTextContent(
+          "undefined",
+        ),
+      );
+      expect(screen.queryByText("Tryb serwisowy")).not.toBeInTheDocument();
+    });
+
+    it("w trybie serwisowym otwiera okno i do decyzji nie zwraca potwierdzenia", async () => {
+      const user = userEvent.setup();
+      render(
+        providerTree({
+          active: true,
+          organizationId: "org-7",
+          children: <ConfirmationRunner />,
+        }),
+      );
+
+      await user.click(screen.getByRole("button", { name: "Poproś" }));
+
+      await findConfirmationDialog("Tryb serwisowy");
+      expect(screen.getByTestId("confirmation-outcome")).toHaveTextContent(
+        "brak",
+      );
+    });
+
+    it("„Anuluj” zwraca null", async () => {
+      const user = userEvent.setup();
+      render(
+        providerTree({
+          active: true,
+          organizationId: "org-7",
+          children: <ConfirmationRunner />,
+        }),
+      );
+
+      await user.click(screen.getByRole("button", { name: "Poproś" }));
+      const dialog = await findConfirmationDialog("Tryb serwisowy");
+      await user.click(dialog.getByRole("button", { name: "Anuluj" }));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("confirmation-outcome")).toHaveTextContent(
+          "null",
+        ),
+      );
+    });
+
+    it("„Zmień” zwraca potwierdzenie aktywnej organizacji", async () => {
+      const user = userEvent.setup();
+      render(
+        providerTree({
+          active: true,
+          organizationId: "org-7",
+          children: <ConfirmationRunner />,
+        }),
+      );
+
+      await user.click(screen.getByRole("button", { name: "Poproś" }));
+      const dialog = await findConfirmationDialog("Tryb serwisowy");
+      await user.click(dialog.getByRole("button", { name: "Zmień" }));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("confirmation-outcome")).toHaveTextContent(
+          '{"serviceModeConfirmed":true,"organizationId":"org-7"}',
+        ),
+      );
+    });
+
+    it("nowe organizationId po zmianie providera trafia do potwierdzenia", async () => {
+      const user = userEvent.setup();
+      const { rerender } = render(
+        providerTree({
+          active: true,
+          organizationId: "org-7",
+          children: <ConfirmationRunner />,
+        }),
+      );
+      rerender(
+        providerTree({
+          active: true,
+          organizationId: "org-8",
+          children: <ConfirmationRunner />,
+        }),
+      );
+
+      await user.click(screen.getByRole("button", { name: "Poproś" }));
+      const dialog = await findConfirmationDialog("Tryb serwisowy");
+      await user.click(dialog.getByRole("button", { name: "Zmień" }));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("confirmation-outcome")).toHaveTextContent(
+          '{"serviceModeConfirmed":true,"organizationId":"org-8"}',
+        ),
+      );
+    });
+  });
 });

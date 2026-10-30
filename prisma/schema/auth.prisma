@@ -19,6 +19,7 @@ model User {
   // wa:relations:start
   createdApiKeys ApiKey[]
   auditLogs AuditLog[]
+  uploads Upload[]
   // wa:relations:end
 
   @@map("users")

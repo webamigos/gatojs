@@ -7,12 +7,14 @@ import organizationsModule from "@/features/organizations/module";
 import usersModule from "@/features/users/module";
 import apiKeysModule from "@/features/api-keys/module";
 import auditLogsModule from "@/features/audit-logs/module";
+import uploadsModule from "@/features/uploads/module";
 import { envSchema as apiKeysEnvSchema } from "@/features/api-keys/env";
+import { envSchema as uploadsEnvSchema } from "@/features/uploads/env";
 import { authPlugin as auditLogsAuthPlugin } from "@/features/audit-logs/auth";
 import { auditSink as auditLogsAuditSink } from "@/features/audit-logs/audit-sink";
 
-export const modules = [accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule];
-export const moduleEnvSchemas = [apiKeysEnvSchema];
+export const modules = [accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, uploadsModule];
+export const moduleEnvSchemas = [apiKeysEnvSchema, uploadsEnvSchema];
 export const authPlugins = [auditLogsAuthPlugin];
 export const auditSinks = [auditLogsAuditSink];
 
@@ -27,6 +29,7 @@ export const moduleMessages: Record<Locale, MessageLoader[]> = {
     { key: "users", load: () => import("@/features/users/i18n/pl.json").then((m) => m.default) },
     { key: "api-keys", load: () => import("@/features/api-keys/i18n/pl.json").then((m) => m.default) },
     { key: "audit-logs", load: () => import("@/features/audit-logs/i18n/pl.json").then((m) => m.default) },
+    { key: "uploads", load: () => import("@/features/uploads/i18n/pl.json").then((m) => m.default) },
   ],
   en: [
     { key: "account", load: () => import("@/features/account/i18n/en.json").then((m) => m.default) },
@@ -36,5 +39,6 @@ export const moduleMessages: Record<Locale, MessageLoader[]> = {
     { key: "users", load: () => import("@/features/users/i18n/en.json").then((m) => m.default) },
     { key: "api-keys", load: () => import("@/features/api-keys/i18n/en.json").then((m) => m.default) },
     { key: "audit-logs", load: () => import("@/features/audit-logs/i18n/en.json").then((m) => m.default) },
+    { key: "uploads", load: () => import("@/features/uploads/i18n/en.json").then((m) => m.default) },
   ],
 };

@@ -26,7 +26,9 @@
     ".github/workflows/ci.yml",
     ".github/workflows/mutation.yml",
     "src/test/integration/database-url.ts",
-    "README.md"
+    "README.md",
+    "docker/uploads.compose.yml",
+    "ci/uploads.integration-steps.yml"
   ],
   "generatedFiles": [
     "src/modules.generated.ts",

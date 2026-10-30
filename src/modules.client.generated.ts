@@ -6,6 +6,7 @@ import organizationsModule from "@/features/organizations/module";
 import usersModule from "@/features/users/module";
 import apiKeysModule from "@/features/api-keys/module";
 import auditLogsModule from "@/features/audit-logs/module";
+import uploadsModule from "@/features/uploads/module";
 
 export const authClientPlugins: never[] = [];
-export const clientModules = [accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule];
+export const clientModules = [accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, uploadsModule];
