@@ -19,8 +19,9 @@ import type {
   AuditLogRow,
 } from "../../contracts/audit-log.types";
 
-const { stableRouter } = vi.hoisted(() => ({
+const { stableRouter, currentSearch } = vi.hoisted(() => ({
   stableRouter: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn() },
+  currentSearch: { value: "" },
 }));
 
 vi.mock("@/i18n/routing", () => ({
@@ -33,7 +34,7 @@ vi.mock("@/i18n/routing", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => stableRouter,
   usePathname: () => "/audit-log",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(currentSearch.value),
 }));
 
 import { AuditLogView } from "../audit-log-view";
@@ -84,6 +85,7 @@ function renderView(rows: AuditLogRow[]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  currentSearch.value = "";
 });
 
 describe("AuditLogView", () => {
@@ -328,5 +330,39 @@ describe("AuditLogView: kolumna daty", () => {
     const time = formatted.closest("time");
     expect(time).not.toBeNull();
     expect(time).toHaveAttribute("datetime", CREATED_AT_ISO);
+  });
+});
+
+describe("AuditLogView: pola dat od i do", () => {
+  beforeAll(() => {
+    vi.stubEnv("TZ", "Europe/Warsaw");
+  });
+
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("pokazują dzień z adresu, nie dzień przeliczony przez UTC", () => {
+    currentSearch.value = "from=2026-10-29&to=2026-10-30";
+
+    render(
+      filterTree({
+        ...FILTERS,
+        from: new Date(2026, 9, 29, 0, 0, 0, 0),
+        to: new Date(2026, 9, 30, 23, 59, 59, 999),
+      }),
+    );
+
+    expect(screen.getByLabelText("Od")).toHaveValue("2026-10-29");
+    expect(screen.getByLabelText("Do")).toHaveValue("2026-10-30");
+  });
+
+  it("są puste, gdy schemat odrzucił datę z adresu", () => {
+    currentSearch.value = "from=2026-02-30&to=2026-02-30";
+
+    render(filterTree(FILTERS));
+
+    expect(screen.getByLabelText("Od")).toHaveValue("");
+    expect(screen.getByLabelText("Do")).toHaveValue("");
   });
 });
