@@ -427,7 +427,7 @@ Izolację w interfejsie sprawdza też e2e `e2e/multi-org.spec.ts`: dwie rejestra
 
 ## Czas przebiegów
 
-Pomiary z 2026-10-28 na komputerze z 8 rdzeniami, na kodzie z commita `4a6ffcb`, chyba że zaznaczono inaczej. Ten commit poprzedza moduły kitu i część testów CLI: w repozytorium kitu po planie 3 jest 10 plików `*.integration.test.ts` i 28 plików testów w `kit/cli/src`, więc te przebiegi trwają dłużej (nie mierzono ich ponownie).
+Pomiary z 2026-10-28 na komputerze z 8 rdzeniami, na kodzie z commita `4a6ffcb`, chyba że zaznaczono inaczej. Ten commit poprzedza moduły kitu i wszystkie testy CLI: w repozytorium kitu po planie 3 jest 10 plików `*.integration.test.ts` i 28 plików testów w `kit/cli/src`, więc te przebiegi trwają dłużej (nie mierzono ich ponownie).
 
 | Komenda | Czas | Zakres |
 | --- | --- | --- |

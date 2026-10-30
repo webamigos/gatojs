@@ -26,6 +26,22 @@ Ten plik jest drugą częścią opisu modułu `uploads`. Co moduł robi, jak go 
 
 Przykłady pochodzą z funkcji `deliveries` z przebiegu: magazynier przyjmuje dostawę ze zdjęciem, zdjęcie widzi tylko organizacja. Funkcja ma wpis w `projectModules` (`"requires": ["uploads"]`, wzorce `src/features/deliveries/**`, `src/app/[locale]/(app)/deliveries/**`, `prisma/schema/deliveries.prisma`, relacja `deliveries Delivery[]` w `Organization`); wpis, stronę i query opisuje tutorial [09](09-nowy-modul.md#krok-3) i [09b](09b-implementacja-i-bramki.md#komenda).
 
+Początek wpisu `deliveries` w `.wa/kit.json` (przykład z przebiegu, fragment):
+
+```json
+// …
+  "projectModules": {
+    "deliveries": {
+      "manifest": {
+        "name": "deliveries",
+        "version": "0.1.0",
+        "description": "Funkcja projektu: dostawy ze zdjęciem",
+        "requires": [
+          "uploads"
+        ],
+// …
+```
+
 <a id="wlasny-cel"></a>
 
 ### Własny cel
@@ -183,6 +199,7 @@ Plik `organization` przeglądarka pobiera z ciasteczkiem sesji, więc działa w 
 `src/features/deliveries/services/commands/delivery-commands.ts` (przykład z przebiegu, ciąg dalszy)
 
 ```ts
+    // …
     await prisma.delivery.deleteMany({
       where: { id: delivery.id, organizationId: context.organizationId },
     });

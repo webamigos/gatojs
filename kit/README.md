@@ -48,7 +48,7 @@ Uruchamiane jako `npm run wa -- <komenda>` (bundel `.wa/bin/wa.mjs`).
 - `wa list [--kit <źródło>]`: moduły zainstalowane, dostępne w kicie i moduły projektu.
 - `wa add <moduł> [--kit <źródło>] [--no-install]`: kopiuje pliki modułu i jego zależności, dopisuje zależności npm i uruchamia `wa generate`.
 - `wa remove <moduł> [--force] [--no-install]`: usuwa pliki modułu, zależności npm, które nie służą innym modułom, i uruchamia `wa generate`. Pliki zmienione lokalnie (inny hash niż w stanie) zatrzymują komendę, dopóki nie podasz `--force`. Moduł wymagany przez inny moduł i moduł projektu nie zostanie usunięty.
-- `wa generate`: odświeża pliki generowane (rejestr modułów, regiony w `.env.example`, schemacie i `docker-compose.yml`).
+- `wa generate`: odświeża pliki generowane (rejestr modułów, regiony w `.env.example`, schemacie, `docker-compose.yml` i region `wa:ci-integration` w `.github/workflows/ci.yml`).
 - `wa kit sync`: odświeża `.wa/kit.json` z `kit/modules/*.json` i `kit/kit.json` (praca nad samym kitem).
 
 Po `add` i `remove` zmienia się schemat bazy; migrację trzeba utworzyć i zacommitować. `add` nie zmienia `.env`: nowe zmienne modułu (na przykład `API_KEY_PEPPER`, `S3_*`) trafiają tylko do regionu `wa:modules` w `.env.example`, więc skopiuj je do `.env` sam. `remove` zostawia zmienne modułu w `.env`.

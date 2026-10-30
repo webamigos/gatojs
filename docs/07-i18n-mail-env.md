@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak `src/shared/lib/env.ts` sprawdza zmienne środowiskowe i które zmienne kod czyta z pominięciem tej walidacji;
 - które zmienne poza schematem czytają kod aplikacji, Next.js, Docker i testy.
 
-Zweryfikowano z kodem: f965e0a, 2026-10-29
+Zweryfikowano z kodem: e2a4a2a, 2026-10-29
 
 Źródła:
 

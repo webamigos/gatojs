@@ -374,7 +374,7 @@ Samo CLI ma własną bramkę (`npm run verify --prefix kit/cli`), uruchamianą w
 | Tłumaczenia feature w jednym z języków projektu się nie ładują, choć plik `i18n/<język>.json` istnieje. | Plik dodano bez ponownego uruchomienia generatora, więc w `moduleMessages` nie ma jego loadera (`detectFeature` w `kit/cli/src/generate/index.ts`). | Uruchom generator i zacommituj wynik. |
 | Strona feature w języku domyślnym zwraca 404, a pod `/en/...` działa. | Trasa to `/api`, leży pod `/api/` albo zawiera kropkę, więc proxy jej nie obsługuje. | Zmień trasę ([Proxy i język](02-architektura.md#proxy)). |
 | CI pada na kroku „Generated files are up to date”. | Plik generowany albo region zmieniony ręcznie albo zmiana feature bez przebiegu generatora. | Uruchom generator i zacommituj wynik. |
-| Generator kończy się błędem. | Uszkodzony `.wa/kit.json`, błędny wpis w `projectModules`, brak albo uszkodzenie markera regionu, brak pliku z `compose` albo `ciSteps`. | Znajdź komunikat w [Referencji](#referencja-komunikaty). |
+| Generator kończy się błędem. | Uszkodzony `.wa/kit.json`, błędny wpis w `projectModules`, brak albo uszkodzenie markera regionu (brak markerów: tylko gdy moduł ma treść dla regionu), brak pliku z `compose` albo `ciSteps` (gdy plik docelowy regionu istnieje). | Znajdź komunikat w [Referencji](#referencja-komunikaty). |
 
 <a id="referencja"></a>
 

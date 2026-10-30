@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - gdzie znaleźć opis dziennika zdarzeń, plików i tras z kluczem API we własnej funkcji, gdy projekt ma moduły `audit-logs`, `uploads` albo `api-keys` ([dziennik](#dziennik-zdarzen), [pliki](#pliki-w-funkcji-projektu), [trasy API](#trasy-api));
 - co zacommitować i jak dodać kolejną funkcję do feature, który już jest w rejestrze.
 
-Zweryfikowano z kodem: a4d5af3, 2026-10-29
+Zweryfikowano z kodem: 0b5c91d, 2026-10-29
 
 Źródła:
 

@@ -172,8 +172,8 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 
 ## R24. `filename*` w `Content-Disposition` zostawia `*`, `(` i `)` bez kodowania
 
-- **Dokument:** RFC 5987/8187 (`attr-char`: litery, cyfry i `!#$&+-.^_`|~`) i [spec planu 3](../specs/2026-10-28-wa-kit-plan-3-modules-design.md) §7 („Poprawny `Content-Disposition` (RFC 6266, `filename*`)”).
-- **Kod:** `src/features/uploads/services/content-disposition.ts` koduje `filename*` przez `encodeURIComponent` i zamienia tylko `'` na `%27`; `encodeURIComponent` zostawia `!~*()` (`encodeURIComponent("a!~*()b.png")` daje `a!~*()b.png`). `*`, `(` i `)` nie są `attr-char`, więc nazwa z nawiasami daje wartość niezgodną ze składnią RFC; przeglądarki zwykle ją akceptują.
+- **Dokument:** RFC 5987/8187 (`attr-char`: litery, cyfry i ``!#$&+-.^_`|~``) i [spec planu 3](../specs/2026-10-28-wa-kit-plan-3-modules-design.md) §7 („Poprawny `Content-Disposition` (RFC 6266, `filename*`)”).
+- **Kod:** `src/features/uploads/services/content-disposition.ts` koduje `filename*` przez `encodeURIComponent` i zamienia tylko `'` na `%27`; `encodeURIComponent` zostawia `!~*()` (`encodeURIComponent("a!~*()b.png")` daje `a!~*()b.png`). `*`, `(` i `)` nie są `attr-char`, więc nazwa z nawiasami daje wartość niezgodną ze składnią RFC.
 - **Propozycja:** w kodzie kitu zamieniać też `*`, `(`, `)` na `%2A`, `%28`, `%29` i dopisać przypadek testu (zgłoszenie do kitu). `docs/15-modul-uploads.md` („Pobieranie”) opisuje zachowanie z kodu.
 - **Status:** otwarte (kod: zgłoszenie do kitu). Pozycja w [znane-ograniczenia.md](../../znane-ograniczenia.md#moduly-male) (Task 12).
 
@@ -183,3 +183,14 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Kod:** `.github/workflows/mutation.yml` ma tylko usługę `postgres:16` i nie ma regionu `wa:ci-integration` ani kroków MinIO, a krok „Run Stryker (integration)” uruchamia `npm run test:mutation:integration` z `vitest.integration.config.ts`, czyli także `src/features/uploads/services/__tests__/*.integration.test.ts`, które łączą się z S3 pod `http://localhost:9000` (`setup-env.ts`, `storage.integration.test.ts`). Lista `mutate` w `stryker.integration.config.json` obejmuje `src/features/*/services/**/*.ts`. Bez MinIO testy `uploads` nie przejdą już w przebiegu początkowym Strykera, więc przebieg integracyjny w tym workflowie w repozytorium kitu i w projekcie z `uploads` najpewniej zakończy się błędem (wniosek z kodu workflowu i testów; workflow nie był uruchamiany). Job `integration` w `ci.yml` ma te kroki w regionie `wa:ci-integration`.
 - **Propozycja:** dodać do `mutation.yml` region `# wa:ci-integration:start/end` przed krokiem „Run Stryker (integration)” i wpisać ten plik do regionów generatora (zgłoszenie do kitu). `docs/08-testy.md` („CI”) opisuje stan z kodu.
 - **Status:** otwarte (kod: zgłoszenie do kitu). Pozycja w [znane-ograniczenia.md](../../znane-ograniczenia.md#moduly-male) (Task 12).
+
+## R26. Nagłówki „Zweryfikowano z kodem” wskazywały commity spoza historii `main`
+
+- **Dokument:** `docs/01-uruchomienie.md` i `docs/10-wdrozenie.md` (`09744c4`), `docs/07-i18n-mail-env.md` (`f965e0a`), `docs/09b-implementacja-i-bramki.md` (`a4d5af3`), linia 11. `git merge-base --is-ancestor <sha> HEAD` daje fałsz dla wszystkich trzech, a `git branch -a --contains` nie wskazuje żadnej gałęzi: te commity nie są osiągalne z żadnej gałęzi (ten sam temat i data co commity na `main`, więc najpewniej wersje sprzed przepisania historii gałęzi modułów).
+- **Kod:** odpowiedniki na `origin/main` (ten sam temat commitu, ta sama data): `09744c4` → `1166d08` („ci(kit): assemble uploads and all combos”), `f965e0a` → `e2a4a2a` („fix(api-keys): confirm before revoking or deleting keys”), `a4d5af3` → `0b5c91d` („fix(uploads): flatten images, forbid xml and sandbox downloads”). Lokalna gałąź `main` (`5b2d308`) jest za `origin/main` (`76ca2d7`) i nie zawiera żadnego z nich; `origin/main` jest przodkiem `docs/part-2`. Wynik `git diff <stary> <odpowiednik> -- <pliki z „Źródła”>` (bez ścieżek w `node_modules/` i dokumentacji zewnętrznej, które nie są w gicie):
+  - 01: 41 ścieżek, diff pusty;
+  - 07: 45 ścieżek, diff pusty;
+  - 09b: 25 ścieżek, diff pusty;
+  - 10: 31 ścieżek, diff niepusty: `src/proxy.ts`, matcher `"/((?!api|_next|_vercel|.*\\..*).*)"` → `"/((?!api(?:/|$)|_next|_vercel|.*\\..*).*)"` (commit `7b069fc` „fix(app): run i18n proxy for paths that only start with api”, jest w historii `1166d08`, nie ma go w historii `09744c4`).
+- **Propozycja:** w 01, 07 i 09b SHA zamienione na odpowiednik z `main`, data bez zmian (final-fix I1, ruling R17). W 10 SHA zostaje `09744c4`. Decyzja dla Jakuba: zweryfikować 10 ponownie na `1166d08` i zmienić SHA albo zostawić. Zdania 10 o proxy („ścieżki `/api` omijają proxy”, linie 96 i 206) dotyczą ścieżek `/api/…` i po zmianie matchera pozostają prawdziwe; ścieżki zaczynające się od `api` bez ukośnika (np. `/apixyz`) przechodzą przez proxy dopiero po `7b069fc` (wniosek z diffu matchera, nie sprawdzano przebiegiem).
+- **Status:** 01, 07, 09b naprawione w final-fix; 10 otwarte (decyzja dla Jakuba).

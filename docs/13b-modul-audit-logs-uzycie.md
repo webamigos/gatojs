@@ -27,6 +27,22 @@ Ten plik jest drugą częścią opisu modułu `audit-logs`. Co moduł robi, jak 
 
 Przykłady pochodzą z funkcji `deliveries` z przebiegu: przyjęcie dostawy w organizacji. Funkcja ma wpis w `projectModules` z `"requires": ["audit-logs"]`, bo jej strona importuje `<AuditTrail>`; wpis i resztę plików funkcji opisuje tutorial [09](09-nowy-modul.md#krok-3).
 
+Początek wpisu `deliveries` w `.wa/kit.json` (przykład z przebiegu, fragment):
+
+```json
+// …
+  "projectModules": {
+    "deliveries": {
+      "manifest": {
+        "name": "deliveries",
+        "version": "0.1.0",
+        "description": "Funkcja projektu: przyjęcia dostaw",
+        "requires": [
+          "audit-logs"
+        ],
+// …
+```
+
 <a id="komenda"></a>
 
 ### Zapis zdarzenia w komendzie
@@ -36,6 +52,7 @@ Komenda według kontraktu trybu serwisowego ([09b](09b-implementacja-i-bramki.md
 `src/features/deliveries/services/commands/receive-delivery-command.ts` (przykład z przebiegu)
 
 ```ts
+    // …
     const context = await requireModuleAccess("deliveries");
     assertServiceModeConfirmed(context, confirmation);
 
@@ -61,9 +78,10 @@ Komenda według kontraktu trybu serwisowego ([09b](09b-implementacja-i-bramki.md
 
     revalidatePath("/deliveries");
     return { success: true, data: { deliveryId: delivery.id } };
+    // …
 ```
 
-Import to `import { auditActor, trackAudit } from "@/shared/lib/audit";`. Kolejność ma znaczenie:
+Import to `import { auditActor, trackAudit } from "@/shared/lib/audit";` (`try/catch` pominięty w wycinku). Kolejność ma znaczenie:
 
 - `trackAudit` stoi **po** `assertServiceModeConfirmed` i po zapisie, więc odmowa w trybie serwisowym i błędne wejście nie zostawiają wpisu (sprawdzone testem z przebiegu). Nieudany zapis też nie zostawia wpisu, bo wyjątek z `prisma.delivery.create` przechodzi do `catch` komendy, zanim dojdzie do `trackAudit` (wynika z kodu, bez osobnego testu);
 - `newData` zawiera tylko pola, które mają trafić do dziennika ([Czego redakcja nie wykryje](13-modul-audit-logs.md#redakcja));

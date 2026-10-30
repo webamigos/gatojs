@@ -147,7 +147,7 @@ Pola `compose` i `ciSteps` wskazują pliki, które generator czyta z katalogu pr
 - `docker/uploads.compose.yml`: definicje usług (`minio`, `minio-init`) bez klucza `services:`, bo generator wcina treść o dwie spacje i wstawia ją pod `services:` w regionie `wa:services` w `docker-compose.yml`;
 - `ci/uploads.integration-steps.yml`: lista kroków joba (`- name: …`), którą generator wcina o sześć spacji i wstawia w regionie `wa:ci-integration` joba `integration` w `.github/workflows/ci.yml`; fragmenty kilku modułów oddziela pusta linia.
 
-Test własności sprawdza tylko plik z `compose` (`composeOutsideModule`); pliku z `ciSteps` nie sprawdza (R6 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Na kopii kitu `ciSteps` modułu `uploads` przestawione na plik dopisany do `kitOnly` przeszło test własności, a `create --modules uploads` skończyło się błędem `ENOENT: no such file or directory, open '<projekt>/ci/other.yml'` i usunięciem katalogu projektu (sprawdzone). Plik kroków CI zawsze dopisuj do `files` modułu, którego dotyczy.
+Test własności sprawdza tylko plik z `compose` (`composeOutsideModule`); pliku z `ciSteps` nie sprawdza (R6 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Na kopii kitu `ciSteps` modułu `uploads` przestawione na plik dopisany do `kitOnly` przeszło test własności, a `create --modules uploads` skończyło się błędem `ENOENT: no such file or directory, open '<projekt>/ci/other.yml'` i usunięciem katalogu projektu (sprawdzone). Plik kroków CI zawsze dopisuj do `files` modułu, którego dotyczy.
 
 Oba pliki `uploads` zawierają nazwę bucketu `wa-app-uploads`, dlatego są na liście `placeholderFiles` ([Placeholdery](#placeholdery)).
 
@@ -212,7 +212,7 @@ Na `758b557` przechodzi 16 testów (sprawdzone).
 Granice testu:
 
 - **Widzi tylko indeks gita.** Nowy plik bez właściciela przed `git add` jest niewidoczny i test przechodzi; po `git add` test zgłasza go w `unowned` (sprawdzone na kopii z nowym plikiem w nowym katalogu feature). Uruchamiaj test po `git add`, przed commitem.
-- **Nie liczy właścicieli zależności.** Ta sama zależność w dwóch manifestach, w tej samej sekcji i wersji, przechodzi test mimo jego nazwy (sprawdzone na kopii: `zod` dopisany do `dependencies` `audit-logs` obok `core`). `wa remove` takiego modułu zostawia zależność, dopóki deklaruje ją inny moduł. R10 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md).
+- **Nie liczy właścicieli zależności.** Ta sama zależność w dwóch manifestach, w tej samej sekcji i wersji, przechodzi test mimo jego nazwy (sprawdzone na kopii: `zod` dopisany do `dependencies` `audit-logs` obok `core`). `wa remove` takiego modułu zostawia zależność, dopóki deklaruje ją inny moduł. R10 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md).
 - **Nie sprawdza `ciSteps`** ([wyżej](#pliki-uslug-i-ci)).
 - **Nie trafia do projektu.** Test leży w `kit/cli`; w projekcie klienta nic nie pilnuje kompletności manifestów.
 
@@ -274,7 +274,7 @@ Reguły dla osoby, która dodaje plik do kitu:
 
 - Plik, który zawiera nazwę projektu, slug albo nazwę bazy, dopisz do `placeholderFiles`. Inaczej trafi do projektu z `wa_app` i na przykład kilka projektów na jednej maszynie użyje tej samej bazy testowej `wa_app_test`.
 - W pliku z listy nie używaj tych napisów w innym znaczeniu: zostaną podmienione.
-- Testów nie dopisuj do listy. To tylko konwencja, kod jej nie sprawdza (R7 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Plan 3 dopisał na chwilę dwa testy `uploads` i wycofał je w następnym commicie (`c6c26c4`, `76b5956`).
+- Testów nie dopisuj do listy. To tylko konwencja, kod jej nie sprawdza (R7 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Plan 3 dopisał na chwilę dwa testy `uploads` i wycofał je w następnym commicie (`c6c26c4`, `76b5956`).
 
 Job `assemble` w `kit.yml` sprawdza w złożonym projekcie, że poza testami (`**/__tests__/**`, `**/*.test.*`), `package-lock.json` i `.wa/bin/**` nie został żaden z trzech napisów (krok „No placeholders left in the project”). Ten sam `git grep` w projekcie `acme-app` złożonym ze wszystkimi modułami nie znalazł nic (kod 1, sprawdzone).
 
@@ -313,7 +313,7 @@ npm run build --prefix kit/cli
 
 Bundel zawiera komentarze ze ścieżkami modułów, na przykład `// node_modules/zod/v4/core/util.js`, liczonymi od `kit/cli`. Buduj go z zależnościami zainstalowanymi w `kit/cli` przez `npm ci --prefix kit/cli`. Na kopii z `kit/cli/node_modules` jako dowiązaniem symbolicznym do innego katalogu esbuild wpisał w komentarze pełne ścieżki docelowe i zmienił 96 linii bundla bez zmiany kodu (sprawdzone).
 
-**Który krok CI zatrzymuje nieaktualny bundel.** W jobie `cli` w `kit.yml` krok „Verify CLI” (`npm run verify --prefix kit/cli`) kończy się przebudową bundla. Następny krok, „Kit state and generated files are up to date”, robi `git diff --exit-code` na całym drzewie, więc to on zatrzymuje pull request z nieaktualnym bundlem. Na kopii z commitem, który zmienił tekst w `kit/cli/src/bin.ts` bez przebudowy, ten krok wykazał różnicę w `.wa/bin/wa.mjs` (sprawdzone, kroki joba uruchomione lokalnie po kolei). Ostatni krok, „Bundle is up to date” (`git diff --exit-code -- .wa/bin/wa.mjs`), po udanym poprzednim zawsze przechodzi; zdanie w `kit/CLAUDE.md`, że nieaktualny bundel zatrzymuje ten właśnie krok, jest nieścisłe (R3 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)).
+**Który krok CI zatrzymuje nieaktualny bundel.** W jobie `cli` w `kit.yml` krok „Verify CLI” (`npm run verify --prefix kit/cli`) kończy się przebudową bundla. Następny krok, „Kit state and generated files are up to date”, robi `git diff --exit-code` na całym drzewie, więc to on zatrzymuje pull request z nieaktualnym bundlem. Na kopii z commitem, który zmienił tekst w `kit/cli/src/bin.ts` bez przebudowy, ten krok wykazał różnicę w `.wa/bin/wa.mjs` (sprawdzone, kroki joba uruchomione lokalnie po kolei). Ostatni krok, „Bundle is up to date” (`git diff --exit-code -- .wa/bin/wa.mjs`), po udanym poprzednim zawsze przechodzi; zdanie w `kit/CLAUDE.md`, że nieaktualny bundel zatrzymuje ten właśnie krok, jest nieścisłe (R3 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)).
 
 <a id="bramka-cli"></a>
 
@@ -356,7 +356,7 @@ Workflow `.github/workflows/kit.yml` działa przy pushu do `main` i przy pull re
 | Install CLI dependencies | `npm ci --prefix kit/cli` | Lockfile CLI niezgodny z `kit/cli/package.json`. |
 | Verify CLI | `npm run verify --prefix kit/cli` | Błąd lintu, typów albo testu CLI, w tym testu własności. |
 | Kit state and generated files are up to date | `npm run wa -- kit sync && npm run wa -- generate && git diff --exit-code` | `.wa/kit.json`, pliki generowane albo regiony niezgodne z manifestami; nieaktualny bundel ([wyżej](#bundel)). |
-| Bundle is up to date | `git diff --exit-code -- .wa/bin/wa.mjs` | Nic: po udanym poprzednim kroku zawsze przechodzi (R3 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). |
+| Bundle is up to date | `git diff --exit-code -- .wa/bin/wa.mjs` | Nic: po udanym poprzednim kroku zawsze przechodzi (R3 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). |
 
 **Job `assemble`** („Assemble (`<combo>`)”) działa po `cli`, z usługą Postgres 16, osobno dla każdej kombinacji modułów:
 
@@ -409,7 +409,7 @@ Wersja kitu to `version` w `kit/kit.json`. Trafia do `kitVersion` każdego noweg
 Kroki wydania:
 
 1. Podbij `version` w manifeście każdego modułu, którego pliki się zmieniły (`kit/CLAUDE.md`, „Moduły i manifest”).
-2. Podbij `version` w `kit/kit.json`. `kit/CLAUDE.md` tego kroku nie wymienia (R11 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)), ale wynika on z kodu: tag nazywa się jak wersja kitu, a tag poprzedniej wersji już istnieje i wskazuje stary commit.
+2. Podbij `version` w `kit/kit.json`. `kit/CLAUDE.md` tego kroku nie wymienia (R11 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)), ale wynika on z kodu: tag nazywa się jak wersja kitu, a tag poprzedniej wersji już istnieje i wskazuje stary commit.
 3. `npm run wa -- kit sync`, potem `npm run wa -- generate`; zacommituj `.wa/kit.json`.
 4. Przejdź obie bramki i scal zmianę do `main`.
 5. Ustaw tag z adnotacją na commicie wydania w `main` i wypchnij go. Tag ustawia człowiek. Tag `v0.1.0` ma adnotację `wa-kit v0.1.0` i wskazuje `76ca2d7` (sprawdzone, `git cat-file -p v0.1.0`):
@@ -423,7 +423,7 @@ Tag z adnotacją wskazuje obiekt tagu, a nie commit, dlatego `git clone --branch
 
 Nic nie sprawdza kroków 1, 2 i 5:
 
-- Zmiana plików modułu bez podbicia jego wersji przechodzi przez obie bramki i CI. W planie 3 `core` przeszedł z `0.1.0` do `0.4.0` w trzech commitach (`c8a0ffd`, `102b706`, `2e8db6e`), ale kilka innych zmian plików rdzenia weszło bez podbicia (R12 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Wersja kitu przez cały plan 3 zostawała `0.1.0`, a tag `v0.1.0` ustawiono 2026-10-30 na końcowym commicie planu.
+- Zmiana plików modułu bez podbicia jego wersji przechodzi przez obie bramki i CI. W planie 3 `core` przeszedł z `0.1.0` do `0.4.0` w trzech commitach (`c8a0ffd`, `102b706`, `2e8db6e`), ale kilka innych zmian plików rdzenia weszło bez podbicia (R12 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Wersja kitu przez cały plan 3 zostawała `0.1.0`, a tag `v0.1.0` ustawiono 2026-10-30 na końcowym commicie planu.
 - Bez tagu one-liner z `--branch v<wersja>` i `wa add` z domyślnym źródłem kończą się błędem pobierania, a `wa list` wypisuje `Dostępne: nie udało się pobrać kitu (<powód>)` z kodem 0 ([16](16-cli-wa.md#wa-list), [znane-ograniczenia.md](znane-ograniczenia.md)).
 
 <a id="nowy-modul-kitu"></a>
@@ -434,7 +434,7 @@ Ta sekcja dotyczy modułu kitu, czyli kodu, który trafi do wielu projektów. Fu
 
 Kroki opisują, co zrobił plan 3 ([plan](superpowers/plans/2026-10-29-wa-kit-plan-3-modules.md), który dodał do kitu moduły `audit-logs`, `api-keys` i `uploads`; commity `git log --oneline 5b2d308..76ca2d7`). Przy każdym kroku stoi commit, który go wykonał. To, czego plan 3 nie robił konsekwentnie, a co warto robić, oznacza **Zalecenie**.
 
-**Moduł kitu a pliki rdzenia.** `AGENTS.md` („Moduły i pliki generowane”) i `CLAUDE.md` mówią: „Moduł nie edytuje plików rdzenia”. Plan 3 tej reguły nie przestrzegał dosłownie: każdy z trzech modułów wymagał zmian w plikach `core` (szwy, konfiguracja testów, bramka mutacji), a większość tych zmian weszła w commitach modułów, bez podbicia wersji `core`. Rozjazd reguły z praktyką opisuje R12 w [notatka rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md). Kroki 1, 6, 7 i 10 niżej dotyczą plików rdzenia.
+**Moduł kitu a pliki rdzenia.** `AGENTS.md` („Moduły i pliki generowane”) i `CLAUDE.md` mówią: „Moduł nie edytuje plików rdzenia”. Plan 3 tej reguły nie przestrzegał dosłownie: każdy z trzech modułów wymagał zmian w plikach `core` (szwy, konfiguracja testów, bramka mutacji), a większość tych zmian weszła w commitach modułów, bez podbicia wersji `core`. Rozjazd reguły z praktyką opisuje R12 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md). Kroki 1, 6, 7 i 10 niżej dotyczą plików rdzenia.
 
 1. **Szew w rdzeniu, jeśli moduł go potrzebuje.** Punkty wejścia, z których korzystają moduły planu 3, powstały w rdzeniu:
    - osobnym commitem z podbiciem `core`: `trackAudit` i deklaracje `auditActions`, `apiScopes`, `uploadPurposes` w `defineModule` (`c8a0ffd`, `core` `0.2.0`);

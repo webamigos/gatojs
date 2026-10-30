@@ -27,6 +27,22 @@ Ten plik jest drugą częścią opisu modułu `api-keys`. Co moduł robi, jak go
 
 Przykłady pochodzą z funkcji `deliveries` z przebiegu: zewnętrzny system czyta i przyjmuje dostawy organizacji. Funkcja ma wpis w `projectModules` (`"requires": ["api-keys"]`, wzorce `src/features/deliveries/**`, `src/app/api/v1/deliveries/**`, `prisma/schema/deliveries.prisma`, relacja `deliveries Delivery[]` w `Organization`) i model `Delivery` z `organizationId`; wpis i model opisuje tutorial [09](09-nowy-modul.md#krok-3).
 
+Początek wpisu `deliveries` w `.wa/kit.json` (przykład z przebiegu, fragment):
+
+```json
+// …
+  "projectModules": {
+    "deliveries": {
+      "manifest": {
+        "name": "deliveries",
+        "version": "0.1.0",
+        "description": "Funkcja projektu: dostawy przez API",
+        "requires": [
+          "api-keys"
+        ],
+// …
+```
+
 <a id="wlasny-zakres"></a>
 
 ### Własny zakres
@@ -266,7 +282,7 @@ describe("GET /api/v1/deliveries", () => {
 
 | Objaw | Przyczyna | Co zrobić |
 | --- | --- | --- |
-| Każda strona i trasa z kluczem zwraca 500; w logu `Nieprawidłowe zmienne środowiskowe: API_KEY_PEPPER: …` | Brak peppera, mniej niż 32 znaki albo wartość z `.env.example` przy `NODE_ENV=production` (sprawdzone). | Ustaw własny pepper i wdroż ponownie ([Konfiguracja peppera](14-modul-api-keys.md#pepper)). |
+| Żądanie z kluczem do `/api/v1/…` zwraca 500; w logu `Nieprawidłowe zmienne środowiskowe: API_KEY_PEPPER: …` (sprawdzone). Strony i akcje, które czytają `env`, kończą się tym samym błędem (z kodu). Żądanie bez nagłówka `Authorization` dostaje zwykłe 401 `missing`. | Brak peppera, mniej niż 32 znaki albo wartość z `.env.example` przy `NODE_ENV=production` (sprawdzone). | Ustaw własny pepper i wdroż ponownie ([Konfiguracja peppera](14-modul-api-keys.md#pepper)). 401 `missing` bez nagłówka nie dowodzi, że konfiguracja jest dobra. |
 | Wszystkie klucze dostają 401 `invalid`, choć na liście są „Aktywne” | Zmienił się `API_KEY_PEPPER` (sprawdzone) albo środowisko ma inny pepper niż to, na którym klucze utworzono. | Przywróć poprzednią wartość albo wystaw nowe klucze i usuń stare. |
 | 401 `missing` mimo podanego klucza | Nagłówek nie zaczyna się dokładnie od `Bearer ` (na przykład `bearer`, tabulator, sam klucz). | `Authorization: Bearer <klucz>`. |
 | 401 `invalid` dla właśnie skopiowanego klucza | Klucz skopiowany niecały, w cudzysłowie albo z dwiema spacjami po `Bearer` lub spacją wewnątrz; klucz usunięty. Spacje na końcu nagłówka nie szkodzą, bo usuwa je `Headers`. | Skopiuj klucz ponownie; zgubionego nie odzyskasz, wystaw nowy. |
