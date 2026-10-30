@@ -141,3 +141,31 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Kod:** nie dotyczy.
 - **Propozycja:** w Task 11 zmienić odnośniki na sekcje „Konfiguracja peppera” w 14 i „Trasa z kluczem i serwis z filtrem organizacji” w 14b; przykład w 09b z akcją `delivery.received` poprawić zgodnie z R15.
 - **Status:** otwarte, naprawia Task 11.
+
+## R20. D44: odpowiedź 404 `GET /api/uploads/<id>` ma `X-Content-Type-Options: nosniff` z `next.config.ts`
+
+- **Dokument:** [D44](../../decyzje.md#d44), „Decyzja”, ostatni punkt: „odpowiedź 404 nie ma tych nagłówków” (`X-Content-Type-Options: nosniff` i `Content-Security-Policy`).
+- **Kod:** `readUploadForDownload` dodaje te nagłówki tylko do odpowiedzi 200, ale `next.config.ts` dokłada nagłówki bezpieczeństwa (w tym `X-Content-Type-Options: nosniff`) do każdej ścieżki (`source: "/(.*)"`). Na zbudowanym serwerze w przebiegu Task 8 odpowiedź 404 miała `X-Content-Type-Options: nosniff`, a nie miała `Content-Security-Policy`.
+- **Propozycja:** w D44 zawęzić zdanie do nagłówków ustawianych przez trasę („trasa nie dodaje do 404 nagłówków pliku ani `Content-Security-Policy`”). `docs/15-modul-uploads.md` („Pobieranie”) opisuje stan z przebiegu.
+- **Status:** otwarte (decyzje: Task 13 albo Jakub).
+
+## R21. D45: lokalne testy integracyjne z MinIO nie wymagają `INTEGRATION_S3_ENDPOINT`
+
+- **Dokument:** [D45](../../decyzje.md#d45), „Konsekwencje”: „Lokalne testy integracyjne z MinIO wymagają `INTEGRATION_S3_ENDPOINT` i własnego kontenera; region działa tylko w CI.”
+- **Kod:** `src/test/integration/setup-env.ts` ma domyślne `http://localhost:9000` i bucket `<slug>-uploads`, czyli wartości MinIO z `docker-compose.yml` projektu (usługi `minio` i `minio-init`). Zmienna jest potrzebna tylko wtedy, gdy MinIO działa na innym porcie (w przebiegu Task 8 port 9000 zajmował MinIO innego projektu, więc testy dostały `INTEGRATION_S3_ENDPOINT=http://localhost:9100`).
+- **Propozycja:** w D45 napisać, że lokalnie testy korzystają z MinIO z `docker compose up -d`, a `INTEGRATION_S3_ENDPOINT`/`INTEGRATION_S3_BUCKET` zmieniają adres i bucket. `docs/15b-modul-uploads-uzycie.md` („Testowanie”) opisuje to z kodu.
+- **Status:** otwarte (decyzje: Task 13 albo Jakub).
+
+## R22. `storage.integration.test.ts` zostawia obiekty w buckecie testowym
+
+- **Dokument:** `AGENTS.md`, „Testy” (testy integracyjne na bazie `_test`; nic o sprzątaniu magazynu).
+- **Kod:** `src/features/uploads/services/__tests__/storage.integration.test.ts` zapisuje obiekty `orgs/o1/test/<uuid>.txt` i `orgs/o2/test/<uuid>.txt` i nie usuwa ich (`read-upload.integration.test.ts` i `uploads-isolation.integration.test.ts` usuwają swoje w `afterAll`). Po przebiegu Task 8 w buckecie `upload-demo-uploads` zostało siedem takich obiektów.
+- **Propozycja:** w teście kitu zbierać klucze i usuwać je w `afterAll` (zgłoszenie do kitu). `docs/15b-modul-uploads-uzycie.md` („Testowanie”) ostrzega przed wskazywaniem testom bucketu z danymi.
+- **Status:** otwarte (kod: zgłoszenie do kitu).
+
+## R23. 01 i 09b odsyłają do usuniętych sekcji `uploads` w 12
+
+- **Dokument:** `docs/01-uruchomienie.md` („MinIO”) linkuje `12-moduly-kitu.md#uploads` (sekcja ma jedno zdanie), `docs/09b-implementacja-i-bramki.md` („Pliki w funkcji projektu”) linkuje `12-moduly-kitu.md#uploads` i `12-moduly-kitu.md#usuwanie` (kotwicy nie ma).
+- **Kod:** nie dotyczy.
+- **Propozycja:** w Task 11 zmienić odnośniki na [15-modul-uploads.md](../../15-modul-uploads.md) (`#minio`, `#usuwanie`) i [15b-modul-uploads-uzycie.md](../../15b-modul-uploads-uzycie.md#uzycie); w 09b przykład celu `delivery-photo` jest zgodny z przebiegiem Task 8.
+- **Status:** otwarte, naprawia Task 11.
