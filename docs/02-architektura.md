@@ -7,11 +7,12 @@ Po przeczytaniu będziesz wiedzieć:
 - gdzie w repozytorium leży każdy rodzaj kodu i z czego składa się feature;
 - jak żądanie przechodzi od przeglądarki do bazy i w których miejscach kod sprawdza sesję, uprawnienia i tryb serwisowy.
 
-Zweryfikowano z kodem: 012fe4d, 2026-10-29
+Zweryfikowano z kodem: 8d97b78, 2026-10-30
 
 Źródła:
 
 - `src/proxy.ts`
+- `src/__tests__/proxy-matcher.test.ts`
 - `src/i18n/`
 - `src/app/[locale]/layout.tsx`
 - `src/app/[locale]/(app)/`
@@ -25,6 +26,7 @@ Zweryfikowano z kodem: 012fe4d, 2026-10-29
 - `src/shared/lib/prisma.ts`
 - `src/shared/lib/mailer.ts`
 - `src/shared/lib/logger.ts`
+- `src/shared/lib/audit.ts`
 - `src/shared/lib/security-headers.ts`
 - `src/shared/components/app-sidebar.tsx`
 - `src/shared/components/service-mode/`
@@ -39,6 +41,12 @@ Zweryfikowano z kodem: 012fe4d, 2026-10-29
 - `src/features/organizations/services/`
 - `src/__tests__/server-entrypoints-guard.test.ts`
 - `prisma/schema/`
+- `kit/kit.json`
+- `kit/modules/`
+- `kit/cli/package.json`
+- `.wa/kit.json`
+- `docker/`
+- `ci/`
 - `next.config.ts`
 - `package.json`
 - `package-lock.json`
@@ -58,14 +66,16 @@ Repozytorium wa-kit (dalej: kit) to działająca aplikacja Next.js 16, z której
 
 - **Rdzeń**: część, którą ma każdy projekt: logowanie, organizacje, użytkownicy, konto i dashboard.
 - **Feature**: katalog `src/features/<x>/` z kodem jednej funkcji. Rdzeń ma pięć feature: `auth`, `organizations`, `users`, `account` i `dashboard`.
-- **Moduł** (moduł kitu): wpis w `.wa/kit.json` z manifestem, czyli listą plików modułu i tego, co moduł dokłada do plików rdzenia (zmienne środowiskowe, relacje w schemacie bazy, usługi Dockera). Moduł może obejmować kilka feature. W kicie jest jeden moduł, `core`, i obejmuje cały rdzeń.
+- **Moduł** (moduł kitu): jednostka, którą CLI kopiuje do projektu i z niego usuwa. Opisuje go manifest `kit/modules/<nazwa>.json`, czyli lista plików modułu, jego zależności npm i tego, co moduł dokłada do plików rdzenia (zmienne środowiskowe, relacje w schemacie bazy, usługi Dockera, kroki CI). Manifest jest kopiowany do `.wa/kit.json`: w kicie przez `wa kit sync`, w projekcie przy instalacji modułu. Moduł może obejmować kilka feature. Kit ma cztery moduły: `core`, który obejmuje cały rdzeń, oraz opcjonalne `audit-logs`, `api-keys` i `uploads` ([12-moduly-kitu.md](12-moduly-kitu.md)).
+- **Moduł projektu**: funkcja napisana w projekcie, z samym manifestem w `projectModules` w `.wa/kit.json`. Generator rejestruje ją tak jak moduł kitu, a CLI jej nie kopiuje ani nie usuwa ([D36](decyzje.md#d36)).
 - **Definicja modułu**: plik `src/features/<x>/module.ts` z `defineModule(...)`. Mimo nazwy opisuje jeden feature: jego klucz, pozycje w menu i reguły dostępu.
 - **Rejestr modułów**: tablice w `src/modules.generated.ts` i `src/modules.client.generated.ts`, z których aplikacja dowiaduje się, jakie feature istnieją.
-- **Szew**: miejsce, w którym rdzeń dowiaduje się o modułach. Są dwa rodzaje: plik generowany (oba pliki rejestru) i region, czyli fragment pliku między liniami z `wa:<nazwa>:start` i `wa:<nazwa>:end`. Oba przepisuje generator `wa generate`, opisany w [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md).
+- **Szew**: miejsce, w którym rdzeń dowiaduje się o modułach. Są dwa rodzaje: plik generowany (oba pliki rejestru i `src/i18n/locales.generated.ts`) i region, czyli fragment pliku między liniami z `wa:<nazwa>:start` i `wa:<nazwa>:end`. Oba przepisuje generator `wa generate`, opisany w [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md).
+- **Punkt wejścia**: kod rdzenia, który importuje moduł albo moduł projektu, na przykład `trackAudit` z `src/shared/lib/audit.ts`, oraz deklaracje w `defineModule` (`auditActions`, `apiScopes`, `uploadPurposes`). Działa w każdym projekcie, także bez modułu, który go obsługuje ([12-moduly-kitu.md](12-moduly-kitu.md#punkty-wejscia)).
 - **Guard**: funkcja, która sprawdza sesję albo uprawnienia, zanim kod sięgnie do danych, na przykład `getOrgContext()` albo `requireModuleAccess()`.
 - **Kontekst organizacji** (`OrgContext`): wynik `getOrgContext()`, czyli `{ userId, organizationId, orgRole, userRole, serviceMode }` dla zalogowanego użytkownika i jego aktywnej organizacji. Szczegóły: [03-dane-i-organizacje.md](03-dane-i-organizacje.md).
 
-CLI kitu (`wa`) tworzy projekt z kitu (`create`), dodaje i usuwa moduły (`add`, `remove`), wypisuje je (`list`) i odświeża pliki generowane (`generate`). Opisuje go [kit/README.md](../kit/README.md). Nie przenosi poprawek między kitem a projektem: te wysyła się jako pull request ([D39](decyzje.md#d39)). Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
+CLI kitu (`wa`) tworzy projekt z kitu (`create`), dodaje i usuwa moduły (`add`, `remove`), wypisuje je (`list`) i odświeża pliki generowane (`generate`), a w repozytorium kitu przepisuje manifesty do `.wa/kit.json` (`kit sync`). Użycie w projekcie opisuje [16-cli-wa.md](16-cli-wa.md), pracę nad kitem (manifesty, bundel, wydanie) [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md), a drogę modułu od manifestu do aplikacji [12-moduly-kitu.md](12-moduly-kitu.md#warstwa-szwow). Nie przenosi poprawek między kitem a projektem: te wysyła się jako pull request ([D39](decyzje.md#d39)). Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
 
 <a id="zasady-kitu"></a>
 
@@ -74,8 +84,8 @@ CLI kitu (`wa`) tworzy projekt z kitu (`create`), dodaje i usuwa moduły (`add`,
 Kit opiera się na kilku decyzjach. Każda ma w [rejestrze decyzji](decyzje.md) kontekst, odrzucone alternatywy i opis tego, co pilnuje jej przestrzegania. Tutaj jest tylko tyle, ile trzeba, żeby zrozumieć resztę pliku. Gdy dwa wymagania się wykluczają, rozstrzyga [kolejność priorytetów z AGENTS.md](../AGENTS.md#kolejność-priorytetów).
 
 - **Kod kitu staje się kodem projektu.** Rdzeń i moduły kopiuje się do repozytorium projektu, a nie instaluje jako paczki npm. Projekt może je zmieniać bez forka i bez publikowania paczek, a poprawkę przydatną innym projektom wysyła jako pull request do `webamigos/wa-kit` ([D39](decyzje.md#d39)).
-- **Kit to jedna aplikacja referencyjna.** Leży w katalogu głównym repozytorium, z takim samym układem katalogów jak projekt klienta, więc rozwija się ją i testuje jak zwykłą aplikację. Do którego modułu należy plik, zapisuje manifest w `.wa/kit.json` ([D38](decyzje.md#d38)).
-- **Moduł tylko dodaje pliki.** Nie zmienia plików rdzenia, a rdzeń dowiaduje się o nim wyłącznie przez szwy. Gdyby moduł edytował pliki rdzenia, każde dodanie, usunięcie albo aktualizacja modułu kończyłyby się scalaniem cudzych zmian w tych samych plikach ([D03](decyzje.md#d03)).
+- **Kit to jedna aplikacja referencyjna.** Leży w katalogu głównym repozytorium, z takim samym układem katalogów jak projekt klienta, więc rozwija się ją i testuje jak zwykłą aplikację. Do którego modułu należy każdy plik i każda zależność npm, zapisuje manifest modułu w `kit/modules/<nazwa>.json`, a test własności w bramce CLI sprawdza, że każdy plik kitu ma dokładnie jednego właściciela. `wa kit sync` przepisuje manifesty do `.wa/kit.json` ([D38](decyzje.md#d38)).
+- **Moduł tylko dodaje pliki.** Nie zmienia plików rdzenia, a rdzeń dowiaduje się o nim wyłącznie przez szwy. W drugą stronę moduł korzysta z rdzenia przez punkty wejścia i deklaracje w `defineModule` ([D39](decyzje.md#d39)). Gdyby moduł edytował pliki rdzenia, każde dodanie, usunięcie albo aktualizacja modułu kończyłyby się scalaniem cudzych zmian w tych samych plikach ([D03](decyzje.md#d03)).
 - **Pliki generowane są w repozytorium.** Dzięki temu projekt buduje się, testuje i wdraża bez CLI kitu (obraz z `Dockerfile` go nie buduje). CI sprawdza, że ich treść jest dokładnie taka, jaką zapisuje generator ([D04](decyzje.md#d04)).
 - **Definicja modułu to same dane.** Czyta ją guard stron na serwerze i menu w przeglądarce, więc `module.ts` nie może importować kodu serwerowego. Oba miejsca rozstrzygają dostęp tą samą funkcją `canAccessModule`, więc menu pokazuje dokładnie to, przez co guard wpuszcza ([D05](decyzje.md#d05)).
 - **Moduł przynosi własny schemat, a feature własne teksty.** Modele Prismy moduł dodaje we własnym pliku w `prisma/schema/` ([D14](decyzje.md#d14)), a feature trzyma tłumaczenia w `src/features/<x>/i18n/`, pod namespace równym nazwie katalogu ([D27](decyzje.md#d27)). Moduł nie edytuje plików schematu ani tłumaczeń rdzenia: relacje zwrotne w modelach rdzenia trafiają do regionu `wa:relations`.
@@ -88,7 +98,7 @@ Kit opiera się na kilku decyzjach. Każda ma w [rejestrze decyzji](decyzje.md) 
 
 Aplikacja to jeden proces Node.js z Next.js. better-auth (logowanie i sesje), Prisma (dostęp do bazy) i next-intl (tłumaczenia) to biblioteki działające w tym procesie, a nie osobne usługi. Lokalnie aplikację uruchamia `npm run dev`, a bazę i serwer pocztowy `docker compose up -d` ([01-uruchomienie.md](01-uruchomienie.md)). Na Railway aplikacja działa z obrazu Docker.
 
-Diagram pokazuje oba środowiska. Linia przerywana oznacza połączenie opcjonalne.
+Diagram pokazuje oba środowiska dla projektu z samym rdzeniem. Linia przerywana oznacza połączenie opcjonalne. Usługi modułów opisuje ostatni punkt listy pod diagramem.
 
 ```mermaid
 flowchart LR
@@ -123,6 +133,7 @@ flowchart LR
 - **Aplikacja → poczta.** `src/shared/lib/mailer.ts` wysyła przez SMTP, gdy ustawiono `SMTP_URL` (lokalnie wskazuje mailpit). W przeciwnym razie wysyła przez API Resend, gdy ustawiono `RESEND_API_KEY`, a bez obu tylko zapisuje wpis w logu. Na produkcji walidacja zmiennych wymaga `RESEND_API_KEY` ([D18](decyzje.md#d18), [07-i18n-mail-env.md](07-i18n-mail-env.md)).
 - **Aplikacja → odbiornik logów.** Gdy ustawiono `OTEL_EXPORTER_OTLP_ENDPOINT`, funkcja `register()` z `src/instrumentation.ts`, którą Next.js wywołuje przy starcie serwera, włącza wysyłkę logów protokołem OTLP przez HTTP pod `<endpoint>/v1/logs`. Działa tak samo lokalnie i na produkcji. Bez endpointu na produkcji wpisy z `logger` nigdzie nie trafiają ([D15](decyzje.md#d15)).
 - **Railway.** Buduje obraz z `Dockerfile` (Next.js z `output: "standalone"` w `next.config.ts`), przed każdym wdrożeniem uruchamia `npx prisma migrate deploy`, a jako healthcheck ma ustawione `/api/healthcheck` (`railway.toml` albo ustawienia usługi, bo nowa usługa nie czyta `railway.toml`, [10-wdrozenie.md](10-wdrozenie.md#config-as-code)). Wdrożenie opisuje [10-wdrozenie.md](10-wdrozenie.md).
+- **Usługi modułów.** Moduł `uploads` łączy aplikację z magazynem S3 (zmienne `S3_*`). Lokalnie jest nim MinIO: usługi `minio` i `minio-init` trafiają do `docker-compose.yml` przez region `wa:services` z pliku `docker/uploads.compose.yml` ([15-modul-uploads.md](15-modul-uploads.md)). Moduły dokładają też własne trasy API: `uploads` trasy `/api/uploads` i `/api/uploads/[id]`, a `api-keys` trasę `/api/v1/organization` dla żądań z kluczem API ([14-modul-api-keys.md](14-modul-api-keys.md)).
 
 <a id="mapa-repozytorium"></a>
 
@@ -130,22 +141,25 @@ flowchart LR
 
 | Ścieżka | Co zawiera | Więcej |
 | --- | --- | --- |
-| `src/app/` | Trasy Next.js (App Router). Segment `[locale]` to język (`pl` albo `en`), który dla polskiego dopisuje wewnętrznie proxy. W nim grupy tras, których nazwa w nawiasie nie trafia do adresu: `(app)` ze stronami po zalogowaniu (`dashboard`, `users`, `account`) i wspólnym layoutem aplikacji oraz `(auth)` ze stronami logowania, rejestracji i haseł. Obok grup są strony `accept-invitation/[id]` i `no-organization`. Poza `[locale]` leżą endpointy `api/auth/[...all]` i `api/healthcheck`, szablony maili w `emails/` i teksty rdzenia w `messages/`. | [05-moduly-rdzenia.md](05-moduly-rdzenia.md) |
-| `src/features/` | Feature, w rdzeniu pięć. | [Anatomia feature](#anatomia-feature) |
-| `src/shared/` | Kod wspólny dla wszystkich feature. W `lib/` są auth i guardy, `env.ts`, `prisma.ts`, `mailer.ts`, `logger.ts` oraz `modules/` z `defineModule` i nawigacją. W `components/` są menu boczne i komponenty trybu serwisowego. Do tego `config/project.ts` (nazwa i slug projektu), `types/`, `utils/` i `constants/`. | [03-dane-i-organizacje.md](03-dane-i-organizacje.md), [04-auth-i-role.md](04-auth-i-role.md), [06-wzorce-kodu.md](06-wzorce-kodu.md) |
+| `src/app/` | Trasy Next.js (App Router). Segment `[locale]` to język (`pl` albo `en`), który dla polskiego dopisuje wewnętrznie proxy. W nim grupy tras, których nazwa w nawiasie nie trafia do adresu: `(app)` ze stronami po zalogowaniu (`dashboard`, `users`, `account`) i wspólnym layoutem aplikacji oraz `(auth)` ze stronami logowania, rejestracji i haseł. Obok grup są strony `accept-invitation/[id]` i `no-organization`. Poza `[locale]` leżą endpointy `api/auth/[...all]` i `api/healthcheck`, szablony maili w `emails/` i teksty rdzenia w `messages/`. Moduły dokładają strony w `(app)` (`api-keys`, `audit-log`) i trasy w `api/` (`uploads`, `v1/organization`). | [05-moduly-rdzenia.md](05-moduly-rdzenia.md), [12-moduly-kitu.md](12-moduly-kitu.md) |
+| `src/features/` | Feature: pięć w rdzeniu i po jednym w modułach `api-keys`, `audit-logs` i `uploads`. | [Anatomia feature](#anatomia-feature), [12-moduly-kitu.md](12-moduly-kitu.md) |
+| `src/shared/` | Kod wspólny dla wszystkich feature. W `lib/` są auth i guardy, `env.ts`, `prisma.ts`, `mailer.ts`, `logger.ts`, `audit.ts` (punkt wejścia `trackAudit`) oraz `modules/` z `defineModule` i nawigacją. W `components/` są menu boczne i komponenty trybu serwisowego. Do tego `config/project.ts` (nazwa i slug projektu), `types/`, `utils/` i `constants/`. | [03-dane-i-organizacje.md](03-dane-i-organizacje.md), [04-auth-i-role.md](04-auth-i-role.md), [06-wzorce-kodu.md](06-wzorce-kodu.md) |
 | `src/components/ui/` | Komponenty shadcn/ui oparte na base-ui (konfiguracja w `components.json`). | [05-moduly-rdzenia.md](05-moduly-rdzenia.md) |
-| `src/i18n/` | Konfiguracja next-intl: języki (`config.ts`), routing (`routing.ts`), ładowanie i scalanie tekstów (`request.ts`, `merge-messages.ts`). | [07-i18n-mail-env.md](07-i18n-mail-env.md) |
+| `src/i18n/` | Konfiguracja next-intl: języki (`config.ts`), routing (`routing.ts`), ładowanie i scalanie tekstów (`request.ts`, `merge-messages.ts`) oraz plik generowany `locales.generated.ts` z językami projektu. | [07-i18n-mail-env.md](07-i18n-mail-env.md) |
 | `src/proxy.ts`, `src/instrumentation.ts` | Pliki konwencji Next.js. Proxy działa przed żądaniami pasującymi do jego `matcher`, a `register()` raz przy starcie serwera. | [Proxy i język](#proxy) |
-| `src/modules.generated.ts`, `src/modules.client.generated.ts` | Rejestr modułów, pliki generowane. | [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#rejestr-modulow) |
+| `src/modules.generated.ts`, `src/modules.client.generated.ts` | Rejestr modułów, pliki generowane (trzeci plik generowany leży w `src/i18n/`). | [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#rejestr-modulow) |
 | `src/generated/prisma/` | Klient Prismy z `prisma generate`, który uruchamia `postinstall`. Katalog jest w `.gitignore`. | [03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#schemat) |
-| `src/__tests__/`, `src/test/`, `src/types/` | Test architektury punktów wejścia serwera, pomocniki testów, deklaracje typów. | [08-testy.md](08-testy.md) |
-| `prisma/schema/` | Schemat w wielu plikach: `base.prisma` (generator i źródło danych), `auth.prisma`, `organizations.prisma`. | [03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#schemat) |
+| `src/__tests__/`, `src/test/`, `src/types/` | Test architektury punktów wejścia serwera i test `matcher` proxy, pomocniki testów, deklaracje typów. | [08-testy.md](08-testy.md) |
+| `prisma/schema/` | Schemat w wielu plikach: `base.prisma` (generator i źródło danych), `auth.prisma`, `organizations.prisma` oraz po jednym pliku na moduł (`api-keys.prisma`, `audit-logs.prisma`, `uploads.prisma`). | [03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#schemat) |
 | `scripts/` | `admin-create.ts` (`npm run admin:create`) i `mutation-gate.ts` (`npm run test:mutation:gate`), logika obu w `lib/`. | [04-auth-i-role.md](04-auth-i-role.md), [08-testy.md](08-testy.md), [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#bramka) |
 | `e2e/` | Testy Playwright i ich przygotowanie (`global-setup.ts`). | [08-testy.md](08-testy.md) |
-| `kit/cli/` | CLI `wa` (źródła, testy i bundel `.wa/bin/wa.mjs` powstaje przez `npm run build --prefix kit/cli`). | [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#wa-generate) |
-| `.wa/kit.json` | Stan kitu: moduły i ich manifesty. | [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#kit-json) |
+| `kit/cli/` | CLI `wa`: źródła, testy i własna bramka (`npm run verify --prefix kit/cli`). Bundel `.wa/bin/wa.mjs`, zapisany w repozytorium, powstaje przez `npm run build --prefix kit/cli`; projekt uruchamia go jako `npm run wa -- <komenda>`. | [16-cli-wa.md](16-cli-wa.md), [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bundel), [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#wa-generate) |
+| `kit/kit.json`, `kit/modules/` | Opis kitu (wersja, repozytorium, pliki tylko dla kitu, placeholdery, pliki generowane i zarządzane) i manifesty modułów kitu. Tylko w kicie, do projektu nie trafiają. | [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#kit-a-projekt) |
+| `kit/CLAUDE.md`, `kit/README.md` | Reguły pracy nad kitem i opis CLI dla użytkowników. | [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md) |
+| `.wa/kit.json` | Stan kitu: wersja i źródło kitu, projekt, języki, moduły kitu z manifestami i hashami plików oraz moduły projektu. | [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#kit-json) |
+| `docker/`, `ci/` | Pliki modułów wskazane w polach `compose` i `ciSteps` manifestu (`docker/uploads.compose.yml`, `ci/uploads.integration-steps.yml`), które generator kopiuje do regionów. | [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#regiony) |
 | `.claude/` | Konfiguracja Claude Code: hooki w `hooks/`, agenci testów w `agents/`, `settings.json`. | [11-praca-z-kitem.md](11-praca-z-kitem.md) |
-| `.github/workflows/` | CI: `ci.yml`, `e2e.yml`, `mutation.yml`, `security-audit.yml`, `security-secret-scan.yml`, `workflow-lint.yml`. | [08-testy.md](08-testy.md), [10-wdrozenie.md](10-wdrozenie.md), [11-praca-z-kitem.md](11-praca-z-kitem.md) |
+| `.github/workflows/` | CI: `ci.yml`, `e2e.yml`, `mutation.yml`, `security-audit.yml`, `security-secret-scan.yml`, `workflow-lint.yml`, a tylko w kicie `kit.yml` (bramka CLI i składanie projektów z modułami) i `kit-mutation.yml`. | [08-testy.md](08-testy.md), [10-wdrozenie.md](10-wdrozenie.md), [11-praca-z-kitem.md](11-praca-z-kitem.md), [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#ci-kitu) |
 | `docs/` | Ta dokumentacja. W `docs/superpowers/` leżą specyfikacje, plany i notatki procesu. | [README.md](README.md) |
 | katalog główny | Konfiguracja narzędzi: `next.config.ts`, `prisma.config.ts`, `docker-compose.yml`, `Dockerfile`, `railway.toml`, Vitest, Playwright, Stryker, `mutation-gate.json`, `turbo.json`, ESLint, Prettier, husky i commitlint. | [01-uruchomienie.md](01-uruchomienie.md), [08-testy.md](08-testy.md), [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#stryker), [10-wdrozenie.md](10-wdrozenie.md) |
 
@@ -171,12 +185,13 @@ src/features/<x>/
 │   └── en.json
 ├── env.ts               opcjonalnie: envSchema, schemat Zod zmiennych feature
 ├── auth.ts              opcjonalnie: authPlugin, plugin better-auth po stronie serwera
-└── auth-client.ts       opcjonalnie: authClientPlugin, plugin better-auth po stronie przeglądarki
+├── auth-client.ts       opcjonalnie: authClientPlugin, plugin better-auth po stronie przeglądarki
+└── audit-sink.ts        opcjonalnie: auditSink, ujście zdarzeń z trackAudit
 ```
 
 Testy leżą w katalogach `__tests__/` obok kodu, który sprawdzają ([08-testy.md](08-testy.md)).
 
-Generator czyta z feature tylko `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts` i `i18n/<locale>.json`. Co z nich trafia do rejestru i kto to czyta, opisuje [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#rejestr-modulow). Pozostałe katalogi (`components/`, `contracts/`, `services/`) są zwykłym kodem, który importują strony i inne pliki.
+Generator czyta z feature tylko `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts`, `audit-sink.ts` i `i18n/<locale>.json` dla języków projektu. Co z nich trafia do rejestru i kto to czyta, opisuje [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#rejestr-modulow). Pozostałe katalogi (`components/`, `contracts/`, `services/`) są zwykłym kodem, który importują strony i inne pliki.
 
 W `services/commands/` są dwa rodzaje plików:
 
@@ -202,13 +217,13 @@ import { routing } from "./i18n/routing";
 export default createMiddleware(routing);
 
 export const config = {
-  matcher: ["/((?!api|_next|_vercel|.*\\..*).*)"],
+  matcher: ["/((?!api(?:/|$)|_next|_vercel|.*\\..*).*)"],
 };
 ```
 
 Proxy to plik konwencji Next.js 16 (w starszych wersjach Next.js ta konwencja nazywała się middleware), który działa przed każdym żądaniem pasującym do `matcher`. Kit używa go tylko do ustalenia języka: proxy nie sprawdza sesji ani uprawnień. To robią layout, strona i akcja, opisane niżej.
 
-**Które ścieżki obsługuje.** `matcher` pomija każdą ścieżkę, której część po pierwszym `/` zaczyna się od `api`, `_next` albo `_vercel`, oraz każdą ścieżkę z kropką. Dlatego endpointy `/api/auth/*` i `/api/healthcheck` oraz pliki statyczne omijają proxy. Pominięta jest jednak także na przykład ścieżka `/api-keys`. Strona feature pod takim adresem działa tylko z prefiksem języka (`/en/api-keys`). Bez prefiksu Next.js potraktuje `api-keys` jako wartość segmentu `[locale]` i zwróci 404. Trasa feature nie może więc zaczynać się od `api` ani zawierać kropki.
+**Które ścieżki obsługuje.** `matcher` pomija ścieżkę `/api` i wszystko pod `/api/`, każdą ścieżkę, której część po pierwszym `/` zaczyna się od `_next` albo `_vercel`, oraz każdą ścieżkę z kropką. Dlatego endpointy `/api/auth/*`, `/api/healthcheck` i trasy API modułów oraz pliki statyczne omijają proxy. Ścieżka, która tylko zaczyna się od `api`, na przykład strona `/api-keys` modułu `api-keys`, przechodzi przez proxy jak każda strona. Obie listy sprawdza test `src/__tests__/proxy-matcher.test.ts`. Strona feature pod `/api/...` albo z kropką w adresie działałaby tylko z prefiksem języka (`/en/...`): bez prefiksu proxy nie dopisze języka i Next.js zwróci 404. Trasa feature nie może więc być `/api`, leżeć pod `/api/` ani zawierać kropki.
 
 **Jak ustala język.** Proxy wywołuje middleware next-intl z konfiguracją z `src/i18n/routing.ts`: języki `pl` i `en`, domyślny `pl`, `localePrefix: "as-needed"`. Adres z prefiksem `/en/...` jest angielski. Adres bez prefiksu proxy przepisuje wewnętrznie (rewrite) na `/pl/...`, chyba że next-intl wykryje angielski, najpierw z ciasteczka `NEXT_LOCALE`, a bez niego z nagłówka `Accept-Language`. Wtedy przekierowuje (307) na `/en/...`, bo `routing.ts` nie wyłącza wykrywania języka (opcja `localeDetection`). Szczegóły: [07-i18n-mail-env.md](07-i18n-mail-env.md).
 
@@ -377,7 +392,7 @@ export default defineModule({
 });
 ```
 
-`defineModule` z `src/shared/lib/modules/define-module.ts` zwraca przekazany obiekt bez zmian. Służy tylko do tego, żeby TypeScript sprawdził obiekt z typem `ModuleDef` i zachował jego dokładny typ. Wszystkie pola opisuje [Referencja](#referencja-moduledef). Definicję czytają dwa miejsca, oba z `clientModules` w rejestrze ([02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#rejestr-modulow)):
+`defineModule` z `src/shared/lib/modules/define-module.ts` zwraca przekazany obiekt bez zmian. Służy tylko do tego, żeby TypeScript sprawdził obiekt z typem `ModuleDef` i zachował jego dokładny typ. Wszystkie pola opisuje [Referencja](#referencja-moduledef). W rdzeniu definicję czytają dwa miejsca, oba z `clientModules` w rejestrze ([02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#rejestr-modulow)). Pola `auditActions`, `apiScopes` i `uploadPurposes` czytają nie te miejsca, tylko moduły kitu ([Punkty wejścia](12-moduly-kitu.md#punkty-wejscia)):
 
 - **Guard stron.** `requireModuleAccess(key)` szuka w rejestrze pierwszej definicji z tym `key` (`moduleByKey`). Gdy jej nie ma, kończy się 404. Gdy jest, sprawdza dostęp przez `canAccessModule(definicja, { userRole, orgRole, multiOrg })`, z rolami z kontekstu organizacji i `MULTI_ORG` z env. Rola globalna `admin` i `superadmin` ma dostęp do każdej definicji modułu. Dla pozostałych kont rozstrzygają pola `public`, `adminOnly` z `multiOrgRoles` i `roles`, w kolejności opisanej w [D05](decyzje.md#d05). Pełną macierz dostępu podaje [04-auth-i-role.md](04-auth-i-role.md).
 - **Menu boczne.** Layout `(app)` przekazuje `AppSidebar` kontekst `{ userRole, orgRole, multiOrg }`. `getNavEntries` z `src/shared/lib/modules/nav.ts` zostawia definicje, do których `canAccessModule` daje dostęp, bierze ich pozycje `nav` i sortuje je po `order`, wspólnie dla wszystkich feature. Etykieta to tłumaczenie spod ścieżki `<key>.<labelKey>`, na przykład `dashboard.nav`. Gdy `MULTI_ORG=true`, a konto ma rolę globalną `user`, zamiast `labelKey` brane jest `multiOrgLabelKey`, jeśli definicja je ma. Dlatego przy `MULTI_ORG=true` owner organizacji widzi w menu „Członkowie”, a admin globalny „Użytkownicy”.
@@ -410,9 +425,9 @@ Typ z `src/shared/lib/modules/define-module.ts`. `OrgRole` to `"owner" | "admin"
 | `public` | `boolean` | nie | `canAccessModule` | `true` daje dostęp bez sprawdzania ról, ale nie bez logowania ([wyżej](#pulapki-definicji)). |
 | `adminOnly` | `boolean` | nie | `canAccessModule` | `true` daje dostęp roli w organizacji tylko przy `MULTI_ORG=true` i tylko rolom z `multiOrgRoles`. |
 | `multiOrgRoles` | `OrgRole[]` | nie | `canAccessModule` | Działa tylko razem z `adminOnly: true`. Bez pola lista jest pusta. |
-| `auditActions` | `{ action, labelKey }[]` | nie | strona dziennika zdarzeń | Akcje modułu z kluczem etykiety w jego tłumaczeniach. Same dane. |
-| `apiScopes` | `{ key, labelKey }[]` | nie | rejestr zakresów API | Zakresy, które moduł udostępnia kluczom API. Same dane. |
-| `uploadPurposes` | `{ key, mimeTypes, maxBytes, visibility, resizeImage? }[]` | nie | rejestr celów przesyłania plików | Cele przesyłania plików modułu: dozwolone typy MIME, limit rozmiaru, widoczność (`public` albo `organization`) i opcjonalne skalowanie obrazu. Same dane. |
+| `auditActions` | `{ action, labelKey }[]` | nie | moduł `audit-logs`: `audit-action-labels.ts`, widok `/audit-log`, `<AuditTrail>` | Akcje modułu z kluczem etykiety w jego tłumaczeniach. Same dane: bez `audit-logs` nic ich nie czyta. |
+| `apiScopes` | `{ key, labelKey }[]` | nie | moduł `api-keys`: `knownApiScopes` w `api-scopes.ts`, etykiety i formularz klucza | Zakresy, które moduł udostępnia kluczom API. Same dane: bez `api-keys` nic ich nie czyta. |
+| `uploadPurposes` | `{ key, mimeTypes, maxBytes, visibility, resizeImage? }[]` | nie | moduł `uploads`: `listUploadPurposes` w `upload-purposes.ts` | Cele przesyłania plików modułu: dozwolone typy MIME, limit rozmiaru, widoczność (`public` albo `organization`) i opcjonalne skalowanie obrazu. Same dane: bez `uploads` nic ich nie czyta. |
 
 Rola globalna `admin` i `superadmin` ma dostęp do każdej definicji niezależnie od pól. Kolejność sprawdzeń: [D05](decyzje.md#d05).
 
