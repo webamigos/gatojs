@@ -1,10 +1,10 @@
 # Rejestr decyzji
 
-Ten plik wyjaśnia, dlaczego wa-kit jest zbudowany tak, a nie inaczej. Każdy wpis mówi, jaki problem rozwiązuje decyzja, co wybrano, co odrzucono, co z tego wynika przy pisaniu kodu i co pilnuje, żeby decyzja była przestrzegana. Jak dana część działa krok po kroku, opisują pliki `01`–`11` (spis w [README.md](README.md)).
+Ten plik wyjaśnia, dlaczego wa-kit jest zbudowany tak, a nie inaczej. Każdy wpis mówi, jaki problem rozwiązuje decyzja, co wybrano, co odrzucono, co z tego wynika przy pisaniu kodu i co pilnuje, żeby decyzja była przestrzegana. Jak dana część działa krok po kroku, opisują pliki `01`–`16b` (spis w [README.md](README.md)).
 
-Zweryfikowano z kodem: 25adbb8, 2026-10-28
+Zweryfikowano z kodem: 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
 
-Rejestr obejmuje tylko decyzje, które obowiązują w kodzie z tego commitu. Funkcje zaplanowane, ale niezrobione (na przykład tworzenie projektu z kitu jedną komendą), pojawiają się wyłącznie jako kontekst albo konsekwencja.
+Rejestr obejmuje decyzje, które obowiązują w kodzie, i decyzje zastąpione, zostawione jako zapis historii. Funkcje zaplanowane, ale niezrobione (na przykład aktualizacja projektu do nowszej wersji kitu albo moduły `worker` i `legal`), pojawiają się wyłącznie jako kontekst albo konsekwencja.
 
 ## Jak czytać wpis
 
@@ -14,7 +14,7 @@ Wpis zaczyna się kotwicą i nagłówkiem `DNN · tytuł`, a pod nim są te pola
 | --- | --- |
 | Status | `obowiązuje` albo `zastąpiona przez Dxx`. |
 | Data | Dzień, w którym decyzję zapisano albo wdrożono. |
-| Kto zdecydował | Jakub, autor design doc, autor planu 1 albo wykonawca planu 1 (wyjaśnienie pod tabelą). „Nie zapisano”, gdy źródła tego nie podają. |
+| Kto zdecydował | Jakub, autor design doc, autor albo wykonawca planu 1, autor specu planu 3 albo wykonawca planu 3 (wyjaśnienie pod tabelą). „Nie zapisano”, gdy źródła tego nie podają. |
 | Kontekst | Problem, który decyzja rozwiązuje, opisany tak, żeby dało się go zrozumieć bez historii projektu. |
 | Decyzja | Co wybrano i jak to wygląda w kodzie. |
 | Odrzucone alternatywy | Tylko te, które wymieniają źródła. „Nie zapisano”, gdy źródło żadnej nie podaje. |
@@ -24,6 +24,8 @@ Wpis zaczyna się kotwicą i nagłówkiem `DNN · tytuł`, a pod nim są te pola
 
 „Autor design doc” to agent, który spisał główny dokument projektowy w sesji z Jakubem. Decyzje z sekcji „Moje decyzje” podjął sam (poza punktem o pierwszym adminie, ustalonym z Jakubem: [D09](#d09)), a Jakub zatwierdził je razem z całym dokumentem 2026-10-26 (status design doc; handoff z 12:09 pisze o decyzji w sprawie organizacji: „podjąłem ją ja, ale zaakceptował cały spec”). „Autor planu 1” to agent, który napisał plan 1 na podstawie design doc; źródła nie mówią, czy Jakub zatwierdzał plan przed wykonaniem (handoff z 12:09 mówi tylko, że wybrał sposób jego wykonania). „Wykonawca planu 1” to agent, który prowadził wykonanie planu 1 i zapisał swoje decyzje jako rulingi w handoffie planu 1. Handoff nie mówi, czy Jakub zatwierdzał rulingi pojedynczo.
 
+Decyzje D1–D12 planu 2 Jakub zaakceptował 2026-10-28 (nagłówek sekcji decyzji w planie 2); w tym rejestrze mają numery D28–D37, a D8 (migracje) poprawia w miejscu [D13](#d13). „Autor specu planu 3” to agent, który spisał spec planu 3 w burzy mózgów z Jakubem. Spec rozdziela ustalenia „zaakceptowane przez Jakuba” od bloków „Moje decyzje”, które autor zostawił „do sprawdzenia przy czytaniu”; nagłówek specu nie podaje statusu zatwierdzenia całości, a plan 3 wykonano według specu. „Wykonawca planu 3” to agent, który wybierał to, co spec zostawił wykonawcy (§10: nazwy pól i plików, hooki better-auth, mechanizm MinIO w CI). Poprawki z recenzji pull requestów #6–#8 i ustalenia z 2026-10-30 podjął Jakub w rozmowie; ich śledzonym zapisem są commity na `main` (`git log 5b2d308..76ca2d7`).
+
 Sposoby egzekwowania różnią się siłą:
 
 | Sposób | Kiedy zatrzymuje naruszenie |
@@ -31,17 +33,19 @@ Sposoby egzekwowania różnią się siłą:
 | Guard w kodzie | Przy każdym żądaniu, także na produkcji. |
 | Test w `npm run verify` | Lokalnie przed oddaniem pracy i w CI (job `verify` w `.github/workflows/ci.yml`). |
 | Osobny workflow CI | Przy pull requeście i pushu do `main` (`.github/workflows/e2e.yml`, job `integration` w `ci.yml`), nie przy `npm run verify`. `.github/workflows/mutation.yml` tylko po ręcznym uruchomieniu. |
+| Bramka CLI i workflow kitu | `npm run verify --prefix kit/cli` lokalnie oraz `.github/workflows/kit.yml` (joby `cli` i `assemble`) przy pull requeście i pushu do `main`. Tylko w repozytorium kitu: `kit/` i `kit.yml` nie trafiają do projektu. |
 | Hook w `.claude/hooks/` | Tylko w sesji Claude Code, przy narzędziach `Edit` i `Write`. |
 | Tylko konwencja | Wyłącznie wtedy, gdy zauważy to recenzent. |
 
 ## Statusy i numeracja
 
 - `obowiązuje`: decyzja jest w kodzie.
-- `zastąpiona przez Dxx`: decyzja przestała obowiązywać. Wpis zostaje w pliku z nowym statusem, a decyzja, która go zastąpiła, ma własny numer i mówi, co zmieniła.
-- Numery `D01`, `D02`… są stałe i nie są używane ponownie. Inne pliki linkują do wpisu przez kotwicę, na przykład `[D07](decyzje.md#d07)`, więc zmiana numeru zepsułaby linki.
-- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. W wersji zweryfikowanej z `4a6ffcb` nie ma luk: obowiązują wszystkie decyzje od D01 do D27.
+- `zastąpiona przez Dxx`: decyzja przestała obowiązywać. Wpis zostaje w pliku z nowym statusem i jednym zdaniem o tym, co się zmieniło, a decyzja, która go zastąpiła, ma własny numer i mówi, co zmieniła. Pozostała treść zastąpionego wpisu jest zapisem historii i nie opisuje kodu.
+- Gdy w decyzji zmieniły się tylko fakty (na przykład lista plików generowanych albo miejsc w kodzie), wpis poprawia się w miejscu, bez nowego numeru.
+- Numery `D01`, `D02`… są stałe i nie są używane ponownie. Inne pliki linkują do wpisu przez kotwicę, na przykład `[D07](decyzje.md#d07)`, więc zmiana numeru zepsułaby linki. Odnośnik, który opisuje bieżący stan kodu, wskazuje decyzję obowiązującą, a nie zastąpioną.
+- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D46 bez luk: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), pozostałe obowiązują.
 - Nową decyzję dopisuje się na końcu z następnym wolnym numerem, kotwicą `<a id="dNN"></a>` i wszystkimi polami.
-- Jeden plik wystarcza, dopóki decyzje dopisuje jedna gałąź naraz. Gdy zaczną to robić równolegle różne gałęzie (na przykład przy planie 2), dwie mogą dopisać tę samą D28; wtedy warto rozważyć osobne pliki `docs/decyzje/NNNN-*.md`.
+- Jeden plik wystarcza, dopóki decyzje dopisuje jedna gałąź naraz. Gdy zaczną to robić równolegle różne gałęzie, dwie mogą dopisać ten sam następny numer; wtedy warto rozważyć osobne pliki `docs/decyzje/NNNN-*.md`.
 
 ## Pojęcia
 
@@ -49,11 +53,14 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 
 - **Kit** (wa-kit): to repozytorium. Zawiera działającą aplikację, z której kopiuje się kod do projektów klientów.
 - **Rdzeń**: część kitu, którą ma każdy projekt: logowanie, organizacje, użytkownicy, konto i dashboard.
-- **Moduł** (moduł kitu): wpis w `.wa/kit.json` z manifestem plików. Rdzeń to moduł `core`; moduły opcjonalne (na przykład klucze API) są zaplanowane w design doc. Moduł może obejmować kilka feature.
+- **Moduł** (moduł kitu): zestaw plików opisany manifestem `kit/modules/<nazwa>.json`, który `wa kit sync` kopiuje do `.wa/kit.json` ([D38](#d38)). Rdzeń to moduł `core`; moduły opcjonalne to `audit-logs`, `api-keys` i `uploads`. Moduł może obejmować kilka feature.
+- **Moduł projektu**: funkcja napisana w projekcie klienta, opisana wpisem w `projectModules` w `.wa/kit.json` ([D36](#d36)).
+- **Bundel CLI**: plik `.wa/bin/wa.mjs` z całym CLI `wa` w jednym pliku ([D28](#d28)).
 - **Feature**: katalog `src/features/<x>/` z kodem jednej funkcji (komponenty, komendy, query, tłumaczenia).
 - **Definicja modułu**: plik `src/features/<x>/module.ts` z `defineModule(...)` (typ `ModuleDef`). Opisuje feature dla nawigacji i guardów; najważniejsze pole to `key`, na przykład `users`.
 - **Rejestr modułów**: tablice w `src/modules.generated.ts` i `src/modules.client.generated.ts` (na przykład `clientModules`), z których nawigacja, guardy, tłumaczenia i walidacja env dowiadują się o feature.
 - **Plik generowany, region `wa:*`, szew**: plik albo fragment pliku między liniami z `wa:<nazwa>:start` i `wa:<nazwa>:end`, który przepisuje generator kitu (`npm run wa -- generate`). Szew to miejsce, w którym rdzeń dowiaduje się o modułach: plik generowany albo region.
+- **Punkt wejścia, deklaracja modułu**: funkcja rdzenia, którą woła kod modułu albo projektu (na przykład `trackAudit`), i pole danych w `defineModule`, z którego moduł czyta wkład innych modułów (na przykład `apiScopes`) ([D39](#d39)).
 - **Organizacja, aktywna organizacja**: firma albo zespół, do którego należą użytkownicy i dane. Zalogowany użytkownik pracuje zawsze w jednej organizacji naraz, nazywanej aktywną.
 - **Rola globalna** (`user`, `admin`, `superadmin`) dotyczy konta w całej aplikacji. **Rola w organizacji** (`owner`, `admin`, `member`) dotyczy członkostwa w jednej organizacji.
 - **Superadmin, tryb serwisowy, impersonacja**: konto serwisowe Web Amigos; praca superadmina w organizacji, do której nie należy; praca na koncie innego użytkownika bez jego hasła.
@@ -68,6 +75,9 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 
 - **Design doc**: [główny dokument projektowy kitu](superpowers/specs/2026-10-26-wa-kit-design.md) z 2026-10-26.
 - **Plan 1**: [plan budowy rdzenia](superpowers/plans/2026-10-26-wa-kit-plan-1-core.md).
+- **Plan 2**: [plan CLI](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md) z decyzjami D1–D12 (numeracja planu, inna niż w tym rejestrze) oraz plany poprawek po nim: [drobiazgi](superpowers/plans/2026-10-28-wa-kit-cli-drobiazgi.md) i [ograniczenia `wa add`](superpowers/plans/2026-10-28-wa-kit-cli-ograniczenia-add.md).
+- **Spec planu 3, plan 3**: [projekt modułów `audit-logs`, `api-keys` i `uploads`](superpowers/specs/2026-10-28-wa-kit-plan-3-modules-design.md) i [plan ich wykonania](superpowers/plans/2026-10-29-wa-kit-plan-3-modules.md), wdrożone pull requestami #6–#8 (scalone 2026-10-30, commit `76ca2d7`).
+- **kit/CLAUDE.md**: [reguły plików tylko dla kitu](../kit/CLAUDE.md): bramka CLI, bundel, manifesty, wydanie.
 - **Handoff, ruling**: handoff to notatka przekazania pracy między sesjami. [Handoff planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md) zawiera rulingi R1–R22, czyli decyzje podjęte w trakcie wykonania planu 1. Pozostałe handoffy (z 2026-10-27, godz. 12:09 i 17:05) leżą lokalnie, poza repozytorium.
 - **Spec superadmina**: projekt roli `superadmin` z decyzjami Jakuba 1–4. Plik leży lokalnie w `.superpowers/`, poza repozytorium. Jego treść, sprawdzoną z kodem, opisują wpisy D19–D22 i [04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md).
 - **Decyzje Jakuba do macierzy dostępu**: odpowiedzi na trzy pytania o dostęp (zapisane w handoffie z 17:05). Śledzonym zapisem są nazwy testów w `src/shared/lib/auth/__tests__/access-matrix.test.ts`, które cytują je jako „decyzja 1”, „decyzja 2” i „decyzja 3”.
@@ -75,41 +85,62 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 
 ## Spis decyzji
 
-| ID | Decyzja | Obszar |
-| --- | --- | --- |
-| [D01](#d01) | Kod kitu trafia do projektu jako zwykły kod | Model kitu |
-| [D02](#d02) | Aplikacja referencyjna w katalogu głównym; własność plików w `.wa/kit.json` | Model kitu |
-| [D03](#d03) | Moduł nie edytuje rdzenia; łączą je pliki generowane i regiony | Model kitu |
-| [D04](#d04) | Pliki generowane są commitowane i bajtowo równe wyjściu generatora | Model kitu |
-| [D05](#d05) | Definicja modułu to czyste dane bezpieczne dla klienta | Model kitu |
-| [D06](#d06) | Organizacje w rdzeniu, jeden poziom; `MULTI_ORG` nie zmienia modelu danych | Dane i organizacje |
-| [D07](#d07) | Jawny filtr `organizationId` z `getOrgContext()` | Dane i organizacje |
-| [D08](#d08) | Dwa poziomy ról | Auth i role |
-| [D09](#d09) | Pierwszy admin przez `admin:create` | Auth i role |
-| [D10](#d10) | Rejestracja przez bramkę serwerową | Auth i role |
-| [D11](#d11) | Strony chroni `requireModuleAccess` | Auth i role |
-| [D12](#d12) | Strona `no-organization` poza guardem `(app)` | Dane i organizacje |
-| [D13](#d13) | Kit nie commituje migracji, projekt je commituje | Dane i organizacje |
-| [D14](#d14) | Schemat Prisma w wielu plikach | Dane i organizacje |
-| [D15](#d15) | Logger na OpenTelemetry | Konfiguracja i usługi |
-| [D16](#d16) | `APP_URL` jako publiczny adres | Konfiguracja i usługi |
-| [D17](#d17) | Ścisła walidacja zmiennych środowiskowych | Konfiguracja i usługi |
-| [D18](#d18) | Maile: SMTP, Resend, log | Konfiguracja i usługi |
-| [D19](#d19) | `superadmin` jako rola serwisowa | Superadmin |
-| [D20](#d20) | Impersonacja zależna od roli | Superadmin |
-| [D21](#d21) | Superadmin wchodzi do dowolnej organizacji, zawsze jednej | Superadmin |
-| [D22](#d22) | Tryb serwisowy: dialog i potwierdzenie w komendzie | Superadmin |
-| [D23](#d23) | Bez komentarzy w kodzie | Jakość i proces |
-| [D24](#d24) | Test architektury punktów wejścia serwera | Jakość i proces |
-| [D25](#d25) | Testy adwersarialne | Jakość i proces |
-| [D26](#d26) | Mutation testing i bramka plików krytycznych | Jakość i proces |
-| [D27](#d27) | next-intl i namespace tłumaczeń feature | i18n |
+| ID | Decyzja | Obszar | Status |
+| --- | --- | --- | --- |
+| [D01](#d01) | Kod kitu trafia do projektu jako zwykły kod | Model kitu | zastąpiona przez [D39](#d39) |
+| [D02](#d02) | Aplikacja referencyjna w katalogu głównym; własność plików w `.wa/kit.json` | Model kitu | zastąpiona przez [D38](#d38) |
+| [D03](#d03) | Moduł nie edytuje rdzenia; łączą je pliki generowane i regiony | Model kitu | obowiązuje |
+| [D04](#d04) | Pliki generowane są commitowane i bajtowo równe wyjściu generatora | Model kitu | obowiązuje |
+| [D05](#d05) | Definicja modułu to czyste dane bezpieczne dla klienta | Model kitu | obowiązuje |
+| [D06](#d06) | Organizacje w rdzeniu, jeden poziom; `MULTI_ORG` nie zmienia modelu danych | Dane i organizacje | obowiązuje |
+| [D07](#d07) | Jawny filtr `organizationId` z `getOrgContext()` | Dane i organizacje | obowiązuje |
+| [D08](#d08) | Dwa poziomy ról | Auth i role | obowiązuje |
+| [D09](#d09) | Pierwszy admin przez `admin:create` | Auth i role | obowiązuje |
+| [D10](#d10) | Rejestracja przez bramkę serwerową | Auth i role | obowiązuje |
+| [D11](#d11) | Strony chroni `requireModuleAccess` | Auth i role | obowiązuje |
+| [D12](#d12) | Strona `no-organization` poza guardem `(app)` | Dane i organizacje | obowiązuje |
+| [D13](#d13) | Kit nie commituje migracji, projekt je commituje | Dane i organizacje | obowiązuje |
+| [D14](#d14) | Schemat Prisma w wielu plikach | Dane i organizacje | obowiązuje |
+| [D15](#d15) | Logger na OpenTelemetry | Konfiguracja i usługi | obowiązuje |
+| [D16](#d16) | `APP_URL` jako publiczny adres | Konfiguracja i usługi | obowiązuje |
+| [D17](#d17) | Ścisła walidacja zmiennych środowiskowych | Konfiguracja i usługi | obowiązuje |
+| [D18](#d18) | Maile: SMTP, Resend, log | Konfiguracja i usługi | obowiązuje |
+| [D19](#d19) | `superadmin` jako rola serwisowa | Superadmin | obowiązuje |
+| [D20](#d20) | Impersonacja zależna od roli | Superadmin | obowiązuje |
+| [D21](#d21) | Superadmin wchodzi do dowolnej organizacji, zawsze jednej | Superadmin | obowiązuje |
+| [D22](#d22) | Tryb serwisowy: dialog i potwierdzenie w komendzie | Superadmin | obowiązuje |
+| [D23](#d23) | Bez komentarzy w kodzie | Jakość i proces | obowiązuje |
+| [D24](#d24) | Test architektury punktów wejścia serwera | Jakość i proces | obowiązuje |
+| [D25](#d25) | Testy adwersarialne | Jakość i proces | obowiązuje |
+| [D26](#d26) | Mutation testing i bramka plików krytycznych | Jakość i proces | obowiązuje |
+| [D27](#d27) | next-intl i namespace tłumaczeń feature | i18n | obowiązuje |
+| [D28](#d28) | CLI w `kit/cli`, commitowany bundel `.wa/bin/wa.mjs`, `git clone` tagu | CLI i składanie projektu | obowiązuje |
+| [D29](#d29) | Workspaces `packages/*` i `apps/*` statyczne i puste | CLI i składanie projektu | obowiązuje |
+| [D30](#d30) | Zależności npm mają właścicieli; przy konflikcie w `wa add` wygrywa wersja projektu | CLI i składanie projektu | obowiązuje |
+| [D31](#d31) | Hashe plików bez treści regionów; pliki zarządzane i generowane | CLI i składanie projektu | obowiązuje |
+| [D32](#d32) | Placeholdery jako dosłowna podmiana w `placeholderFiles` | CLI i składanie projektu | obowiązuje |
+| [D33](#d33) | Języki projektu w `.wa/kit.json` i pliku generowanym | CLI i składanie projektu | obowiązuje |
+| [D34](#d34) | `wa remove` „wszystko albo nic”, `--force` | CLI i składanie projektu | obowiązuje |
+| [D35](#d35) | `--setup` przy `wa create` opcjonalny | CLI i składanie projektu | obowiązuje |
+| [D36](#d36) | Funkcje projektu w `projectModules` | CLI i składanie projektu | obowiązuje |
+| [D37](#d37) | Testy rdzenia sprawdzają tylko moduły rdzenia | CLI i składanie projektu | obowiązuje |
+| [D38](#d38) | Własność plików i zależności w manifestach `kit/modules/*.json`, pilnowana testem | Model kitu | obowiązuje |
+| [D39](#d39) | Moduł wpina się przez deklaracje w `defineModule` i punkty wejścia rdzenia | Model kitu | obowiązuje |
+| [D40](#d40) | `trackAudit` w rdzeniu działa bez modułu; ujścia `auditSinks` | Moduły kitu | obowiązuje |
+| [D41](#d41) | Redakcja danych wrażliwych przed zapisem; bez retencji | Moduły kitu | obowiązuje |
+| [D42](#d42) | Zdarzenia organizacji łapane hookami better-auth | Moduły kitu | obowiązuje |
+| [D43](#d43) | Klucze API: HMAC z pepperem, zakresy, limit, bez `OrgContext` | Moduły kitu | obowiązuje |
+| [D44](#d44) | Uploads: S3, cele uploadu, widoczność i `Cache-Control`, cofnięcie obiektu | Moduły kitu | obowiązuje |
+| [D45](#d45) | Region `wa:ci-integration` i pole `ciSteps`; pusty region bez markerów pomijany | CLI i składanie projektu | obowiązuje |
+| [D46](#d46) | Kit wydawany tagiem `v<version>`; projekt pobiera kit tylko w swojej wersji | Wydanie | obowiązuje |
 
 <a id="d01"></a>
 
 ## D01 · Kod kitu trafia do projektu jako zwykły kod, bez paczek npm i punktów rozszerzeń
 
-**Status:** obowiązuje · **Data:** 2026-10-26 · **Kto zdecydował:** autor design doc (sekcja „Moje decyzje”); Jakub potwierdził model jako swoją decyzję (handoff z 2026-10-27 12:09)
+**Status:** zastąpiona przez [D39](#d39) · **Data:** 2026-10-26 · **Kto zdecydował:** autor design doc (sekcja „Moje decyzje”); Jakub potwierdził model jako swoją decyzję (handoff z 2026-10-27 12:09)
+
+**Co się zmieniło.** Plan 3 wprowadził deklaracje modułu w `defineModule` (`auditActions`, `apiScopes`, `uploadPurposes`) i punkt wejścia `trackAudit` z ujściami `auditSinks`, więc zdanie „bez punktów rozszerzeń” przestało być prawdą; kopiowanie kodu bez paczek npm zostaje i opisuje je [D39](#d39). Poniżej treść z 2026-10-28 jako zapis historii.
 
 **Kontekst.** Każdy projekt Web Amigos zaczynał się od ręcznego przenoszenia kodu z poprzednich repozytoriów: logowania, użytkowników, maili, tłumaczeń, CI. Analiza 20 repozytoriów pokazała niemal identyczny stos i te same funkcje, a w 14 z nich te same modele kont i sesji. Kit ma dostarczać ten kod raz, sprawdzony. Trzeba było zdecydować, w jakiej postaci kod trafia do projektu: jako zależność, którą projekt instaluje i konfiguruje, czy jako zwykły kod w repozytorium projektu.
 
@@ -135,7 +166,9 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 
 ## D02 · Aplikacja referencyjna w katalogu głównym repozytorium; własność plików w `.wa/kit.json`
 
-**Status:** obowiązuje · **Data:** 2026-10-26 · **Kto zdecydował:** autor design doc (§9); położenie w katalogu głównym zmieniono przy planowaniu planu 1 (adnotacja w design doc §6)
+**Status:** zastąpiona przez [D38](#d38) · **Data:** 2026-10-26 · **Kto zdecydował:** autor design doc (§9); położenie w katalogu głównym zmieniono przy planowaniu planu 1 (adnotacja w design doc §6)
+
+**Co się zmieniło.** Po planie 2 manifesty modułów leżą w `kit/modules/<nazwa>.json`, a `.wa/kit.json` kitu jest ich kopią z `wa kit sync`; kompletność własności plików i zależności sprawdza test, więc źródło i egzekwowanie opisane niżej są nieaktualne, a aplikacja referencyjna w katalogu głównym zostaje w [D38](#d38). Poniżej treść z 2026-10-28 jako zapis historii.
 
 **Kontekst.** Kit trzeba rozwijać i testować jak zwykłą aplikację, a jednocześnie przy tworzeniu projektu musi się dać rozłożyć na rdzeń i moduły. Do tego potrzebna jest informacja, który plik należy do którego modułu.
 
@@ -171,34 +204,39 @@ Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateS
 
 **Kontekst.** Moduły mają się dać włączyć przy tworzeniu projektu i dodać później bez ręcznego wpinania w schemat bazy, nawigację, tłumaczenia i zmienne środowiskowe (design doc §2). Gdyby moduł zmieniał pliki rdzenia, każde dodanie, usunięcie albo aktualizacja modułu oznaczałaby scalanie cudzych zmian w tych samych plikach.
 
-**Decyzja.** Moduł tylko dodaje pliki. Rdzeń „wie” o modułach wyłącznie przez szwy: pliki generowane i regiony między markerami, które przepisuje `wa generate`. Listę szwów podaje `AGENTS.md` („Moduły i pliki generowane”); tabela dodaje, co do nich trafia i skąd generator to bierze:
+**Decyzja.** Moduł tylko dodaje pliki. Rdzeń „wie” o modułach wyłącznie przez szwy: pliki generowane i regiony między markerami, które przepisuje `wa generate`. Listę szwów podaje `AGENTS.md` („Moduły i pliki generowane”), ale bez regionu `wa:ci-integration` i tablicy `auditSinks` (rozbieżność R1 w notatce rozbieżności części 2); tabela podaje wszystkie szwy z kodu (`kit/cli/src/generate/registry.ts` i `targets.ts`), co do nich trafia i skąd generator to bierze:
 
 | Szew | Co trafia do środka | Skąd |
 | --- | --- | --- |
 | `src/modules.generated.ts` | `modules`, `moduleEnvSchemas`, `authPlugins`, `auditSinks`, `moduleMessages` | `module.ts`, `env.ts`, `auth.ts`, `audit-sink.ts`, `i18n/<locale>.json` każdego feature |
 | `src/modules.client.generated.ts` | `clientModules`, `authClientPlugins` | `module.ts`, `auth-client.ts` |
+| `src/i18n/locales.generated.ts` | `locales` | pole `locales` w `.wa/kit.json` ([D33](#d33)) |
 | region `wa:relations` w `prisma/schema/auth.prisma` i `prisma/schema/organizations.prisma` | pola relacji zwrotnych w modelach `User` i `Organization` | `schemaRelations` manifestów |
 | region `wa:modules` w `.env.example` | zmienne modułów innych niż `core` | pole `env` manifestu |
 | region `wa:services` w `docker-compose.yml` | usługi Dockera modułów | plik wskazany w polu `compose` manifestu |
+| region `wa:ci-integration` w `.github/workflows/ci.yml` | kroki joba testów integracyjnych | plik wskazany w polu `ciSteps` manifestu ([D45](#d45)) |
+
+Poza szwami generowanymi rdzeń ma punkty wejścia, które woła kod modułu albo projektu (`trackAudit`, `auditActor`), i pola danych w `defineModule`, z których moduły czytają wkład innych modułów ([D39](#d39), [D40](#d40)).
 
 **Odrzucone alternatywy.**
 
 - Ręczne wpinanie modułu w pliki rdzenia (cel z design doc §2 mówi wprost, że ma go nie być).
-- Punkty rozszerzeń w trakcie działania aplikacji ([D01](#d01)).
+- Ładowanie modułów i pluginów w trakcie działania aplikacji ([D01](#d01), [D39](#d39)).
 
 **Konsekwencje.**
 
-- Nowy feature to nowe pliki, wzorzec w `.wa/kit.json` ([D02](#d02)) i przebieg `npm run wa -- generate`.
+- Nowy feature modułu kitu to nowe pliki, wzorzec w `kit/modules/<x>.json` i przebieg `npm run wa -- kit sync`, który przepisuje `.wa/kit.json` kitu ([D38](#d38)), a potem `npm run wa -- generate`. Funkcja projektu klienta dostaje zamiast tego wpis w `projectModules` w `.wa/kit.json` projektu ([D36](#d36)) i przebieg `npm run wa -- generate`.
 - Uszkodzony marker (brak końca, podwójny początek) albo marker w treści regionu przerywa generator błędem z nazwą pliku i markera, a żaden plik nie zostaje zmieniony (`replaceRegion` w `kit/cli/src/generate/regions.ts`).
-- Design doc §4.3 wymienia też szwy, których kod nie ma albo ma inaczej (osobne pliki pluginów better-auth, `trackAudit`, generowane `workspaces`). Obowiązuje tabela powyżej, zgodna z `AGENTS.md`.
+- Plik docelowy bez markerów jest pomijany, gdy region byłby pusty; gdy moduł ma coś do wpisania, generator kończy się błędem `brak regionu` ([D45](#d45)).
+- Design doc §4.3 wymienia też szwy, których kod nie ma albo ma inaczej (osobne pliki pluginów better-auth, generowane `workspaces`). Pole `workspaces` manifestu istnieje w schemacie, ale żaden kod go nie czyta ([D29](#d29)). Obowiązuje tabela powyżej.
 
 **Jak egzekwowana.**
 
 - Ręczna zmiana w pliku generowanym albo w regionie: job `verify` w `.github/workflows/ci.yml` ([D04](#d04)).
-- Poprawność regionów: testy `kit/cli/src/generate/__tests__/regions.test.ts` i `generate.test.ts` („uszkodzony marker: błąd i żaden plik nie zmieniony”), uruchamiane w `npm run verify`.
-- To, że moduł nie zmienia plików rdzenia poza regionami: tylko konwencja.
+- Poprawność regionów: testy `kit/cli/src/generate/__tests__/regions.test.ts`, `generate.test.ts` („uszkodzony marker: błąd i żaden plik nie zmieniony”) i `ci-steps.test.ts`, uruchamiane w bramce CLI (`npm run verify --prefix kit/cli`, job `cli` w `.github/workflows/kit.yml`).
+- To, że moduł nie zmienia plików rdzenia poza regionami: tylko konwencja. Test własności ([D38](#d38)) zatrzyma plik, który należy do dwóch manifestów, ale nie zmianę treści pliku rdzenia.
 
-**Źródło.** [Design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §2, §4.1, §4.3 i §9; [AGENTS.md](../AGENTS.md), „Moduły i pliki generowane”; [CLAUDE.md](../CLAUDE.md), „Pliki generowane”.
+**Źródło.** [Design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §2, §4.1, §4.3 i §9; [AGENTS.md](../AGENTS.md), „Moduły i pliki generowane”; [CLAUDE.md](../CLAUDE.md), „Pliki generowane”; [spec planu 3](superpowers/specs/2026-10-28-wa-kit-plan-3-modules-design.md) §7 i §8 (`auditSinks`, `wa:ci-integration`).
 
 <a id="d04"></a>
 
@@ -208,22 +246,23 @@ Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateS
 
 **Kontekst.** Aplikacja importuje rejestr modułów w wielu miejscach, na przykład `src/shared/lib/env.ts` importuje `@/modules.generated`. Bez tych plików nie działa `npm run build`, `npm run typecheck` ani `npm test`. Bundel CLI `.wa/bin/wa.mjs` jest w repozytorium, więc projekt nie wymaga budowania CLI przed generatorem. Z drugiej strony plik zmieniony ręcznie albo przez formatter rozjeżdża się z tym, co zapisze generator.
 
-**Decyzja.** `src/modules.generated.ts`, `src/modules.client.generated.ts` i regiony `wa:*` są commitowane. Ich treść ma być bajt w bajt taka, jaką zapisuje `wa generate`. Oba pliki TypeScript są wpisane do `.prettierignore` i do `globalIgnores` w `eslint.config.mjs`, więc `lint-staged` (`.lintstagedrc.json`) ich nie przeformatuje. Zaczynają się linią nagłówka „generated by wa — nie edytuj”. Regiony nie mają nagłówka, bo oznaczają je same markery.
+**Decyzja.** Trzy pliki generowane, `src/modules.generated.ts`, `src/modules.client.generated.ts` i `src/i18n/locales.generated.ts` ([D33](#d33)), oraz regiony `wa:*` są commitowane. Ich treść ma być bajt w bajt taka, jaką zapisuje `wa generate`. Wszystkie trzy pliki są wpisane do `.prettierignore` i do `globalIgnores` w `eslint.config.mjs`, więc `lint-staged` (`.lintstagedrc.json`) ich nie przeformatuje. Zaczynają się linią nagłówka `// generated by wa — nie edytuj. Uruchom: npm run wa -- generate` (`GENERATED_HEADER` w `kit/cli/src/generate/registry.ts`), z tą samą komendą, którą podaje `AGENTS.md`. Regiony nie mają nagłówka, bo oznaczają je same markery.
 
 **Odrzucone alternatywy.** Nie zapisano. Design doc podaje powód commitowania: projekt działa bez CLI.
 
 **Konsekwencje.**
 
-- Po zmianie `.wa/kit.json` albo po dodaniu lub usunięciu `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts` lub `i18n/<locale>.json` w feature uruchom `npm run wa -- generate` i zacommituj wynik razem ze zmianą. Generator wypisuje zmienione pliki albo `Bez zmian`.
-- Nagłówek w plikach generowanych podaje inną komendę niż `AGENTS.md`. Używaj komendy z `AGENTS.md`, podanej wyżej.
+- Po zmianie `.wa/kit.json` albo po dodaniu lub usunięciu `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts`, `audit-sink.ts` lub `i18n/<locale>.json` w feature, a także po zmianie pliku wskazanego w polu `compose` albo `ciSteps` manifestu, uruchom `npm run wa -- generate` i zacommituj wynik razem ze zmianą. Generator wypisuje zmienione pliki albo `Bez zmian`.
+- Pliki generowane nie należą do żadnego manifestu i nie mają hasha w `.wa/kit.json` projektu: `wa create` ich nie kopiuje, tylko tworzy generatorem ([D31](#d31)).
 
 **Jak egzekwowana.**
 
 - Job `verify` w `.github/workflows/ci.yml` (push i pull request do `main`): kroki „Regenerate wa files” (`npm run wa -- generate`) i „Generated files are up to date” (`git diff --exit-code`). Każda różnica przerywa job przed `npm run verify`.
 - `.prettierignore` i `globalIgnores` w `eslint.config.mjs`.
-- Idempotencja generatora: `kit/cli/src/generate/__tests__/generate.test.ts` („drugie uruchomienie nic nie zmienia”).
+- Idempotencja generatora: `kit/cli/src/generate/__tests__/generate.test.ts` („drugie uruchomienie nic nie zmienia”), w bramce CLI.
+- W repozytorium kitu job `cli` w `.github/workflows/kit.yml` (krok „Kit state and generated files are up to date”), a w każdym złożonym projekcie job `assemble` (krok „Generated files are up to date”).
 
-**Źródło.** [Design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §4.3 (ostatni akapit); rulingi R12 i R17 w [handoffie planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md).
+**Źródło.** [Design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §4.3 (ostatni akapit); rulingi R12 i R17 w [handoffie planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md); [plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), decyzje D5 i D7 oraz „Global Constraints” (nagłówek plików generowanych).
 
 <a id="d05"></a>
 
@@ -483,11 +522,11 @@ Strona `/sign-up` przy wyłączonej rejestracji i bez `invitationId` przekierowu
 
 ## D13 · Kit nie commituje migracji, projekt je commituje
 
-**Status:** obowiązuje · **Data:** 2026-10-26 · **Kto zdecydował:** autor design doc (§5 i §9); wykonawca planu 1 (rulingi R2 i R22)
+**Status:** obowiązuje · **Data:** 2026-10-26 (ignorowanie plikiem tylko w kicie od 2026-10-28) · **Kto zdecydował:** autor design doc (§5 i §9); wykonawca planu 1 (rulingi R2 i R22); Jakub (decyzja D8 planu 2: ignorowanie zagnieżdżonym `.gitignore` zamiast linii w root `.gitignore`)
 
 **Kontekst.** Schemat bazy projektu zależy od wybranych modułów: każdy moduł dodaje własny plik schematu i relacje w regionach ([D03](#d03), [D14](#d14)). Źródła nie zapisują uzasadnienia wprost, ale z modelu składania wynika, że historia migracji kitu nie pasowałaby do projektu z innym zestawem modułów. Projekt na produkcji stosuje natomiast migracje komendą `npx prisma migrate deploy` (`preDeployCommand` w `railway.toml` albo w ustawieniach usługi, bo nowa usługa Railway nie czyta `railway.toml`, [10-wdrozenie.md](10-wdrozenie.md#config-as-code)), która bierze tylko migracje zapisane w repozytorium.
 
-**Decyzja.** Kit nie dostarcza katalogu `prisma/migrations/` i ignoruje go plikiem `prisma/migrations/.gitignore`, którego `wa create` nie kopiuje. Każda kopia repozytorium kitu tworzy własną migrację (`npx prisma migrate dev --name init`). Projekt klienta commituje swoje migracje.
+**Decyzja.** Kit nie dostarcza katalogu `prisma/migrations/` i ignoruje go plikiem `prisma/migrations/.gitignore` (treść: `*` i `!.gitignore`). Plik jest na liście `kitOnly` w `kit/kit.json`, więc `wa create` go nie kopiuje i ignorowanie migracji działa tylko w repozytorium kitu. Każda kopia repozytorium kitu tworzy własną migrację (`npx prisma migrate dev --name init`). Projekt klienta commituje swoje migracje.
 
 **Odrzucone alternatywy.** Nie zapisano.
 
@@ -497,9 +536,9 @@ Strona `/sign-up` przy wyłączonej rejestracji i bez `invitationId` przekierowu
 - Testy działają bez zacommitowanych migracji: schemat tworzą `src/test/integration/global-setup.ts` (`prisma db push`) i `e2e/global-setup.ts` (`prisma db push --force-reset` albo, gdy migracje istnieją, `prisma migrate reset --force`), a `.github/workflows/e2e.yml` tworzy migrację w trakcie przebiegu. Które komendy czyszczą bazę i jak są zabezpieczone, opisuje [08-testy.md](08-testy.md).
 - Rozjazd historii migracji we własnej bazie: [03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#dryf-migracji).
 
-**Jak egzekwowana.** W repozytorium kitu: plik `prisma/migrations/.gitignore`. W projekcie klienta: brak ignorowania, bo `wa create` tego pliku nie kopiuje.
+**Jak egzekwowana.** W repozytorium kitu: plik `prisma/migrations/.gitignore`. W projekcie klienta: brak ignorowania, bo plik jest w `kitOnly` i `wa create` go nie kopiuje. To, że projekt commituje migracje: tylko konwencja.
 
-**Źródło.** [Design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §5 i §9; rulingi R2 i R22 w [handoffie planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md).
+**Źródło.** [Design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §5 i §9; rulingi R2 i R22 w [handoffie planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md); [plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), decyzja D8; `kit/kit.json` (`kitOnly`).
 
 <a id="d14"></a>
 
@@ -928,7 +967,7 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 
 **Decyzja.**
 
-- Tłumaczenia obsługuje next-intl. Języki to `pl` i `en`, domyślny `pl` (`src/i18n/config.ts`), z `localePrefix: "as-needed"` (`src/i18n/routing.ts`): adresy polskie nie mają prefiksu, angielskie mają `/en`. Język ustala `src/proxy.ts` (middleware next-intl).
+- Tłumaczenia obsługuje next-intl. Dostępne języki to `pl` i `en`, domyślny `pl` (`src/i18n/config.ts`). Lista języków projektu pochodzi z pola `locales` w `.wa/kit.json` przez plik generowany `src/i18n/locales.generated.ts` ([D33](#d33)); kit ma oba języki. Routing używa `localePrefix: "as-needed"` (`src/i18n/routing.ts`): adresy polskie nie mają prefiksu, angielskie mają `/en`. Język ustala `src/proxy.ts` (middleware next-intl).
 - Teksty rdzenia są w `src/app/messages/<locale>.json`, a teksty feature w `src/features/<x>/i18n/<locale>.json`. `src/i18n/request.ts` scala je przez `mergeMessages` (`src/i18n/merge-messages.ts`): teksty feature trafiają pod namespace równy nazwie jego katalogu (z `moduleMessages` w rejestrze).
 - `mergeMessages` rzuca błąd przy nieprawidłowym kluczu namespace (wzorzec `^[a-z][a-zA-Z0-9-]*$`) i przy kolizji z namespace rdzenia (`common`, `errors`, `sidebar`, `serviceMode`) albo innego feature.
 
@@ -939,7 +978,7 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 - Etykiety menu są szukane pod `<key>.<labelKey>`, gdzie `key` pochodzi z definicji modułu, a tłumaczenia leżą pod nazwą katalogu. Nazwa katalogu feature i `key` w `defineModule` muszą być takie same. W rdzeniu są, ale nic tego nie sprawdza.
 - Kolizja namespace kończy się błędem przy ładowaniu tłumaczeń (`getRequestConfig` w `src/i18n/request.ts`), więc strona się nie wyrenderuje.
 - Decyzji o wykrywaniu języka nie zapisano ([znane-ograniczenia.md](znane-ograniczenia.md#wykrywanie-jezyka)): `src/i18n/routing.ts` nie ustawia `localeDetection`, więc działa domyślne zachowanie next-intl. Adres bez prefiksu bierze język z ciasteczka `NEXT_LOCALE`, a bez niego z nagłówka `Accept-Language`, więc przeglądarka, która woli angielski, trafia na `/en/...`. Szczegóły w [07-i18n-mail-env.md](07-i18n-mail-env.md).
-- Trzeci język wymaga zmian w `src/i18n/config.ts` i w CLI: lista języków jest w `kit/cli/src/manifest/schema.ts` (`localesSchema`), w `kit/cli/src/args.ts` (`ALLOWED_LOCALES`) i w plikach generowanych (`src/i18n/locales.generated.ts`, `kit/cli/src/generate/registry.ts`).
+- Trzeci język wymaga zmian w CLI, bo lista `pl`, `en` jest w czterech miejscach: `kit/cli/src/manifest/schema.ts` (`localesSchema`), `kit/cli/src/args.ts` (`ALLOWED_LOCALES` i typ `Locale`), `kit/cli/src/generate/registry.ts` (typy `("pl" | "en")[]`) i `kit/cli/src/commands/kit-sync.ts` (zapisuje w kicie zawsze `["pl", "en"]`). Po zmianie CLI trzeba przebudować bundel ([D28](#d28)) i dodać pliki `<locale>.json` rdzenia i feature.
 - Dodawanie tekstów i języka: [07-i18n-mail-env.md](07-i18n-mail-env.md).
 
 **Jak egzekwowana.**
@@ -949,3 +988,563 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 - Zgodność nazwy katalogu z `key`: tylko konwencja.
 
 **Źródło.** [Design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §3 i §4.3; ruling R4 w [handoffie planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md); [AGENTS.md](../AGENTS.md), „i18n”; commity `b27c07b` i `baeca4e`.
+
+<a id="d28"></a>
+
+## D28 · CLI w `kit/cli`, poza workspace'ami; commitowany bundel `.wa/bin/wa.mjs`; dystrybucja przez `git clone` tagu
+
+**Status:** obowiązuje · **Data:** 2026-10-28 · **Kto zdecydował:** Jakub (decyzje D1 i D2 planu 2)
+
+**Kontekst.** Projekt ma powstawać z kitu jedną komendą i później dodawać moduły, a kit nie jest publikowany w żadnym rejestrze paczek. W planie 1 CLI było workspace'em npm w katalogu packages/cli (katalogu już nie ma): główny lockfile i `Dockerfile` (instrukcja `COPY` jego `package.json`) zależały od niego, więc projekt bez CLI miałby inny lockfile i nie zbudowałby obrazu Dockera (plan 2, D1).
+
+**Decyzja.**
+
+- Kod CLI leży w `kit/cli` jako samodzielna paczka z własnym `package.json` i `package-lock.json`, poza workspace'ami aplikacji. Katalog `kit/**` jest na liście `kitOnly` w `kit/kit.json` i w `.dockerignore`, więc nie trafia do projektu ani do obrazu.
+- esbuild (`kit/cli/bundle.mjs`) buduje z `kit/cli/src/bin.ts` jeden plik `.wa/bin/wa.mjs`. Bundel jest commitowany i należy do modułu `core` (`kit/modules/core.json`). Ten sam plik działa w kicie i w projekcie jako skrypt `wa` (`"wa": "node .wa/bin/wa.mjs"` w `package.json`), więc projekt nie buduje CLI i nie potrzebuje jego `node_modules`.
+- Kit pobiera się przez `git clone --depth 1 --branch v<wersja>` ([D46](#d46)). Nowy projekt powstaje z klonu: `node <klon>/.wa/bin/wa.mjs create <nazwa>`, a domyślnym źródłem kitu dla `create` jest katalog, w którym leży uruchomiony bundel (`bin.ts`). W projekcie `wa add` i `wa list` klonują tag wersji zapisanej w `.wa/kit.json` (`kit/cli/src/kit/source.ts`).
+- Komenda nazywa się `wa create`; `create-wa-app` to nazwa one-linera w dokumentacji, a nie osobny program.
+
+**Odrzucone alternatywy.**
+
+- Publikacja CLI w rejestrze npm albo GitHub Packages (plan 2, D2: jedynym wymogiem ma być zalogowany `git` albo `gh`).
+- CLI jako workspace aplikacji, jak w planie 1 (powód w kontekście).
+- Osobny program `create-wa-app` (design doc §5; odstępstwo zapisane w planie 2, D2).
+
+**Konsekwencje.**
+
+- Po każdej zmianie w `kit/cli/src` trzeba przebudować bundel (`npm run build --prefix kit/cli`) i zacommitować go razem ze zmianą (`kit/CLAUDE.md`, „Bundel CLI”).
+- Bez tagu `v<wersja>` na GitHubie nie działa one-liner ani domyślne źródło `wa add` i `wa list`. Klonowanie tagu z adnotacją przy `--depth 1` wypisuje ostrzeżenie gita i komunikat o odłączonym HEAD; to nie jest błąd.
+- `npm run verify` projektu nie testuje CLI: testy CLI leżą w `kit/cli` i działają tylko w repozytorium kitu.
+
+**Jak egzekwowana.**
+
+- Aktualność bundla: job `cli` w `.github/workflows/kit.yml`. Krok „Verify CLI” (`npm run verify --prefix kit/cli`) kończy się przebudową bundla, a następny krok „Kit state and generated files are up to date” robi `git diff --exit-code` na całym drzewie, więc nieaktualny bundel zatrzymuje job w tym kroku. Późniejszy krok „Bundle is up to date” po udanym poprzednim zawsze przechodzi (rozbieżność R3 w notatce rozbieżności części 2).
+- Bundel ma właściciela `core`: test własności ([D38](#d38)).
+- CLI poza workspace'ami i bez zależności w `package.json` aplikacji: test własności zatrzyma zależność w root `package.json` bez właściciela, ale samego położenia CLI pilnuje tylko konwencja.
+- Dystrybucja przez tag: tylko konwencja ([D46](#d46)).
+
+**Źródło.** [Plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), decyzje D1 i D2; commit `cdeb794`; [kit/CLAUDE.md](../kit/CLAUDE.md), „Bundel CLI”.
+
+<a id="d29"></a>
+
+## D29 · Workspaces `packages/*` i `apps/*` statyczne i puste
+
+**Status:** obowiązuje · **Data:** 2026-10-28 · **Kto zdecydował:** Jakub (decyzja D3 planu 2)
+
+**Kontekst.** Design doc §4.3 przewidywał, że pole `workspaces` w `package.json` projektu będzie generowane z modułów, które wnoszą własne pakiety (na przykład przyszły `worker` w `apps/worker`). Żaden moduł kitu takiego pakietu nie ma, a generowanie `package.json` oznaczałoby kolejny szew w pliku zarządzanym ([D31](#d31)).
+
+**Decyzja.** Root `package.json` ma stałe `"workspaces": ["packages/*", "apps/*"]`, jak w planie 1. Katalogi `packages/` i `apps/` nie istnieją ani w kicie, ani w projekcie. `npm run verify` uruchamia `turbo run test typecheck`, które według planu 2 (D3) bez pakietów kończy się kodem 0. Manifest ma pole `workspaces` (`moduleManifestSchema` w `kit/cli/src/manifest/schema.ts`), ale żaden kod CLI go nie czyta.
+
+**Odrzucone alternatywy.** Generowane `workspaces` z manifestów (design doc §4.3). Plan nie zapisuje powodu poza tym, że statyczna lista wystarcza.
+
+**Konsekwencje.**
+
+- Moduł, który wniesie pakiet w `apps/<x>` albo `packages/<x>`, nie wymaga zmiany `workspaces`. Pole `workspaces` w manifeście nic nie robi.
+- `wa create` przenosi `workspaces` z `package.json` kitu bez zmian (`projectPackageJson` w `kit/cli/src/assemble/package-json.ts` podmienia tylko nazwę, wersję i zależności).
+
+**Jak egzekwowana.** Tylko konwencja. Job `assemble` w `.github/workflows/kit.yml` uruchamia `npm run verify` w złożonym projekcie bez pakietów, więc zatrzyma zmianę, po której `turbo` bez pakietów kończy się błędem, ale nie zmianę samej listy.
+
+**Źródło.** [Plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), decyzja D3; [design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §4.3.
+
+<a id="d30"></a>
+
+## D30 · Zależności npm mają właścicieli jak pliki; `package.json` projektu to suma manifestów; przy konflikcie w `wa add` wygrywa wersja projektu
+
+**Status:** obowiązuje · **Data:** 2026-10-28 · **Kto zdecydował:** Jakub (decyzja D4 planu 2); porównanie zależności osobno dla każdej sekcji i ostrzeżenie o konflikcie wersji dodał plan poprawek „drobiazgi” (zadania 3 i 4), którego autora źródła nie zapisują
+
+**Kontekst.** Projekt z samym rdzeniem nie powinien instalować zależności modułów, których nie ma, a `wa remove` musi wiedzieć, które pakiety może usunąć z `package.json`. Bez zapisanego właściciela zależności nie da się tego ustalić.
+
+**Decyzja.**
+
+- Każdy manifest wymienia swoje `dependencies` i `devDependencies` w formacie `nazwa → wersja`. `kit/modules/core.json` wymienia wszystkie zależności rdzenia.
+- W kicie każda zależność z root `package.json` ma właściciela, który deklaruje ją w tej samej sekcji i w tej samej wersji ([D38](#d38)).
+- `wa create` zapisuje w `package.json` projektu sumę zależności wybranych manifestów, posortowaną po nazwie (`projectPackageJson`).
+- `wa add` dopisuje zależności modułu (`addDependencies`). Gdy projekt ma już tę zależność w innej wersji w tej samej sekcji, zostaje wersja projektu, a CLI wypisuje `Uwaga: <nazwa> (<sekcja>) ma w projekcie <wersja>, moduł <moduł> wymaga <wersja>; zostaje wersja projektu` (`dependencyConflicts`).
+- `wa remove` usuwa zależności modułu, których nie deklaruje żaden pozostały moduł kitu ani moduł projektu (`removeDependencies`).
+
+**Odrzucone alternatywy.** Nie zapisano. Plan przyjął świadomie koszt: aktualizacja zależności w kicie to zmiana w `package.json` i w manifeście właściciela.
+
+**Konsekwencje.**
+
+- Aktualizując zależność w kicie, zmień ją w `package.json` i w manifeście właściciela; test własności nie pozwala o tym zapomnieć.
+- Ostrzeżenie w `wa add` nie przerywa komendy. Zgodność modułu z wersją projektu sprawdzasz sam.
+- Zależność, którą projekt ma w innej sekcji niż moduł, nie jest konfliktem: trafia do obu sekcji bez ostrzeżenia.
+- `wa remove` usuwa zależność modułu także wtedy, gdy projekt miał ją wcześniej albo zmienił jej wersję, chyba że deklaruje ją inny manifest (także `projectModules`, [D36](#d36)).
+
+**Jak egzekwowana.**
+
+- Bramka CLI i job `cli` w `.github/workflows/kit.yml`: test „każdy plik i każda zależność ma dokładnie jednego właściciela” w `kit/cli/src/kit/__tests__/ownership.test.ts`.
+- Testy `kit/cli/src/assemble/__tests__/package-json.test.ts` (na przykład „zaleznosc podbita w projekcie zostaje w wersji projektu”) i `kit/cli/src/commands/__tests__/add.test.ts` (ostrzeżenia o konflikcie).
+- W projekcie klienta nic nie pilnuje zgodności `package.json` z manifestami: test własności nie trafia do projektu.
+
+**Źródło.** [Plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), decyzja D4; [plan „drobiazgi”](superpowers/plans/2026-10-28-wa-kit-cli-drobiazgi.md), zadania 3 i 4.
+
+<a id="d31"></a>
+
+## D31 · Hashe plików bez treści regionów; `package.json` i `package-lock.json` zarządzane; pliki generowane bez właściciela
+
+**Status:** obowiązuje · **Data:** 2026-10-28 · **Kto zdecydował:** Jakub (decyzja D5 planu 2)
+
+**Kontekst.** `wa remove` ma odmówić usunięcia pliku zmienionego lokalnie ([D34](#d34)), więc projekt musi pamiętać, jak wyglądał każdy skopiowany plik. Część plików zmienia jednak automat: regiony `wa:*` przepisuje `wa generate`, a `package.json` i lockfile zmieniają komendy CLI i `npm install`.
+
+**Decyzja.**
+
+- `wa create` i `wa add` zapisują w `.wa/kit.json` projektu, w polu `files` modułu, SHA-256 każdego skopiowanego pliku (`fileHash` w `kit/cli/src/assemble/hash.ts`).
+- W plikach z regionami (`REGION_FILES` w `kit/cli/src/generate/targets.ts`) hash liczony jest z treści bez linii między markerami (`stripRegions`), więc przebieg `wa generate` nie zmienia hasha.
+- Pliki z `managedFiles` w `kit/kit.json` (`package.json`, `package-lock.json`) dostają w `files` znacznik `managed` zamiast hasha.
+- Pliki z `generatedFiles` w `kit/kit.json` (trzy pliki generowane, [D04](#d04)) nie należą do żadnego manifestu i nie mają hasha: `wa create` ich nie kopiuje, tylko tworzy generatorem.
+
+**Odrzucone alternatywy.** Nie zapisano. Scalanie zmian w plikach zarządzanych przy aktualizacji kitu plan 2 zostawia na plan 4 (`wa update`).
+
+**Konsekwencje.**
+
+- Wszystkie pliki z `REGION_FILES` należą do `core`, a rdzenia nie da się usunąć. Dla plików usuwanego modułu liczy się więc każda zmiana bajtu.
+- Zmiana poza regionem w `.env.example`, `docker-compose.yml`, `.github/workflows/ci.yml` albo w schemacie rdzenia liczy się jako lokalna zmiana pliku rdzenia.
+
+**Jak egzekwowana.** Bramka CLI: testy `kit/cli/src/assemble/__tests__/hash.test.ts` oraz „zmiana tylko w treści regionu wa:* nie liczy się jako zmiana” i „zmiana poza regionem w pliku regionów liczy się jako zmiana” w `kit/cli/src/commands/__tests__/remove.test.ts`.
+
+**Źródło.** [Plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), decyzja D5; commit `d3bbfce`.
+
+<a id="d32"></a>
+
+## D32 · Placeholdery to dosłowna podmiana napisów w plikach z `placeholderFiles`
+
+**Status:** obowiązuje · **Data:** 2026-10-28 · **Kto zdecydował:** Jakub (decyzja D6 planu 2)
+
+**Kontekst.** Kit jest działającą aplikacją o nazwie „WA App”, więc jego pliki zawierają tę nazwę, slug `wa-app` i nazwy baz `wa_app`. Projekt ma dostać własne nazwy, a pliki kitu muszą zostać zwykłym, działającym kodem bez składni szablonów.
+
+**Decyzja.**
+
+- Przy kopiowaniu pliku `applyPlaceholders` (`kit/cli/src/assemble/placeholders.ts`) zamienia `WA App` na nazwę wyświetlaną, `wa-app` na slug i `wa_app` na slug z `_` (wartości z `placeholders` w `kit/kit.json`), tylko w plikach z listy `placeholderFiles`. Inne pliki są kopiowane bajt w bajt.
+- Lista obejmuje między innymi `src/test/integration/database-url.ts`, `.github/workflows/ci.yml` i `.github/workflows/mutation.yml`, żeby baza testów integracyjnych projektu nazywała się `<slug_z_podkreśleniami>_test`, a nie `wa_app_test` wspólne dla wszystkich projektów na jednej maszynie, oraz pliki modułu `uploads` (`docker/uploads.compose.yml`, `ci/uploads.integration-steps.yml`), żeby bucket nazywał się `<slug>-uploads`.
+- Osobny mechanizm działa w generatorze: `{{projectSlug}}` i `{{projectName}}` w przykładowych wartościach `env` manifestu (`fillPlaceholders` w `kit/cli/src/generate/targets.ts`).
+- `package-lock.json` nie jest na liście: poprawia go pierwszy `npm install`.
+
+**Odrzucone alternatywy.** Nie zapisano.
+
+**Konsekwencje.**
+
+- Nowy plik z nazwą projektu albo bazy trzeba dopisać do `placeholderFiles`. W plikach z listy tych napisów nie używa się w innym znaczeniu, bo zostaną podmienione.
+- Plan 2 mówi, że podmiana działa „nigdy w testach”, ale kod tego nie sprawdza: test dopisany do `placeholderFiles` też zostanie zmieniony.
+- Tytuł projektu nie jest walidowany ani escapowany: cudzysłów w `--title` psuje składnię `src/shared/config/project.ts`.
+
+**Jak egzekwowana.** Job `assemble` w `.github/workflows/kit.yml`, krok „No placeholders left in the project” (`git grep` napisów `WA App`, `wa-app`, `wa_app` poza testami, `package-lock.json` i `.wa/bin/`). Testy `kit/cli/src/assemble/__tests__/placeholders.test.ts` w bramce CLI. Brak podmiany w testach: tylko konwencja.
+
+**Źródło.** [Plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), decyzja D6; `kit/kit.json`.
+
+<a id="d33"></a>
+
+## D33 · Języki projektu w `.wa/kit.json` i w pliku generowanym `src/i18n/locales.generated.ts`
+
+**Status:** obowiązuje · **Data:** 2026-10-28 · **Kto zdecydował:** Jakub (decyzja D7 planu 2)
+
+**Kontekst.** Część projektów potrzebuje tylko polskiego. Lista języków nie może wymagać ręcznej zmiany `src/i18n/config.ts`, bo ten plik należy do rdzenia ([D03](#d03)).
+
+**Decyzja.** `wa create --locales` (albo odpowiedź na pytanie o języki) zapisuje języki w polu `locales` w `.wa/kit.json`. `wa generate` zapisuje je w `src/i18n/locales.generated.ts` (`export const locales = [...] as const;`), z którego importuje `src/i18n/config.ts`, i rejestruje tłumaczenia feature tylko w tych językach. Dozwolone są `pl` i `en`, `pl` jest wymagany, bez powtórzeń (`localesSchema` w `kit/cli/src/manifest/schema.ts`). Bez pola `locales` schemat przyjmuje `["pl", "en"]`.
+
+**Odrzucone alternatywy.** Nie zapisano.
+
+**Konsekwencje.**
+
+- Projekt tylko z `pl` zachowuje pliki `en.json`; aplikacja ich nie ładuje.
+- Język dodany później zmienia się w `.wa/kit.json` i przez `npm run wa -- generate`. Trzeci język wymaga zmian w CLI ([D27](#d27)).
+- W kicie `wa kit sync` zawsze zapisuje `["pl", "en"]`.
+
+**Jak egzekwowana.**
+
+- Bramka CLI: `kit/cli/src/manifest/__tests__/schema.test.ts` i „wybrane języki trafiają do pliku locales.generated.ts” w `kit/cli/src/commands/__tests__/create.test.ts`.
+- Zgodność pliku z `.wa/kit.json`: job `verify` w `.github/workflows/ci.yml` ([D04](#d04)).
+
+**Źródło.** [Plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), decyzja D7.
+
+<a id="d34"></a>
+
+## D34 · `wa remove` działa „wszystko albo nic”; lokalne zmiany wymagają `--force`
+
+**Status:** obowiązuje · **Data:** 2026-10-28 · **Kto zdecydował:** Jakub (decyzja D9 planu 2)
+
+**Kontekst.** Kod kitu w projekcie jest zwykłym kodem, który projekt może zmieniać ([D39](#d39)). Usunięcie modułu nie może po cichu skasować takich zmian.
+
+**Decyzja.** `remove` (`kit/cli/src/commands/remove.ts`), zanim cokolwiek usunie:
+
+1. odmawia usunięcia rdzenia (`Nie można usunąć rdzenia`), modułu projektu, modułu niezainstalowanego i modułu wymaganego przez inny moduł kitu albo projektu;
+2. sprawdza, że każdy plik z `files` modułu leży wewnątrz projektu, także po rozwiązaniu dowiązań symbolicznych (`Ścieżka poza projektem: <plik>`);
+3. porównuje hashe wszystkich istniejących plików modułu z `.wa/kit.json` ([D31](#d31)). Jeśli choć jeden plik się zmienił, bez `--force` nic nie usuwa, wypisuje listę zmienionych plików i kończy się kodem 1.
+
+Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `.wa/kit.json`, uruchamia `wa generate` i `npm install` (chyba że `--no-install`) i wypisuje podpowiedź `npx prisma migrate dev --name remove-<moduł>`.
+
+**Odrzucone alternatywy.** Nie zapisano.
+
+**Konsekwencje.**
+
+- „Wszystko albo nic” dotyczy sprawdzenia przed usuwaniem. Błąd w trakcie usuwania niczego nie cofa; stan częściowy domyka ponowne `wa remove`.
+- `--force` usuwa także zmienione pliki. Zmiany, które chcesz zachować, przenieś wcześniej.
+- Plik modułu, którego już nie ma na dysku, nie liczy się jako zmieniony.
+- `wa remove` nie usuwa danych: tabele modułu znikają dopiero po migracji, a pliki w magazynie S3 zostają.
+
+**Jak egzekwowana.** Bramka CLI: testy w `kit/cli/src/commands/__tests__/remove.test.ts`, na przykład „zmieniony plik bez --force kończy się błędem i nie zmienia projektu” i „zmiana pliku modułu z --force usuwa moduł mimo zmian”.
+
+**Źródło.** [Plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), decyzja D9; commit `b2128d9`.
+
+<a id="d35"></a>
+
+## D35 · Baza, migracja i pierwszy admin przy `wa create` są opcjonalne (`--setup`)
+
+**Status:** obowiązuje · **Data:** 2026-10-28 · **Kto zdecydował:** Jakub (decyzja D10 planu 2)
+
+**Kontekst.** Uruchomienie Dockera i migracji w trakcie `create` zawodzi, gdy na maszynie dewelopera porty Postgresa albo mailpit zajmuje inny projekt (plan 2, D10).
+
+**Decyzja.** Domyślnie `wa create` zapisuje `.env` z losowym `BETTER_AUTH_SECRET` (uprawnienia `0600`) i wypisuje kolejne kroki: `docker compose up -d`, `npx prisma migrate dev --name init`, `npm run admin:create` i `npm run dev`. Z `--setup` albo po potwierdzeniu w pytaniu (zadawanym bez `--yes`, gdy zależności są instalowane) uruchamia `docker compose up -d --wait`, `npx prisma migrate dev --name init` i, jeśli podano adres, `npm run admin:create -- --email <adres>` (`runSetup` w `kit/cli/src/commands/create.ts`). `--setup` razem z `--no-install` jest błędem.
+
+**Odrzucone alternatywy.** Nie zapisano.
+
+**Konsekwencje.**
+
+- Przed `--setup` ustaw wolne porty; bez `--setup` zmienisz je w `.env` przed pierwszym `docker compose up`.
+- Błąd po złożeniu projektu (zapis `.env`, `git init`, `npm install`, kroki setupu) niczego nie cofa: katalog projektu zostaje.
+
+**Jak egzekwowana.** Bramka CLI: `kit/cli/src/commands/__tests__/create.test.ts` (na przykład „bez flagi setup nie uruchamia bazy, migracji ani admin:create”, „setup bez adminEmail pomija admin:create”) i `kit/cli/src/__tests__/args.test.ts` (`--setup` z `--no-install`).
+
+**Źródło.** [Plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), decyzja D10.
+
+<a id="d36"></a>
+
+## D36 · Funkcje projektu jako moduły projektu w `projectModules`
+
+**Status:** obowiązuje · **Data:** 2026-10-28 · **Kto zdecydował:** Jakub (decyzja D11 planu 2; rozbieżność R3 z notatki części 1)
+
+**Kontekst.** Funkcja napisana dla jednego klienta potrzebuje wpisu w rejestrze modułów, bo bez niego nie ma nawigacji, `requireModuleAccess` nie zna jej klucza, a tłumaczenia się nie ładują. Sekcja `modules` w `.wa/kit.json` opisuje jednak kod z kitu: wersje, hashe i to, co mogą zmieniać `wa add`, `wa remove` i przyszłe aktualizacje.
+
+**Decyzja.** Funkcja projektu ma wpis w osobnej sekcji `projectModules`: `{ "<x>": { "manifest": <manifest> } }`, bez wersji wpisu i bez hashy. Manifest ma ten sam schemat co `kit/modules/<x>.json`, więc awans funkcji do kitu to przeniesienie manifestu i plików.
+
+- `wa generate` rejestruje moduły projektu po modułach kitu, alfabetycznie (`registeredModules` w `kit/cli/src/manifest/kit-state.ts`), z tymi samymi szwami: rejestr, relacje, env, compose, kroki CI.
+- `readKitState` sprawdza, że klucz równa się `name`, nazwa nie powtarza się w `modules`, moduły z `requires` są zainstalowane, a `files` zawiera wzorzec zaczynający się od `src/features/<x>/`.
+- `wa remove` odmawia usunięcia modułu projektu, `wa add` odmawia modułu kitu o tej samej nazwie, a `wa kit sync` przepisuje `projectModules` bez zmian.
+
+**Odrzucone alternatywy.** Wpis funkcji projektu w `modules`, jako obejście opisane w pierwszej wersji tutorialu (rozbieżność R3 części 1).
+
+**Konsekwencje.**
+
+- Przeniesienie wpisu z `projectModules` do `modules` po awansie funkcji do kitu robi się ręcznie.
+- Generator pomija bez błędu wzorzec z nawiasami (`src/features/{a,b}/**`) i wzorzec katalogu, którego nie ma na dysku (rulingi R14 i R5). W `projectModules` nic tego nie zgłasza; w manifestach kitu zgłasza to test własności ([D38](#d38)).
+- Tutorial: [09-nowy-modul.md](09-nowy-modul.md#krok-3).
+
+**Jak egzekwowana.**
+
+- Bramka CLI: `kit/cli/src/manifest/__tests__/kit-state.test.ts`, `kit/cli/src/commands/__tests__/remove.test.ts`, `add.test.ts`, `kit-sync.test.ts`.
+- Job `assemble` w `.github/workflows/kit.yml`, krok „Project module is registered without editing core tests” (fikstura `kit/cli/src/__tests__/fixtures/project-module/`).
+
+**Źródło.** [Plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), decyzja D11; commit `1f1ec7f`; [AGENTS.md](../AGENTS.md), „Moduły i pliki generowane”.
+
+<a id="d37"></a>
+
+## D37 · Testy rdzenia sprawdzają tylko moduły rdzenia
+
+**Status:** obowiązuje · **Data:** 2026-10-28 · **Kto zdecydował:** Jakub (decyzja D12 planu 2; rozbieżność R56 z notatki części 1)
+
+**Kontekst.** Testy rdzenia porównują rejestr modułów z literałem: macierz dostępu, nawigację, menu boczne. Gdyby obejmowały cały rejestr, każda funkcja projektu albo nowy moduł kitu wymagałyby zmiany plików rdzenia, czego zabrania [D03](#d03).
+
+**Decyzja.** `src/shared/lib/auth/__tests__/access-matrix.test.ts` i `src/shared/lib/modules/__tests__/nav.test.ts` filtrują rejestr do pięciu modułów rdzenia z `src/test/core-modules.ts` (`account`, `auth`, `dashboard`, `organizations`, `users`), a `src/shared/components/__tests__/app-sidebar.test.tsx` do tych samych pięciu kluczy wpisanych w teście. Wszystkie moduły pilnuje ogólny test spójności rejestru `src/shared/lib/modules/__tests__/registry-consistency.test.ts` (unikalne klucze i adresy menu, adresy od `/`, tłumaczenia we wszystkich językach).
+
+**Odrzucone alternatywy.** Nie zapisano.
+
+**Konsekwencje.** Funkcja projektu i nowy moduł kitu nie wymagają edycji testów rdzenia. Ich dostęp i nawigację testujesz w ich własnych katalogach.
+
+**Jak egzekwowana.** Job `assemble` w `.github/workflows/kit.yml`, krok „Project module is registered without editing core tests” (`npm test` po dodaniu fikstury `notes`), oraz test spójności w `npm run verify`.
+
+**Źródło.** [Plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), decyzja D12; commit `6f4c758`; [AGENTS.md](../AGENTS.md), „Moduły i pliki generowane”.
+
+<a id="d38"></a>
+
+## D38 · Aplikacja referencyjna w katalogu głównym; własność plików i zależności w manifestach `kit/modules/*.json`, pilnowana testem
+
+**Status:** obowiązuje (zastępuje [D02](#d02)) · **Data:** 2026-10-28 · **Kto zdecydował:** autor design doc (§4.2 i §7: każdy plik ma dokładnie jednego właściciela, sprawdzane w CI; §9: jedna aplikacja z manifestami własności); położenie manifestów w `kit/modules/`, `wa kit sync` i test własności: plan 2 (zadania 2 i 3, architektura zaakceptowana przez Jakuba razem z decyzjami 2026-10-28)
+
+**Kontekst.** Kit trzeba rozwijać i testować jak zwykłą aplikację, a przy tworzeniu projektu musi się dać rozłożyć na rdzeń i moduły. Do tego potrzebna jest pełna informacja, który plik i która zależność należą do którego modułu. W planie 1 manifest leżał tylko w `.wa/kit.json`, nie obejmował wszystkich plików rdzenia i nic nie sprawdzało jego kompletności ([D02](#d02)).
+
+**Decyzja.**
+
+- Kit zawiera jedną działającą aplikację referencyjną ze wszystkimi modułami, w katalogu głównym repozytorium, z takim samym układem katalogów jak projekt klienta.
+- Każdy moduł kitu ma manifest `kit/modules/<nazwa>.json` (schemat `moduleManifestSchema` w `kit/cli/src/manifest/schema.ts`) z wzorcami plików (`files`) i zależnościami ([D30](#d30)). `kit/kit.json` opisuje kit: wersję, repozytorium, pliki tylko dla kitu (`kitOnly`), placeholdery, pliki generowane i zarządzane.
+- `wa kit sync` (`kit/cli/src/commands/kit-sync.ts`) przepisuje manifesty do `.wa/kit.json` kitu jako `modules.<nazwa>.manifest`, z pustym `files`. Projekt dostaje w `.wa/kit.json` manifesty zainstalowanych modułów i hashe skopiowanych plików ([D31](#d31)).
+- `checkOwnership` (`kit/cli/src/kit/ownership.ts`) bierze pliki z indeksu gita (`git ls-files`) bez `kitOnly` i `generatedFiles` i zgłasza: plik bez właściciela, plik z kilkoma właścicielami, wzorzec bez dopasowań (`empty`) albo z `{` (`brace`), zależność bez właściciela albo w innej wersji lub sekcji niż w `package.json` i plik z pola `compose` spoza plików modułu.
+- Wzorce w `files` znają tylko `**` (dowolna liczba segmentów, także zero) i `*` (znaki poza `/`); pozostałe znaki, w tym `[locale]` i `(app)`, są literałami (`globToRegExp` w `kit/cli/src/kit/files.ts`).
+
+**Odrzucone alternatywy.**
+
+- Manifest tylko w `.wa/kit.json` kitu, bez kontroli kompletności (stan z [D02](#d02)).
+- Osobne katalogi modułów zamiast jednej aplikacji z manifestami (design doc §9).
+- Aplikacja w podkatalogu `app/` (pierwotny design doc §6): zagnieżdżone workspaces npm nie działają, a ten sam układ co w projekcie upraszcza kopiowanie.
+
+**Konsekwencje.**
+
+- Nowy plik w kicie dopisujesz do manifestu właściciela (dla rdzenia `kit/modules/core.json`), a po zmianie manifestu uruchamiasz `npm run wa -- kit sync`. Zmiana plików modułu wymaga podbicia jego `version` (`kit/CLAUDE.md`).
+- Każdy feature potrzebuje osobnego wzorca bez nawiasów. W manifestach kitu wzorzec z `{` albo bez dopasowań zatrzymuje test; generator pomija go bez błędu (rulingi R5 i R14), co ma znaczenie dla `projectModules` ([D36](#d36)).
+- Test widzi tylko pliki z indeksu gita: nowy plik przed `git add` jest dla niego niewidoczny. Działa na prawdziwym repozytorium kitu, a nie na kopii.
+- Pliku z pola `ciSteps` test nie sprawdza pod kątem właściciela modułu, w przeciwieństwie do `compose` ([D45](#d45)).
+- Test własności leży w `kit/cli` i nie trafia do projektu: w projekcie klienta nic nie pilnuje kompletności manifestów.
+
+**Jak egzekwowana.**
+
+- Bramka CLI i job `cli` w `.github/workflows/kit.yml`: test „każdy plik i każda zależność ma dokładnie jednego właściciela” w `kit/cli/src/kit/__tests__/ownership.test.ts` (`checkOwnership(REPO_ROOT)` daje pusty raport) oraz testy na fiksturach `ownership-broken`, `ownership-order` i `ownership-sections`.
+- Zgodność `.wa/kit.json` kitu z manifestami: krok „Kit state and generated files are up to date” w jobie `cli` (`kit sync`, `generate` i `git diff --exit-code`).
+- `readKitState` (`kit/cli/src/manifest/kit-state.ts`) sprawdza `.wa/kit.json` schematem Zod przy każdej komendzie, która go czyta (testy `kit/cli/src/manifest/__tests__/kit-state.test.ts`).
+- Podbicie `version` po zmianie plików modułu: tylko konwencja.
+
+**Źródło.** [Design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §4.1, §4.2, §6, §7 i §9; [plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), architektura i zadania 2–3; [plan „drobiazgi”](superpowers/plans/2026-10-28-wa-kit-cli-drobiazgi.md), zadanie 3; [kit/CLAUDE.md](../kit/CLAUDE.md), „Moduły i manifest”.
+
+<a id="d39"></a>
+
+## D39 · Kod kitu trafia do projektu jako zwykły kod; moduł wpina się deklaracjami w `defineModule` i punktami wejścia rdzenia
+
+**Status:** obowiązuje (zastępuje [D01](#d01)) · **Data:** 2026-10-29 · **Kto zdecydował:** model kopiowania kodu: autor design doc i Jakub ([D01](#d01)); cel „moduły projektu rozszerzają kit bez edycji plików kitu”: spec planu 3 (§2, cele z burzy mózgów z Jakubem); deklaracje jako pola danych w `defineModule`: autor specu planu 3 (bloki „Moje decyzje” w §5–§7, §8), kształt pól: wykonawca planu 3
+
+**Kontekst.** [D01](#d01) zakładał, że moduł to zestaw plików bez punktów rozszerzeń, a rdzeń widzi moduły tylko przez szwy generowane. Moduły planu 3 potrzebują jednak wkładu innych modułów: widok audytu musi znać etykiety akcji dopisanych przez moduł projektu, klucze API muszą znać zakresy, a upload musi znać cele z limitami. Moduł projektu (na przykład magazyn klienta) ma te rzeczy dodawać bez edycji plików kitu (spec planu 3, §2).
+
+**Decyzja.**
+
+- Kod rdzenia i modułów nadal jest kopiowany do projektu i staje się jego zwykłym kodem, bez paczek npm i bez ładowania pluginów w trakcie działania. `.wa/kit.json` zapisuje, skąd kod pochodzi ([D38](#d38)).
+- `ModuleDef` (`src/shared/lib/modules/define-module.ts`) ma trzy opcjonalne pola danych:
+  - `auditActions: { action, labelKey }[]`: etykiety akcji audytu, czytane przez moduł `audit-logs` (`audit-action-labels.ts`, widok `/audit-log`);
+  - `apiScopes: { key, labelKey }[]`: zakresy kluczy API, czytane przez moduł `api-keys` (`api-scopes.ts`, `api-scope-labels.ts`, formularz klucza);
+  - `uploadPurposes: { key, mimeTypes, maxBytes, visibility, resizeImage? }[]`: cele uploadu, czytane przez moduł `uploads` (`upload-purposes.ts`).
+  Rdzeń zna tylko typy tych pól; treść czyta moduł, który jej potrzebuje, z rejestru `modules` albo `clientModules`.
+- Punkty wejścia w kodzie rdzenia, które woła kod modułu albo projektu: `trackAudit` i `auditActor` w `src/shared/lib/audit.ts` z ujściami `auditSinks` z rejestru ([D40](#d40)) oraz `requestConfirmation` w `useServiceModeAction` (`src/shared/components/service-mode/use-service-mode-action.tsx`), z którego korzysta upload przez `fetch` ([D44](#d44)).
+
+**Odrzucone alternatywy.**
+
+- Moduły jako paczki npm, framework z wstrzykiwaniem zależności i ładowaniem pluginów w trakcie działania, składanie projektu flagami (powody w [D01](#d01)).
+- Zamknięta lista akcji audytu w kicie (spec planu 3, §5: akcje są otwarte, `action` to dowolny napis).
+- Zastępczy komponent `<AuditTrail>` w rdzeniu (spec planu 3, §5: szwem rdzenia jest tylko `trackAudit`).
+
+**Konsekwencje.**
+
+- Moduł projektu deklaruje akcje, zakresy i cele we własnym `module.ts`, bez edycji plików kitu. Deklaracje to czyste dane, bo `module.ts` trafia do paczki przeglądarki ([D05](#d05)).
+- Deklaracja bez modułu, który ją czyta, nic nie robi: bez `audit-logs` etykiety akcji nie są nigdzie pokazywane, bez `api-keys` zakresy nie są używane, bez `uploads` cele nie są czytane.
+- Nieznany zakres w kluczu (na przykład po usunięciu modułu, który go deklarował) jest ignorowany ([D43](#d43)). Dwa cele uploadu o tym samym kluczu albo cel z typem `image/svg+xml`, `text/html`, `application/xhtml+xml`, `application/xml` lub `text/xml` kończą się błędem przy pierwszym odczycie celów.
+- Komponenty modułu (na przykład `<AuditTrail>` z `audit-logs`) importuje się z katalogu modułu. Bez zainstalowanego modułu taki import nie zbuduje się.
+- Zmiana w skopiowanym kodzie nie wymaga forka ani publikacji paczki. Poprawkę przydatną innym projektom wysyła się jako pull request do `webamigos/wa-kit` ([CLAUDE.md](../CLAUDE.md), „Pochodzenie kodu”); to proces, a nie automat.
+
+**Jak egzekwowana.**
+
+- `npm run typecheck`: typ `ModuleDef` i pliki generowane, które importują `module.ts`.
+- Testy modułów: `src/features/audit-logs/services/__tests__/audit-action-labels.test.ts`, `src/features/api-keys/services/__tests__/api-scopes.test.ts` i `api-scope-labels.test.ts`, `src/features/uploads/services/__tests__/upload-purposes.test.ts` (duplikaty i typy zabronione).
+- Brak paczek kitu w zależnościach aplikacji i to, że moduł nie edytuje plików rdzenia: tylko konwencja.
+
+**Źródło.** [Spec planu 3](superpowers/specs/2026-10-28-wa-kit-plan-3-modules-design.md) §2, §5–§8 i §10; [plan 3](superpowers/plans/2026-10-29-wa-kit-plan-3-modules.md), „Architecture”; commity `c8a0ffd` i `2199cea`; [design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §1, §2 i §9.
+
+<a id="d40"></a>
+
+## D40 · `trackAudit` w rdzeniu działa bez modułu; ujścia `auditSinks`; awaria ujścia nie przerywa komendy
+
+**Status:** obowiązuje · **Data:** 2026-10-29 · **Kto zdecydował:** Jakub (spec planu 3, §5, „Ustalone”: szew w rdzeniu, no-op bez modułu, nigdy nie rzuca, brak `"use server"`); autor specu planu 3 (§8: implementacja przez opcjonalny plik modułu zbierany przez generator); wykonawca planu 3 (nazwa pliku `audit-sink.ts`)
+
+**Kontekst.** Kod rdzenia, modułów i projektu ma zapisywać zdarzenia audytu bezwarunkowo, bez sprawdzania, czy projekt ma moduł `audit-logs`. W repozytorium źródłowym (justnails) funkcja zapisu leżała w pliku `"use server"`, więc klient mógł sam dopisać wpis (anty-cel w specu planu 3, §2).
+
+**Decyzja.**
+
+- `src/shared/lib/audit.ts` (plik rdzenia, bez `"use server"`) eksportuje `trackAudit(event)` i `auditActor(context)`. `trackAudit` woła po kolei każde ujście z `auditSinks` (rejestr w `src/modules.generated.ts`). Bez ujść nic nie robi.
+- Ujście to eksport `auditSink` z pliku `src/features/<x>/audit-sink.ts`, który `wa generate` zbiera do `auditSinks`. W kicie jedynym ujściem jest `audit-logs`, które zapisuje wpis do tabeli `audit_logs`.
+- Błąd ujścia (także synchroniczny wyjątek) jest łapany i zapisywany w logu jako `trackAudit failed` z nazwą akcji; kolejne ujścia nadal są wołane, a `trackAudit` nigdy nie rzuca.
+- `auditActor(context)` buduje z `OrgContext` pola `organizationId`, `actorUserId` i `serviceMode`, więc wpis superadmina w trybie serwisowym jest oznaczony.
+
+**Odrzucone alternatywy.**
+
+- Zapis audytu w akcji serwerowej osiągalnej z klienta (anty-cel, spec planu 3, §2).
+- Warunkowe wywołanie zależne od obecności modułu w każdym miejscu kodu (cel w specu: wołanie bezwarunkowe).
+
+**Konsekwencje.**
+
+- Kod wywołuje `trackAudit` po udanym zapisie danych. Bez modułu `audit-logs` wywołanie nic nie zapisuje i nie zgłasza błędu.
+- Nieudany zapis wpisu nie cofa operacji i nie dociera do użytkownika; widać go tylko w logach ([D15](#d15)).
+- Ujście dostaje zdarzenie przed redakcją: redakcję robi ujście `audit-logs` ([D41](#d41)). Własne ujście musi zadbać o nią samo.
+
+**Jak egzekwowana.**
+
+- `src/shared/lib/__tests__/audit.test.ts` (ujście rzuca → `trackAudit` nie rzuca, kolejne ujście wywołane, błąd zalogowany; „nie zawiera dyrektywy use server”).
+- Rejestr: `kit/cli/src/generate/__tests__/generate-rendering.test.ts` („moduł tylko z audit-sink.ts trafia do auditSinks, a nie do klienta”) w bramce CLI.
+- Bramka mutacji: `src/shared/lib/audit.ts` i `src/features/audit-logs/services/` są na liście `critical` w `mutation-gate.json` ([D26](#d26)).
+- Wołanie `trackAudit` po każdej zmianie danych: tylko konwencja.
+
+**Źródło.** [Spec planu 3](superpowers/specs/2026-10-28-wa-kit-plan-3-modules-design.md) §2, §5 i §8; commity `c8a0ffd`, `33b4edc` i `c8b5f74`.
+
+<a id="d41"></a>
+
+## D41 · Redakcja danych wrażliwych przed zapisem wpisu audytu; moduł nie ma retencji
+
+**Status:** obowiązuje · **Data:** 2026-10-29 (rozszerzenie redakcji 2026-10-29 i 2026-10-30) · **Kto zdecydował:** Jakub (spec planu 3, §5, „Ustalone”: pola wrażliwe zamieniane rekurencyjnie na `"[REDACTED]"`; §2: retencja poza zakresem); autor specu planu 3 (lista kluczy wrażliwych); rozszerzenie dopasowania i obsługa `toJSON`: poprawki z recenzji PR #6 (commity `012fe4d` i `3746be8`)
+
+**Kontekst.** Wpis audytu przechowuje stan przed zmianą i po niej (`oldData`, `newData`). Kod, który woła `trackAudit`, może przekazać obiekt z hasłem, tokenem albo kluczem API, a log audytu czyta owner i admin organizacji. Log rośnie bez końca, dopóki nie ma mechanizmu zadań w tle.
+
+**Decyzja.**
+
+- Ujście `audit-logs` (`writeAuditLog` w `src/features/audit-logs/services/write-audit-log.ts`) przed zapisem przepuszcza `oldData` i `newData` przez `redactSensitive` (`src/features/audit-logs/services/redact.ts`).
+- Klucz jest wrażliwy, gdy po zmianie na małe litery i usunięciu `-` i `_` zawiera jeden z fragmentów: `password`, `secret`, `token`, `apikey`, `authorization`, `cookie`, `privatekey`, `hashedkey`. Jego wartość zamienia się na `"[REDACTED]"`.
+- Redakcja schodzi rekurencyjnie przez obiekty i tablice. Obiekt z metodą `toJSON` jest redagowany na wyniku tej metody, czyli na tym, co zapisałby `JSON.stringify`.
+- Moduł nie usuwa starych wpisów. Retencja (sprzątanie wpisów starszych niż 60 dni) jest w specu planu 3 nie-celem i ma przyjść z modułem `worker`.
+
+**Odrzucone alternatywy.** Dokładna lista kluczy z porównaniem bez wielkości liter (pierwsza wersja ze specu planu 3, §5); zastąpiona dopasowaniem fragmentów przy recenzji, żeby łapać na przykład `userPassword` albo `x-api-key`.
+
+**Konsekwencje.**
+
+- Redakcja po nazwie klucza nie złapie sekretu pod neutralną nazwą (na przykład `value`) ani w samym napisie. Nie przekazuj takich danych do `trackAudit`.
+- Klucze, które tylko zawierają fragment (na przykład `tokenCount`), też są redagowane.
+- Tabela `audit_logs` rośnie bez ograniczeń; usunięcie organizacji kasuje jej wpisy (`onDelete: Cascade`), a usunięcie użytkownika zostawia wpisy z pustym `userId` (`SetNull`).
+
+**Jak egzekwowana.**
+
+- `src/features/audit-logs/services/__tests__/redact.test.ts` i `write-audit-log.integration.test.ts`.
+- Bramka mutacji: `src/features/audit-logs/services/` w `critical` ([D26](#d26)).
+- Brak retencji: stan kodu, bez mechanizmu.
+
+**Źródło.** [Spec planu 3](superpowers/specs/2026-10-28-wa-kit-plan-3-modules-design.md) §2 i §5; [plan 3](superpowers/plans/2026-10-29-wa-kit-plan-3-modules.md), „Review Focus” pkt 4; commity `012fe4d` i `3746be8`.
+
+<a id="d42"></a>
+
+## D42 · Zdarzenia organizacji (zaproszenia, role, członkowie) łapane hookami better-auth
+
+**Status:** obowiązuje · **Data:** 2026-10-29 · **Kto zdecydował:** Jakub (spec planu 3, §5, „Ustalone”: lista zdarzeń rdzenia logowanych od razu); autor specu planu 3 („Moje decyzje”: hooki better-auth zamiast komend kitu, wejście superadmina do organizacji); wykonawca planu 3 (wybór hooków, §10)
+
+**Kontekst.** Zaproszenia, zmiany ról i usuwanie członków przechodzą przez endpointy pluginu `organization` better-auth, a nie przez komendy kitu, więc `trackAudit` nie ma gdzie zostać wywołane w kodzie rdzenia. Moduł `audit-logs` nie może przy tym edytować plików rdzenia ([D03](#d03)).
+
+**Decyzja.**
+
+- `audit-logs` ma własny plugin better-auth (`src/features/audit-logs/auth.ts`, eksport `authPlugin`), który generator dopisuje do `authPlugins` w rejestrze.
+- Hook `after` dla ścieżek z `AUDITED_ORGANIZATION_PATHS` (`src/features/audit-logs/services/organization-audit-events.ts`): `/organization/invite-member`, `/organization/cancel-invitation`, `/organization/accept-invitation`, `/organization/update-member-role`, `/organization/remove-member` buduje zdarzenie i woła `trackAudit`. Hook `before` dla `/organization/update-member-role` czyta poprzednią rolę członka, żeby wpis miał stan przed zmianą.
+- Dwa zdarzenia woła kod rdzenia bezpośrednio: `invitation.accepted` przy rejestracji z zaproszeniem (`joinOrganizationCommand` w `src/features/organizations/services/commands/member-commands.ts`) i `organization.entered` przy wejściu do organizacji (`enterOrganizationCommand`).
+
+**Odrzucone alternatywy.** Nie zapisano. Spec dopuszczał też `organizationHooks` albo `databaseHooks`; wykonawca wybrał plugin z hookami ścieżek, ograniczony do ścieżek z listy (commit `999e651`).
+
+**Konsekwencje.**
+
+- Bez modułu `audit-logs` hooki nie istnieją, a wywołania w rdzeniu nic nie zapisują ([D40](#d40)).
+- Nowy endpoint pluginu `organization`, który zmienia członkostwo, nie trafi do audytu, dopóki jego ścieżki nie dopisze się do `AUDITED_ORGANIZATION_PATHS`.
+- Zmiana ustawień organizacji nie jest logowana: rdzeń nie ma takiej operacji (spec planu 3, §5).
+
+**Jak egzekwowana.** `src/features/audit-logs/services/__tests__/organization-audit-events.test.ts`, `src/features/audit-logs/__tests__/auth-plugin.integration.test.ts` (prawdziwa instancja better-auth i baza, job `integration` w `.github/workflows/ci.yml`); bramka mutacji obejmuje `src/features/audit-logs/services/`.
+
+**Źródło.** [Spec planu 3](superpowers/specs/2026-10-28-wa-kit-plan-3-modules-design.md) §5 i §10; commity `9569cbc` i `999e651`.
+
+<a id="d43"></a>
+
+## D43 · Klucze API: HMAC z `API_KEY_PEPPER`, zakresy, limit 10 aktywnych kluczy, bez `OrgContext`, jawny filtr organizacji
+
+**Status:** obowiązuje · **Data:** 2026-10-29 · **Kto zdecydował:** Jakub (spec planu 3, §6, „Ustalone”: klucz organizacji, zakresy, format, HMAC z pepperem, limit, kody 401/403, tryb serwisowy); autor specu planu 3 („Moje decyzje”: pepper wymagany w produkcji, brak `OrgContext`, przykładowa trasa, porównanie przez wyszukanie po unikalnym hashu); poprawki z recenzji PR #7 (commity `946e66d`, `97067f4`, `d2cf343`)
+
+**Kontekst.** System zewnętrzny (agent AI, integracja) woła API aplikacji bez sesji użytkownika. Klucz musi działać po odejściu osoby, która go utworzyła, nie może dać się odczytać z bazy ani pokazać drugi raz, a trasa nie może zwrócić danych innej organizacji.
+
+**Decyzja.**
+
+- Klucz należy do organizacji. Ma postać `<slug_z_podkreśleniami>_live_<32 bajty base64url>` (`generateApiKey` w `src/features/api-keys/services/api-key-secret.ts`). Baza przechowuje prefiks do wyświetlania i HMAC-SHA256 klucza z sekretem `API_KEY_PEPPER` (`hashedKey`, unikalny). Pełny klucz widać raz, po utworzeniu.
+- `authenticateApiKey(request, scope)` (`src/features/api-keys/services/authenticate-api-key.ts`) czyta nagłówek `Authorization: Bearer <klucz>` i szuka rekordu po hashu (bez porównania w JS). Wynik: brak lub zły nagłówek → 401 `missing`; brak rekordu → 401 `invalid`; unieważniony → 401 `revoked`; wygasły → 401 `expired`; brak zakresu → 403 `scope`. Zakresy klucza, których nie deklaruje żaden moduł ([D39](#d39)), są pomijane. `lastUsedAt` zapisuje się bez czekania na wynik.
+- Sukces daje `ApiKeyContext` `{ organizationId, apiKeyId, scopes }`, a nie `OrgContext`: trasa nie woła `getOrgContext()` i filtruje dane jawnie po `organizationId` z kontekstu klucza. Przykład: `GET /api/v1/organization` z zakresem `organization:read`, z `Cache-Control: no-store`.
+- Tworzenie, unieważnianie i usuwanie kluczy to komendy z kontraktem trybu serwisowego ([D22](#d22)), dostępne dla `owner` i `admin` organizacji. Utworzenie sprawdza limit 10 aktywnych kluczy pod blokadą `pg_advisory_xact_lock` na organizację. Każda operacja zapisuje wpis audytu bez klucza i hasha.
+- `API_KEY_PEPPER` (zmienna modułu, `src/features/api-keys/env.ts`) ma co najmniej 32 znaki, a przy `NODE_ENV=production` nie może być wartością z `.env.example`.
+
+**Odrzucone alternatywy.** Hash SHA-256 bez peppera ze źródeł (company-dashboard), serwer MCP, OAuth, rotacja kluczy i rate limiting (spec planu 3, §2 i §6).
+
+**Konsekwencje.**
+
+- Zmiana `API_KEY_PEPPER` unieważnia wszystkie istniejące klucze: żaden nie da tego samego hasha.
+- Trasa z kluczem nie przechodzi przez `getOrgContext()`, więc reguła [D07](#d07) wymaga, żeby autor trasy sam filtrował po `organizationId` z `ApiKeyContext`.
+- Klucz bez zakresów nic nie może. Zakres modułu usuniętego z projektu przestaje działać bez zmiany klucza.
+
+**Jak egzekwowana.**
+
+- Guard w kodzie: `authenticateApiKey` w każdej trasie z kluczem (to, że trasa go woła: tylko konwencja).
+- `src/features/api-keys/services/__tests__/authenticate-api-key.test.ts`, `api-key-secret.test.ts`, `api-keys-isolation.integration.test.ts` (dwie organizacje), `src/features/api-keys/services/commands/__tests__/api-key-commands.test.ts` („przy 10 aktywnych kluczach zwraca błąd limitu i nic nie zapisuje”).
+- Walidacja peppera: `envSchema` modułu przy pierwszym odczycie `env` ([D17](#d17)).
+- Bramka mutacji: `src/features/api-keys/services/` w `critical` ([D26](#d26)).
+
+**Źródło.** [Spec planu 3](superpowers/specs/2026-10-28-wa-kit-plan-3-modules-design.md) §6; [plan 3](superpowers/plans/2026-10-29-wa-kit-plan-3-modules.md), „Global Constraints” (prefiks klucza) i „Review Focus” pkt 3; commity `102b706`, `946e66d`, `a6cffb0`, `97067f4`, `d2cf343`.
+
+<a id="d44"></a>
+
+## D44 · Uploads: magazyn S3, cele uploadu, widoczność `public`/`organization` z `Cache-Control`, cofnięcie obiektu przy błędzie zapisu rekordu
+
+**Status:** obowiązuje · **Data:** 2026-10-29 (`no-store` dla plików organizacji 2026-10-30) · **Kto zdecydował:** Jakub (spec planu 3, §7, „Ustalone”: cele, walidacja typu po zawartości, rekord, role, tryb serwisowy, pobieranie z `Cache-Control` zależnym od widoczności, MinIO lokalnie; 2026-10-30: `private, no-store` dla plików organizacji, commit `2e557c3`); autor specu planu 3 („Moje decyzje”: cofnięcie obiektu, usunięcie rekordu mimo błędu magazynu, brak wyjątku od `getOrgContext()`); poprawki z recenzji PR #8 (commity `0b5c91d`, `19d18d6`, `2e557c3`)
+
+**Kontekst.** Projekty potrzebują miniatur, obrazów w edytorach i załączników. Plik prywatny organizacji nie może wyciec do innej organizacji ani zostać w pamięci przeglądarki po wylogowaniu, a plik od użytkownika nie może wykonać skryptu z domeny aplikacji.
+
+**Decyzja.**
+
+- Pliki leżą w magazynie zgodnym z S3: lokalnie MinIO z fragmentu `docker/uploads.compose.yml` (region `wa:services`), na produkcji Railway Bucket albo R2. Zmienne modułu: `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE`.
+- Cel uploadu deklaruje moduł w `uploadPurposes` ([D39](#d39)): dozwolone typy, limit rozmiaru, widoczność i opcjonalne zmniejszenie obrazu. Kit dostarcza cel `editor-image` (JPEG, PNG, WebP, do 5 MB, `public`, szerokość do 1200 px).
+- `POST /api/uploads` wymaga nagłówka `Content-Length` (inaczej 411) z rozmiarem nie większym niż największy limit celu plus 64 KB na narzut formularza (inaczej 413), a przed odczytem ciała sesji i organizacji. Limit konkretnego celu sprawdza się po odczycie pliku. Typ pliku ustala się z zawartości (`file-type`), nie z `file.type`, a rozszerzenie z typu. W trybie serwisowym trasa wymaga potwierdzenia jak komenda ([D22](#d22)). Klucz obiektu: `orgs/<organizationId>/<cel>/<uuid>.<rozszerzenie>`.
+- Gdy zapis rekordu `Upload` w bazie się nie uda, obiekt jest usuwany z magazynu (błąd sprzątania tylko w logu). Usunięcie pliku kasuje rekord także wtedy, gdy obiektu nie da się usunąć z magazynu.
+- `GET /api/uploads/<id>`: plik `public` bez logowania z `Cache-Control: public, max-age=31536000, immutable`; plik `organization` tylko wtedy, gdy aktywna organizacja z `getOrgContext()` jest organizacją pliku, z `Cache-Control: private, no-store`, a w innym przypadku 404 bez zdradzania istnienia pliku. Każda odpowiedź ma `X-Content-Type-Options: nosniff` i `Content-Security-Policy: sandbox; default-src 'none'`.
+
+**Odrzucone alternatywy.**
+
+- Typ pliku z `file.type` przeglądarki albo rozszerzenie z nazwy (anty-cel, spec planu 3, §2).
+- Dostęp sprawdzany po ścieżce obiektu zamiast po rekordzie (spec planu 3, §7).
+- Wyjątek od `getOrgContext()` dla członka kilku organizacji z inną aktywną organizacją (spec planu 3, §7: plik potrzebny szerzej ma cel `public`).
+- Cache dla plików organizacji (przeglądarka oddałaby plik po wylogowaniu; commit `2e557c3`).
+
+**Konsekwencje.**
+
+- Plik `public` jest dostępny dla każdego, kto zna adres, i zostaje w cache po stronie przeglądarki i pośredników do roku. Danych prywatnych nie wgrywa się do celu `public`.
+- Członek kilku organizacji widzi plik `organization` tylko po przełączeniu na jego organizację.
+- `wa remove uploads` i usunięcie rekordu z błędem magazynu zostawiają obiekty w buckecie; sprzątanie osieroconych obiektów ma przyjść z modułem `worker`.
+- SVG, HTML i XML nie mogą być celem uploadu ([D39](#d39)).
+
+**Jak egzekwowana.**
+
+- Guard w kodzie: trasy `src/app/api/uploads/route.ts` i `src/app/api/uploads/[id]/route.ts` z serwisami w `src/features/uploads/services/`.
+- `src/features/uploads/services/__tests__/read-upload.test.ts` i `read-upload.integration.test.ts` („plik ORGANIZATION z aktywną organizacją pliku daje 200 z private, no-store…”), `validate-upload.test.ts`, `uploads-isolation.integration.test.ts`, `src/features/uploads/services/commands/__tests__/create-upload.test.ts` („usuwa obiekt z tym samym kluczem i zwraca 500, gdy zapis rekordu pada”), `upload-commands.test.ts`, `storage.integration.test.ts` na prawdziwym MinIO (job `integration` w `.github/workflows/ci.yml` z krokami z [D45](#d45)).
+- Bramka mutacji: `src/features/uploads/services/` w `critical` ([D26](#d26)).
+
+**Źródło.** [Spec planu 3](superpowers/specs/2026-10-28-wa-kit-plan-3-modules-design.md) §2 i §7; [plan 3](superpowers/plans/2026-10-29-wa-kit-plan-3-modules.md), „Review Focus” pkt 1 i 2; commity `c6c26c4`, `2199cea`, `19d18d6`, `0b5c91d`, `2e557c3`.
+
+<a id="d45"></a>
+
+## D45 · Region `wa:ci-integration` i pole manifestu `ciSteps`; pusty region w pliku bez markerów jest pomijany
+
+**Status:** obowiązuje · **Data:** 2026-10-29 (pomijanie pustego regionu 2026-10-30) · **Kto zdecydował:** Jakub (spec planu 3, §7, „CI projektu (Jakub)”: region markerów w `ci.yml` wypełniany krokami z manifestów; 2026-10-30: pomijanie pustego regionu w pliku bez markerów, commit `1753a2d`); wykonawca planu 3 (nazwa regionu i pola, bez regionu w `e2e.yml`)
+
+**Kontekst.** Testy integracyjne modułu `uploads` potrzebują MinIO z bucketem. W GitHub Actions `services:` nie uruchomi `minio server`, bo nie ma pola `command`, więc MinIO startuje krokiem joba. Projekt bez `uploads` nie powinien go uruchamiać, a moduł nie może edytować `ci.yml` rdzenia ([D03](#d03)).
+
+**Decyzja.**
+
+- `.github/workflows/ci.yml` ma w jobie `integration` region `# wa:ci-integration:start` / `# wa:ci-integration:end`. `wa generate` wpisuje do niego treść plików wskazanych w polu `ciSteps` manifestów, z wcięciem 6 spacji, fragmenty modułów oddzielone pustą linią (`ciStepsBody` w `kit/cli/src/generate/targets.ts`).
+- `uploads` wnosi `ci/uploads.integration-steps.yml` (start MinIO i utworzenie bucketu `<slug>-uploads`); plik jest w `placeholderFiles` ([D32](#d32)).
+- Gdy plik docelowy dowolnego regionu nie ma markerów, a region byłby pusty, generator go pomija bez błędu. Gdy moduł ma coś do wpisania, brak markerów kończy się błędem `<plik>: brak regionu wa:<marker>; …`, a jeden marker bez drugiego jest błędem uszkodzonego regionu.
+
+**Odrzucone alternatywy.** MinIO jako usługa `services:` w GitHub Actions (brak `command`, spec planu 3, §7). Powodu pomijania pustego regionu commit nie podaje; z testów wynika, że projekt bez markerów w pliku docelowym generuje się bez błędu, dopóki żaden moduł nie ma czego tam wpisać.
+
+**Konsekwencje.**
+
+- Projekt bez modułów z `ciSteps` ma pusty region i nie uruchamia MinIO.
+- `e2e.yml` nie ma regionu: kroki modułów działają tylko w jobie `integration`.
+- `AGENTS.md` nie wymienia regionu ani pola `ciSteps` (rozbieżność R1).
+- Test własności sprawdza, że plik z `compose` należy do modułu, ale pliku z `ciSteps` nie sprawdza ([D38](#d38)).
+- Lokalne testy integracyjne z MinIO wymagają `INTEGRATION_S3_ENDPOINT` i własnego kontenera; region działa tylko w CI.
+
+**Jak egzekwowana.** Bramka CLI: `kit/cli/src/generate/__tests__/ci-steps.test.ts` (wcięcie, kolejność, „ci.yml bez markerów i bez ciSteps → sukces, ci.yml bajt w bajt bez zmian”, „ci.yml bez markerów, a moduł ma ciSteps → błąd brak regionu i żaden plik nie zmieniony”). Zgodność regionu z manifestami: job `verify` w `.github/workflows/ci.yml` ([D04](#d04)). Job `assemble` w `.github/workflows/kit.yml` uruchamia MinIO własnymi krokami dla kombinacji z `uploads`.
+
+**Źródło.** [Spec planu 3](superpowers/specs/2026-10-28-wa-kit-plan-3-modules-design.md) §7; commity `2e8db6e` i `1753a2d`.
+
+<a id="d46"></a>
+
+## D46 · Kit wydawany tagiem `v<version>` ustawianym przez człowieka; projekt pobiera kit tylko w swojej wersji
+
+**Status:** obowiązuje · **Data:** 2026-10-30 · **Kto zdecydował:** reguła wydania: `kit/CLAUDE.md` (autora nie zapisano); Jakub (tag `v0.1.0` z adnotacją na `76ca2d7`, opublikowany na GitHubie 2026-10-30)
+
+**Kontekst.** `wa add` i `wa list` w projekcie potrzebują kitu w tej samej wersji, z której projekt powstał, bo kopiują pliki modułu obok skopiowanego wcześniej rdzenia. Kit nie ma rejestru paczek ([D28](#d28)), więc wersję wskazuje tag gita.
+
+**Decyzja.**
+
+- Wydanie kitu: podbicie `version` zmienionych modułów, `npm run wa -- kit sync`, scalenie do `main`, a tag `v<version>` (wersja z `kit/kit.json`) ustawia człowiek (`kit/CLAUDE.md`, „Składanie i wydanie”). Żaden workflow nie tworzy tagów.
+- `resolveKitSource` (`kit/cli/src/kit/source.ts`) bierze źródło z `--kit`, potem z `WA_KIT_SOURCE`, potem z `kitRepo` w `.wa/kit.json`. Adres zdalny (`https://`, `ssh://`, `file://`, `git@`) klonuje płytko tag `v<kitVersion>` projektu. Ścieżka lokalna musi mieć w `kit/kit.json` tę samą `version`, inaczej komenda kończy się błędem z obiema wersjami.
+
+**Odrzucone alternatywy.** Nie zapisano.
+
+**Konsekwencje.**
+
+- Bez tagu wersji projektu na GitHubie one-liner oraz `wa add` i `wa list` z domyślnym źródłem kończą się błędem pobierania. Wersja bez tagu to znane ryzyko ([znane-ograniczenia.md](znane-ograniczenia.md)).
+- Lokalny klon porównywany jest tylko po `version`, nie po commicie ani tagu: klon z niezacommitowanymi zmianami w tej samej wersji zostanie użyty.
+- Projekt nie przechodzi na nowszą wersję kitu: nie ma `wa update`.
+
+**Jak egzekwowana.** Wersja źródła: guard w kodzie (`resolveKitSource`) i testy `kit/cli/src/kit/__tests__/source.test.ts` (na przykład „tag w klonie wynika z wersji projektu”, „lokalny kit w wersji 0.1.0 przy projekcie 9.9.9 kończy się błędem z obiema wersjami”). Ustawienie tagu przy wydaniu: tylko konwencja.
+
+**Źródło.** [kit/CLAUDE.md](../kit/CLAUDE.md), „Składanie i wydanie”; `kit/cli/src/kit/source.ts`; [plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), decyzja D2.

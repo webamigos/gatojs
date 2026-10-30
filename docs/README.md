@@ -81,7 +81,7 @@ Jedno pojęcie oznacza w całej dokumentacji jedną rzecz. Definicje „moduł�
 
 | Pojęcie | Znaczenie | Opisuje |
 | --- | --- | --- |
-| Kit (wa-kit) | To repozytorium: działająca aplikacja referencyjna, z której kod trafia do projektów jako zwykły kod, bez paczek npm. | [02](02-architektura.md#kit-rdzen-moduly), [D01](decyzje.md#d01) |
+| Kit (wa-kit) | To repozytorium: działająca aplikacja referencyjna, z której kod trafia do projektów jako zwykły kod, bez paczek npm. | [02](02-architektura.md#kit-rdzen-moduly), [D39](decyzje.md#d39) |
 | Projekt | Aplikacja zbudowana z kodu kitu. Kod kitu jest w niej zwykłym kodem, który projekt może zmieniać. | [11](11-praca-z-kitem.md#projekt-a-kit) |
 | Rdzeń | Część kitu, którą ma każdy projekt: logowanie, organizacje, użytkownicy, konto i dashboard. Rdzeń to moduł `core`. | [02](02-architektura.md#kit-rdzen-moduly), [05](05-moduly-rdzenia.md) |
 | Moduł (moduł kitu) | Wpis w `.wa/kit.json` z manifestem plików. Rdzeń to moduł `core`; moduł może obejmować kilka feature. | [02b](02b-rejestr-i-generator.md#kit-json) |

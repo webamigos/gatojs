@@ -205,7 +205,7 @@ export async function requireModuleAccess(
 
 ## Krok 3. Wpis w `projectModules`
 
-`.wa/kit.json` ma dwie sekcje modułów. `modules` opisuje kod, który projekt dostał z kitu (wersje, hashe plików, aktualizacje). `projectModules` opisuje funkcje napisane w projekcie: wpis ma tylko `manifest`, bez własnej wersji i hashy plików, a `wa generate` czyta go tak samo jak moduły kitu ([D02](decyzje.md#d02)). Moduły projektu trafiają do rejestru po modułach kitu, alfabetycznie, a `wa kit sync` zachowuje je bez zmian.
+`.wa/kit.json` ma dwie sekcje modułów. `modules` opisuje kod, który projekt dostał z kitu (wersje, hashe plików, aktualizacje). `projectModules` opisuje funkcje napisane w projekcie: wpis ma tylko `manifest`, bez własnej wersji i hashy plików, a `wa generate` czyta go tak samo jak moduły kitu ([D36](decyzje.md#d36)). Moduły projektu trafiają do rejestru po modułach kitu, alfabetycznie, a `wa kit sync` zachowuje je bez zmian.
 
 Dopisz do słownika `projectModules` wpis `notes`. Manifest musi przejść schemat `moduleManifestSchema` z `kit/cli/src/manifest/schema.ts`, a `wa generate` przy odczycie sprawdza jeszcze cztery reguły, inaczej przerwie pracę z komunikatem po polsku ([Referencja manifestu](02b-rejestr-i-generator.md#referencja-manifest)):
 
@@ -250,7 +250,7 @@ Dopisz do słownika `projectModules` wpis `notes`. Manifest musi przejść schem
 
 | Pole | Znaczenie we wpisie `notes` |
 | --- | --- |
-| `files` | Generator czyta z tej listy tylko `src/features/notes/**`. Ten wzorzec rejestruje feature. Pozostałe dwa wzorce są zapisem własności plików, którego nic nie sprawdza. Każdy feature potrzebuje własnego wzorca ([D02](decyzje.md#d02)). |
+| `files` | Generator czyta z tej listy tylko `src/features/notes/**`. Ten wzorzec rejestruje feature. Pozostałe dwa wzorce są zapisem własności plików, którego nic nie sprawdza. Każdy feature potrzebuje własnego wzorca ([D38](decyzje.md#d38)). |
 | `schemaRelations` | Linia `notes Note[]` trafi do regionu `wa:relations` w modelu `Organization`. To jedyny sposób dodania relacji zwrotnej do modelu rdzenia. Generator obsługuje tylko modele `User` i `Organization`; relację z innym modelem pomija bez błędu ([Regiony](02b-rejestr-i-generator.md#regiony)). |
 | `env`, `compose` | Puste: feature nie ma własnych zmiennych ani usług Dockera. |
 | `name` | Musi być równe kluczowi wpisu. Generator używa go też jako nagłówka bloku modułu w `.env.example`, gdy `env` nie jest puste. |

@@ -45,7 +45,7 @@ Zweryfikowano z kodem: 25adbb8, 2026-10-28
 - `node_modules/next/dist/server/lib/generate-agent-files.js`, `node_modules/next/dist/server/lib/app-info-log.js`, `node_modules/next/dist/server/lib/start-server.js` (Next.js 16.3.8)
 - dokumentacja Claude Code: [hooki](https://code.claude.com/docs/en/hooks) i [pliki instrukcji](https://code.claude.com/docs/en/memory)
 
-Ten plik opisuje pracę wokół kodu: dokąd trafia zmiana, przez jakie kontrole przechodzi, jak współpracować z agentami AI i jak wygląda proces, w którym powstaje kit. Dotyczy repozytorium kitu i projektów klientów, bo projekt powstaje z kitu (`wa create`) i ma te same pliki konfiguracji ([D01](decyzje.md#d01), [D02](decyzje.md#d02)). Reguły są w [CLAUDE.md](../CLAUDE.md) i [AGENTS.md](../AGENTS.md). Ten plik je wyjaśnia i podaje powody, ale ich nie przepisuje. Dodaje tylko kilka praktyk oznaczonych słowem **Zalecenie**: tych `AGENTS.md` nie zawiera i nic ich nie sprawdza.
+Ten plik opisuje pracę wokół kodu: dokąd trafia zmiana, przez jakie kontrole przechodzi, jak współpracować z agentami AI i jak wygląda proces, w którym powstaje kit. Dotyczy repozytorium kitu i projektów klientów, bo projekt powstaje z kitu (`wa create`) i ma te same pliki konfiguracji ([D39](decyzje.md#d39), [D38](decyzje.md#d38)). Reguły są w [CLAUDE.md](../CLAUDE.md) i [AGENTS.md](../AGENTS.md). Ten plik je wyjaśnia i podaje powody, ale ich nie przepisuje. Dodaje tylko kilka praktyk oznaczonych słowem **Zalecenie**: tych `AGENTS.md` nie zawiera i nic ich nie sprawdza.
 
 Pojęcia używane w tym pliku:
 
@@ -86,7 +86,7 @@ Dlatego regułę, którą pilnuje tylko hook Claude Code albo hook git, sprawdza
 
 ### Dlaczego poprawki wracają do kitu
 
-Projekt dostaje kod kitu jako zwykły kod, a nie jako zależność, i może go zmieniać jak własny ([D01](decyzje.md#d01)). Żadne narzędzie nie przenosi poprawek z kitu do istniejącego projektu: CLI (`kit/cli/src/bin.ts`) ma `create`, `add`, `remove`, `list`, `generate` i `kit sync`. Pole `files` modułów w `.wa/kit.json` projektu przechowuje hashe skopiowanych plików, więc `wa remove` wie, które pliki zmieniono lokalnie, ale zmiany kitu po utworzeniu projektu trzeba przenieść ręcznie. Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
+Projekt dostaje kod kitu jako zwykły kod, a nie jako zależność, i może go zmieniać jak własny ([D39](decyzje.md#d39)). Żadne narzędzie nie przenosi poprawek z kitu do istniejącego projektu: CLI (`kit/cli/src/bin.ts`) ma `create`, `add`, `remove`, `list`, `generate` i `kit sync`. Pole `files` modułów w `.wa/kit.json` projektu przechowuje hashe skopiowanych plików, więc `wa remove` wie, które pliki zmieniono lokalnie, ale zmiany kitu po utworzeniu projektu trzeba przenieść ręcznie. Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
 
 Z tego wynika reguła z [CLAUDE.md](../CLAUDE.md#pochodzenie-kodu) i [AGENTS.md](../AGENTS.md#co-to-jest): zmiany specyficzne dla projektu robisz w projekcie, a poprawki, które przydadzą się innym projektom, wysyłasz jako pull request do `webamigos/wa-kit`. Powody:
 
@@ -115,7 +115,7 @@ O miejscu decyduje pytanie: czy ta zmiana byłaby poprawna w każdym projekcie n
 
 ### Pull request do kitu krok po kroku
 
-Poprawkę przenosisz ręcznie. Projekt i kit mają ten sam układ katalogów ([D02](decyzje.md#d02)), więc ścieżki plików się zgadzają.
+Poprawkę przenosisz ręcznie. Projekt i kit mają ten sam układ katalogów ([D38](decyzje.md#d38)), więc ścieżki plików się zgadzają.
 
 1. **Gałąź w klonie kitu.** W katalogu z klonem repozytorium kitu zacznij od najnowszego `main`:
 
