@@ -230,7 +230,7 @@ vi.mock("@/shared/lib/audit", async (importOriginal) => ({
 
 Taki test sprawdza treść zdarzenia, ale nie redakcję ani zapis. Nie mockuj `trackAudit` w teście, który ma pokazać, że wpis trafia do właściwej organizacji.
 
-**Projekt bez modułu.** Test z prawdziwym `trackAudit` przechodzi, ale nie ma czego sprawdzić w bazie: tabeli `audit_logs` nie ma, a `auditSinks` jest puste, o ile projekt nie ma własnego ujścia (`audit-sink.ts`). Treść zdarzenia sprawdzisz wtedy tylko mockiem `trackAudit`.
+**Projekt bez modułu.** Bez własnego ujścia (`audit-sink.ts`) `auditSinks` jest puste, więc test z prawdziwym `trackAudit` przechodzi, ale nie zapisuje wpisu. Schemat Prisma nie ma modelu `AuditLog`, więc baza testowa po `prisma db push` w `globalSetup` nie ma tabeli `audit_logs`. W bazie projektu po `wa remove` tabela i wcześniejsze wpisy zostają do migracji, która ją usuwa ([Instalacja i usunięcie](13-modul-audit-logs.md#instalacja)). Treść zdarzenia sprawdzisz wtedy tylko mockiem `trackAudit`.
 
 <a id="problemy"></a>
 
