@@ -85,7 +85,7 @@ KIT_DIR=$(mktemp -d) && git clone --depth 1 --branch v0.1.0 https://github.com/w
 Klucz jest zapisany w bazie jako HMAC-SHA256 z sekretem `API_KEY_PEPPER`. Wyciek samej bazy nie wystarcza, żeby sprawdzić klucz bez peppera.
 
 - **Produkcja wymaga własnej wartości.** Schemat `src/features/api-keys/env.ts` odrzuca brak zmiennej, wartość krótszą niż 32 znaki, a przy `NODE_ENV=production` także wartość z `.env.example`. Ustaw losowy napis, na przykład z `openssl rand -base64 32`, w zmiennych usługi przed pierwszym wdrożeniem ([10](10-wdrozenie.md#zmienne)).
-- **Błąd peppera psuje całą aplikację, nie tylko moduł.** Schemat modułu należy do walidacji `env` całej aplikacji ([07](07-i18n-mail-env.md#walidacja-env)). Na zbudowanym serwerze z wartością przykładową każda trasa z kluczem i każda strona czytająca `env` zwracała 500, a log serwera pokazał `Error: Nieprawidłowe zmienne środowiskowe: RESEND_API_KEY: wymagana w produkcji; API_KEY_PEPPER: w produkcji nie może być wartością z .env.example` (sprawdzone). Żądanie bez nagłówka `Authorization` dostało przy tym zwykłe 401 `missing`, bo `authenticateApiKey` kończy się przed odczytem `env`; nie traktuj go jako dowodu, że konfiguracja jest dobra ([10](10-wdrozenie.md#blad-env)).
+- **Błąd peppera psuje całą aplikację, nie tylko moduł.** Schemat modułu należy do walidacji `env` całej aplikacji ([07](07-i18n-mail-env.md#walidacja-env)). Na zbudowanym serwerze z wartością przykładową każde żądanie z kluczem do tras `/api/v1/…` zwracało 500, a log serwera pokazał `Error: Nieprawidłowe zmienne środowiskowe: RESEND_API_KEY: wymagana w produkcji; API_KEY_PEPPER: w produkcji nie może być wartością z .env.example` (sprawdzone). Strony i akcje, które czytają `env`, kończą się tym samym błędem, bo pierwszy odczyt `env` woła `parseEnv`, a ten rzuca przy każdym błędzie schematu (wynika z kodu `src/shared/lib/env.ts`; strony w tym przebiegu nie były otwierane). Żądanie bez nagłówka `Authorization` dostało przy tym zwykłe 401 `missing`, bo `authenticateApiKey` kończy się przed odczytem `env`; nie traktuj go jako dowodu, że konfiguracja jest dobra ([10](10-wdrozenie.md#blad-env)).
 - **Zmiana peppera unieważnia wszystkie klucze.** HMAC tego samego klucza z innym pepperem jest inny, więc żaden zapisany klucz nie zostanie znaleziony. Po zmianie wartości klucz wystawiony wcześniej dostał 401 `{"error":"invalid"}` (sprawdzone). Klucze nie znikają z listy na `/api-keys` i mają status „Aktywny”, ale nie działają; organizacje muszą wystawić nowe klucze i usunąć stare. Pepper ma więc być stały dla środowiska i nie wolno go zgubić; inny pepper na stagingu i produkcji jest poprawny, bo klucze nie przechodzą między środowiskami.
 
 <a id="usuniecie"></a>
@@ -183,7 +183,7 @@ Indeksy: `(organizationId, createdAt)` dla listy kluczy organizacji i unikalny `
 
 <a id="sekret"></a>
 
-**Jednorazowe pokazanie sekretu.** Pełny klucz zwraca tylko odpowiedź `createApiKeyCommand` (`{ id, plaintext }`); komponent pokazuje go w dialogu „Twój nowy klucz API” z przyciskiem „Kopiuj klucz” i ostrzeżeniem, że po zamknięciu okna nie da się go odczytać. Po zamknięciu klucz znika z DOM, a lista pokazuje tylko prefiks (testy „po zamknięciu dialogu klucz znika z DOM i nie ma go w liście”, „pełny klucz nie pojawia się w liście kluczy, tylko prefiks”). Baza, wpis dziennika i `listApiKeysQuery` nie zawierają ani klucza, ani hasha. Zgubiony klucz trzeba zastąpić nowym.
+**Jednorazowe pokazanie sekretu.** Pełny klucz zwraca tylko odpowiedź `createApiKeyCommand` (`{ id, plaintext }`); komponent pokazuje go w dialogu „Twój nowy klucz API” z przyciskiem „Kopiuj klucz” i ostrzeżeniem, że po zamknięciu okna nie da się go odczytać. Po zamknięciu klucz znika z DOM, a lista pokazuje tylko prefiks (testy „po zamknięciu dialogu klucz znika z DOM i nie ma go w liście”, „pełny klucz nie pojawia się w liście kluczy, tylko prefiks”). Baza ma tylko `displayPrefix` i HMAC klucza (`hashedKey`), z którego nie da się odtworzyć klucza; wpis dziennika i `listApiKeysQuery` nie zawierają ani klucza, ani hasha. Zgubiony klucz trzeba zastąpić nowym.
 
 **Wygaśnięcie.** Klucz z `expiresAt` równym albo wcześniejszym niż chwila żądania dostaje 401 `expired`. Status „Wygasły” na liście liczy się według czasu przeglądarki z chwili otwarcia strony. Wygasłego klucza nie da się przedłużyć; zostaje na liście, dopóki go nie usuniesz.
 
@@ -303,13 +303,13 @@ export async function authenticateApiKey(
 | Sytuacja | `status` | `error` |
 | --- | --- | --- |
 | Brak nagłówka `Authorization`, inny schemat niż `Bearer ` (wielkość liter ma znaczenie: `bearer` nie przejdzie), tabulator zamiast spacji, pusty token | 401 | `missing` |
-| Brak klucza o tym HMAC w bazie: zły klucz, inna wielkość liter, dodatkowa spacja lub cudzysłów, klucz usunięty, klucz sprzed zmiany peppera | 401 | `invalid` |
+| Brak klucza o tym HMAC w bazie: zły klucz, inna wielkość liter, dwie spacje po `Bearer`, spacja albo dopisek wewnątrz tokenu, klucz w cudzysłowie, klucz usunięty, klucz sprzed zmiany peppera | 401 | `invalid` |
 | Klucz z `revokedAt` | 401 | `revoked` |
 | Klucz z `expiresAt` ≤ chwila żądania | 401 | `expired` |
 | Klucz nie ma wymaganego zakresu wśród zakresów znanych z `knownApiScopes()` | 403 | `scope` |
 | Klucz ważny z zakresem | — | `{ ok: true, context }` |
 
-- **Wyszukanie.** Funkcja liczy HMAC tokenu i szuka wiersza po unikalnym `hashedKey` (bez porównywania sekretów w JS). Token to wszystko po `Bearer `, bez przycinania.
+- **Wyszukanie.** Funkcja liczy HMAC tokenu i szuka wiersza po unikalnym `hashedKey` (bez porównywania sekretów w JS). Token to wszystko po `Bearer `, bez przycinania przez funkcję. Spacje i tabulatory na początku i końcu wartości nagłówka usuwa wcześniej sam `Headers` (standard Fetch, sprawdzone w Node 22), więc w prawdziwym żądaniu klucz ze spacją na końcu i `Authorization` ze spacją przed `Bearer` przechodzą; test jednostkowy, który podaje te przypadki jako `invalid` i `missing`, używa obiektu żądania bez tej normalizacji.
 - **Zakresy.** Zakresy klucza są przecinane z `knownApiScopes()`. Zakres, którego żaden moduł w rejestrze nie deklaruje, nie daje dostępu i nie trafia do `context.scopes`; dotyczy to także wymaganego zakresu trasy: jeśli moduł go nie deklaruje w `apiScopes`, trasa zawsze zwraca 403, nawet dla klucza z tym zakresem w bazie (sprawdzone: po usunięciu deklaracji `deliveries:read` test trasy dostał `expected 403 to be 200`).
 - **`lastUsedAt`.** Po sukcesie funkcja zapisuje `lastUsedAt` w tle, bez czekania; błąd tego zapisu trafia tylko do logu jako `Nie udało się zaktualizować lastUsedAt klucza API`. Nieudane uwierzytelnienie, także 403, nie zmienia `lastUsedAt`.
 - **Organizacja.** `context.organizationId` pochodzi z wiersza klucza. Nagłówki i parametry żądania nie mają na nią wpływu.
@@ -339,7 +339,7 @@ Pole `apiScopes?: { key: string; labelKey: string }[]` w `defineModule` deklaruj
 - **Kiedy działa.** Nowy plik `module.ts` wchodzi do rejestru po `npm run wa -- generate`; nowa pozycja w istniejącym `apiScopes` działa bez generatora.
 - **Brak deklaracji.** Zakresu nie da się zaznaczyć przy tworzeniu klucza, komenda odrzuci go w wejściu, a `authenticateApiKey` zwróci 403 `scope`.
 - **Usunięcie deklaracji albo modułu, który ją miał.** Klucze z tym zakresem tracą do niego dostęp bez zmiany wiersza; zakres zostaje w kolumnie `scopes` i na liście kluczy pokazuje się jako surowy napis.
-- **Ten sam zakres w dwóch modułach.** `knownApiScopes()` usuwa powtórzenia; etykietę bierze pierwszy moduł w rejestrze.
+- **Ten sam zakres w dwóch modułach.** `knownApiScopes()` usuwa powtórzenia; etykietę bierze pierwszy moduł w rejestrze. Formularz na `/api-keys` powtórzeń nie usuwa (`declaredScopes` w `api-keys-manager.tsx`): pokaże dwa pola wyboru tego samego zakresu z tym samym kluczem React, więc nie deklaruj zakresu innego modułu.
 - **Bez modułu `api-keys`.** Nikt nie czyta pola: deklaracja przechodzi typecheck i nic nie robi ([12](12-moduly-kitu.md#punkty-wejscia)).
 
 <a id="zdarzenia"></a>

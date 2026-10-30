@@ -183,7 +183,7 @@ Deklaracja `apiScopes` buduje się i nie przeszkadza w projekcie bez `api-keys`;
 - **Trasa bez `authenticateApiKey` jest publiczna**; nikt tego nie sprawdza automatycznie ([kontrakt](14-modul-api-keys.md#authenticate)).
 - **Serwis trasy bez `"use server"`**, inaczej staje się akcją serwerową z kontekstem podanym przez klienta ([Gdzie położyć kod](14-modul-api-keys.md#bez-orgcontext)).
 - **Pepper wymagany w produkcji, jego zmiana unieważnia wszystkie klucze**, a błędna wartość daje 500 w całej aplikacji ([Konfiguracja peppera](14-modul-api-keys.md#pepper)).
-- **Sekret pokazany raz**; baza, lista i dziennik mają tylko `displayPrefix` ([Jednorazowe pokazanie](14-modul-api-keys.md#sekret)).
+- **Sekret pokazany raz**; baza ma tylko `displayPrefix` i HMAC klucza, a lista i dziennik tylko `displayPrefix` ([Jednorazowe pokazanie](14-modul-api-keys.md#sekret)).
 - **`Cache-Control: no-store`** na każdej odpowiedzi trasy z kluczem, także błędzie ([Trasa](#wlasna-trasa)).
 - **Zakres musi być zadeklarowany**; po usunięciu deklaracji klucze tracą dostęp bez zmiany wiersza ([`apiScopes`](14-modul-api-keys.md#apiscopes)).
 - **Usunięcie konta autora nie wyłącza klucza.** Klucz należy do organizacji; przy odejściu osoby, która znała klucz, unieważnij go ręcznie ([Model](14-modul-api-keys.md#model)).
@@ -256,8 +256,8 @@ describe("GET /api/v1/deliveries", () => {
 
 - Wartości oczekiwane to literały (`{ error: "scope" }`, `["Hurtownia B"]`), nie wynik kodu produkcyjnego ([08b](08b-testy-adwersarialne.md)).
 - Test izolacji ma dwie organizacje i sprawdza, że klucz jednej nie widzi i nie zmienia danych drugiej ([08](08-testy.md#izolacja)).
-- Projekt potrzebuje własnej bazy z nazwą kończącą się na `_test`: `globalSetup` uruchamia `prisma db push` ze schematem projektu i odmówi na bazie z tabelami spoza tego schematu ([08](08-testy.md#baza-integracja)).
-- Test kodu, który woła komendy kluczy z sesją (a nie trasy), mockuje sesję przez `vi.spyOn(auth.api, "getSession")` i I/O frameworka, jak `api-keys-isolation.integration.test.ts` ([08](08-testy.md#integracyjne)).
+- Projekt potrzebuje własnej bazy z nazwą kończącą się na `_test`: `globalSetup` uruchamia `prisma db push` ze schematem projektu, które usuwa puste tabele spoza schematu, a odmawia, gdy dopasowanie skasowałoby dane (na przykład niepustą tabelę modułu, którego projekt nie ma) ([08](08-testy.md#baza-integracja)).
+- Test kodu, który woła komendy kluczy z sesją (a nie trasy), mockuje sesję przez `vi.spyOn(auth.api, "getSession")`, I/O frameworka i `trackAudit` (żeby sprawdzić treść zdarzenia bez ujścia), jak `api-keys-isolation.integration.test.ts` ([08](08-testy.md#integracyjne)).
 - Test nie potrzebuje `API_KEY_PEPPER` w `.env`: integracyjne testy biorą wartość z `setup-env.ts`, jednostkowe mockują `@/shared/lib/env`.
 
 <a id="problemy"></a>
@@ -269,7 +269,7 @@ describe("GET /api/v1/deliveries", () => {
 | Każda strona i trasa z kluczem zwraca 500; w logu `Nieprawidłowe zmienne środowiskowe: API_KEY_PEPPER: …` | Brak peppera, mniej niż 32 znaki albo wartość z `.env.example` przy `NODE_ENV=production` (sprawdzone). | Ustaw własny pepper i wdroż ponownie ([Konfiguracja peppera](14-modul-api-keys.md#pepper)). |
 | Wszystkie klucze dostają 401 `invalid`, choć na liście są „Aktywne” | Zmienił się `API_KEY_PEPPER` (sprawdzone) albo środowisko ma inny pepper niż to, na którym klucze utworzono. | Przywróć poprzednią wartość albo wystaw nowe klucze i usuń stare. |
 | 401 `missing` mimo podanego klucza | Nagłówek nie zaczyna się dokładnie od `Bearer ` (na przykład `bearer`, tabulator, sam klucz). | `Authorization: Bearer <klucz>`. |
-| 401 `invalid` dla właśnie skopiowanego klucza | Klucz skopiowany niecały, ze spacją albo w cudzysłowie; klucz usunięty. | Skopiuj klucz ponownie; zgubionego nie odzyskasz, wystaw nowy. |
+| 401 `invalid` dla właśnie skopiowanego klucza | Klucz skopiowany niecały, w cudzysłowie albo z dwiema spacjami po `Bearer` lub spacją wewnątrz; klucz usunięty. Spacje na końcu nagłówka nie szkodzą, bo usuwa je `Headers`. | Skopiuj klucz ponownie; zgubionego nie odzyskasz, wystaw nowy. |
 | 403 `scope` dla klucza z zaznaczonym zakresem | Trasa wymaga innego zakresu albo żaden moduł w rejestrze nie deklaruje wymaganego zakresu (sprawdzone). | Sprawdź `apiScopes` w `module.ts` i `npm run wa -- generate` po dodaniu nowego `module.ts`. |
 | Zakresu funkcji nie ma w formularzu na `/api-keys` | Brak deklaracji `apiScopes` albo `module.ts` poza rejestrem. | Dodaj deklarację; dla nowego pliku uruchom generator. |
 | Zamiast etykiety zakresu ścieżka klucza i `MISSING_MESSAGE` | Brak klucza etykiety w `i18n/<język>.json` albo `key` modułu różny od nazwy katalogu. | Dodaj klucz w obu językach; ustaw `key` równy nazwie katalogu. |
@@ -322,7 +322,7 @@ Pola deklaracji modułu w `module.ts`: [Definicja modułu](14-modul-api-keys.md#
 | `Nie znaleziono klucza` | `/api-keys`, toast | Klucz nie istnieje w aktywnej organizacji. |
 | `Potwierdź zmianę w trybie serwisowym` | wynik komendy | Superadmin bez potwierdzenia ([Dostęp](14-modul-api-keys.md#dostep)). |
 | `Nie udało się utworzyć klucza`, `Nie udało się unieważnić klucza`, `Nie udało się usunąć klucza` | `/api-keys`, toast; log `error` | Błąd walidacji albo bazy. |
-| `Nie udało się skopiować klucza` | dialog klucza | Przeglądarka odmówiła zapisu do schowka; skopiuj klucz ręcznie z okna. |
+| `Nie udało się skopiować klucza` | `/api-keys`, toast przy dialogu klucza | Przeglądarka odmówiła zapisu do schowka; skopiuj klucz ręcznie z okna. |
 | `Nie udało się zaktualizować lastUsedAt klucza API` (log `warn`, pola `apiKeyId`, `error`) | log serwera | Zapis `lastUsedAt` się nie powiódł; uwierzytelnienie przeszło. |
 | `Nieprawidłowe zmienne środowiskowe: API_KEY_PEPPER: w produkcji nie może być wartością z .env.example` | log serwera, 500 | Wartość przykładowa w produkcji. |
 | `Nieprawidłowe zmienne środowiskowe: API_KEY_PEPPER: Too small: expected string to have >=32 characters` | log serwera, 500 | Pepper krótszy niż 32 znaki (sprawdzone przez `parseEnv`). |
