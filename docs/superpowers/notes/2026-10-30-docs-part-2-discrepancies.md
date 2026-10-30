@@ -106,3 +106,24 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Kod:** `modules` z `src/modules.generated.ts` czytają `knownApiScopes` (`src/features/api-keys/services/api-scopes.ts`), `listUploadPurposes` (`src/features/uploads/services/upload-purposes.ts`) i `<AuditTrail>` (`src/features/audit-logs/components/audit-trail.tsx`); `kit/cli/src/generate/index.ts` bierze języki z `state.locales` i zapisuje `LOCALES_FILE = "src/i18n/locales.generated.ts"`; `regionTargets` w `kit/cli/src/generate/targets.ts` ma pięć wpisów (z `.github/workflows/ci.yml`, marker `ci-integration`); `kitStateSchema` w `kit/cli/src/manifest/schema.ts` ma `kitRepo`, `project`, `locales` i `projectModules`; `uploads` ma `env.ts`, więc trafia do `moduleEnvSchemas`. Rejestracja modułów projektu (`registeredModules` w `kit/cli/src/manifest/kit-state.ts`) też nie jest opisana.
 - **Propozycja:** poprawić 02b w Task 9 części 2. Plik [12-moduly-kitu.md](../../12-moduly-kitu.md#szwy-generowane) opisuje stan z kodu.
 - **Status:** otwarte, naprawia Task 9.
+
+## R15. Test kitu `audit-log-view.test.tsx` zależy od treści rejestru; akcja `delivery.received` z przykładów psuje `npm run verify` projektu
+
+- **Dokument:** `docs/09b-implementacja-i-bramki.md` („Dziennik zdarzeń w funkcji projektu”, „Trasy API”) i [spec planu 3](../specs/2026-10-28-wa-kit-plan-3-modules-design.md) §5 używają jako przykładu akcji `delivery.received`, którą funkcja projektu deklaruje w `auditActions`.
+- **Kod:** test „pokazuje surowy action, gdy akcja nie ma deklaracji” w `src/features/audit-logs/components/__tests__/audit-log-view.test.tsx` renderuje `AuditLogView` na prawdziwym `clientModules` (bez `vi.mock("@/modules.client.generated")`, inaczej niż `audit-log-view-labels.test.tsx`) i oczekuje surowego napisu `delivery.received`. W przebiegu Task 6 (projekt z `v0.1.0`, `audit-logs` i funkcją projektu deklarującą `delivery.received`) `npm run verify` padł: `Tests  1 failed | 1455 passed (1456)`, `Unable to find an element with the text: delivery.received`. Po zmianie nazwy akcji na `delivery.accepted` przebieg był zielony.
+- **Propozycja:** w teście kitu zamockować rejestr albo użyć nazwy akcji, której projekt nie zadeklaruje (na przykład z prefiksem `test.`); do czasu poprawki przykłady w 09b zmienić na inną akcję. `docs/13b-modul-audit-logs-uzycie.md` opisuje objaw w „Typowych problemach”.
+- **Status:** otwarte (kod: zgłoszenie do kitu; 09b: Task 11).
+
+## R16. Spec planu 3 zapowiada kanał `API` dla żądań z kluczem, kod kitu go nie zapisuje
+
+- **Dokument:** [spec planu 3](../specs/2026-10-28-wa-kit-plan-3-modules-design.md) §5, „Kanał”: wpis ma `channel` (`API` dla żądań uwierzytelnionych kluczem) i `credentialId`.
+- **Kod:** `src/shared/lib/audit.ts` i `writeAuditLog` przyjmują `channel` i `credentialId`, ale żaden plik kitu ich nie ustawia (`grep -rn "channel\|credentialId" src` poza `audit-logs` i `audit.ts` nic nie znajduje). Jedyna trasa z kluczem, `GET /api/v1/organization`, tylko czyta i nie woła `trackAudit`.
+- **Propozycja:** brak zmiany w kodzie; dokumentacja (`13-modul-audit-logs.md`, „Zdarzenia rdzenia i modułów kitu”) mówi, że pola wypełnia kod projektu.
+- **Status:** informacyjne.
+
+## R17. Wartość `INTEGRATION_DATABASE_URL=wa_app_test` dla przejść nie działa w projekcie z innym zestawem modułów
+
+- **Dokument:** plan części 2, „Global Constraints” (bazy w `wa-kit-db-1`: `wa_app_test` dla testów integracyjnych) i brief Task 6 (przejście z `INTEGRATION_DATABASE_URL` na `wa_app_test`).
+- **Kod:** `src/test/integration/global-setup.ts` uruchamia `npx prisma db push` ze schematem projektu. Projekt z samym `audit-logs` nie ma tabel `api_keys` i `uploads`, więc `db push` na `wa_app_test` (z wierszem w `api_keys`) zatrzymał się na ``You are about to drop the `api_keys` table, which is not empty (1 rows).`` i testy się nie uruchomiły. Wymuszenie (`--accept-data-loss`) skasowałoby dane bazy testowej kitu.
+- **Propozycja:** w przejściach Task 7–8 używać osobnej bazy `<slug>_runs_test` w `wa-kit-db-1` (tworzy ją `globalSetup`); Task 6 użył `audit_demo_runs_test`. Dopisać tę bazę do listy baz z przejść w raporcie Task 13.
+- **Status:** obejście zastosowane w Task 6.
