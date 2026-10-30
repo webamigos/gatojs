@@ -1,5 +1,13 @@
 import { createHmac } from "node:crypto";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 const { currentSession, mockTrackAudit } = vi.hoisted(() => ({
   mockTrackAudit: vi.fn(),
@@ -704,5 +712,77 @@ describe("klucze API na prawdziwej bazie", () => {
       action: "api_key.revoked",
       serviceMode: true,
     });
+  });
+});
+
+describe("zmiana wiersza między odczytem a zapisem", () => {
+  let restoreRead: (() => void) | null = null;
+
+  function afterKeyRead(sideEffect: () => Promise<unknown>) {
+    const originalFindFirst = prisma.apiKey.findFirst.bind(prisma.apiKey);
+    const spy = vi.spyOn(prisma.apiKey, "findFirst").mockImplementation((async (
+      args: Parameters<typeof prisma.apiKey.findFirst>[0],
+    ) => {
+      const row = await originalFindFirst(args);
+      await sideEffect();
+      return row;
+    }) as never);
+    restoreRead = () => spy.mockRestore();
+  }
+
+  afterEach(() => {
+    restoreRead?.();
+    restoreRead = null;
+  });
+
+  it("delete, gdy inne żądanie usunęło klucz po odczycie, zwraca sukces i nie zapisuje audytu api_key.deleted", async () => {
+    const key = await seedKey(world.orgA.id);
+    await signInAs(world.alice, world.orgA);
+    afterKeyRead(() => prisma.apiKey.delete({ where: { id: key.id } }));
+
+    const result = await deleteApiKeyCommand({ id: key.id });
+
+    expect(result).toEqual({ success: true });
+    expect(
+      await prisma.apiKey.findUnique({ where: { id: key.id } }),
+    ).toBeNull();
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("revoke nie unieważnia wiersza, który w chwili zapisu należy do organizacji B, i nie zapisuje audytu", async () => {
+    const key = await seedKey(world.orgA.id);
+    await signInAs(world.alice, world.orgA);
+    afterKeyRead(() =>
+      prisma.apiKey.update({
+        where: { id: key.id },
+        data: { organizationId: world.orgB.id },
+      }),
+    );
+
+    await revokeApiKeyCommand({ id: key.id });
+
+    const row = await prisma.apiKey.findUniqueOrThrow({
+      where: { id: key.id },
+    });
+    expect(row.organizationId).toBe(world.orgB.id);
+    expect(row.revokedAt).toBeNull();
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("delete nie usuwa wiersza, który w chwili zapisu należy do organizacji B, i nie zapisuje audytu", async () => {
+    const key = await seedKey(world.orgA.id);
+    await signInAs(world.alice, world.orgA);
+    afterKeyRead(() =>
+      prisma.apiKey.update({
+        where: { id: key.id },
+        data: { organizationId: world.orgB.id },
+      }),
+    );
+
+    await deleteApiKeyCommand({ id: key.id });
+
+    const row = await prisma.apiKey.findUnique({ where: { id: key.id } });
+    expect(row?.organizationId).toBe(world.orgB.id);
+    expect(mockTrackAudit).not.toHaveBeenCalled();
   });
 });
