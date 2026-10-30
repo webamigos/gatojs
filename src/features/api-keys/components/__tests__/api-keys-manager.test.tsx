@@ -3,7 +3,9 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import coreMessages from "@/app/messages/pl.json";
+import coreMessagesEn from "@/app/messages/en.json";
 import apiKeysPl from "../../i18n/pl.json";
+import apiKeysEn from "../../i18n/en.json";
 import type { ApiKeyRow } from "../../contracts/api-key.types";
 
 const {
@@ -552,6 +554,43 @@ describe("ApiKeysManager", () => {
       await waitFor(() =>
         expect(mockDelete).toHaveBeenCalledWith({ id: KEY_ID }),
       );
+    });
+  });
+
+  describe("format daty ostatniego użycia zależy od języka", () => {
+    const USED_AT = new Date(2026, 2, 15, 10, 30);
+
+    function renderInLocale(locale: string, localeMessages: object) {
+      return render(
+        <NextIntlClientProvider locale={locale} messages={localeMessages}>
+          <ServiceModeProvider
+            active={false}
+            organizationId="org-7"
+            organizationName="Acme Sp. z o.o."
+          >
+            <ApiKeysManager keys={[makeKey({ lastUsedAt: USED_AT })]} />
+          </ServiceModeProvider>
+        </NextIntlClientProvider>,
+      );
+    }
+
+    it("w języku en pokazuje angielski skrót miesiąca", () => {
+      renderInLocale("en", { ...coreMessagesEn, "api-keys": apiKeysEn });
+
+      expect(screen.getByText("15 Mar 2026, 10:30")).toBeInTheDocument();
+      expect(screen.queryByText("15 mar 2026, 10:30")).not.toBeInTheDocument();
+    });
+
+    it("w języku pl pokazuje polski skrót miesiąca", () => {
+      renderInLocale("pl", messages);
+
+      expect(screen.getByText("15 mar 2026, 10:30")).toBeInTheDocument();
+    });
+
+    it("w języku bez locale date-fns wraca do polskiego formatu", () => {
+      renderInLocale("de", { ...coreMessagesEn, "api-keys": apiKeysEn });
+
+      expect(screen.getByText("15 mar 2026, 10:30")).toBeInTheDocument();
     });
   });
 });
