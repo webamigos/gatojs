@@ -5,8 +5,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak napisać query, komendę, komponent i stronę feature tak, żeby testy z części pierwszej przeszły;
 - dlaczego `npm run verify` po dodaniu feature nie wymaga zmiany testów rdzenia i co pilnuje spójności rejestru;
 - jak uruchomić testy integracyjne i Strykera dla nowego feature i jak czytać ich wynik;
-- jak wystawić trasę API uwierzytelnianą kluczem i gdzie umieścić wołany przez nią serwis ([trasy API](#trasy-api));
-- jak zadeklarować cel uploadu w module projektu, wstawić `<FileUpload>` i zapisać `id` pliku w encji ([pliki](#pliki-w-funkcji-projektu));
+- gdzie znaleźć opis dziennika zdarzeń, plików i tras z kluczem API we własnej funkcji, gdy projekt ma moduły `audit-logs`, `uploads` albo `api-keys` ([dziennik](#dziennik-zdarzen), [pliki](#pliki-w-funkcji-projektu), [trasy API](#trasy-api));
 - co zacommitować i jak dodać kolejną funkcję do feature, który już jest w rejestrze.
 
 Zweryfikowano z kodem: a4d5af3, 2026-10-29
@@ -270,7 +269,7 @@ Po implementacji testy jednostkowe dają `Tests  20 passed (20)`, a testy izolac
 
 ### `npm run verify` i testy rdzenia
 
-Dodanie feature `notes` nie wymaga zmiany żadnego istniejącego testu. Testy rdzenia, które porównują rejestr z listą wpisaną na stałe (`access-matrix.test.ts`, `nav.test.ts`, `app-sidebar.test.tsx`), biorą z rejestru tylko moduły rdzenia: `src/test/core-modules.ts` eksportuje `CORE_MODULE_KEYS` (`account`, `auth`, `dashboard`, `organizations`, `users`) i `coreClientModules`, czyli `clientModules` przefiltrowany do tych kluczy. Moduły kitu i moduły projektu z `projectModules` nie wchodzą do literałowej macierzy dostępu ani do list adresów menu.
+Dodanie feature `notes` nie wymaga zmiany żadnego istniejącego testu. Testy rdzenia, które porównują rejestr z listą wpisaną na stałe (`access-matrix.test.ts`, `nav.test.ts`, `app-sidebar.test.tsx`), biorą z rejestru tylko moduły rdzenia: `src/test/core-modules.ts` eksportuje `CORE_MODULE_KEYS` (`account`, `auth`, `dashboard`, `organizations`, `users`) i `coreClientModules`, czyli `clientModules` przefiltrowany do tych kluczy. Używają go `access-matrix.test.ts` i `nav.test.ts`; `app-sidebar.test.tsx` filtruje rejestr do tych samych pięciu kluczy we własnym `vi.mock("@/modules.client.generated", …)`. Moduły kitu i moduły projektu z `projectModules` nie wchodzą do literałowej macierzy dostępu ani do list adresów menu.
 
 Spójność całego rejestru, razem z `notes`, sprawdza `src/shared/lib/modules/__tests__/registry-consistency.test.ts`. Dla każdego modułu z `clientModules` wymaga on:
 
@@ -292,11 +291,11 @@ Pełny przebieg wszystkich testów integracyjnych. Ostrzeżenie o czyszczeniu ba
 INTEGRATION_DATABASE_URL=postgresql://postgres:postgres@localhost:5439/wa_app_tutorial_test npm run test:integration
 ```
 
-Wynik: `Test Files  2 passed (2)` i `Tests  45 passed (45)` (38 testów rdzenia i 7 testów notatek), około 5 sekund.
+Wynik: `Test Files  2 passed (2)` i `Tests  45 passed (45)` (38 testów rdzenia i 7 testów notatek), około 5 sekund. Przebieg działał na projekcie z samym rdzeniem. W projekcie z modułami kitu dochodzą ich pliki testów integracyjnych, a przy module `uploads` testy potrzebują też działającego MinIO ([08-testy.md](08-testy.md#integracyjne)).
 
 Tabela `notes` nie jest na liście `TABLES` w `src/test/integration/database.ts`, ale `resetDatabase()` i tak ją czyści, bo ma klucz obcy do `organizations`, a `TRUNCATE … CASCADE` czyści też tabele z kluczami do czyszczonych tabel ([Czyszczenie tabel feature](08-testy.md#izolacja-czyszczenie)). Po przebiegu w bazie zostały tylko 3 notatki z ostatniego `beforeEach`, a ręczne wykonanie tej samej instrukcji wypisało `NOTICE:  truncate cascades to table "notes"`. Tabelę feature bez klucza obcego do tabel rdzenia czyścisz w `beforeEach` sam.
 
-Stryker nie zrobi za Ciebie mutacji pod testami integracyjnymi, bo plików feature nie ma w `mutate` konfiguracji integracyjnej. Sprawdź ręcznie, że test izolacji umie się wywrócić: usuń na chwilę `organizationId` z `where` w query i uruchom test ([Jak go zbudować](08-testy.md#izolacja), punkt 6).
+Sprawdź ręcznie, że test izolacji umie się wywrócić: usuń na chwilę `organizationId` z `where` w query i uruchom test ([Jak go zbudować](08-testy.md#izolacja), punkt 6). Przebieg tutorialu działał na kopii kitu z `4a6ffcb`, w której konfiguracja integracyjna Strykera mutowała tylko pliki rdzenia. Od commita `04ce5d3` jej lista `mutate` obejmuje `src/features/*/services/**/*.ts`, więc `npm run test:mutation:integration` mutuje też query i komendę `notes` pod ich testem izolacji ([Dwie konfiguracje](08b-testy-adwersarialne.md#stryker)); tego przebiegu tutorial nie uruchamiał.
 
 <a id="krok-8-stryker"></a>
 
@@ -384,151 +383,19 @@ Zacommituj wszystko razem: pliki generowane i migracja należą do zmiany, któr
 
 ## Dziennik zdarzeń w funkcji projektu
 
-Ta sekcja dotyczy projektu z zainstalowanym modułem `audit-logs` ([12-moduly-kitu.md](12-moduly-kitu.md#audit-logs)). Funkcja, która chce zostawiać ślad zmian, robi trzy rzeczy.
-
-1. **Wywołanie `trackAudit` w komendzie**, po udanym zapisie i po `assertServiceModeConfirmed`. `auditActor(context)` wypełnia organizację, użytkownika i tryb serwisowy:
-
-```ts
-import { auditActor, trackAudit } from "@/shared/lib/audit";
-
-await trackAudit({
-  ...auditActor(context),
-  action: "delivery.received",
-  entityType: "delivery",
-  entityId: delivery.id,
-});
-```
-
-`oldData` i `newData` są opcjonalne; dane wrażliwe z listy modułu zostają zredagowane przed zapisem. Awaria ujścia nie przerywa komendy: `trackAudit` loguje błąd i wraca. `trackAudit` należy do rdzenia, więc kod działa też w projekcie bez `audit-logs` (wtedy nic nie zapisuje).
-
-2. **Deklaracja `auditActions` w `module.ts` feature** z kluczem etykiety w jego własnej przestrzeni nazw tłumaczeń:
-
-```ts
-auditActions: [
-  { action: "delivery.received", labelKey: "action-delivery-received" },
-],
-```
-
-Klucz `action-delivery-received` dodaj do `src/features/<x>/i18n/pl.json` i `en.json` tego samego feature. Strona `/audit-log` i `<AuditTrail>` szukają etykiety w module, który akcję zadeklarował. Akcja bez deklaracji wyświetla się jako surowy napis `delivery.received`.
-
-3. **Historia encji na stronie** przez `<AuditTrail>` z `src/features/audit-logs/components/audit-trail.tsx`:
-
-```tsx
-import { AuditTrail } from "@/features/audit-logs/components/audit-trail";
-
-<AuditTrail entityType="delivery" entityId={delivery.id} />
-```
-
-Komponent wymaga zainstalowanego `audit-logs`: import z `src/features/audit-logs/` nie skompiluje się w projekcie bez modułu. Feature, który ma działać w obu wariantach, nie osadza komponentu, tylko samo woła `trackAudit`. Komponent nie renderuje nic użytkownikowi bez dostępu do modułu (role `owner` i `admin` organizacji), a pokazuje 50 ostatnich wpisów encji z aktywnej organizacji.
+Dotyczy projektu z modułem `audit-logs` ([13-modul-audit-logs.md](13-modul-audit-logs.md)). Funkcja, która zostawia ślad zmian, woła w komendzie `trackAudit` z `auditActor(context)` po `assertServiceModeConfirmed` i po udanym zapisie, deklaruje akcję w `auditActions` swojego `module.ts` z etykietą we własnych tłumaczeniach i może pokazać historię encji przez `<AuditTrail>`. Przykłady z przebiegu na funkcji `deliveries`: [zapis zdarzenia w komendzie](13b-modul-audit-logs-uzycie.md#komenda), [etykieta akcji](13b-modul-audit-logs-uzycie.md#etykieta), [historia encji na stronie](13b-modul-audit-logs-uzycie.md#audit-trail). Co z tego działa w projekcie bez modułu, opisuje [kod, który ma działać bez modułu](13b-modul-audit-logs-uzycie.md#bez-modulu), a nazwę akcji, która psuje test kitu, [typowe problemy](13b-modul-audit-logs-uzycie.md#problemy).
 
 <a id="pliki-w-funkcji-projektu"></a>
 
 ## Pliki w funkcji projektu
 
-Ta sekcja dotyczy projektu z zainstalowanym modułem `uploads` ([12-moduly-kitu.md](12-moduly-kitu.md#uploads)). Funkcja, która przyjmuje pliki, robi trzy rzeczy.
-
-1. **Deklaracja celu w `module.ts` feature.** Cel mówi, jakie typy i jak duże pliki przyjmuje funkcja oraz kto je potem zobaczy:
-
-```ts
-uploadPurposes: [
-  {
-    key: "delivery-photo",
-    mimeTypes: ["image/jpeg", "image/png", "image/webp"],
-    maxBytes: 8 * 1024 * 1024,
-    visibility: "organization",
-    resizeImage: { maxWidth: 1600 },
-  },
-],
-```
-
-`key` musi być unikalny w całym rejestrze modułów. Dla zdjęć dokumentów i danych organizacji wybierz `visibility: "organization"`: adres pliku działa wtedy tylko dla sesji z aktywną organizacją pliku. `"public"` oznacza adres dostępny dla każdego, bez sesji. SVG, HTML, XHTML i XML (`image/svg+xml`, `text/html`, `application/xhtml+xml`, `application/xml`, `text/xml`) nie wolno wpisać do `mimeTypes`: SVG albo XHTML z prologiem XML jest wykrywany jako `application/xml` i mógłby wykonać skrypt. Formaty tekstowe (`text/plain`, `text/csv`, `application/json`) nie mają sygnatury w bajtach, więc cel z nimi zawsze odpowiada 415. Po dodaniu `module.ts` uruchom `npm run wa -- generate` ([Nowa funkcja w istniejącym module](#nowa-funkcja-w-istniejącym-module), punkt 1).
-
-2. **Komponent `<FileUpload>`** w formularzu feature (komponent kliencki). Po udanym zapisie woła `onUploaded` z `{ id, url, fileName, mimeType, size }`:
-
-```tsx
-import { FileUpload } from "@/features/uploads/components/file-upload";
-
-<FileUpload
-  purpose="delivery-photo"
-  accept="image/*"
-  onUploaded={(upload) => setPhotoUploadId(upload.id)}
-/>
-```
-
-Komponent sam prosi o potwierdzenie w trybie serwisowym, więc formularz nie dokłada własnego dialogu. `accept` tylko podpowiada przeglądarce: serwer sprawdza typ po zawartości pliku, a `purpose` decyduje o limitach. Komponent wymaga zainstalowanego `uploads`: import z `src/features/uploads/` nie skompiluje się w projekcie bez modułu.
-
-3. **Zapis `id` pliku w encji feature**, w kolumnie ze schematu Prismy (na przykład `photoUploadId String? @db.Uuid`), przekazanej do komendy razem z resztą danych formularza. Komenda zapisuje samo `id`, a nie adres. Adres pliku to zawsze `/api/uploads/<id>`.
-
-```ts
-const photoUrl = delivery.photoUploadId ? `/api/uploads/${delivery.photoUploadId}` : null;
-```
-
-Zwróć uwagę na dwie rzeczy:
-
-- `id` w polu encji nie ma klucza obcego do tabeli `uploads` (moduł nie zna encji projektu), więc komenda, która zapisuje `id` z wejścia, odpowiada za to, że wskazuje plik własnej organizacji. Sprawdź to zapytaniem `prisma.upload.findFirst({ where: { id, organizationId: context.organizationId } })` przed zapisem.
-- Usunięcie encji nie usuwa pliku. Wołaj `deleteUploadCommand` z `src/features/uploads/services/commands/upload-commands.ts` ([12](12-moduly-kitu.md#usuwanie)) w tym samym przepływie, który usuwa encję, albo świadomie zostaw plik.
-
-Test izolacji pliku (odczyt i usunięcie z kontekstem innej organizacji) dostaje moduł `uploads` w swoich testach integracyjnych. Test funkcji projektu pokrywa tylko własną regułę: że komenda odrzuca `id` pliku z innej organizacji.
+Dotyczy projektu z modułem `uploads` ([15-modul-uploads.md](15-modul-uploads.md)). Funkcja, która przyjmuje pliki, deklaruje cel w `uploadPurposes` swojego `module.ts`, wstawia `<FileUpload>` do formularza, zapisuje w encji samo `id` pliku po sprawdzeniu, że należy do aktywnej organizacji, i sama decyduje, czy usunięcie encji usuwa plik. Przykłady z przebiegu na funkcji `deliveries`: [własny cel](15b-modul-uploads-uzycie.md#wlasny-cel), [formularz z `<FileUpload>`](15b-modul-uploads-uzycie.md#formularz), [zapis `id` pliku w encji](15b-modul-uploads-uzycie.md#zapis-id), [usuwanie pliku razem z encją](15b-modul-uploads-uzycie.md#usuwanie-z-encja). Kontrakt celu i komponentu opisuje [15-modul-uploads.md](15-modul-uploads.md#szwy), usuwanie pliku [`deleteUploadCommand`](15-modul-uploads.md#usuwanie), a lokalny magazyn [MinIO](15-modul-uploads.md#minio).
 
 <a id="trasy-api"></a>
 
 ## Trasa API z kluczem w funkcji projektu
 
-Ta sekcja dotyczy projektu z zainstalowanym modułem `api-keys` ([12-moduly-kitu.md](12-moduly-kitu.md#api-keys)). Funkcja, która wystawia trasę dla zewnętrznych systemów, robi trzy rzeczy.
-
-1. **Deklaracja zakresu w `module.ts` feature** z kluczem etykiety w jego własnej przestrzeni nazw tłumaczeń:
-
-```ts
-apiScopes: [
-  { key: "deliveries:write", labelKey: "scopes.deliveriesWrite" },
-],
-```
-
-Klucz `scopes.deliveriesWrite` dodaj do `src/features/<x>/i18n/pl.json` i `en.json` tego samego feature. Strona `/api-keys` pokazuje zakresy wszystkich zainstalowanych modułów i szuka etykiety w module, który zakres zadeklarował. Zakres z `apiScopes` trafia do `knownApiScopes()` dopiero po `npm run wa -- generate`, bo rejestr `modules` pochodzi z pliku generowanego.
-
-2. **Trasa w `src/app/api/v1/<zasób>/route.ts`**, która najpierw woła `authenticateApiKey`, a dopiero potem dotyka danych. Wszystkie zapytania filtrują po `context.organizationId`; organizacji nie bierze się z treści żądania:
-
-```ts
-import { authenticateApiKey } from "@/features/api-keys/services/authenticate-api-key";
-import { receiveDelivery } from "@/features/deliveries/services/receive-delivery";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
-const NO_STORE = { "Cache-Control": "no-store" };
-
-export async function POST(request: Request) {
-  const auth = await authenticateApiKey(request, "deliveries:write");
-  if (!auth.ok) {
-    return Response.json(
-      { error: auth.error },
-      { status: auth.status, headers: NO_STORE },
-    );
-  }
-  const delivery = await receiveDelivery(auth.context, await request.json());
-  return Response.json(delivery, { status: 201, headers: NO_STORE });
-}
-```
-
-Trasa przekazuje `auth.context` do serwisu, który waliduje wejście Zod-em; logiki biznesowej nie trzyma w pliku `route.ts`. Serwis wołany z trasy z kluczem przyjmuje `ApiKeyContext` i leży w katalogu głównym `services/` feature, w pliku bez `"use server"` (jak `services/organization-api.ts` w module `api-keys`). Nie kładź go w `services/queries/`, bo test architektury wymaga tam guarda sesji. Nie kładź go też w pliku komend z `"use server"`: każda eksportowana funkcja takiego pliku to publiczna akcja serwerowa, w której wywołujący sam wybierałby `organizationId`. Odpowiedź ma `Cache-Control: no-store`, tak jak trasa przykładowa `GET /api/v1/organization`. Klucz nie jest sesją, więc `getOrgContext()` i `assertServiceModeConfirmed` nie mają tu zastosowania: tożsamością jest `context.organizationId`, a zakres sprawdza `authenticateApiKey`.
-
-3. **Audyt zapisu wykonanego kluczem** przez `trackAudit` z kanałem `API`. Zdarzenie nie ma użytkownika, a identyfikatorem poświadczenia jest id klucza:
-
-```ts
-import { trackAudit } from "@/shared/lib/audit";
-
-await trackAudit({
-  organizationId: context.organizationId,
-  actorUserId: null,
-  action: "delivery.received",
-  entityType: "delivery",
-  entityId: delivery.id,
-  channel: "API",
-  credentialId: context.apiKeyId,
-});
-```
-
-Dzięki temu strona `/audit-log` odróżnia zapis z API od zapisu z interfejsu, a wpis wskazuje klucz, który go wykonał. Akcję deklaruje się w `auditActions` jak w [sekcji o dzienniku zdarzeń](#dziennik-zdarzen).
+Dotyczy projektu z modułem `api-keys` ([14-modul-api-keys.md](14-modul-api-keys.md)). Funkcja, która wystawia trasę dla zewnętrznych systemów, deklaruje zakres w `apiScopes` swojego `module.ts`, w `src/app/api/v1/<zasób>/route.ts` najpierw woła `authenticateApiKey`, a dane czyta i zapisuje w serwisie, który przyjmuje `ApiKeyContext` i filtruje po jego `organizationId`. Przykłady z przebiegu na funkcji `deliveries`: [własny zakres](14b-modul-api-keys-uzycie.md#wlasny-zakres), [trasa z kluczem i serwis z filtrem organizacji](14b-modul-api-keys-uzycie.md#wlasna-trasa), [zapis zdarzenia z kanałem `API`](14b-modul-api-keys-uzycie.md#kanal-api). Kontrakt `authenticateApiKey` opisuje [14-modul-api-keys.md](14-modul-api-keys.md#authenticate), miejsce serwisu (nie w `services/queries/` ani w pliku z `"use server"`) [brak `OrgContext` i jawny filtr organizacji](14-modul-api-keys.md#bez-orgcontext), a pepper [konfiguracja peppera](14-modul-api-keys.md#pepper).
 
 <a id="istniejacy-modul"></a>
 
@@ -536,14 +403,14 @@ Dzięki temu strona `/audit-log` odróżnia zapis z API od zapisu z interfejsu, 
 
 Ta sekcja dotyczy zmiany w feature, który już ma wpis w `.wa/kit.json` i definicję modułu, na przykład usuwania notatek w feature `notes`. Nowego wpisu nie dodajesz, ale istniejący czasem zmieniasz (nowa relacja zwrotna, zmienna, wzorzec pliku).
 
-1. **Generator po nowym pliku z listy albo po zmianie wpisu.** Uruchom `npm run wa -- generate` wtedy, gdy w feature dochodzi plik `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts` albo `i18n/<locale>.json`, albo gdy zmieniasz wpis w `.wa/kit.json` (`schemaRelations`, `env`, `compose`), bo z niego generator wypełnia regiony ([Uruchomienie](02b-rejestr-i-generator.md#uruchomienie)). Nowa komenda, query, komponent, strona albo klucz w istniejącym pliku tłumaczeń generatora nie wymagają, bo rejestr importuje pliki, a nie kopiuje ich treść.
+1. **Generator po nowym pliku z listy albo po zmianie wpisu.** Uruchom `npm run wa -- generate` wtedy, gdy w feature dochodzi plik `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts`, `audit-sink.ts` albo `i18n/<locale>.json`, albo gdy zmieniasz wpis w `.wa/kit.json` (`schemaRelations`, `env`, `compose`, `ciSteps`), bo z niego generator wypełnia regiony ([Uruchomienie](02b-rejestr-i-generator.md#uruchomienie)). Nowa komenda, query, komponent, strona albo klucz w istniejącym pliku tłumaczeń generatora nie wymagają, bo rejestr importuje pliki, a nie kopiuje ich treść.
 2. **Plan i testy przed kodem**, jak w [kroku 6](09-nowy-modul.md#krok-6): zachowania z literałami, mutacje do zabicia, `test-writer`, czerwony przebieg z właściwego powodu.
 3. **Komenda według [kolejności z 06](06-wzorce-kodu.md#kolejnosc).** Gdy komenda zmienia albo usuwa rekord po `id` z wejścia, warunek ma postać `{ id, organizationId }`, bo samo `id` może wskazywać rekord innej organizacji ([Filtr `organizationId`](03-dane-i-organizacje.md#filtr-organizationid)). Reguła węższa niż dostęp do strony, na przykład usuwanie tylko przez ownera, sprawdza `context.orgRole` po `assertServiceModeConfirmed`.
 4. **Test izolacji dla nowej komendy albo query**: zalogowany użytkownik A podaje `id` rekordu organizacji B, komenda odmawia, a rekord B w bazie się nie zmienia ([Jak go zbudować](08-testy.md#izolacja), punkt 4). Dopisz go w istniejącym pliku `*.integration.test.ts` feature.
 5. **Zmiana schematu**: `npx prisma migrate dev --name <nazwa>`, potem `npm run db:generate`, i commit migracji razem ze zmianą ([krok 4](09-nowy-modul.md#krok-4)). Nowa relacja do `User` albo `Organization` wymaga najpierw nowej pozycji w `schemaRelations` istniejącego wpisu i przebiegu generatora. Bez tego Prisma zgłasza brak relacji zwrotnej i podpowiada `prisma format`, którego nie uruchamiaj ([pułapka relacji](09-nowy-modul.md#pulapka-relacji)).
 6. **Nowa strona feature** w `src/app/[locale]/(app)/<trasa>/page.tsx` woła `requireModuleAccess` z kluczem feature. Trasa spoza wzorców `files` wpisu działa, ale dopisz jej wzorzec, żeby zapis własności plików był pełny.
 7. **Zmiana dostępu albo menu w `module.ts`** (`nav`, `roles`, `adminOnly`, `multiOrgRoles`, `public`) zmienia wynik `canAccessModule` i listy menu. Testów rdzenia nie poprawiasz: spójność menu z `canAccessModule` dla całego rejestru sprawdza `registry-consistency.test.ts`, a własne reguły dostępu feature pokrywasz własnym testem ([krok 8](#testy-rdzenia)).
-8. **Bramki** jak w [kroku 8](#krok-8): `npm run wa -- generate` bez zmian, `npm run verify`, testy integracyjne i `npm run test:mutation:task` na zmienionych plikach produkcyjnych. Plik sprawdzany tylko testem integracyjnym, jak query, dostanie w tym przebiegu `NoCoverage`, więc jego test izolacji sprawdzasz ręcznie ([Testy integracyjne](#krok-8-integracja)).
+8. **Bramki** jak w [kroku 8](#krok-8): `npm run wa -- generate` bez zmian, `npm run verify`, testy integracyjne i `npm run test:mutation:task` na zmienionych plikach produkcyjnych. Plik sprawdzany tylko testem integracyjnym, jak query, dostanie w tym przebiegu `NoCoverage`, więc jego test izolacji sprawdzasz ręcznie albo przebiegiem `npm run test:mutation:integration` ([Testy integracyjne](#krok-8-integracja)).
 
 Nowy katalog w `src/features/` to zawsze nowy feature i nowy wzorzec w `.wa/kit.json`, więc przechodzi cały tutorial.
 

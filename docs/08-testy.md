@@ -45,9 +45,9 @@ Każdy rodzaj testu zastępuje inną część systemu, więc każdy łapie inne 
 | --- | --- | --- | --- | --- | --- |
 | Jednostkowe i komponentowe | Prawdziwy kod funkcji albo komponent React w jsdom (przeglądarka symulowana w Node). Zastąpione: Prisma, sesja better-auth, Next.js, mail. | `__tests__/` obok kodu w `src/` i `scripts/lib/`, także `e2e/__tests__/` | `npm test` | nie | tak |
 | Test architektury | Składnia plików z `src/`. Sprawdza, czy punkty wejścia serwera wołają guardy przed Prismą ([D24](decyzje.md#d24)). | `src/__tests__/server-entrypoints-guard.test.ts` | `npm test` | nie | tak |
-| Integracyjne | Prawdziwe: Postgres, Prisma, query, komendy i guardy. Zastąpione: nagłówki i przekierowania Next.js, język z next-intl, `auth.api.getSession`. | `*.integration.test.ts` | `npm run test:integration` | `_test`, czyści | nie |
+| Integracyjne | Prawdziwe: Postgres, Prisma, query, komendy i guardy, a w testach modułu `uploads` także magazyn S3 (MinIO). Zastąpione: nagłówki i przekierowania Next.js, język z next-intl, `auth.api.getSession`. | `*.integration.test.ts` | `npm run test:integration` | `_test`, czyści | nie |
 | E2E | Cała aplikacja po buildzie produkcyjnym, przeglądarka Chromium, baza i mailpit. Nic nie jest zastąpione. | `e2e/*.spec.ts` | `npm run test:e2e` | `_e2e`, kasuje | nie |
-| CLI | Generator `wa` na kopii plików w katalogu tymczasowym systemu. | `kit/cli/src/**/__tests__/` | `npm test --prefix kit/cli` | nie | nie |
+| CLI | Generator i komendy `wa` na kopii plików w katalogu tymczasowym systemu. Tylko w repozytorium kitu. | `kit/cli/src/**/__tests__/` | `npm test --prefix kit/cli` | nie | nie (bramka CLI) |
 | Hooki Claude Code | Funkcje i skrypty hooków z `.claude/hooks/`, także uruchamiane jako osobne procesy. | `.claude/hooks/*.test.mjs` | `npm run test:hooks` | nie | tak |
 | Mutacyjne (Stryker) | Testy jednostkowe albo integracyjne uruchamiane na kodzie z celowo wstrzykniętymi błędami ([08b](08b-testy-adwersarialne.md#stryker)). | konfiguracja w katalogu głównym | `npm run test:mutation` i pokrewne | integracyjny: `_test`, czyści | nie |
 
@@ -72,6 +72,8 @@ Prismę podstawia się na dwa sposoby:
 - **`vi.mock("@/shared/lib/prisma", …)`** z funkcjami `vi.fn()`, gdy test sprawdza kolejność kroków i przekazane dane, na przykład `src/features/users/services/commands/__tests__/invite-user-command.test.ts`.
 - **`createFakePrisma`** z `src/test/fake-prisma.ts`, gdy test ma sprawdzić, że `where` naprawdę filtruje. To Prisma w pamięci dla tabel `users`, `organizations`, `members` i `sessions`: wylicza `where` (`AND`, `OR`, `NOT`, `equals`, `in`, `notIn`, `not`, relacje `some`, `none`, `every` i `is`), `orderBy`, `select`, `include`, `take` i `skip`. Ma `findMany`, `findFirst`, `findUnique`, ich warianty `OrThrow`, `count`, `update`, `updateMany` i `$transaction`, ale nie ma `create` ani `delete`. Nieobsługiwany operator kończy się błędem `fake-prisma: nieobsługiwany operator …`, więc test nie przejdzie po cichu. Używają jej testy `enter-organization-command.test.ts`, `default-organization-query.test.ts` i `switchable-organizations-query.test.ts`.
 
+<a id="testy-rdzenia"></a>Testy rdzenia, które porównują rejestr modułów z listą wpisaną literałem, biorą z niego tylko pięć modułów rdzenia: `access-matrix.test.ts` i `nav.test.ts` przez `coreClientModules` z `src/test/core-modules.ts` (`clientModules` przefiltrowany do `CORE_MODULE_KEYS`), a `app-sidebar.test.tsx` przez własny `vi.mock("@/modules.client.generated", …)` z tymi samymi pięcioma kluczami. Moduły kitu i funkcje projektu nie zmieniają więc ich oczekiwanych wartości; spójność całego rejestru sprawdza `registry-consistency.test.ts` ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)).
+
 Testy komponentów renderują je w `NextIntlClientProvider` z tekstami rdzenia i feature, na przykład przez pomocnik `src/features/auth/components/__tests__/helpers/render.tsx`.
 
 Jeden plik uruchomisz komendą `npx vitest run <ścieżka>`, a tryb obserwowania zmian komendą `npm run test:watch`.
@@ -80,13 +82,13 @@ Jeden plik uruchomisz komendą `npx vitest run <ścieżka>`, a tryb obserwowania
 
 ## Testy integracyjne
 
-Testy integracyjne sprawdzają query, komendy i guardy na prawdziwym Postgresie. Są w plikach `*.integration.test.ts` i nie wchodzą do `npm test`. W kicie jest jeden taki plik: test izolacji organizacji ([Test izolacji organizacji](#izolacja)).
+Testy integracyjne sprawdzają query, komendy i guardy na prawdziwym Postgresie. Są w plikach `*.integration.test.ts` i nie wchodzą do `npm test`. Rdzeń ma jeden taki plik, test izolacji organizacji ([Test izolacji organizacji](#izolacja)). Moduły kitu dokładają własne: `audit-logs` cztery, `api-keys` dwa, `uploads` trzy (w repozytorium kitu razem 10 plików). Projekt ma pliki rdzenia i zainstalowanych modułów. Testy `uploads` zapisują i czytają obiekty w prawdziwym magazynie S3, więc wymagają działającego MinIO ([15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#testowanie)).
 
 Konfiguracja `vitest.integration.config.ts`:
 
 - środowisko `node`, pliki `src/**/*.integration.test.ts`;
 - `globalSetup: ["./src/test/integration/global-setup.ts"]` raz przed wszystkimi plikami zakłada bazę, gdy jej nie ma, i dopasowuje jej schemat przez `prisma db push` ([co dokładnie robi z bazą](#baza));
-- `setupFiles: ["./src/test/integration/setup-env.ts"]` przed każdym plikiem ustawia zmienne: `DATABASE_URL` na adres bazy testowej, `BETTER_AUTH_SECRET`, `APP_URL`, `EMAIL_FROM`, `MULTI_ORG=false` i `AUTH_PUBLIC_SIGNUP=false`;
+- `setupFiles: ["./src/test/integration/setup-env.ts"]` przed każdym plikiem ustawia zmienne: `DATABASE_URL` na adres bazy testowej, `BETTER_AUTH_SECRET`, `APP_URL`, `EMAIL_FROM`, `API_KEY_PEPPER`, zmienne magazynu (`S3_ENDPOINT` z `INTEGRATION_S3_ENDPOINT`, domyślnie `http://localhost:9000`; `S3_BUCKET` z `INTEGRATION_S3_BUCKET`, domyślnie `<slug>-uploads` ze sluga w `src/shared/config/project.ts`; klucze `minioadmin`; `S3_FORCE_PATH_STYLE=true`), `MULTI_ORG=false` i `AUTH_PUBLIC_SIGNUP=false`. Pepper i zmienne S3 są ustawione zawsze, także w projekcie bez `api-keys` i `uploads`;
 - `fileParallelism: false`: pliki działają po kolei, bo wszystkie używają jednej bazy, a każdy test zaczyna od wyczyszczenia tabel;
 - `testTimeout: 20_000` i `hookTimeout: 60_000` (w milisekundach, zamiast domyślnych w Vitest 5 i 10 sekund), bo test i `beforeEach` czekają na bazę.
 
@@ -105,7 +107,7 @@ Pomocniki do zakładania danych są w `src/test/integration/database.ts`:
 
 Komenda czyści bazę testową, a zabezpieczenie sprawdza tylko jej nazwę, nie serwer ani port. Przed pierwszym uruchomieniem przeczytaj [Czego zabezpieczenie nie sprawdza](#baza-pulapki).
 
-1. Uruchom bazę z `docker-compose.yml`: `docker compose up -d db`.
+1. Uruchom bazę z `docker-compose.yml`: `docker compose up -d db`. W projekcie z modułem `uploads` uruchom też MinIO i założenie bucketu: `docker compose up -d db minio minio-init` ([15-modul-uploads.md](15-modul-uploads.md#minio)). MinIO na innym porcie albo inny bucket podajesz w powłoce przez `INTEGRATION_S3_ENDPOINT` i `INTEGRATION_S3_BUCKET`.
 2. W katalogu głównym repozytorium uruchom testy z adresem bazy testowej. Port w adresie to port Twojego kontenera (`DB_PORT` albo 5432). Bazy `wa_app_test` nie musisz zakładać, zrobi to `globalSetup`.
 
    ```bash
@@ -113,7 +115,7 @@ Komenda czyści bazę testową, a zabezpieczenie sprawdza tylko jej nazwę, nie 
    ```
 
    Przy porcie 5432 zmienną możesz pominąć, bo to jej wartość domyślna.
-3. Na początku Prisma wypisze linię `Datasource "db": PostgreSQL database "wa_app_test", schema "public" at "localhost:5432"`. Sprawdź w niej nazwę bazy i port. Na końcu Vitest wypisze `Test Files  1 passed (1)` i liczbę testów.
+3. Na początku Prisma wypisze linię `Datasource "db": PostgreSQL database "wa_app_test", schema "public" at "localhost:5432"`. Sprawdź w niej nazwę bazy i port. Na końcu Vitest wypisze liczbę plików (`Test Files  … passed`) i testów. Bez działającego MinIO testy `uploads` nie przejdą, bo łączą się z magazynem pod `S3_ENDPOINT` (wniosek z kodu testów, przebiegu nie uruchamiano).
 
 Jeśli ustawiasz `INTEGRATION_DATABASE_URL`, to w powłoce. Vitest nie wczytuje `.env` do `process.env` (sprawdzone próbą z Vitest 4.1.12), a konfiguracja integracyjna nie ma pliku z dotenv, więc wpis w `.env` nie zadziała i testy pójdą na port 5432.
 
@@ -139,7 +141,7 @@ Testy e2e sprawdzają w przeglądarce przepływy, w których biorą udział wszy
 | `core-auth` | `e2e/core-auth.spec.ts` | `E2E_CORE_PORT`, domyślnie 3000 | `false` | `false` | Admin zaprasza użytkownika, ten ustawia hasło z maila i loguje się, a `/users` daje mu 404. Rejestracja bez zaproszenia dostaje 403. Reset hasła przez `/forgot-password`. |
 | `multi-org` | `e2e/multi-org.spec.ts` | `E2E_MULTI_ORG_PORT`, domyślnie 3001 | `true` | `true` | Każda rejestracja tworzy własną organizację, widać `OrgSwitcher`, a druga osoba nie widzi członków pierwszej. |
 
-Serwery dostają zmienne z `appEnv` w `e2e/env.ts`: adres bazy e2e, `APP_URL` z własnym portem, `SMTP_URL` mailpit, `LOG_LEVEL: "warn"` i `RESEND_API_KEY: "re_e2e_unused"`. Serwer standalone działa w trybie produkcyjnym, w którym walidacja zmiennych wymaga `RESEND_API_KEY`, a `SMTP_URL` i tak ma pierwszeństwo, więc ten klucz nigdy nie jest używany ([07-i18n-mail-env.md](07-i18n-mail-env.md)).
+Serwery dostają zmienne z `appEnv` w `e2e/env.ts`: adres bazy e2e, `APP_URL` z własnym portem, `SMTP_URL` mailpit, `LOG_LEVEL: "warn"`, `RESEND_API_KEY: "re_e2e_unused"`, `API_KEY_PEPPER` i zmienne S3 (`S3_ENDPOINT` z powłoki albo `http://localhost:9000`, klucze `minioadmin`, bucket `wa-app-uploads`, w projekcie `<slug>-uploads`, bo `e2e/env.ts` jest w `placeholderFiles` kitu). Pepper i zmienne S3 są tam tylko po to, żeby przeszła walidacja `env` w projekcie z `api-keys` albo `uploads`; testy e2e kitu nie wysyłają plików, a `e2e.yml` nie uruchamia MinIO ([15-modul-uploads.md](15-modul-uploads.md#ci)). Serwer standalone działa w trybie produkcyjnym, w którym walidacja zmiennych wymaga `RESEND_API_KEY`, a `SMTP_URL` i tak ma pierwszeństwo, więc ten klucz nigdy nie jest używany ([07-i18n-mail-env.md](07-i18n-mail-env.md)).
 
 Testy działają po kolei: `workers: 1`, `fullyParallel: false`, a pliki mają `test.describe.configure({ mode: "serial" })`. Testy w pliku zależą od siebie, na przykład trzeci test w `core-auth.spec.ts` loguje się kontem zaproszonym w pierwszym. Nieudany test nie jest powtarzany (`retries: 0`), a ślad Playwright zostaje tylko dla nieudanych (`trace: "retain-on-failure"`). Przeglądarka to Chromium z ustawieniami `Desktop Chrome` i językiem `pl`.
 
@@ -175,7 +177,7 @@ Prisma 7.10.1 sprawdza przy `db push --force-reset` i `migrate reset`, czy uruch
 
 ## Testy CLI i hooków
 
-**CLI** (`kit/cli`) ma własną konfigurację `kit/cli/vitest.config.ts`: środowisko `node`, pliki `src/**/*.test.ts`. Testy generatora i manifestu kopiują pliki do katalogu tymczasowego systemu (`mkdtemp`), więc nie zmieniają plików repozytorium. Uruchomisz je komendą `npm test --prefix kit/cli`, a w bramce CLI (`npm run verify --prefix kit/cli`) i w workflow `kit.yml`. Główny `npm test` pomija `kit/**`.
+**CLI** (`kit/cli`, tylko w repozytorium kitu) ma własną konfigurację `kit/cli/vitest.config.ts`: środowisko `node`, pliki `src/**/*.test.ts`. Testy generatora, manifestu i komend kopiują pliki do katalogu tymczasowego systemu (`mkdtemp`), więc nie zmieniają plików repozytorium. Wyjątek to test własności plików, który czyta prawdziwe repozytorium kitu ([D38](decyzje.md#d38)). Uruchomisz je komendą `npm test --prefix kit/cli`. Bramka CLI `npm run verify --prefix kit/cli` uruchamia po kolei lint (`eslint .` z `kit/cli/eslint.config.mjs`), typecheck, testy i build bundla; ta sama bramka działa w jobie `cli` workflowu `kit.yml`. CLI ma też własną konfigurację Strykera i bramkę mutacji (`kit/cli/stryker.config.json`, `kit/cli/mutation-gate.json`, komendy `npm run test:mutation:task --prefix kit/cli -- <pliki>` i `npm run test:mutation:gate --prefix kit/cli`); pełny przebieg uruchamia ręcznie `kit-mutation.yml`. Szczegóły: [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli). Główny `npm test` pomija `kit/**`.
 
 **Hooki Claude Code** testuje `npm run test:hooks`, czyli wbudowany runner Node (`node --test`) na `.claude/hooks/block-comments.test.mjs` i `.claude/hooks/protect-tests.test.mjs`. Testy wywołują funkcje hooka, a w części przypadków uruchamiają skrypt jako osobny proces z wejściem JSON, tak jak robi to Claude Code, i sprawdzają kod wyjścia. Co robią hooki: [D23](decyzje.md#d23) (komentarze) i [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza) (testy tylko do odczytu).
 
@@ -187,7 +189,7 @@ Prisma 7.10.1 sprawdza przy `db push --force-reset` i `migrate reset`, czy uruch
 
 | Komenda | Co robi z bazą | Która baza: skąd adres | Zabezpieczenie |
 | --- | --- | --- | --- |
-| `npm run test:e2e` | Raz na przebieg: `prisma db push --force-reset` albo, gdy `prisma/migrations/` zawiera coś poza `prisma/migrations/migration_lock.toml`, `prisma migrate reset --force`. Obie kasują wszystkie dane i schemat, a potem tworzą schemat od nowa. Prisma tworzy bazę, gdy jej nie ma. | `DATABASE_URL` z powłoki, a bez niej `postgresql://postgres:postgres@localhost:${dbPort}/wa_app_e2e`, gdzie `dbPort` to `DB_PORT` z powłoki albo `"5432"` (`e2e/env.ts`). | `assertE2eDatabase` (`e2e/database-guard.ts`) przed resetem: nazwa musi kończyć się na `_e2e`. |
+| `npm run test:e2e` | Raz na przebieg: `prisma db push --force-reset` albo, gdy `prisma/migrations/` zawiera choć jeden podkatalog migracji (`hasMigrations` w `e2e/migrations.ts`; same pliki, jak `prisma/migrations/migration_lock.toml` albo `prisma/migrations/.gitignore`, się nie liczą), `prisma migrate reset --force`. Obie kasują wszystkie dane i schemat, a potem tworzą schemat od nowa. Prisma tworzy bazę, gdy jej nie ma. | `DATABASE_URL` z powłoki, a bez niej `postgresql://postgres:postgres@localhost:${dbPort}/wa_app_e2e`, gdzie `dbPort` to `DB_PORT` z powłoki albo `"5432"` (`e2e/env.ts`). | `assertE2eDatabase` (`e2e/database-guard.ts`) przed resetem: nazwa musi kończyć się na `_e2e`. |
 | `npm run test:integration` | Raz na przebieg: `CREATE DATABASE`, gdy bazy nie ma, i `prisma db push`. Potem `resetDatabase()` w `beforeEach` testu (test rdzenia woła ją przed każdym testem): `TRUNCATE` tabel rdzenia i każdej tabeli, która ma do nich klucz obcy. | `INTEGRATION_DATABASE_URL` z powłoki, a bez niej `postgresql://postgres:postgres@localhost:5432/wa_app_test` (`src/test/integration/database-url.ts`). `DB_PORT` nie ma tu znaczenia. | `assertTestDatabase`: nazwa musi kończyć się na `_test`. Sprawdzana w `globalSetup` przed `CREATE DATABASE` i `db push` oraz w `resetDatabase()` przed każdym `TRUNCATE`. |
 | `npm run test:integration -- <plik>`, `npx vitest run -c vitest.integration.config.ts` | Jak `npm run test:integration`. | Jak wyżej. | Jak wyżej. |
 | `npm run test:mutation:integration` | Jak `npm run test:integration`, ale wiele razy: Stryker uruchamia testy integracyjne dla kolejnych mutantów ([08b](08b-testy-adwersarialne.md#stryker)). | Jak wyżej. | Jak wyżej. |
@@ -219,7 +221,7 @@ export const E2E_DATABASE_URL =
   assertE2eDatabase(env.DATABASE_URL);
 
   run(
-    hasMigrations()
+    hasMigrations("prisma/migrations")
       ? ["prisma", "migrate", "reset", "--force"]
       : ["prisma", "db", "push", "--force-reset"],
     env,
@@ -313,7 +315,7 @@ export async function resetDatabase(): Promise<void> {
 }
 ```
 
-`CASCADE` sprawia, że Postgres czyści też każdą tabelę z kluczem obcym do tych tabel, na przykład tabelę feature z relacją do `Organization`. Tabela bez takiego klucza zostaje nietknięta ([Czyszczenie tabel feature](#izolacja-czyszczenie)).
+`CASCADE` sprawia, że Postgres czyści też każdą tabelę z kluczem obcym do tych tabel, na przykład tabelę feature z relacją do `Organization`. Tabela bez takiego klucza zostaje nietknięta ([Czyszczenie tabel feature](#izolacja-czyszczenie)). Tabele modułów kitu (`audit_logs`, `api_keys`, `uploads`) mają klucz obcy do `organizations`, więc są czyszczone razem z nimi. Obiektów w magazynie S3 `resetDatabase()` nie usuwa ([15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#testowanie)).
 
 <a id="baza-pulapki"></a>
 
@@ -409,7 +411,7 @@ Test feature zakładasz w osobnym pliku, na przykład `src/features/<x>/services
 
    `ACCESS_DENIED` to stała z literałem `{ success: false, error: "Brak dostępu do organizacji" }`. `enterOrganizationCommand` przyjmuje tylko `organizationId`. Twoja komenda na danych organizacji ma sygnaturę `(input, confirmation?)` ([06-wzorce-kodu.md](06-wzorce-kodu.md#kontrakt-komendy)). Użytkownik zalogowany przez `signInAs` z członkostwem nie jest w trybie serwisowym, więc wołasz ją bez potwierdzenia, z samym wejściem.
 5. **Brak członkostwa:** zaloguj użytkownika A z aktywną organizacją B i sprawdź, że query rzuca `NoOrganizationError` (wzór: test „aktywna organizacja, do której użytkownik nie należy → NoOrganizationError”).
-6. **Sprawdź, że test umie się wywrócić.** Usuń na chwilę `organizationId` z `where` i uruchom test. Musi nie przechodzić. Stryker zrobi to za Ciebie tylko dla plików z listy `mutate` w `stryker.integration.config.json` (organizacje, `org-context.ts`, `require-module-access.ts`, query użytkowników). Plików nowego feature tam nie ma, a przebieg unitowy uruchamia tylko testy jednostkowe ([08b](08b-testy-adwersarialne.md#stryker)).
+6. **Sprawdź, że test umie się wywrócić.** Usuń na chwilę `organizationId` z `where` i uruchom test. Musi nie przechodzić. Stryker robi to za Ciebie w przebiegu `npm run test:mutation:integration`, bo lista `mutate` w `stryker.integration.config.json` obejmuje `src/features/*/services/**/*.ts` (także `services/` nowego feature), `org-context.ts` i `require-module-access.ts`. Przebieg unitowy uruchamia tylko testy jednostkowe, więc pliki sprawdzane wyłącznie testem integracyjnym dostają w nim `NoCoverage` ([08b](08b-testy-adwersarialne.md#stryker)).
 
 Oczekiwane wartości wpisuj jako literały (adresy e-mail, nazwy, liczby), a nie jako wynik kodu produkcyjnego. Powód: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#zasady).
 
@@ -448,9 +450,11 @@ Przebiegi z trybem przyrostowym są zwykle znacznie krótsze niż pełne, bo spr
 | Workflow, job | Kiedy działa | Co uruchamia | Baza i usługi |
 | --- | --- | --- | --- |
 | `ci.yml`, job `verify` | Push do `main`, pull request do `main`. | `npm run wa -- generate`, `git diff --exit-code` (pliki generowane muszą być aktualne), `npm run verify`. | Brak. |
-| `ci.yml`, job `integration` | Jak `verify`. | `npm run test:integration`. | Usługa `postgres:16`, `INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wa_app_test`. |
+| `ci.yml`, job `integration` | Jak `verify`. | Kroki z regionu `# wa:ci-integration:start` / `# wa:ci-integration:end`, potem `npm run test:integration`. | Usługa `postgres:16`, `INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wa_app_test`. Przy module `uploads` region uruchamia MinIO na porcie 9000 i zakłada bucket `<slug>-uploads`. |
 | `e2e.yml` | Push do `main`. Pull request do `main`, chyba że zmienia tylko `docs/**`, `*.md` albo `.husky/**`. | Instalacja Chromium, `npx prisma migrate dev --name init`, `npm run test:e2e`. Raport HTML jako artefakt `playwright-report` (14 dni). Limit 30 minut. | Usługa `postgres:16` z bazą `wa_app_e2e`, mailpit na portach 8025 i 1025. |
-| `mutation.yml` | Tylko ręcznie (`workflow_dispatch`). | `npm run test:mutation`, `npm run test:mutation:integration`, `npm run test:mutation:gate`. Raporty jako artefakt `mutation-report`. Limit 60 minut. | Usługa `postgres:16`, `INTEGRATION_DATABASE_URL` jak w `integration`. |
+| `mutation.yml` | Tylko ręcznie (`workflow_dispatch`). | `npm run test:mutation`, `npm run test:mutation:integration`, `npm run test:mutation:gate`. Raporty jako artefakt `mutation-report`. Limit 60 minut. | Usługa `postgres:16`, `INTEGRATION_DATABASE_URL` jak w `integration`. Bez MinIO i bez regionu `wa:ci-integration`, więc w repozytorium kitu i w projekcie z `uploads` testy integracyjne tego modułu nie mają magazynu (wniosek z kodu workflowu, przebiegu nie uruchamiano). |
+
+Region `wa:ci-integration` wypełnia `npm run wa -- generate` z pól `ciSteps` manifestów zainstalowanych modułów; w kicie ma go tylko `uploads` ([15-modul-uploads.md](15-modul-uploads.md#ci), [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#regiony)). W repozytorium kitu działają jeszcze `kit.yml` (bramka CLI i składanie projektów z kitu) i `kit-mutation.yml` (ręczny przebieg mutacji CLI); do projektów nie trafiają ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#ci-kitu)).
 
 Kit nie commituje migracji ([D13](decyzje.md#d13)), więc `e2e.yml` tworzy migrację w trakcie przebiegu. `globalSetup` widzi ją w `prisma/migrations/` i resetuje bazę przez `prisma migrate reset --force`, a nie przez `db push --force-reset` jak lokalnie w repozytorium kitu.
 
@@ -474,6 +478,7 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 | `npm run test:e2e` | `npm run build && rm -rf .next/standalone/.next/static && cp -R .next/static .next/standalone/.next/static && playwright test` | `_e2e`, kasuje | nie | `e2e.yml` |
 | `npm run test:hooks` | `node --test .claude/hooks/block-comments.test.mjs .claude/hooks/protect-tests.test.mjs` | nie | tak | `ci.yml`, `verify` |
 | `npm test --prefix kit/cli` | `vitest run` w `kit/cli/package.json` | nie | nie (bramka `verify` kitu) | `kit.yml`, `cli` |
+| `npm run verify --prefix kit/cli` | `npm run lint && npm run typecheck && npm test && npm run build` w `kit/cli/package.json` | nie | — | `kit.yml`, `cli` |
 | `npm run test:mutation` | `stryker run` | nie | nie | `mutation.yml`, tylko ręcznie |
 | `npm run test:mutation:task -- <pliki>` | `stryker run --force --mutate` | nie | nie | nie |
 | `npm run test:mutation:integration` | `stryker run stryker.integration.config.json` | `_test`, czyści | nie | `mutation.yml`, tylko ręcznie |
@@ -494,13 +499,15 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 | `src/test/integration/database-url.ts` | Adres bazy testowej i `assertTestDatabase`. |
 | `src/test/integration/database.ts` | `resetDatabase` i pomocniki do zakładania danych. |
 | `src/test/fake-prisma.ts` | Prisma w pamięci dla testów jednostkowych. |
+| `src/test/core-modules.ts` | `CORE_MODULE_KEYS` i `coreClientModules`: rejestr przefiltrowany do modułów rdzenia dla testów z listą wpisaną literałem. |
 | `playwright.config.ts` | Projekty `core-auth` i `multi-org`, dwa serwery, `globalSetup`, praca po kolei. |
 | `e2e/env.ts` | Porty, adres bazy e2e, mailpit, konto administratora, zmienne serwerów (`appEnv`). |
 | `e2e/global-setup.ts` | Reset bazy e2e, `admin:create`, czyszczenie mailpit. |
 | `e2e/database-guard.ts` | `assertE2eDatabase`. |
 | `e2e/helpers.ts` | `LABELS`, logowanie, rejestracja, ustawienie hasła, API mailpit. |
 | `kit/cli/vitest.config.ts` | Testy CLI: `node`, `src/**/*.test.ts`. |
-| `turbo.json` | Zadania `build`, `lint`, `test` i `typecheck` w workspace `packages/*` (obecnie pusty); każde po `^build`. |
+| `kit/cli/eslint.config.mjs`, `kit/cli/stryker.config.json`, `kit/cli/mutation-gate.json` | Lint, Stryker i bramka mutacji CLI ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli)). |
+| `turbo.json` | Zadania `build`, `lint`, `test` i `typecheck` w workspace `packages/*`, który jest pusty; każde po `^build`. |
 | `stryker.config.json`, `stryker.integration.config.json`, `mutation-gate.json` | Mutation testing i bramka mutacji: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#referencja). |
 
 <a id="referencja-zmienne"></a>
@@ -512,6 +519,8 @@ Wszystkie czytane są tylko ze zmiennych powłoki. Ani Vitest w konfiguracji int
 | Zmienna | Czyta | Wartość domyślna | Uwagi |
 | --- | --- | --- | --- |
 | `INTEGRATION_DATABASE_URL` | `src/test/integration/database-url.ts` | `postgresql://postgres:postgres@localhost:5432/wa_app_test` | Nazwa bazy musi kończyć się na `_test`. |
+| `INTEGRATION_S3_ENDPOINT`, `INTEGRATION_S3_BUCKET` | `src/test/integration/setup-env.ts`, `storage.integration.test.ts` | `http://localhost:9000`, `<slug>-uploads` | Adres MinIO i bucket testów integracyjnych. |
+| `S3_ENDPOINT` | `e2e/env.ts` | `http://localhost:9000` | Tylko do walidacji `env` serwerów e2e. |
 | `DATABASE_URL` | `e2e/env.ts` | `postgresql://postgres:postgres@localhost:${dbPort}/wa_app_e2e` | Nazwa bazy musi kończyć się na `_e2e`. W testach integracyjnych `setup-env.ts` nadpisuje ją adresem testowym. |
 | `DB_PORT` | `e2e/env.ts` | `5432` | Tylko do domyślnego adresu bazy e2e. |
 | `MAILPIT_UI_PORT`, `MAILPIT_URL` | `e2e/env.ts` | `8025`, `http://localhost:${mailpitUiPort}` | API mailpit dla `getLastMail` i `clearMailbox`. |

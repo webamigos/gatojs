@@ -112,7 +112,7 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Dokument:** `docs/09b-implementacja-i-bramki.md` („Dziennik zdarzeń w funkcji projektu”, „Trasy API”) i [spec planu 3](../specs/2026-10-28-wa-kit-plan-3-modules-design.md) §5 używają jako przykładu akcji `delivery.received`, którą funkcja projektu deklaruje w `auditActions`.
 - **Kod:** test „pokazuje surowy action, gdy akcja nie ma deklaracji” w `src/features/audit-logs/components/__tests__/audit-log-view.test.tsx` renderuje `AuditLogView` na prawdziwym `clientModules` (bez `vi.mock("@/modules.client.generated")`, inaczej niż `audit-log-view-labels.test.tsx`) i oczekuje surowego napisu `delivery.received`. W przebiegu Task 6 (projekt z `v0.1.0`, `audit-logs` i funkcją projektu deklarującą `delivery.received`) `npm run verify` padł: `Tests  1 failed | 1455 passed (1456)`, `Unable to find an element with the text: delivery.received`. Po zmianie nazwy akcji na `delivery.accepted` przebieg był zielony.
 - **Propozycja:** w teście kitu zamockować rejestr albo użyć nazwy akcji, której projekt nie zadeklaruje (na przykład z prefiksem `test.`); do czasu poprawki przykłady w 09b zmienić na inną akcję. `docs/13b-modul-audit-logs-uzycie.md` opisuje objaw w „Typowych problemach”.
-- **Status:** otwarte (kod: zgłoszenie do kitu; 09b: Task 11).
+- **Status:** częściowo naprawione. 09b naprawione w Task 11: sekcje „Dziennik zdarzeń w funkcji projektu” i „Trasa API z kluczem w funkcji projektu” odsyłają do 13b i 14b (przykłady z `delivery.accepted`) i nie zawierają już `delivery.received`. Kod: otwarte (zgłoszenie do kitu).
 
 ## R16. Spec planu 3 zapowiada kanał `API` dla żądań z kluczem, kod kitu go nie zapisuje
 
@@ -140,7 +140,7 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Dokument:** `docs/10-wdrozenie.md` („Zmienne produkcyjne”, wiersz `API_KEY_PEPPER`, odnośnik „pepper”), `docs/07-i18n-mail-env.md` („Kiedy i jak działa walidacja”) i `docs/09b-implementacja-i-bramki.md` („Trasa API z kluczem w funkcji projektu”) odsyłają do `12-moduly-kitu.md#api-keys`; po przepisaniu 12 ta sekcja ma jedno zdanie, a pepper, kontrakt `authenticateApiKey` i trasa z kluczem są w [14-modul-api-keys.md](../../14-modul-api-keys.md#pepper) i [14b-modul-api-keys-uzycie.md](../../14b-modul-api-keys-uzycie.md#wlasna-trasa).
 - **Kod:** nie dotyczy.
 - **Propozycja:** w Task 11 zmienić odnośniki na sekcje „Konfiguracja peppera” w 14 i „Trasa z kluczem i serwis z filtrem organizacji” w 14b; przykład w 09b z akcją `delivery.received` poprawić zgodnie z R15.
-- **Status:** częściowo naprawione. `07-i18n-mail-env.md` odsyła do [14-modul-api-keys.md](../../14-modul-api-keys.md#pepper) (Task 10). `09b-implementacja-i-bramki.md` i `10-wdrozenie.md` otwarte, naprawia Task 11.
+- **Status:** naprawione. `07-i18n-mail-env.md` odsyła do [14-modul-api-keys.md](../../14-modul-api-keys.md#pepper) (Task 10); `10-wdrozenie.md` (wiersz `API_KEY_PEPPER`) do `14-modul-api-keys.md#pepper`, a `09b-implementacja-i-bramki.md` („Trasa API z kluczem w funkcji projektu”) do `14b-modul-api-keys-uzycie.md#wlasna-trasa`, `14-modul-api-keys.md#authenticate`, `#bez-orgcontext` i `#pepper` (Task 11).
 
 ## R20. D44: odpowiedź 404 `GET /api/uploads/<id>` ma `X-Content-Type-Options: nosniff` z `next.config.ts`
 
@@ -168,11 +168,18 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Dokument:** `docs/01-uruchomienie.md` („MinIO”) linkuje `12-moduly-kitu.md#uploads` (sekcja ma jedno zdanie), `docs/09b-implementacja-i-bramki.md` („Pliki w funkcji projektu”) linkuje `12-moduly-kitu.md#uploads` i `12-moduly-kitu.md#usuwanie` (kotwicy nie ma).
 - **Kod:** nie dotyczy.
 - **Propozycja:** w Task 11 zmienić odnośniki na [15-modul-uploads.md](../../15-modul-uploads.md) (`#minio`, `#usuwanie`) i [15b-modul-uploads-uzycie.md](../../15b-modul-uploads-uzycie.md#uzycie); w 09b przykład celu `delivery-photo` jest zgodny z przebiegiem Task 8.
-- **Status:** otwarte, naprawia Task 11.
+- **Status:** naprawione w Task 11. `01-uruchomienie.md` odsyła do `15-modul-uploads.md#minio` (jedyna zmiana w 01, SHA bez zmian); `09b-implementacja-i-bramki.md` („Pliki w funkcji projektu”) do `15b-modul-uploads-uzycie.md` (`#wlasny-cel`, `#formularz`, `#zapis-id`, `#usuwanie-z-encja`) i `15-modul-uploads.md` (`#szwy`, `#usuwanie`, `#minio`).
 
 ## R24. `filename*` w `Content-Disposition` zostawia `*`, `(` i `)` bez kodowania
 
 - **Dokument:** RFC 5987/8187 (`attr-char`: litery, cyfry i `!#$&+-.^_`|~`) i [spec planu 3](../specs/2026-10-28-wa-kit-plan-3-modules-design.md) §7 („Poprawny `Content-Disposition` (RFC 6266, `filename*`)”).
 - **Kod:** `src/features/uploads/services/content-disposition.ts` koduje `filename*` przez `encodeURIComponent` i zamienia tylko `'` na `%27`; `encodeURIComponent` zostawia `!~*()` (`encodeURIComponent("a!~*()b.png")` daje `a!~*()b.png`). `*`, `(` i `)` nie są `attr-char`, więc nazwa z nawiasami daje wartość niezgodną ze składnią RFC; przeglądarki zwykle ją akceptują.
 - **Propozycja:** w kodzie kitu zamieniać też `*`, `(`, `)` na `%2A`, `%28`, `%29` i dopisać przypadek testu (zgłoszenie do kitu). `docs/15-modul-uploads.md` („Pobieranie”) opisuje zachowanie z kodu.
+- **Status:** otwarte (kod: zgłoszenie do kitu).
+
+## R25. `mutation.yml` nie uruchamia MinIO, a przebieg integracyjny Strykera obejmuje testy `uploads`
+
+- **Dokument:** `AGENTS.md`, „Testy” (`.github/workflows/mutation.yml` uruchamiany ręcznie, pełny przebieg przed releasem kitu) i [D26](../../decyzje.md#d26).
+- **Kod:** `.github/workflows/mutation.yml` ma tylko usługę `postgres:16` i nie ma regionu `wa:ci-integration` ani kroków MinIO, a krok „Run Stryker (integration)” uruchamia `npm run test:mutation:integration` z `vitest.integration.config.ts`, czyli także `src/features/uploads/services/__tests__/*.integration.test.ts`, które łączą się z S3 pod `http://localhost:9000` (`setup-env.ts`, `storage.integration.test.ts`). Lista `mutate` w `stryker.integration.config.json` obejmuje `src/features/*/services/**/*.ts`. Bez MinIO testy `uploads` nie przejdą już w przebiegu początkowym Strykera, więc przebieg integracyjny w tym workflowie w repozytorium kitu i w projekcie z `uploads` najpewniej zakończy się błędem (wniosek z kodu workflowu i testów; workflow nie był uruchamiany). Job `integration` w `ci.yml` ma te kroki w regionie `wa:ci-integration`.
+- **Propozycja:** dodać do `mutation.yml` region `# wa:ci-integration:start/end` przed krokiem „Run Stryker (integration)” i wpisać ten plik do regionów generatora (zgłoszenie do kitu). `docs/08-testy.md` („CI”) opisuje stan z kodu.
 - **Status:** otwarte (kod: zgłoszenie do kitu).
