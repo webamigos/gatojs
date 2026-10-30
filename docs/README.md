@@ -28,7 +28,7 @@ Plik, którego źródła się zmieniły, trzeba sprawdzić ponownie. Poza nagł�
 
 - Pliki 02, 03, 04, 07, 08 i 16 oraz każdy plik z literą „b” kończą się sekcją „Referencja” z materiałem do wyszukiwania: tabelami, listami pól i macierzami. Tekst nad nią wyjaśnia, a sekcja służy do szukania.
 - Fragment kodu z repozytorium ma nad blokiem linię ze ścieżką pliku, a w bloku tekst dosłowny. Pominięcie oznacza osobna linia `// …` albo `# …`. Kod w tutorialu ([09](09-nowy-modul.md), [09b](09b-implementacja-i-bramki.md)) i w przykładach użycia modułów ([13b](13b-modul-audit-logs-uzycie.md), [14b](14b-modul-api-keys-uzycie.md), [15b](15b-modul-uploads-uzycie.md)) pochodzi z prawdziwego przebiegu na kopii roboczej projektu, zakończonego zielonym `npm run verify`; nad blokiem stoi ścieżka pliku z przebiegu i zdanie, że to przykład.
-- „(sprawdzone)” przy zachowaniu znaczy, że potwierdziło je uruchomienie kodu z repozytorium: skryptu, zbudowanego serwera albo lokalnego odbiornika. Bez tego oznaczenia zachowanie wynika z czytania kodu.
+- „(sprawdzone)” przy zachowaniu znaczy, że potwierdziło je uruchomienie kodu z repozytorium: skryptu, zbudowanego serwera, lokalnego odbiornika, bundla CLI na projekcie próbnym albo przebiegu na kopii projektu. Pliki 16 i 16b podają na początku, z jakiego przebiegu pochodzą ich oznaczenia. Bez tego oznaczenia zachowanie wynika z czytania kodu.
 - Powody decyzji są w [decyzje.md](decyzje.md): `[D07](decyzje.md#d07)` prowadzi do wpisu z kontekstem, odrzuconymi alternatywami i opisem tego, co pilnuje, żeby decyzja była przestrzegana.
 - Pliki 01–16b opisują stan kodu bez określeń czasu względnego: datę i stan niesie nagłówek. Plany pojawiają się tylko w tym pliku i w [znane-ograniczenia.md](znane-ograniczenia.md).
 

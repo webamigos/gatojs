@@ -296,7 +296,7 @@ Obiekt w buckecie bez rekordu albo rekord bez encji projektu powstaje, gdy:
 | Usunięcie organizacji | Obiekty pod `orgs/<organizationId>/`; rekordy znikają kaskadowo. |
 | `wa remove uploads` i migracja usuwająca tabelę | Wszystkie obiekty. |
 
-Moduł nie ma zadania, które to sprząta ([D44](decyzje.md#d44): sprzątanie ma przyjść z modułem `worker`). Obiekty bez rekordu znajdziesz, porównując klucze w buckecie z kolumną `key`; prefiks `orgs/<organizationId>/<cel>/` pozwala zawęzić porównanie do organizacji i celu.
+Moduł nie ma zadania, które to sprząta ([D44](decyzje.md#d44), [znane-ograniczenia.md](znane-ograniczenia.md#bez-sprzatania)). Obiekty bez rekordu znajdziesz, porównując klucze w buckecie z kolumną `key`; prefiks `orgs/<organizationId>/<cel>/` pozwala zawęzić porównanie do organizacji i celu.
 
 <a id="komponenty"></a>
 
