@@ -21,6 +21,8 @@ Zweryfikowano z kodem: 6e6d49d, 2026-10-30
 - `kit/cli/src/commands/list.ts`
 - `kit/cli/src/assemble/` (`copy.ts`, `hash.ts`, `package-json.ts`, `placeholders.ts`, `project-names.ts`, `resolve-modules.ts`)
 - `kit/cli/src/kit/source.ts`
+- `kit/cli/src/commands/kit-sync.ts`
+- `kit/cli/src/generate/targets.ts` (`REGION_FILES`)
 - `kit/cli/src/kit/files.ts`
 - `kit/cli/src/kit/kit-config.ts`
 - `kit/cli/src/manifest/kit-state.ts`
@@ -33,6 +35,8 @@ Zweryfikowano z kodem: 6e6d49d, 2026-10-30
 - `kit/kit.json`
 - `kit/modules/core.json`, `kit/modules/audit-logs.json`, `kit/modules/api-keys.json`, `kit/modules/uploads.json`
 - `kit/README.md`
+- `src/shared/lib/env.ts`
+- `src/features/api-keys/env.ts`
 
 Ten plik opisuje CLI z perspektywy osoby, która zakłada projekt albo zmienia jego zestaw modułów. Komendę `wa generate` opisuje [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#wa-generate), a pracę nad samym kitem (manifesty, `wa kit sync`, bundel, wydanie) [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md). Jak moduł po skopiowaniu łączy się z aplikacją, wyjaśnia [12-moduly-kitu.md](12-moduly-kitu.md). Pojęcia moduł, feature i rejestr modułów są w [słowniku](README.md#slownik).
 
@@ -92,7 +96,7 @@ Turn off this advice by setting config variable advice.detachedHead to false
 
 **To nie jest błąd.** `git clone` kończy się kodem 0, a `create` rusza dalej.
 
-- `v0.1.0` to tag z adnotacją: wskazuje obiekt tagu (`14772ce`), a dopiero ten wskazuje commit `76ca2d7`. Przy płytkim klonie (`--depth 1`) git zauważa, że ref nie wskazuje wprost commita, i wypisuje `warning: … is not a commit!`. Klon i tak dostaje właściwy commit.
+- `v0.1.0` to tag z adnotacją: wskazuje obiekt tagu (`14772ce`), a dopiero ten wskazuje commit `76ca2d7`. `--branch` przyjmuje nazwę gałęzi albo tagu, a ref tagu z adnotacją wskazuje obiekt tagu, nie commit, więc git wypisuje `warning: … is not a commit!` i przechodzi do commita, na który wskazuje tag. Ostrzeżenie nie zależy od `--depth 1`: pada też przy pełnym klonie i z `--single-branch`, a przy tagu bez adnotacji go nie ma (sprawdzone na repozytorium testowym, `git` 2.56.0). Klon dostaje właściwy commit.
 - Tag nie jest gałęzią, więc klon zostaje na „odłączonym HEAD” (`detached HEAD`). Z klonu tylko czytasz, więc to bez znaczenia.
 - Przy polskich ustawieniach języka git pisze te same informacje po polsku: `warning: refs/tags/v0.1.0 … nie jest zapisem!` i `Jesteś w stanie „odłączonego HEAD”.` (sprawdzone).
 
@@ -152,7 +156,7 @@ Opcje (`parseCreateArgs` w `kit/cli/src/args.ts`):
 
 Wartości `--title` i `--admin-email` nie są walidowane ani escapowane (sprawdzone):
 
-- `--title 'Acme "Q"'` daje w `src/shared/config/project.ts` linię `name: "Acme "Q"",`, która psuje składnię pliku;
+- `--title 'Acme "Q"'` daje w `src/shared/config/project.ts` linię `name: "Acme "Q"",`, która psuje składnię pliku, a w `.env.example` i `.env` linię `EMAIL_FROM="Acme "Q" <noreply@example.com>"` z niezamkniętym cudzysłowem;
 - `--title=` daje pustą nazwę (`name: ""`), a `--admin-email=` pustą linię `ADMIN_EMAIL=`;
 - tytuł zawierający `wa-app` albo `wa_app` zostanie dodatkowo podmieniony w plikach z placeholderami, bo podmiana slugu idzie po podmianie nazwy (`applyPlaceholders`).
 
@@ -221,7 +225,7 @@ Projekt ma ten sam układ katalogów co kit ([D38](decyzje.md#d38)), z tymi ró�
 | `package.json` | `name` równy slugowi, `version` `0.1.0`, zależności rdzenia i wybranych modułów: `uploads` dodaje `@aws-sdk/client-s3`, `file-type` i `sharp`, `audit-logs` dodaje `better-call` w `devDependencies`, `api-keys` nie dodaje nic. |
 | `src/i18n/locales.generated.ts` | Tylko wybrane języki ([D33](decyzje.md#d33)). |
 | Regiony `wa:*` | `wa:relations` w `auth.prisma` i `organizations.prisma` z relacjami modułów; `wa:modules` w `.env.example` z `API_KEY_PEPPER` (`api-keys`) i zmiennymi `S3_*` (`uploads`, bucket `<slug>-uploads`); `wa:services` w `docker-compose.yml` z usługami `minio` i `minio-init` (`uploads`); `wa:ci-integration` w `.github/workflows/ci.yml` z krokami „Start MinIO” i „Create MinIO bucket” (`uploads`). Bez modułów regiony są puste. |
-| `.env` | Gotowy do startu, z losowym sekretem i wartościami przykładowymi zmiennych modułów. Wartość `API_KEY_PEPPER` z `.env.example` jest tylko dla dewelopmentu; na produkcji ustaw własną. |
+| `.env` | Gotowy do startu, z losowym sekretem i wartościami przykładowymi zmiennych modułów. Wartość `API_KEY_PEPPER` z `.env.example` jest tylko dla dewelopmentu: przy `NODE_ENV=production` schemat `envSchema` w `src/features/api-keys/env.ts` ją odrzuca (`API_KEY_PEPPER: w produkcji nie może być wartością z .env.example`), więc na produkcji ustaw własną, co najmniej 32 znaki. |
 | `.wa/bin/wa.mjs` | Ten sam bundel co w kicie: należy do rdzenia, więc projekt uruchamia `wa generate`, `wa add` i `wa remove` bez budowania CLI. |
 
 Po `create` bez setupu postępujesz jak w [01-uruchomienie.md](01-uruchomienie.md#pierwsze-uruchomienie) od sprawdzenia portów; `npm install` i `.env` są gotowe.
@@ -244,7 +248,7 @@ const REMOTE_PREFIXES = ["https://", "ssh://", "file://", "git@"];
 
 - **Źródło zdalne** (zaczyna się jednym z tych prefiksów) CLI klonuje poleceniem `git clone --depth 1 --branch v<kitVersion> --quiet` do katalogu tymczasowego (`wa-add-…` albo `wa-list-…` w katalogu tymczasowym systemu), który znika po komendzie, także po błędzie. Nad wynikiem widać ostrzeżenie gita o tagu z adnotacją, takie jak przy [one-linerze](#one-liner). Nieudany klon daje `Nie udało się pobrać wa-kit v<wersja> z <adres>. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`, a nad nim wyjście gita, na przykład `fatal: repository '…' not found` (sprawdzone).
 - **Ścieżka lokalna** musi wskazywać katalog z `kit/kit.json` (inaczej `Brak kit/kit.json w <ścieżka> — to nie jest repozytorium wa-kit`), a `version` z tego pliku musi być równa `kitVersion` projektu (inaczej `Kit w <ścieżka> ma wersję <x>, projekt używa <y>`).
-- **Odrzucane źródła:** wartość zaczynająca się od `-` (żeby nie stała się opcją gita) i wartość z `://` albo `::` spoza listy prefiksów, na przykład `ext::sh`. Komunikat: `Nieprawidłowe źródło wa-kit: <źródło>` (sprawdzone dla `--kit=-x` i `--kit ext::sh`).
+- **Odrzucane źródła:** wartość zaczynająca się od `-` (żeby nie stała się opcją gita) i wartość z `://` albo `::` spoza listy prefiksów, na przykład `ext::sh`. Komunikat: `Nieprawidłowe źródło wa-kit: <źródło>` (sprawdzone dla `--kit=-x` i `--kit ext::sh`). Dotyczy tylko `add` i `list`: `create` nie korzysta z `resolveKitSource`, tylko z `--kit` jako ścieżki.
 - **Pusty `WA_KIT_SOURCE`** (`WA_KIT_SOURCE=`) jest ścieżką lokalną: wskazuje katalog bieżący, czyli zwykle projekt, który nie ma `kit/kit.json` (sprawdzone).
 
 Wymóg równej wersji wynika z modelu kitu: projekt dostaje kod jednej wersji kitu, a przejścia na nowszą wersję CLI nie ma ([README](README.md#plany)). Moduł z nowszego kitu skopiowałby pliki, które zakładają nowszy rdzeń.
@@ -282,8 +286,10 @@ npm run wa -- add <moduł>
 flowchart TD
     state["odczyt .wa/kit.json"] --> source["pobranie kitu (źródło kitu)"]
     source --> refuse["odmowy: już zainstalowany, moduł projektu"]
-    refuse --> resolve["moduł + requires, których projekt nie ma; nieznana nazwa"]
-    resolve --> collide["kolizje ścieżek"]
+    refuse --> manifests["walidacja kit/kit.json i manifestów"]
+    manifests --> resolve["moduł + requires, których projekt nie ma; nieznana nazwa"]
+    resolve --> files["lista plików kitu: git ls-files"]
+    files --> collide["kolizje ścieżek"]
     collide --> copy["kopiowanie, package.json, .wa/kit.json"]
     copy -->|"błąd"| rollback["cofanie"]
     copy --> generate["wa generate"]
@@ -294,11 +300,13 @@ flowchart TD
 1. **`.wa/kit.json`.** Brak pliku daje `Brak .wa/kit.json w <katalog> — to nie jest projekt wa-kit`. Plik, który nie przechodzi walidacji, daje błąd walidacji ([Referencja](#referencja-komunikaty)).
 2. **Pobranie kitu** według [źródła kitu](#zrodlo-kitu). Pobranie idzie **przed** odmowami z następnego kroku (`addFromSource` w `kit/cli/src/commands/add.ts`): `wa add uploads --kit /nie/ma` w projekcie, który ma `uploads`, daje błąd źródła, nie odmowę, a przy domyślnym `kitRepo` nawet odmowa wymaga sieci (sprawdzone).
 3. **Odmowy:** moduł zainstalowany (`Moduł <x> jest już zainstalowany`, także dla `core`) i nazwa zajęta przez moduł projektu (`Moduł <x> jest modułem projektu; zmień jego nazwę albo usuń wpis z projectModules`) (sprawdzone).
-4. **Zestaw modułów:** moduł i moduły z jego `requires`, których projekt nie ma. Nieznana nazwa daje `Nieznany moduł: <nazwa>. Dostępne: api-keys, audit-logs, uploads` (sprawdzone).
-5. **Kolizje.** Jeśli na ścieżce któregokolwiek pliku z zestawu coś już jest (plik, katalog albo symlink, także wiszący), komenda kończy się błędem `Pliki już istnieją, przerwano bez zmian:` z alfabetyczną listą ścieżek i niczego nie zmienia (sprawdzone). CLI nie nadpisuje plików projektu.
-6. **Kopiowanie** z placeholderami według nazw z `.wa/kit.json` projektu, z hashami plików; dopisanie zależności npm do `package.json`; zapis `.wa/kit.json`.
-7. **`wa generate`**, potem `npm install` (bez `--no-install`).
-8. **Podpowiedź migracji:** ostatnia linia wyjścia to `npx prisma migrate dev --name add-<moduł>`, z nazwą z argumentu, także gdy CLI dodało moduły z `requires`. Migrację tworzysz i commitujesz sam ([03b](03b-schemat-i-migracje.md#migracje-w-projekcie)).
+4. **Kit i manifesty.** Dopiero teraz `add` waliduje schematem `kit/kit.json` i `kit/modules/*.json` (`readKitConfig`, `readKitManifests`). Uszkodzony manifest daje więc błąd dopiero po odmowach.
+5. **Zestaw modułów:** moduł i moduły z jego `requires`, których projekt nie ma. Nieznana nazwa daje `Nieznany moduł: <nazwa>. Dostępne: api-keys, audit-logs, uploads` (sprawdzone).
+6. **Lista plików kitu** (`assemblableFiles`, `git ls-files`). Tu pada `<ścieżka> nie jest repozytorium git` dla lokalnego kitu bez `.git` i `spawn git ENOENT` bez `git` w `PATH`. Kit bez `.git` przy module już zainstalowanym albo nieznanym daje więc odmowę albo `Nieznany moduł`, a nie błąd repozytorium (sprawdzone).
+7. **Kolizje.** Jeśli na ścieżce któregokolwiek pliku z zestawu coś już jest (plik, katalog albo symlink, także wiszący), komenda kończy się błędem `Pliki już istnieją, przerwano bez zmian:` z alfabetyczną listą ścieżek i niczego nie zmienia (sprawdzone). CLI nie nadpisuje plików projektu.
+8. **Kopiowanie** z placeholderami według nazw z `.wa/kit.json` projektu, z hashami plików; dopisanie zależności npm do `package.json`; zapis `.wa/kit.json`.
+9. **`wa generate`**, potem `npm install` (bez `--no-install`).
+10. **Podpowiedź migracji:** ostatnia linia wyjścia to `npx prisma migrate dev --name add-<moduł>`, z nazwą z argumentu, także gdy CLI dodało moduły z `requires`. Migrację tworzysz i commitujesz sam ([03b](03b-schemat-i-migracje.md#migracje-w-projekcie)).
 
 Przebieg w projekcie `acme-app` z modułem `uploads` (sprawdzone, domyślne źródło, wyjście gita skrócone):
 
@@ -337,10 +345,10 @@ Ostrzeżenie nie przerywa komendy: sprawdź sam, czy moduł działa z wersją pr
 
 ### Cofanie i jego granice
 
-- **Błąd przed kopiowaniem** (kroki 1–5) niczego nie zmienia w projekcie.
-- **Błąd w kroku 6** (na przykład brak miejsca na dysku, plik tylko do odczytu, plik w miejscu katalogu modułu) cofa zmiany (`rollbackAdd`): usuwa pliki modułu, usuwa katalogi, które `add` utworzył, jeśli zostały puste, i przywraca `package.json` oraz `.wa/kit.json`, jeśli ich treść się zmieniła. Pierwotny błąd to zwykle surowy komunikat Node po angielsku, na przykład `ENOTDIR: not a directory, mkdir '…/src/features/api-keys/__tests__'`, gdy w miejscu katalogu `src/features/api-keys` leży zwykły plik (sprawdzone: po błędzie w projekcie został tylko ten plik), albo `EEXIST: file already exists, mkdir …` w podobnej sytuacji głębiej w drzewie.
+- **Błąd przed kopiowaniem** (kroki 1–7) niczego nie zmienia w projekcie.
+- **Błąd w kroku 8** (na przykład brak miejsca na dysku, plik tylko do odczytu, plik w miejscu katalogu modułu) cofa zmiany (`rollbackAdd`): usuwa pliki modułu, usuwa katalogi, które `add` utworzył, jeśli zostały puste, i przywraca `package.json` oraz `.wa/kit.json`, jeśli ich treść się zmieniła. Pierwotny błąd to zwykle surowy komunikat Node po angielsku, na przykład `ENOTDIR: not a directory, mkdir '…/src/features/api-keys/__tests__'`, gdy w miejscu katalogu `src/features/api-keys` leży zwykły plik (sprawdzone: po błędzie w projekcie został tylko ten plik), albo `EEXIST: file already exists, mkdir …` w podobnej sytuacji głębiej w drzewie.
 - Każdy krok sprzątania działa niezależnie. Krok, który się nie uda, CLI wypisuje jako `Nie udało się posprzątać: <ścieżka> (<kod błędu albo komunikat>)` i idzie dalej, a na końcu rzuca pierwotny błąd. Typowy przypadek: w katalogu, który utworzył `add`, pojawił się obcy plik, więc katalog nie jest pusty (`Nie udało się posprzątać: src/features/demo/i18n (ENOTEMPTY)` w teście „rzuca oryginalny błąd, usuwa plik modułu, zostawia obcy plik i loguje oba katalogi” w `kit/cli/src/commands/__tests__/add-rollback.test.ts`).
-- **Błąd w `wa generate` albo `npm install`** (krok 7) nie cofa zmian: pliki są skopiowane, a `.wa/kit.json` je opisuje. Powtórz `npm run wa -- generate` albo `npm install`. Przy błędzie instalacji komunikat to `Moduł dodany, ale npm install się nie powiódł. Uruchom: npm install`.
+- **Błąd w `wa generate` albo `npm install`** (krok 9) nie cofa zmian: pliki są skopiowane, a `.wa/kit.json` je opisuje. Powtórz `npm run wa -- generate` albo `npm install`. Przy błędzie instalacji komunikat to `Moduł dodany, ale npm install się nie powiódł. Uruchom: npm install`.
 
 <a id="wa-remove"></a>
 
@@ -384,7 +392,7 @@ Zmienione pliki modułu api-keys (użyj --force):
 ### Co usuwa
 
 1. Pliki z `files` modułu i puste katalogi nad nimi, aż do pierwszego niepustego. Sprzątanie katalogów nie przechodzi przez symlinki i nigdy nie usuwa katalogu projektu.
-2. Z `package.json` zależności modułu, których nie deklaruje żaden pozostały moduł kitu ani moduł projektu ([D30](decyzje.md#d30)). Usuwa je także wtedy, gdy projekt miał tę zależność przed `add` albo zmienił jej wersję.
+2. Z `package.json` zależności modułu, których nie deklaruje żaden pozostały moduł kitu ani moduł projektu ([D30](decyzje.md#d30)). Sekcje liczone są osobno (`removeDependencies`): zależność z `dependencies` usuwanego modułu chroni tylko deklaracja w `dependencies` innego manifestu, a z `devDependencies` tylko w `devDependencies`. Usuwa je także wtedy, gdy projekt miał tę zależność przed `add` albo zmienił jej wersję.
 3. Wpis modułu w `.wa/kit.json`; potem `wa generate` czyści regiony `wa:*` z wpisów modułu i rejestr.
 4. `npm install` (bez `--no-install`) i na końcu linia `npx prisma migrate dev --name remove-<moduł>`.
 
@@ -400,9 +408,9 @@ Zmienione pliki modułu api-keys (użyj --force):
 | --- | --- | --- |
 | Tabele modułu w bazie (`audit_logs`, `api_keys`, `uploads`) i ich dane | Zostają, dopóki nie zastosujesz migracji. Schemat w `prisma/schema/` już ich nie opisuje, a aplikacja ich nie używa. | Jeśli dane są potrzebne, zrób kopię tabeli. Potem `npx prisma migrate dev --name remove-<moduł>`: migracja wygenerowana ze schematu bez pliku modułu usuwa tabelę modułu razem z danymi. Zacommituj ją ([03b](03b-schemat-i-migracje.md#migracje-w-projekcie)); na produkcji zastosuje ją `npx prisma migrate deploy` przy wdrożeniu ([10](10-wdrozenie.md)). |
 | Obiekty w magazynie S3 (`uploads`) | Zostają w buckecie. Usunięcie tabeli `uploads` nie usuwa obiektów, a po nim nie ma już listy kluczy. | Przed migracją wypisz klucze z tabeli `uploads` albo opróżnij bucket narzędziem dostawcy S3. |
-| Dane lokalnego MinIO (`volumes/minio`) | Zostają na dysku; katalog jest w `.gitignore`. Usługa `minio` znika z `docker-compose.yml`. | Usuń katalog ręcznie, jeśli dane nie są potrzebne. |
+| Dane lokalnego MinIO (`volumes/minio`) | Zostają na dysku; katalog jest w `.gitignore`. Usługi `minio` i `minio-init` znikają z `docker-compose.yml`, ale uruchomiony wcześniej kontener `minio` działa dalej jako osierocony. | `docker compose up -d --remove-orphans` zatrzymuje i usuwa kontenery usług, których nie ma już w `docker-compose.yml`. Potem usuń katalog ręcznie, jeśli dane nie są potrzebne. |
 | Zmienne modułu w `.env` (`API_KEY_PEPPER`, `S3_*`) | Zostają w `.env` (sprawdzone); znikają tylko z `.env.example`. Nie szkodzą. | Usuń je z `.env` i ze zmiennych środowiska produkcji. |
-| Zależności npm | Usunięte według reguły z [Co usuwa](#remove-co-robi), także te, których projekt używa we własnym kodzie, jeśli żaden manifest ich nie deklaruje. | Dopisz zależność, której używasz, do `package.json` i do manifestu modułu projektu. |
+| Zależności npm | Usunięte według reguły z [Co usuwa](#remove-co-robi), także te, których projekt używa we własnym kodzie, jeśli żaden manifest ich nie deklaruje. | Dopisz zależność, której używasz, do `package.json` i do manifestu modułu projektu, w tej samej sekcji co moduł kitu. |
 | Kod projektu, który importuje pliki modułu | Zostaje. `wa remove` nie szuka importów, więc build i typecheck przestaną przechodzić. | Usuń te importy albo przenieś potrzebny kod do projektu przed `remove`. |
 | `node_modules` | Z `--no-install` zawiera pakiety usuniętych zależności do następnego `npm install`. | `npm install`. |
 
@@ -469,11 +477,11 @@ Funkcja napisana w projekcie ma wpis w `projectModules` w `.wa/kit.json`: sam ma
 | --- | --- |
 | `wa generate` | Rejestruje go po modułach kitu i wypełnia jego regiony ([02b](02b-rejestr-i-generator.md#wa-generate)). |
 | `wa add` | Odmawia dodania modułu kitu o tej samej nazwie (sprawdzone). |
-| `wa remove` | Odmawia usunięcia modułu projektu; jego pliki i wpis usuwasz ręcznie. Nie usuwa modułu kitu, którego moduł projektu wymaga w `requires`, ani zależności npm, które moduł projektu deklaruje (sprawdzone). |
+| `wa remove` | Odmawia usunięcia modułu projektu; jego pliki i wpis usuwasz ręcznie. Nie usuwa modułu kitu, którego moduł projektu wymaga w `requires`, ani zależności npm, które moduł projektu deklaruje w tej samej sekcji (sprawdzone). |
 | `wa list` | Wypisuje go w sekcji „Projektu”, także gdy kitu nie dało się pobrać. |
 | `wa kit sync` | Zachowuje wpisy bez zmian ([16b](16b-rozwoj-kitu.md)). |
 
-Zależność npm, której używa tylko moduł projektu, wpisz w jego manifeście (`dependencies` albo `devDependencies`). Bez tego `wa remove` modułu kitu, który deklaruje tę samą zależność, usunie ją z `package.json`.
+Zależność npm, której używa tylko moduł projektu, wpisz w jego manifeście w tej samej sekcji (`dependencies` albo `devDependencies`), w której deklaruje ją moduł kitu. Bez tego `wa remove` modułu kitu, który deklaruje tę samą zależność, usunie ją z `package.json`: deklaracja w drugiej sekcji jej nie chroni.
 
 <a id="referencja"></a>
 
@@ -500,7 +508,7 @@ Puste i brakujące wartości (sprawdzone):
 | --- | --- |
 | `--kit=`, `--kit ""` | `Opcja --kit wymaga wartości`; pusta wartość jest błędem tylko dla `--kit` (`optionalValue`). |
 | `--kit` na końcu, `--title --yes`, `--kit -x` | `Opcja <opcja> wymaga wartości`: po opcji nie ma wartości albo stoi inna opcja lub wartość zaczynająca się od `-`. |
-| `--kit=-x` | Wartość przyjęta, potem `Nieprawidłowe źródło wa-kit: -x`. |
+| `--kit=-x` | Wartość przyjęta. W `add` i `list` potem `Nieprawidłowe źródło wa-kit: -x`; w `create` ścieżka `-x` nie ma `kit/kit.json`, więc `Uruchom create z klonu wa-kit albo podaj --kit <ścieżka>` (sprawdzone). |
 | `--modules=` | Sam rdzeń. |
 | `--locales=` | `--locales: dozwolone pl,en; pl jest wymagany`. |
 | `--title=` | Pusta nazwa wyświetlana. |
