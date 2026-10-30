@@ -52,6 +52,7 @@ async function makeProject(
           name,
           version: "1.0.0",
           description: name,
+          files: [`src/features/${name}/**`],
           ciSteps: spec.ciSteps ?? null,
           env: spec.env ?? [],
         },
@@ -64,6 +65,9 @@ async function makeProject(
     ".wa/kit.json",
     JSON.stringify({ kitVersion: "0.0.0", locales: ["pl"], modules: entries }),
   );
+  for (const name of Object.keys(modules)) {
+    await put(dir, `src/features/${name}/module.ts`, "export default {};");
+  }
   await put(dir, ".github/workflows/ci.yml", ciYml);
   return dir;
 }
