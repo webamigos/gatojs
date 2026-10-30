@@ -261,6 +261,62 @@
       "original": "{ select: { id: true, name: true } }",
       "replacement": "{}",
       "reason": "równoważny: wynik mapowany jawnie na id i name, zbiór wybranych pól nie wpływa na zachowanie"
+    },
+    {
+      "file": "src/features/api-keys/services/authenticate-api-key.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Nie udało się zaktualizować lastUsedAt klucza API\"",
+      "replacement": "\"\"",
+      "reason": "tylko log: treść komunikatu ostrzeżenia o nieudanej aktualizacji lastUsedAt"
+    },
+    {
+      "file": "src/features/api-keys/services/authenticate-api-key.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{\n        apiKeyId,\n        error: error instanceof Error ? error.message : String(error),\n      }",
+      "replacement": "{}",
+      "reason": "tylko log: kontekst ostrzeżenia o nieudanej aktualizacji lastUsedAt; uwierzytelnienie działa tak samo"
+    },
+    {
+      "file": "src/features/api-keys/services/commands/api-key-commands.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Nie znaleziono klucza\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: odmowa dla klucza spoza organizacji jest testowana, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/features/api-keys/services/commands/api-key-commands.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Nie udało się utworzyć klucza\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat domyślny handleCommandError"
+    },
+    {
+      "file": "src/features/api-keys/services/commands/api-key-commands.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Nie udało się unieważnić klucza\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat domyślny handleCommandError"
+    },
+    {
+      "file": "src/features/api-keys/services/commands/api-key-commands.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Nie udało się usunąć klucza\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat domyślny handleCommandError"
+    },
+    {
+      "file": "src/features/api-keys/services/commands/api-key-commands.ts",
+      "mutator": "ConditionalExpression",
+      "original": "key.revokedAt !== null",
+      "replacement": "false",
+      "reason": "równoważny: dla unieważnionego klucza updateMany z revokedAt: null zwraca count 0, więc wynik to też { success: true } bez audytu; wczesny powrót oszczędza tylko zapytanie"
+    },
+    {
+      "file": "src/features/api-keys/services/commands/api-key-commands.ts",
+      "mutator": "BlockStatement",
+      "original": "{\n      return { success: true };\n    }",
+      "replacement": "{}",
+      "reason": "równoważny: jak wyżej, bez wczesnego powrotu updateMany zwraca count 0 i komenda kończy się { success: true } bez audytu"
     }
   ]
 }
