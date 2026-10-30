@@ -67,3 +67,17 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Kod:** `assemblableFiles` → `listKitFiles` w `kit/cli/src/kit/files.ts` uruchamia `git -C <kit> ls-files` przy każdym `create` i `add` z lokalnym źródłem. Bez `git` w `PATH` `create --no-git` kończy się `spawn git ENOENT`, a katalog projektu jest usuwany (przebieg 2026-10-30, Task 3). Katalog kitu bez `.git` daje `<ścieżka> nie jest repozytorium git` także w `create`, nie tylko w `add` (uzupełnienie pkt 8 notatki recenzji szkicu).
 - **Propozycja:** w `kit/README.md` napisać, że `git` jest wymagany zawsze, a `--no-git` pomija tylko repozytorium projektu (Task 12). Dokumentacja: [16-cli-wa.md](../../16-cli-wa.md#create-opcje).
 - **Status:** otwarte.
+
+## R10. Test własności nie pilnuje „dokładnie jednego właściciela” zależności
+
+- **Dokument:** nazwa testu w `kit/cli/src/kit/__tests__/ownership.test.ts`: „każdy plik i każda zależność ma dokładnie jednego właściciela”; [spec planu 3](../specs/2026-10-28-wa-kit-plan-3-modules-design.md) §3 mówi o jednym właścicielu pliku.
+- **Kod:** `checkOwnership` w `kit/cli/src/kit/ownership.ts` liczy właścicieli tylko dla plików (`multiOwned`). Dla zależności sprawdza, że każda z `package.json` jest zadeklarowana w jakimś manifeście tej sekcji (`unownedDependencies`) i że wersje się zgadzają (`dependencyMismatch`); dwa manifesty z tą samą zależnością w tej samej sekcji i wersji nie dają żadnego wpisu. Przebieg 2026-10-30 (Task 4): `zod` `^4.3.6` dopisany do `dependencies` w `kit/modules/audit-logs.json` obok `core`, test na repozytorium przechodzi. Skutek: `wa remove` takiego modułu zostawia zależność, dopóki deklaruje ją inny moduł (`removeDependencies`).
+- **Propozycja:** albo dodać do raportu `multiOwnedDependencies`, albo zmienić nazwę testu na „każdy plik ma jednego właściciela, każda zależność ma właściciela”. Dokumentacja: [16b-rozwoj-kitu.md](../../16b-rozwoj-kitu.md#wlasnosc), [D30](../../decyzje.md#d30).
+- **Status:** otwarte.
+
+## R11. `kit/CLAUDE.md` nie wymienia podbicia wersji kitu w krokach wydania
+
+- **Dokument:** `kit/CLAUDE.md`, „Składanie i wydanie”: „Wydanie: podbij `version` zmienionych modułów, uruchom `npm run wa -- kit sync`, zmerguj do `main`; tag `v<version>` ustawia człowiek.” Nie mówi, że chodzi o `version` z `kit/kit.json` ani że trzeba ją podbić. `kit/README.md` („Rozwój kitu”) mówi tylko, że wersja kitu z `kit/kit.json` wyznacza tag.
+- **Kod:** `cloneKit` w `kit/cli/src/kit/source.ts` klonuje `v<kitVersion>`, a `kitVersion` projektu to `version` z `kit/kit.json` (`create.ts`, `kit-sync.ts`). Bez podbicia `kit/kit.json` nowe wydanie miałoby nazwę tagu, który już istnieje i wskazuje poprzedni commit. W planie 3 `core` przeszedł z `0.1.0` do `0.4.0`, a `kit/kit.json` zostało `0.1.0` (pierwszy tag, `v0.1.0`, ustawiono na końcowym commicie planu, więc tu nie było konfliktu).
+- **Propozycja:** dopisać w `kit/CLAUDE.md` krok „podbij `version` w `kit/kit.json`” i polecenie tagu z adnotacją (`git tag -a v<version> -m "wa-kit v<version>"`). Dokumentacja: [16b-rozwoj-kitu.md](../../16b-rozwoj-kitu.md#wydanie), [D46](../../decyzje.md#d46).
+- **Status:** otwarte.
