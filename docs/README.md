@@ -21,7 +21,7 @@ Każdy plik numerowany zaczyna się tak samo:
 Ten nagłówek pozwala sprawdzić, czy plik się zestarzał. Podstaw commit z jego nagłówka i ścieżki z listy „Źródła:”, a `git log` pokaże zmiany w opisywanym kodzie od tamtej pory:
 
 ```bash
-git log 4a6ffcb..HEAD -- <ścieżki ze źródeł>
+git log <commit z nagłówka>..HEAD -- <ścieżki ze źródeł>
 ```
 
 Plik, którego źródła się zmieniły, trzeba sprawdzić ponownie. Poza nagłówkiem obowiązuje kilka stałych reguł:
