@@ -2,7 +2,7 @@
 
 Ta dokumentacja jest dla dewelopera Web Amigos, który pracuje na wa-kit albo w projekcie zbudowanym z kitu. Zakłada, że znasz Next.js, TypeScript i Prismę. Nie zakłada znajomości better-auth, historii projektu ani procesu testów: każde pojęcie jest wyjaśnione przy pierwszym użyciu albo ma odnośnik do miejsca, które je wyjaśnia ([słownik](#slownik)). Agenci AI korzystają z tej samej dokumentacji przez wskazanie w `AGENTS.md`, ale nie są głównym odbiorcą.
 
-Zweryfikowano z kodem: 25adbb8, 2026-10-28 (dotyczy dokumentów 01–11; dokument 12 ma własny nagłówek „Zweryfikowano z kodem”)
+Każdy dokument ma własny nagłówek „Zweryfikowano z kodem” z commitem, z którym go sprawdzono. Przy sprawdzaniu zmian w źródłach używaj commitu z nagłówka danego dokumentu.
 
 ## Czego dotyczy
 
@@ -116,7 +116,7 @@ Jedno pojęcie oznacza w całej dokumentacji jedną rzecz. Definicje „moduł�
 
 ## Czego ta dokumentacja nie opisuje
 
-Dokumenty 01–11 opisują tylko to, co działa w kodzie z commitu `25adbb8`, a dokument 12 wskazuje własny commit w nagłówku „Zweryfikowano z kodem”. Funkcje zaplanowane i niezrobione są poza nią i rosną razem z kolejnymi planami. Gdy któraś zostanie wdrożona, odpowiedni plik dostanie własną sekcję, a ta tabela straci wiersz.
+Dokumenty opisują tylko to, co działa w kodzie z commitu podanego w nagłówku „Zweryfikowano z kodem” każdego z nich. Funkcje zaplanowane i niezrobione są poza nią i rosną razem z kolejnymi planami. Gdy któraś zostanie wdrożona, odpowiedni plik dostanie własną sekcję, a ta tabela straci wiersz.
 
 | Funkcja zaplanowana | Plan | Gdzie jest opisana |
 | --- | --- | --- |
