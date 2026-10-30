@@ -446,6 +446,7 @@ Zasady i ich powody:
 - **`success: false`**: pokaż `result.error`, z zapasowym tekstem z tłumaczeń na wypadek braku komunikatu.
 - **`success: true`**: komunikat, zamknięcie okna formularza i `router.refresh()` (`useRouter` z `@/i18n/routing`), żeby strona pobrała dane od nowa i query wykonało się ponownie.
 - **Hook działa w stronach grupy `(app)`**, bo `ServiceModeProvider` dodaje layout tej grupy ([04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md#pasek)). Bez providera tryb jest nieaktywny i `run` woła komendę od razu (test „bez providera woła akcję od razu, bez okna potwierdzenia”).
+- **Wywołanie, które nie jest akcją serwerową**, na przykład `fetch` do trasy API, pyta o potwierdzenie przez `requestConfirmation()` z tego samego hooka i samo dołącza wynik do żądania; trasa sprawdza go jak komenda. Funkcja zwraca `undefined` poza trybem serwisowym, `null` po „Anuluj” i potwierdzenie po „Zmień” ([04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md#run), przykład: `<FileUpload>` w [15-modul-uploads.md](15-modul-uploads.md#request-confirmation)).
 - **Wywołania `authClient.organization.*` nie przechodzą przez `run`** i nie znają trybu serwisowego. Zmiana danych organizacji, którą ma móc wykonać superadmin w trybie serwisowym, idzie przez komendę kitu ([04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md#authclient-organization)).
 
 <a id="formularz"></a>

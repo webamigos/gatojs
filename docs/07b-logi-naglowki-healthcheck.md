@@ -138,7 +138,7 @@ export async function GET() {
 - `GET` i `HEAD` dają wynik z kodu: 200, gdy baza odpowiada, i 503, gdy nie. Dla `HEAD` Next.js wywołuje ten sam handler i odsyła sam status. `OPTIONS` zwraca 204 z nagłówkiem `Allow: GET, HEAD, OPTIONS`, a pozostałe metody 405 (sprawdzone; `auto-implement-methods.js` w Next.js).
 - Railway używa tego adresu jako healthchecku wdrożenia (`healthcheckPath = "/api/healthcheck"` w `railway.toml` albo w ustawieniach usługi, bo nowa usługa nie czyta `railway.toml`, [10-wdrozenie.md](10-wdrozenie.md#config-as-code)).
 - `dynamic = "force-dynamic"` każe Next.js wykonywać handler przy każdym żądaniu, a nie raz przy budowaniu.
-- Endpoint jest publiczny: `matcher` proxy pomija ścieżki `/api`, a handler nie sprawdza sesji. Odpowiedź nie zawiera danych.
+- Endpoint jest publiczny: `matcher` proxy pomija ścieżkę `/api` i ścieżki pod `/api/` ([02-architektura.md](02-architektura.md#proxy)), a handler nie sprawdza sesji. Odpowiedź nie zawiera danych.
 - Sprawdza tylko bazę. Serwer uruchomiony wyłącznie z `NODE_ENV=production` i `DATABASE_URL` odpowiadał `{"status":"ok","db":"ok"}`, chociaż brakowało `BETTER_AUTH_SECRET`, `APP_URL`, `EMAIL_FROM` i `RESEND_API_KEY` (sprawdzone). Powód: handler nie odczytuje `env`, a Prisma bierze adres bazy wprost z `process.env` ([07-i18n-mail-env.md](07-i18n-mail-env.md#odczyt-z-pominieciem-env)). Healthcheck nie wykryje też pętli przekierowań przy `HOSTNAME=127.0.0.1` ([07-i18n-mail-env.md](07-i18n-mail-env.md#referencja-env-poza-schematem)), bo jego ścieżka omija proxy.
 - Błąd bazy nie trafia do logu: `catch` zwraca 503 bez wpisu, więc przyczynę trzeba ustalić poza endpointem, na przykład w logach bazy.
 - Gdy port bazy jest zamknięty, 503 przychodzi od razu (sprawdzone). Gdy host bazy nie odpowiada, pula `pg` czeka na połączenie najwyżej 10 sekund (`connectionTimeoutMillis: 10_000` w `src/shared/lib/prisma.ts`).
@@ -167,3 +167,6 @@ Testy `src/app/api/healthcheck/__tests__/route.test.ts` sprawdzają oba wyniki `
 | `[ORG] Failed to accept invitation` | `error` | `src/app/[locale]/accept-invitation/[id]/page.tsx` | `id`, `err` |
 | `[ORG] Failed to set active organization` | `error` | `src/app/[locale]/accept-invitation/[id]/page.tsx` | `organizationId`, `err` |
 | komunikat domyślny komendy po polsku, bez prefiksu, na przykład `Nie udało się zaprosić użytkownika` | `warn` dla `DomainError`, `error` dla innych błędów | `src/shared/utils/error-handling.ts` (`handleCommandError`) | `err` |
+| `trackAudit failed` | `error` | `src/shared/lib/audit.ts` (`trackAudit`, błąd ujścia zdarzeń; ujście ma w kicie tylko moduł `audit-logs`, więc bez niego tego wpisu nie ma) | `action`, `error` |
+
+Wpisy w logu modułów opisują tabele komunikatów w [13b-modul-audit-logs-uzycie.md](13b-modul-audit-logs-uzycie.md#referencja-komunikaty), [14b-modul-api-keys-uzycie.md](14b-modul-api-keys-uzycie.md#referencja-komunikaty) i [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#referencja-komunikaty).

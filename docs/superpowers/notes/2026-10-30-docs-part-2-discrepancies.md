@@ -140,7 +140,7 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Dokument:** `docs/10-wdrozenie.md` („Zmienne produkcyjne”, wiersz `API_KEY_PEPPER`, odnośnik „pepper”), `docs/07-i18n-mail-env.md` („Kiedy i jak działa walidacja”) i `docs/09b-implementacja-i-bramki.md` („Trasa API z kluczem w funkcji projektu”) odsyłają do `12-moduly-kitu.md#api-keys`; po przepisaniu 12 ta sekcja ma jedno zdanie, a pepper, kontrakt `authenticateApiKey` i trasa z kluczem są w [14-modul-api-keys.md](../../14-modul-api-keys.md#pepper) i [14b-modul-api-keys-uzycie.md](../../14b-modul-api-keys-uzycie.md#wlasna-trasa).
 - **Kod:** nie dotyczy.
 - **Propozycja:** w Task 11 zmienić odnośniki na sekcje „Konfiguracja peppera” w 14 i „Trasa z kluczem i serwis z filtrem organizacji” w 14b; przykład w 09b z akcją `delivery.received` poprawić zgodnie z R15.
-- **Status:** otwarte, naprawia Task 11.
+- **Status:** częściowo naprawione. `07-i18n-mail-env.md` odsyła do [14-modul-api-keys.md](../../14-modul-api-keys.md#pepper) (Task 10). `09b-implementacja-i-bramki.md` i `10-wdrozenie.md` otwarte, naprawia Task 11.
 
 ## R20. D44: odpowiedź 404 `GET /api/uploads/<id>` ma `X-Content-Type-Options: nosniff` z `next.config.ts`
 
