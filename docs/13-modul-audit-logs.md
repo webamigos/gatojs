@@ -119,6 +119,8 @@ Pierwsza migracja projektu (`npx prisma migrate dev --name init`) tworzy od razu
   "compose": null,
 ```
 
+<a id="definicja-modulu"></a>
+
 Definicja modułu (`src/features/audit-logs/module.ts`):
 
 | Pole | Wartość | Skutek |

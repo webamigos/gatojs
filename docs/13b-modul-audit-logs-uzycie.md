@@ -65,7 +65,7 @@ Komenda według kontraktu trybu serwisowego ([09b](09b-implementacja-i-bramki.md
 
 Import to `import { auditActor, trackAudit } from "@/shared/lib/audit";`. Kolejność ma znaczenie:
 
-- `trackAudit` stoi **po** `assertServiceModeConfirmed` i po zapisie, więc odmowa w trybie serwisowym, błędne wejście i nieudany zapis nie zostawiają wpisu (sprawdzone testem z przebiegu);
+- `trackAudit` stoi **po** `assertServiceModeConfirmed` i po zapisie, więc odmowa w trybie serwisowym i błędne wejście nie zostawiają wpisu (sprawdzone testem z przebiegu). Nieudany zapis też nie zostawia wpisu, bo wyjątek z `prisma.delivery.create` przechodzi do `catch` komendy, zanim dojdzie do `trackAudit` (wynika z kodu, bez osobnego testu);
 - `newData` zawiera tylko pola, które mają trafić do dziennika ([Czego redakcja nie wykryje](13-modul-audit-logs.md#redakcja));
 - awaria zapisu wpisu nie zmieni wyniku komendy.
 
@@ -196,7 +196,7 @@ Rdzeń postępuje tak samo: `joinOrganizationCommand` i `enterOrganizationComman
 Plik z przebiegu ma jeszcze trzy przypadki: błędne wejście (brak dostawy i wpisu), superadmin w trybie serwisowym bez potwierdzenia (błąd „Potwierdź zmianę w trybie serwisowym”, brak dostawy i wpisu) i superadmin z potwierdzeniem (wpis z `serviceMode: true`). Wynik: `Tests  4 passed (4)`; po usunięciu wywołania `trackAudit` z komendy padają dwa z nich (sprawdzone), więc test łapie brak zapisu zdarzenia.
 
 - `resetDatabase()` czyści tabele rdzenia z `CASCADE`, więc wpisy `audit_logs` i tabele funkcji powiązane z organizacją znikają razem z organizacjami.
-- Baza testów integracyjnych musi kończyć się na `_test` i nie może być współdzielona z innym projektem: `globalSetup` uruchamia `prisma db push` ze schematem projektu, a w przebiegu na bazie testowej kitu (`wa_app_test`, z tabelami modułów `api-keys` i `uploads`) zatrzymał się na ``You are about to drop the `api_keys` table, which is not empty (1 rows).`` (sprawdzone). Każdy projekt ma własną bazę `<snake>_test` ([08](08-testy.md#baza-integracja)).
+- Projekt potrzebuje własnej bazy testowej z nazwą kończącą się na `_test`: `globalSetup` uruchamia `prisma db push` ze schematem projektu i odmówi, gdy baza ma tabele z danymi spoza tego schematu (na przykład po innym zestawie modułów). Szczegóły: [08](08-testy.md#baza-integracja).
 - Wartości oczekiwane to literały (`"delivery.accepted"`, `{ supplier: "Hurtownia Północ", packages: 3 }`), nie wynik kodu produkcyjnego ([08b](08b-testy-adwersarialne.md)).
 
 **Test z mockiem `trackAudit`.** Gdy test komendy nie potrzebuje wiersza w bazie, możesz podmienić tylko `trackAudit` i zostawić `auditActor`, tak jak `api-keys-isolation.integration.test.ts`:
@@ -222,8 +222,8 @@ Taki test sprawdza treść zdarzenia, ale nie redakcję ani zapis. Nie mockuj `t
 | --- | --- | --- |
 | Komenda się udaje, a wpisu w dzienniku nie ma; w logu `trackAudit failed` | Ujście rzuciło błąd (baza, klucz obcy organizacji). `trackAudit` go połknął. | Sprawdź błąd w logu i `organizationId` zdarzenia (z kontekstu, nie z wejścia). |
 | Wpisu nie ma i w logu też nic | Projekt nie ma modułu (`auditSinks` puste) albo komenda nie woła `trackAudit` w tej ścieżce (na przykład po wcześniejszym `return`). | `npm run wa -- list`; sprawdź, czy wywołanie stoi po zapisie w każdej gałęzi sukcesu. |
-| W tabeli surowy napis akcji zamiast etykiety | Brak deklaracji w `auditActions` albo `key` modułu różny od nazwy katalogu feature. | Dodaj deklarację w `module.ts` feature, który zapisuje akcję; `key` równy nazwie katalogu. |
-| Zamiast etykiety ścieżka klucza i błąd ``MISSING_MESSAGE: Could not resolve `<moduł>.<klucz>` `` | Deklaracja jest, brak klucza w `i18n/<język>.json` albo plik tłumaczeń nie jest w rejestrze. | Dodaj klucz w obu językach; po dodaniu nowego pliku tłumaczeń uruchom `npm run wa -- generate`. |
+| W tabeli surowy napis akcji zamiast etykiety | Brak deklaracji w `auditActions`. | Dodaj deklarację w `module.ts` feature, który zapisuje akcję. |
+| Zamiast etykiety ścieżka klucza i błąd ``MISSING_MESSAGE: Could not resolve `<moduł>.<klucz>` `` | Deklaracja jest, brak klucza w `i18n/<język>.json`, plik tłumaczeń nie jest w rejestrze albo `key` modułu jest różny od nazwy katalogu feature (tłumaczenia są zarejestrowane pod nazwą katalogu). | Dodaj klucz w obu językach; po dodaniu nowego pliku tłumaczeń uruchom `npm run wa -- generate`; ustaw `key` równy nazwie katalogu. |
 | `npm run verify` pada w teście kitu `pokazuje surowy action, gdy akcja nie ma deklaracji` (`Unable to find an element with the text: delivery.received`) | Moduł projektu zadeklarował akcję `delivery.received`, której test kitu używa jako niezadeklarowanej (sprawdzone). | Nazwij akcję inaczej, na przykład `delivery.accepted`. |
 | `TS2307: Cannot find module '@/features/audit-logs/…'` | Kod importuje plik modułu, którego w projekcie nie ma (albo po `wa remove`). | `npm run wa -- add audit-logs` albo usuń import ([Bez modułu](#bez-modulu)). |
 | `TypeError: Cannot read properties of undefined (reading 'create')` przy `prisma.auditLog` albo modelu funkcji | Klient Prismy nie zna nowego modelu: po `migrate dev` nie uruchomiono generatora (sprawdzone w przebiegu dla `prisma.delivery`). | `npm run db:generate`. |
@@ -235,6 +235,8 @@ Taki test sprawdza treść zdarzenia, ale nie redakcję ani zapis. Nie mockuj `t
 <a id="referencja"></a>
 
 ## Referencja
+
+Pola deklaracji modułu w `module.ts` (`key`, `nav`, `routePrefixes`, `roles`, `auditActions`): [Definicja modułu](13-modul-audit-logs.md#definicja-modulu).
 
 <a id="referencja-zdarzenie"></a>
 
