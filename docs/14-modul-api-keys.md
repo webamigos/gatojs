@@ -326,7 +326,7 @@ Gdzie położyć kod wołany z trasy:
 
 - serwis przyjmujący `ApiKeyContext` w katalogu `services/` feature, w pliku bez `"use server"` (jak `services/organization-api.ts`);
 - nie w `services/queries/`, bo test `src/__tests__/server-entrypoints-guard.test.ts` wymaga tam guarda sesji przed Prismą;
-- nie w pliku z `"use server"`: każda jego eksportowana funkcja jest publiczną akcją serwerową, którą klient mógłby wywołać z własnym `organizationId` w kontekście ([09b](09b-implementacja-i-bramki.md#trasy-api)).
+- nie w pliku z `"use server"`: każda jego eksportowana funkcja jest publiczną akcją serwerową, którą klient mógłby wywołać z własnym `organizationId` w kontekście (przykład: [14b](14b-modul-api-keys-uzycie.md#wlasna-trasa)).
 
 <a id="apiscopes"></a>
 

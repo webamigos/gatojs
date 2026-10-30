@@ -312,7 +312,7 @@ Plik ma dwie listy. `critical` to prefiksy ścieżek plików krytycznych:
 - `src/features/api-keys/services/`
 - `src/features/uploads/services/`
 
-Cztery ostatnie wpisy dopisał plan 3 ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#nowy-modul-kitu), krok 10). `mutation-gate.json` należy do rdzenia, więc projekt bez tych modułów też ma ich katalogi na liście; bramka ocenia tylko pliki obecne w raporcie.
+Cztery ostatnie wpisy dotyczą modułów kitu: szew `audit.ts` w rdzeniu i katalogi `services/` trzech modułów ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#nowy-modul-kitu), krok 10). `mutation-gate.json` należy do rdzenia, więc projekt bez tych modułów też ma ich katalogi na liście; bramka ocenia tylko pliki obecne w raporcie.
 
 Plik jest krytyczny, gdy jego ścieżka od katalogu głównego repozytorium zaczyna się od któregoś prefiksu. Nowy plik w tych katalogach jest objęty bramką od razu. Ścieżka, która tylko zaczyna się podobnie (w teście bramki „src/shared/lib/authz.ts”) albo zawiera prefiks w środku, krytyczna nie jest.
 

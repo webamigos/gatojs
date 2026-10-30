@@ -126,7 +126,7 @@ Zachowanie (`audit-trail.tsx`, `audit-trail-query.ts`):
 
 ### Zapis z trasy z kluczem API
 
-Trasa uwierzytelniona kluczem nie ma sesji, więc nie ma `auditActor`. Zdarzenie składasz z kontekstu klucza: `organizationId` z kontekstu, `actorUserId: null`, `channel: "API"` i `credentialId` równe identyfikatorowi klucza. Strona `/audit-log` pokaże wtedy znaczek „API” i autora „System”. Pełny przykład trasy: [09b](09b-implementacja-i-bramki.md#trasy-api) i [14](14-modul-api-keys.md).
+Trasa uwierzytelniona kluczem nie ma sesji, więc nie ma `auditActor`. Zdarzenie składasz z kontekstu klucza: `organizationId` z kontekstu, `actorUserId: null`, `channel: "API"` i `credentialId` równe identyfikatorowi klucza. Strona `/audit-log` pokaże wtedy znaczek „API” i autora „System”. Pełny przykład trasy: [14b](14b-modul-api-keys-uzycie.md#wlasna-trasa) i [14](14-modul-api-keys.md).
 
 <a id="bez-modulu"></a>
 
