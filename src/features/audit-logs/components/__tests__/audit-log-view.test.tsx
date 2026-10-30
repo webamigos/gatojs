@@ -1,5 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
 import coreMessages from "@/app/messages/pl.json";
 import auditLogsPl from "../../i18n/pl.json";
@@ -148,4 +158,175 @@ describe("AuditLogView", () => {
       expect(screen.getByLabelText(label)).toHaveValue("");
     },
   );
+});
+
+const EMPTY_RESULT: PaginatedResult<AuditLogRow> = {
+  items: [],
+  totalItems: 0,
+  totalPages: 1,
+  currentPage: 1,
+  pageSize: 25,
+};
+
+function filterTree(filters: AuditLogFilters) {
+  return (
+    <NextIntlClientProvider locale="pl" messages={messages}>
+      <AuditLogView result={EMPTY_RESULT} filters={filters} actors={[]} />
+    </NextIntlClientProvider>
+  );
+}
+
+function pushedUrl(): URL {
+  expect(stableRouter.push).toHaveBeenCalledTimes(1);
+  return new URL(String(stableRouter.push.mock.calls[0][0]), "http://test");
+}
+
+describe.each([
+  ["entityType", "Typ obiektu"],
+  ["entityId", "Identyfikator obiektu"],
+] as const)("AuditLogView: pole filtra %s", (key, label) => {
+  it("blur bez zmiany wartości nie zmienia adresu", async () => {
+    const user = userEvent.setup();
+    render(filterTree({ ...FILTERS, [key]: "delivery" }));
+
+    await user.click(screen.getByLabelText(label));
+    await user.tab();
+
+    expect(stableRouter.push).not.toHaveBeenCalled();
+  });
+
+  it("blur pustego pola przy braku filtra nie zmienia adresu", async () => {
+    const user = userEvent.setup();
+    render(filterTree(FILTERS));
+
+    await user.click(screen.getByLabelText(label));
+    await user.tab();
+
+    expect(stableRouter.push).not.toHaveBeenCalled();
+  });
+
+  it("blur z wartością różną od filtra tylko spacjami nie zmienia adresu", async () => {
+    const user = userEvent.setup();
+    render(filterTree({ ...FILTERS, [key]: "delivery" }));
+    const input = screen.getByLabelText(label);
+
+    await user.clear(input);
+    await user.type(input, "  delivery  ");
+    await user.tab();
+
+    expect(stableRouter.push).not.toHaveBeenCalled();
+  });
+
+  it("blur ze zmianą wartości przechodzi raz pod adres z nowym filtrem i bez strony", async () => {
+    const user = userEvent.setup();
+    render(filterTree({ ...FILTERS, page: 3 }));
+
+    await user.type(screen.getByLabelText(label), "delivery");
+    await user.tab();
+
+    const url = pushedUrl();
+    expect(url.pathname).toBe("/audit-log");
+    expect(url.searchParams.get(key)).toBe("delivery");
+    expect(url.searchParams.has("page")).toBe(false);
+  });
+
+  it("nowe filtry po blur nie nadpisują tekstu wpisywanego ponownie w pole z fokusem", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(filterTree(FILTERS));
+    const input = screen.getByLabelText(label);
+
+    await user.type(input, "delivery");
+    await user.tab();
+    await user.click(input);
+    await user.type(input, "-2");
+
+    rerender(filterTree({ ...FILTERS, [key]: "delivery" }));
+
+    const after = screen.getByLabelText(label);
+    expect(after).toBe(input);
+    expect(after).toHaveValue("delivery-2");
+    expect(after).toHaveFocus();
+  });
+
+  it("po blur i wyczyszczeniu filtrów pole bez fokusu pokazuje pustą wartość", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(filterTree(FILTERS));
+    const input = screen.getByLabelText(label);
+
+    await user.type(input, "delivery");
+    await user.tab();
+    rerender(filterTree({ ...FILTERS, [key]: "delivery" }));
+    rerender(filterTree(FILTERS));
+
+    expect(screen.getByLabelText(label)).toHaveValue("");
+    expect(screen.getByLabelText(label)).not.toHaveFocus();
+  });
+
+  it("pole bez fokusu przyjmuje nową wartość z filtrów", () => {
+    const { rerender } = render(filterTree({ ...FILTERS, [key]: "a" }));
+
+    rerender(filterTree({ ...FILTERS, [key]: "b" }));
+
+    expect(screen.getByLabelText(label)).toHaveValue("b");
+  });
+});
+
+describe("AuditLogView: kolumna daty", () => {
+  const CREATED_AT_ISO = "2026-10-29T10:00:00.000Z";
+  const FORMATTED_IN_WARSAW = "29 paź 2026 11:00:00";
+
+  beforeAll(() => {
+    vi.stubEnv("TZ", "Europe/Warsaw");
+  });
+
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
+
+  function oneRowTree() {
+    return (
+      <NextIntlClientProvider locale="pl" messages={messages}>
+        <AuditLogView
+          result={{
+            items: [makeRow({ createdAt: new Date(CREATED_AT_ISO) })],
+            totalItems: 1,
+            totalPages: 1,
+            currentPage: 1,
+            pageSize: 25,
+          }}
+          filters={FILTERS}
+          actors={[]}
+        />
+      </NextIntlClientProvider>
+    );
+  }
+
+  it("HTML z serwera zawiera element time z datetime w ISO", () => {
+    const html = renderToString(oneRowTree());
+    const doc = new DOMParser().parseFromString(html, "text/html");
+
+    const times = Array.from(doc.querySelectorAll("time"));
+    expect(times.map((time) => time.getAttribute("datetime"))).toEqual([
+      CREATED_AT_ISO,
+    ]);
+  });
+
+  it("HTML z serwera nie zawiera czasu sformatowanego w strefie serwera", () => {
+    const html = renderToString(oneRowTree());
+    const text = new DOMParser().parseFromString(html, "text/html").body
+      .textContent;
+
+    expect(text).not.toContain(FORMATTED_IN_WARSAW);
+    expect(text).not.toContain("29 paź 2026");
+    expect(text).not.toContain("11:00");
+  });
+
+  it("po zamontowaniu w przeglądarce pokazuje czas lokalny w elemencie time", () => {
+    render(oneRowTree());
+
+    const formatted = screen.getByText(FORMATTED_IN_WARSAW);
+    const time = formatted.closest("time");
+    expect(time).not.toBeNull();
+    expect(time).toHaveAttribute("datetime", CREATED_AT_ISO);
+  });
 });
