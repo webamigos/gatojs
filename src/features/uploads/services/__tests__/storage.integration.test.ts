@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 
 const mockEnv = vi.hoisted(() => ({
   S3_ENDPOINT: process.env.INTEGRATION_S3_ENDPOINT ?? "http://localhost:9000",
@@ -19,7 +19,16 @@ vi.mock("@/shared/lib/env", async () => {
 import { deleteObject, getObject, putObject } from "../storage";
 
 const bytes = (text: string) => new TextEncoder().encode(text);
-const unique = () => `orgs/o1/test/${crypto.randomUUID()}.txt`;
+const writtenKeys: string[] = [];
+const track = (key: string) => {
+  writtenKeys.push(key);
+  return key;
+};
+const unique = () => track(`orgs/o1/test/${crypto.randomUUID()}.txt`);
+
+afterAll(async () => {
+  await Promise.all(writtenKeys.map((key) => deleteObject(key)));
+});
 
 describe("storage S3 (MinIO)", () => {
   it("zwraca zapisane bajty i contentType po putObject", async () => {
@@ -117,6 +126,8 @@ describe("storage S3 (MinIO)", () => {
 
   it("klucze różnych organizacji nie nakładają się", async () => {
     const suffix = `${crypto.randomUUID()}.txt`;
+    track(`orgs/o1/test/${suffix}`);
+    track(`orgs/o2/test/${suffix}`);
     await putObject(`orgs/o1/test/${suffix}`, bytes("A"), "text/plain");
     await putObject(`orgs/o2/test/${suffix}`, bytes("B"), "text/plain");
 
