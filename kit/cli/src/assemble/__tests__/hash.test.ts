@@ -237,10 +237,11 @@ describe("fileHash", () => {
     ).toBe("6a6e6599d88a9a8c7831b7de8a5451e9a2ccab385dafe8dfcf0a2db44894128c");
   });
 
-  it("REGION_FILES to dokladnie piec plikow z regionami generatora", () => {
+  it("REGION_FILES to dokladnie szesc plikow z regionami generatora", () => {
     expect(REGION_FILES).toEqual([
       ".env.example",
       ".github/workflows/ci.yml",
+      ".github/workflows/mutation.yml",
       "docker-compose.yml",
       "prisma/schema/auth.prisma",
       "prisma/schema/organizations.prisma",
@@ -259,5 +260,46 @@ describe("fileHash", () => {
         testConfig,
       ),
     ).toBe(fileHash(".github/workflows/ci.yml", wrap(""), testConfig));
+  });
+
+  it("REGION_FILES zawiera mutation.yml", () => {
+    expect(REGION_FILES).toContain(".github/workflows/mutation.yml");
+  });
+
+  it("mutation.yml: hash nie zalezy od tresci regionu ci-integration", () => {
+    const wrap = (inner: string): Buffer =>
+      Buffer.from(
+        `jobs:\n  mutation:\n    steps:\n      # wa:ci-integration:start\n${inner}      # wa:ci-integration:end\n      - run: stryker\n`,
+      );
+    expect(
+      fileHash(
+        ".github/workflows/mutation.yml",
+        wrap(
+          "      - name: Start MinIO\n        run: docker compose up -d minio\n",
+        ),
+        testConfig,
+      ),
+    ).toBe(fileHash(".github/workflows/mutation.yml", wrap(""), testConfig));
+  });
+
+  it("mutation.yml: hash to sha256 wersji bez ciala regionu", () => {
+    const content = Buffer.from(
+      "a\n      # wa:ci-integration:start\n      - run: x\n      # wa:ci-integration:end\n",
+    );
+    expect(
+      fileHash(".github/workflows/mutation.yml", content, testConfig),
+    ).toBe("d6639237424ff122f7d22d7d36b185a769f4f82bb1a82d939bc0192d404ea361");
+  });
+
+  it("mutation.yml: hash zmienia sie przy zmianie tresci poza regionem", () => {
+    const a = Buffer.from(
+      "a\n      # wa:ci-integration:start\n      # wa:ci-integration:end\n",
+    );
+    const b = Buffer.from(
+      "b\n      # wa:ci-integration:start\n      # wa:ci-integration:end\n",
+    );
+    expect(fileHash(".github/workflows/mutation.yml", a, testConfig)).not.toBe(
+      fileHash(".github/workflows/mutation.yml", b, testConfig),
+    );
   });
 });
