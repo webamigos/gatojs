@@ -91,7 +91,7 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
   - bramka mutacji: `critical` i `allowed` w root `mutation-gate.json` (`c8b5f74`, `c6c26c4`, `36dd132`).
   Skutek: projekt z samym `core` dostaje katalogi `critical` nieobecnych modułów, wpisy `allowed` dla plików `api-keys` i wartości `API_KEY_PEPPER`, `S3_*` w plikach testowych; nieszkodliwe, bo `checkMutationGate` (`scripts/lib/mutation-gate.ts`) ocenia tylko pliki z raportu.
 - **Propozycja:** dopisać w `kit/CLAUDE.md`, że moduł kitu może wymagać zmian plików rdzenia (setup testów, `mutation-gate.json`, szwy), które robi się osobnym commitem `core` z podbiciem jego wersji; albo przenieść wartości testowe modułów do plików modułów (na przykład przez region generowany z manifestu). Dokumentacja: [16b-rozwoj-kitu.md](../../16b-rozwoj-kitu.md#nowy-modul-kitu).
-- **Status:** otwarte.
+- **Status:** decyzja Jakuba (2026-11-02): doprecyzować regułę. `kit/CLAUDE.md` („Moduły i manifest”) mówi, że zmianę rdzenia wymaganą przez moduł robi się osobnym commitem z podbiciem `core`; `AGENTS.md`/`CLAUDE.md` bez zmian (reguła dla modułów w projekcie). Wcześniejsze commity planu 3 zostają, jak są.
 
 ## R13. `AGENTS.md` nie wymienia punktów wejścia rdzenia dla modułów, a kontrakt trybu serwisowego w UI zna tylko `run`
 
