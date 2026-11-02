@@ -504,7 +504,7 @@ jobs:
     name: Stryker (incremental)
 ```
 
-Job `stryker` uruchamia `npm run test:mutation`, `npm run test:mutation:integration` i `npm run test:mutation:gate`, z limitem 60 minut ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#stryker)).
+Job `stryker` uruchamia `npm run test:mutation`, `npm run test:mutation:integration` i `npm run test:mutation:gate`, z limitem 360 minut ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#stryker)).
 
 **`security-audit.yml`** sprawdza podatności zależności przy zmianie `package.json` albo `package-lock.json` (w pull requeście także przy zmianie samego workflowu) i co poniedziałek o 6:00 UTC.
 
