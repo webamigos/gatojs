@@ -49,10 +49,10 @@
       "files": {}
     },
     "audit-logs": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "manifest": {
         "name": "audit-logs",
-        "version": "0.1.0",
+        "version": "0.1.1",
         "description": "Dziennik zdarzen organizacji: model AuditLog, sink i redakcja danych wrazliwych",
         "requires": [],
         "files": [
