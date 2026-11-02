@@ -122,7 +122,7 @@ Pola manifestu czytają różne części CLI:
 | `env` | `generate` | Region `wa:modules` w `.env.example`: `name` i `example`. Pola `required` nie czyta żaden kod CLI; wymagalność zmiennej ustala schemat `env.ts` feature. |
 | `schemaRelations` | `generate` | Regiony `wa:relations` w `auth.prisma` (`User`) i `organizations.prisma` (`Organization`). |
 | `compose` | `generate`, test własności | Region `wa:services` w `docker-compose.yml`. |
-| `ciSteps` | `generate` | Region `wa:ci-integration` w `.github/workflows/ci.yml` ([D45](decyzje.md#d45)). |
+| `ciSteps` | `generate` | Region `wa:ci-integration` w `.github/workflows/ci.yml` i `.github/workflows/mutation.yml` ([D45](decyzje.md#d45)). |
 | `workspaces` | nikt | Pole istnieje w schemacie; żadna komenda go nie czyta ([D29](decyzje.md#d29)). |
 
 <a id="wzorce"></a>
@@ -145,7 +145,7 @@ Job `assemble` w CI składa projekt z checkoutu commita, więc tam obie listy si
 Pola `compose` i `ciSteps` wskazują pliki, które generator czyta z katalogu projektu (`composeBody` i `ciStepsBody` w `kit/cli/src/generate/targets.ts`). Plik musi więc trafić do projektu razem z modułem, czyli należeć do `files` tego samego modułu. Moduł `uploads` trzyma je w katalogach `docker/` i `ci/` z nazwą modułu w nazwie pliku:
 
 - `docker/uploads.compose.yml`: definicje usług (`minio`, `minio-init`) bez klucza `services:`, bo generator wcina treść o dwie spacje i wstawia ją pod `services:` w regionie `wa:services` w `docker-compose.yml`;
-- `ci/uploads.integration-steps.yml`: lista kroków joba (`- name: …`), którą generator wcina o sześć spacji i wstawia w regionie `wa:ci-integration` joba `integration` w `.github/workflows/ci.yml`; fragmenty kilku modułów oddziela pusta linia.
+- `ci/uploads.integration-steps.yml`: lista kroków joba (`- name: …`), którą generator wcina o sześć spacji i wstawia w regionie `wa:ci-integration` joba `integration` w `.github/workflows/ci.yml` i joba `stryker` w `.github/workflows/mutation.yml`; fragmenty kilku modułów oddziela pusta linia.
 
 Test własności sprawdza tylko plik z `compose` (`composeOutsideModule`); pliku z `ciSteps` nie sprawdza (R6 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Na kopii kitu `ciSteps` modułu `uploads` przestawione na plik dopisany do `kitOnly` przeszło test własności, a `create --modules uploads` skończyło się błędem `ENOENT: no such file or directory, open '<projekt>/ci/other.yml'` i usunięciem katalogu projektu (sprawdzone). Plik kroków CI zawsze dopisuj do `files` modułu, którego dotyczy.
 

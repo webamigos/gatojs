@@ -166,7 +166,7 @@ Po każdej z tych komend schemat bazy się zmienia, więc migrację tworzy i com
 | Region `wa:relations` w `prisma/schema/auth.prisma` i `prisma/schema/organizations.prisma` | `schemaRelations` manifestu | Prisma (relacje zwrotne `User` i `Organization`). | Pusty (sprawdzone). |
 | Region `wa:modules` w `.env.example` | `env` manifestu | Deweloper, który przepisuje zmienne do `.env`. | Pusty (sprawdzone). |
 | Region `wa:services` w `docker-compose.yml` | plik z `compose` manifestu | `docker compose up -d`. | Pusty (sprawdzone): bez MinIO. |
-| Region `wa:ci-integration` w `.github/workflows/ci.yml` | plik z `ciSteps` manifestu ([D45](decyzje.md#d45)) | Job testów integracyjnych w CI projektu. | Pusty (sprawdzone): CI nie startuje MinIO. |
+| Region `wa:ci-integration` w `.github/workflows/ci.yml` i `.github/workflows/mutation.yml` | plik z `ciSteps` manifestu ([D45](decyzje.md#d45)) | Job testów integracyjnych i przebieg integracyjny Strykera w CI projektu. | Pusty (sprawdzone): CI nie startuje MinIO. |
 
 Plików generowanych i regionów nie edytuje się ręcznie; CI projektu sprawdza, że po `wa generate` nie ma diffu ([D04](decyzje.md#d04)). Rejestr importuje pliki feature, więc zmiana treści `module.ts` albo `env.ts` nie wymaga generatora; wymaga go dodanie albo usunięcie takiego pliku.
 
