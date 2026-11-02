@@ -196,7 +196,8 @@ Superadmin założony przez `admin:create` ma członkostwo `owner` w najstarszej
 - **Przełącznik** (`OrgSwitcher` nad treścią strony) dla superadmina pokazuje wszystkie organizacje posortowane po nazwie (`getSwitchableOrganizationsQuery`). Lista jest widoczna, gdy organizacji jest więcej niż jedna.
 - **Strona `/no-organization`** pokazuje tę samą listę jako „Wejdź do organizacji” (`EnterOrganizationList`) i po wyborze przenosi na `/dashboard`.
 - Oba miejsca wołają `enterOrganizationCommand(organizationId)`. Komenda czyta sesję z bazy, pyta `canEnterOrganization` (superadmin: organizacja istnieje; inni: członkostwo) i zmienia `activeOrganizationId` tylko bieżącej sesji. Przy odmowie zwraca „Brak dostępu do organizacji”. Przebieg pokazuje [03-dane-i-organizacje.md](03-dane-i-organizacje.md#aktywna-organizacja).
-- Wejście nie zmienia danych organizacji, więc nie ma dialogu, a komenda nie woła `getOrgContext()` ani `assertServiceModeConfirmed`.
+- Wejście nie zmienia danych domenowych organizacji (poza wpisem w dzienniku zdarzeń, punkt niżej), więc nie ma dialogu, a komenda nie woła `getOrgContext()` ani `assertServiceModeConfirmed`.
+- Przed zmianą sesji komenda sprawdza, czy konto ma członkostwo w wybranej organizacji. Gdy go nie ma, czyli gdy superadmin wchodzi w tryb serwisowy, po zapisie sesji woła `trackAudit` ze zdarzeniem `organization.entered` i `serviceMode: true`. Wpis zapisuje ujście zdarzeń; w kicie ma je tylko moduł `audit-logs`, więc bez niego (i bez własnego `audit-sink.ts` w funkcji projektu) wywołanie nic nie zapisuje ([12-moduly-kitu.md](12-moduly-kitu.md#punkty-wejscia), [13-modul-audit-logs.md](13-modul-audit-logs.md#zdarzenia)). Przypadki sprawdzają testy „superadmin bez członkostwa → jeden wpis organization.entered z serviceMode true” i kolejne w `enter-organization-command.test.ts`.
 - Po zalogowaniu superadmin bez członkostw dostaje najstarszą organizację jako aktywną, więc przy `MULTI_ORG=false` od razu pracuje w jedynej organizacji.
 
 <a id="pasek"></a>
@@ -263,25 +264,35 @@ Komponent nie woła komendy na danych organizacji bezpośrednio, tylko przez `ru
 `src/shared/components/service-mode/use-service-mode-action.tsx`
 
 ```tsx
+  const requestConfirmation = useCallback(async () => {
+    if (!active) {
+      return undefined;
+    }
+    const confirmed = await askForConfirmation();
+    if (!confirmed) {
+      return null;
+    }
+    return { serviceModeConfirmed: true as const, organizationId };
+  }, [active, organizationId, askForConfirmation]);
+
   const run = useCallback(
     async <TInput, TResult>(
       action: ServiceModeAction<TInput, TResult>,
       input: TInput,
     ): Promise<TResult | null> => {
-      if (!active) {
-        return action(input);
-      }
-      const confirmed = await askForConfirmation();
-      if (!confirmed) {
+      const confirmation = await requestConfirmation();
+      if (confirmation === null) {
         return null;
       }
-      return action(input, { serviceModeConfirmed: true, organizationId });
+      return confirmation ? action(input, confirmation) : action(input);
     },
-    [active, organizationId, askForConfirmation],
+    [requestConfirmation],
   );
 ```
 
 Poza trybem serwisowym `run` woła komendę od razu, bez potwierdzenia. W trybie serwisowym najpierw pyta w dialogu, a komendę woła dopiero po „Zmień”. `organizationId` w potwierdzeniu to organizacja z ostatniego renderowania layoutu w tej karcie.
+
+Hook zwraca `{ run, requestConfirmation, dialog }`. `requestConfirmation()` to samo pytanie bez wywołania komendy: poza trybem serwisowym zwraca `undefined` bez otwierania okna, w trybie serwisowym otwiera dialog i zwraca `null` po „Anuluj” albo `{ serviceModeConfirmed: true, organizationId }` po „Zmień”. Służy wywołaniom, które nie są akcją serwerową, na przykład `fetch` do trasy API modułu; trasa musi wtedy sama sprawdzić potwierdzenie. Tak robi `<FileUpload>` z modułu `uploads` ([12-moduly-kitu.md](12-moduly-kitu.md#punkty-wejscia), [15-modul-uploads.md](15-modul-uploads.md#request-confirmation)). Zachowanie sprawdzają testy z grupy `requestConfirmation` w `use-service-mode-action.test.tsx`.
 
 Przebieg w trybie serwisowym, na przykładzie „Zaproś użytkownika”:
 
@@ -407,7 +418,7 @@ Dialog i `assertServiceModeConfirmed` obejmują komendy kitu. Wywołania `authCl
 | `ServiceModeConfirmationError` | `src/shared/lib/auth/service-mode.ts` | `DomainError` z komunikatem „Potwierdź zmianę w trybie serwisowym”. |
 | `ServiceModeProvider` | `src/shared/components/service-mode/service-mode-provider.tsx` | Props `active`, `organizationId`, `organizationName`. Bez providera tryb jest nieaktywny. |
 | `useServiceMode()` | `src/shared/components/service-mode/service-mode-provider.tsx` | Stan z providera. |
-| `useServiceModeAction()` | `src/shared/components/service-mode/use-service-mode-action.tsx` | `{ run, dialog }`; `run(command, input)` zwraca wynik komendy albo `null`. |
+| `useServiceModeAction()` | `src/shared/components/service-mode/use-service-mode-action.tsx` | `{ run, requestConfirmation, dialog }`; `run(command, input)` zwraca wynik komendy albo `null`, a `requestConfirmation()` zwraca potwierdzenie, `undefined` poza trybem serwisowym albo `null` po „Anuluj” ([Interfejs](#run)). |
 | `ServiceModeBanner` | `src/shared/components/service-mode/service-mode-banner.tsx` | Pasek „Tryb serwisowy: `<nazwa>`”. |
 | `enterOrganizationCommand(organizationId)` | `src/features/organizations/services/commands/enter-organization-command.ts` | Zmienia aktywną organizację bieżącej sesji. |
 

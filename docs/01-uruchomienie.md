@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - co zmieniają flagi `MULTI_ORG`, `AUTH_PUBLIC_SIGNUP` i `ADMIN_IMPERSONATION`;
 - jak rozpoznać i naprawić typowe problemy, w tym błędy walidacji zmiennych środowiskowych.
 
-Zweryfikowano z kodem: 09744c4, 2026-10-29
+Zweryfikowano z kodem: 1166d08, 2026-10-29
 
 Źródła:
 
@@ -192,7 +192,7 @@ Nazwy usług (`db` i `mail`) zwraca `docker compose config --services`. Używaj 
 
 ## MinIO (moduł `uploads`)
 
-Projekt z modułem `uploads` ([12](12-moduly-kitu.md#uploads)) ma w `docker-compose.yml` (w regionie `wa:services`) dwie dodatkowe usługi: `minio` (magazyn zgodny z S3) i `minio-init`, jednorazowy kontener, który tworzy bucket `<slug>-uploads` i kończy pracę. Uruchamia je ten sam `docker compose up -d` z kroku 4 [pierwszego uruchomienia](#pierwsze-uruchomienie); nic więcej nie trzeba robić, a `.env.example` ma już zmienne `S3_*` z wartościami lokalnymi (`S3_ENDPOINT=http://localhost:9000`, klucz i sekret `minioadmin`, bucket `<slug>-uploads`).
+Projekt z modułem `uploads` ([15](15-modul-uploads.md#minio)) ma w `docker-compose.yml` (w regionie `wa:services`) dwie dodatkowe usługi: `minio` (magazyn zgodny z S3) i `minio-init`, jednorazowy kontener, który tworzy bucket `<slug>-uploads` i kończy pracę. Uruchamia je ten sam `docker compose up -d` z kroku 4 [pierwszego uruchomienia](#pierwsze-uruchomienie); nic więcej nie trzeba robić, a `.env.example` ma już zmienne `S3_*` z wartościami lokalnymi (`S3_ENDPOINT=http://localhost:9000`, klucz i sekret `minioadmin`, bucket `<slug>-uploads`).
 
 | Usługa | Obraz | Port na komputerze (domyślny) | Zmienna portu | Do czego służy |
 | --- | --- | --- | --- | --- |

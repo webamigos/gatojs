@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak `src/shared/lib/env.ts` sprawdza zmienne środowiskowe i które zmienne kod czyta z pominięciem tej walidacji;
 - które zmienne poza schematem czytają kod aplikacji, Next.js, Docker i testy.
 
-Zweryfikowano z kodem: f965e0a, 2026-10-29
+Zweryfikowano z kodem: e2a4a2a, 2026-10-29
 
 Źródła:
 
@@ -17,22 +17,23 @@ Zweryfikowano z kodem: f965e0a, 2026-10-29
 - zmienne środowiskowe: `src/shared/lib/env.ts`, `src/shared/lib/__tests__/env.test.ts`, `.env.example`, `.wa/kit.json`, `src/shared/lib/prisma.ts`, `prisma.config.ts`, `scripts/admin-create.ts`, `src/shared/lib/logger.ts`, `src/instrumentation.ts`, `docker-compose.yml`, `Dockerfile`, `e2e/env.ts`, `src/test/integration/database-url.ts`;
 - biblioteki (wersje w `package-lock.json`): `node_modules/next-intl/dist/esm/development/routing/config.js` (next-intl 4.14.9, `receiveRoutingConfig`), `node_modules/next-intl/dist/esm/development/middleware/resolveLocale.js`, `node_modules/next-intl/dist/esm/development/middleware/syncCookie.js`, `node_modules/@opentelemetry/otlp-exporter-base/build/src/configuration/otlp-node-http-env-configuration.js` (0.218.0), `node_modules/resend/dist/index.mjs` (resend 6.34.1, `logError`), `node_modules/next/dist/bin/next` (Next.js 16.3.8, opcje `-p` i `-H`).
 
-Rozdział opisuje tłumaczenia, wysyłkę maili i zmienne środowiskowe, czyli infrastrukturę wspólną dla wszystkich feature. Logi, OpenTelemetry, nagłówki bezpieczeństwa i healthcheck opisuje [07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md). Pliki z `src/i18n/`, `src/shared/` i `src/app/` należą do modułu `core` (wzorce `src/i18n/**`, `src/shared/**` i `src/app/**` w `.wa/kit.json`). `src/proxy.ts`, `src/instrumentation.ts` i pliki konfiguracji w katalogu głównym, na przykład `next.config.ts`, nie pasują do żadnego wzorca manifestu; kompletności własności plików nic nie sprawdza ([D02](decyzje.md#d02)). Moduł korzysta z tych plików, ale ich nie edytuje ([D03](decyzje.md#d03)).
+Rozdział opisuje tłumaczenia, wysyłkę maili i zmienne środowiskowe, czyli infrastrukturę wspólną dla wszystkich feature. Logi, OpenTelemetry, nagłówki bezpieczeństwa i healthcheck opisuje [07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md). Pliki opisane w rozdziale należą do modułu `core`: wszystko w `src/i18n/` i `src/shared/`, pliki rdzenia w `src/app/` (między innymi `messages/`, `emails/` i layouty), a także `src/proxy.ts`, `src/instrumentation.ts` i pliki konfiguracji w katalogu głównym, na przykład `next.config.ts`, `Dockerfile` i `docker-compose.yml` (wzorce w manifeście `kit/modules/core.json` w repozytorium kitu, a w projekcie w kopii manifestu w `.wa/kit.json`). Strony i trasy modułów w `src/app/` należą do tych modułów. W repozytorium kitu test własności w bramce CLI pilnuje, żeby każdy plik z indeksu gita poza `kitOnly` i `generatedFiles` miał dokładnie jednego właściciela; w projekcie klienta tego testu nie ma ([D38](decyzje.md#d38)). Moduł korzysta z tych plików, ale ich nie edytuje ([D03](decyzje.md#d03)).
 
-Oznaczenie „(sprawdzone)” znaczy, że zachowanie potwierdziło uruchomienie kodu z repozytorium: funkcji (`parseEnv`, `mergeMessages`, middleware next-intl, `createTranslator` z next-intl, `sendPasswordResetEmail`), kompilacji `tsc` pliku próbnego albo zbudowanego serwera (`.next/standalone/server.js`) na lokalnych portach, bez wysyłki czegokolwiek na zewnątrz.
+Oznaczenie „(sprawdzone)” znaczy, że zachowanie potwierdziło uruchomienie kodu z repozytorium: funkcji (`parseEnv`, `mergeMessages`, middleware next-intl, `createTranslator` z next-intl, `sendPasswordResetEmail`), kompilacji `tsc` pliku próbnego, `wa generate` i `tsc --noEmit` na kopii repozytorium (w [Dodawaniu języka](#dodawanie-jezyka)) albo zbudowanego serwera (`.next/standalone/server.js`) na lokalnych portach, bez wysyłki czegokolwiek na zewnątrz.
 
 <a id="i18n"></a>
 
 ## Tłumaczenia (next-intl)
 
-Tłumaczenia obsługuje biblioteka next-intl. Język jest częścią adresu: trasy leżą w segmencie `src/app/[locale]/`, a wartość segmentu to `pl` albo `en`. Teksty są w plikach JSON, które `src/i18n/request.ts` scala w jeden obiekt. **Namespace** to grupa tekstów pod jednym kluczem najwyższego poziomu tego obiektu. Komponent kliencki prosi o nią przez `useTranslations("users")`, a komponent serwerowy przez `await getTranslations("users")`.
+Tłumaczenia obsługuje biblioteka next-intl. Język jest częścią adresu: trasy leżą w segmencie `src/app/[locale]/`, a wartość segmentu to jeden z języków projektu, w kicie `pl` albo `en` ([Dodawanie języka](#dodawanie-jezyka)). Teksty są w plikach JSON, które `src/i18n/request.ts` scala w jeden obiekt. **Namespace** to grupa tekstów pod jednym kluczem najwyższego poziomu tego obiektu. Komponent kliencki prosi o nią przez `useTranslations("users")`, a komponent serwerowy przez `await getTranslations("users")`.
 
 - W plikach rdzenia (`src/app/messages/<język>.json`) namespace to klucze najwyższego poziomu: `common`, `errors`, `sidebar` i `serviceMode`.
 - Plik feature trafia w całości pod jeden namespace równy nazwie katalogu feature. Jego klucze najwyższego poziomu to więc już klucze tekstów: `title` z `src/features/users/i18n/pl.json` to `users.title`, a nie `users.users.title`.
 
 | Plik | Rola |
 | --- | --- |
-| `src/i18n/config.ts` | Lista języków `["pl", "en"]` i język domyślny `pl`. |
+| `src/i18n/config.ts` | Eksportuje listę języków `locales` z `src/i18n/locales.generated.ts`, typ `Locale` i język domyślny `pl`. |
+| `src/i18n/locales.generated.ts` | Plik generowany: lista języków projektu z pola `locales` w `.wa/kit.json`, w kicie `["pl", "en"]`. |
 | `src/i18n/routing.ts` | Konfiguracja routingu (`defineRouting`) oraz `Link`, `redirect`, `usePathname` i `useRouter` z `createNavigation`. Te wersje uwzględniają język: `Link`, `redirect` i `useRouter` dopisują prefiks, a `usePathname` zwraca ścieżkę bez prefiksu. Dlatego kod aplikacji importuje je stąd, a z `next/navigation` bierze tylko `notFound` i `useSearchParams`. |
 | `src/proxy.ts` | Middleware next-intl, które ustala język żądania ([02-architektura.md](02-architektura.md#proxy)). |
 | `src/i18n/request.ts` | `getRequestConfig`: dla każdego żądania ładuje teksty rdzenia i feature w ustalonym języku i scala je przez `mergeMessages`. Nieznany język zamienia na domyślny. |
@@ -204,15 +205,43 @@ Brakujący klucz nie przerywa renderowania. next-intl zgłasza błąd `MISSING_M
 
 ### Dodawanie języka
 
-Lista języków jest zapisana w dwóch miejscach: w aplikacji i w generatorze rejestru.
+Języki projektu zapisuje pole `locales` w `.wa/kit.json`. Projekt wybiera je przy zakładaniu (`wa create --locales`, [16-cli-wa.md](16-cli-wa.md#create-opcje)), a bez tego pola schemat przyjmuje `["pl", "en"]`. `npm run wa -- generate` przepisuje listę do pliku generowanego, z którego importuje ją `src/i18n/config.ts` ([D33](decyzje.md#d33)):
 
-1. Dopisz kod języka do `locales` w `src/i18n/config.ts`.
-2. Utwórz `src/app/messages/<kod>.json` z namespace `common`, `errors`, `sidebar` i `serviceMode`.
-3. Utwórz `src/features/<x>/i18n/<kod>.json` w każdym feature.
-4. W CLI dopisz język do `localesSchema` w `kit/cli/src/manifest/schema.ts`, do `ALLOWED_LOCALES` i typu `Locale` w `kit/cli/src/args.ts` oraz do `kit/cli/src/generate/registry.ts`. Potem `npm run wa -- generate`.
-5. `npm run verify`.
+`src/i18n/locales.generated.ts`
 
-Bez kroku 4 rejestr nie ma loaderów nowego języka, a `npm run typecheck` zgłasza błąd TS7053 w `src/i18n/request.ts`, bo `moduleMessages` ma typ `Record<"pl" | "en", …>` (sprawdzone). Krok 4 zmienia kod kitu, więc taką poprawkę zgłoś do repozytorium kitu ([11-praca-z-kitem.md](11-praca-z-kitem.md)).
+```ts
+// generated by wa — nie edytuj. Uruchom: npm run wa -- generate
+export const locales = ["pl", "en"] as const;
+```
+
+`src/i18n/config.ts`
+
+```ts
+import { locales } from "./locales.generated";
+
+export { locales };
+export type Locale = (typeof locales)[number];
+export const defaultLocale: Locale = "pl";
+```
+
+Ten sam przebieg generatora układa `moduleMessages` w `src/modules.generated.ts`: dostaje on klucz dla każdego języka z `locales`, a w nim loader tylko tych feature, które mają plik `i18n/<język>.json`. Feature bez `en.json` nie ma więc loadera `en` (sprawdzone), a jego teksty po angielsku kończą się błędem `MISSING_MESSAGE` jak w [Dodawaniu tekstu](#dodawanie-tekstu). CLI dopuszcza tylko `pl` i `en`; `pl` jest wymagany, a języki nie mogą się powtarzać (`localesSchema` w `kit/cli/src/manifest/schema.ts`).
+
+**Wyłączenie albo włączenie `en`.** Języka nie dopisuj ręcznie w `src/i18n/locales.generated.ts`: to plik generowany, a CI porównuje go z wyjściem generatora ([D04](decyzje.md#d04)).
+
+1. Zmień `locales` w `.wa/kit.json`, na przykład na `["pl"]` albo z powrotem na `["pl", "en"]`.
+2. Przy włączaniu `en` sprawdź, że `src/app/messages/en.json` i pliki `i18n/en.json` feature istnieją. `wa create --locales pl` kopiuje je mimo to, bo kopiuje wszystkie pliki z manifestów modułów; własnym feature trzeba je dopisać.
+3. `npm run wa -- generate`, potem `npm run verify`.
+
+Przy `["pl"]` generator zmienia `src/i18n/locales.generated.ts` na `["pl"] as const` i usuwa z `src/modules.generated.ts` klucz `en` z loaderami; `tsc --noEmit` przechodzi, a pliki `en.json` zostają nieużywane. Powrót do `["pl", "en"]` przywraca oba pliki (sprawdzone).
+
+**Trzeci język**, na przykład `de`, wymaga zmiany CLI, czyli kodu kitu. Ze zmienionym tylko `.wa/kit.json` `wa generate` kończy się kodem 1, wypisuje błąd walidacji Zod `Invalid option: expected one of "pl"|"en"` dla `locales` i nie zmienia żadnego pliku (sprawdzone). `locales` bez `pl` daje błąd `locales musi zawierać "pl"` (sprawdzone).
+
+1. W kicie dopisz język do `localesSchema` w `kit/cli/src/manifest/schema.ts`, do `ALLOWED_LOCALES` i typu `Locale` w `kit/cli/src/args.ts` oraz do typów `("pl" | "en")[]` w `renderLocales` i `renderRegistry` w `kit/cli/src/generate/registry.ts`. Przebuduj bundel `.wa/bin/wa.mjs` ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bundel)). W `kit/cli/src/commands/kit-sync.ts` zmień wpisaną na stałe listę `["pl", "en"]`: `wa kit sync` zapisuje ją w `.wa/kit.json` kitu, więc bez tej zmiany cofnie dopisany tam język. Taką zmianę zgłaszasz do repozytorium kitu ([11-praca-z-kitem.md](11-praca-z-kitem.md)).
+2. W projekcie z nowym bundlem dopisz język do `locales` w `.wa/kit.json`.
+3. Utwórz `src/app/messages/<kod>.json` z namespace `common`, `errors`, `sidebar` i `serviceMode` oraz `src/features/<x>/i18n/<kod>.json` w każdym feature.
+4. `npm run wa -- generate`, potem `npm run verify`.
+
+Ścieżki trzeciego języka przebieg nie sprawdzał; kroki wynikają z kodu CLI wymienionego w kroku 1.
 
 Nowy język od razu bierze udział w wykrywaniu z `Accept-Language`. Nie obejmuje jednak tekstów spoza plików tłumaczeń: maili, komunikatów komend i komunikatów Zod (następna sekcja).
 
@@ -365,7 +394,7 @@ export const env = new Proxy({} as CoreEnv, {
 
 Co z tego wynika dla dewelopera (kiedy pojawia się błąd, restart po zmianie `.env`, tabela komunikatów), opisuje [01-uruchomienie.md](01-uruchomienie.md#plik-env). Dwie rzeczy, których tam nie ma:
 
-- Schematy zainstalowanych modułów (`moduleEnvSchemas`) są częścią tej samej walidacji: zła zmienna modułu, na przykład `API_KEY_PEPPER` z modułu `api-keys`, psuje `env` dla całej aplikacji, a nie tylko dla modułu ([12-moduly-kitu.md](12-moduly-kitu.md#api-keys)).
+- Schematy zainstalowanych modułów (`moduleEnvSchemas`) są częścią tej samej walidacji: zła zmienna modułu, na przykład `API_KEY_PEPPER` z modułu `api-keys`, psuje `env` dla całej aplikacji, a nie tylko dla modułu ([14-modul-api-keys.md](14-modul-api-keys.md#pepper)).
 - Zmiennych spoza schematu wynik nie zawiera: `env.FOO` daje `undefined`, nawet gdy `FOO` jest w `process.env`.
 - Dwa warunki produkcyjne (`RESEND_API_KEY` i sekret z `.env.example`) Zod sprawdza dopiero wtedy, gdy wszystkie pola przejdą podstawowe sprawdzenie. Przy `NODE_ENV=production`, braku `RESEND_API_KEY` i `MULTI_ORG=1` komunikat wymienia tylko `MULTI_ORG`, a błąd `RESEND_API_KEY` pojawia się po jego poprawieniu (sprawdzone).
 
@@ -421,7 +450,7 @@ Skutek przy wdrożeniu: `/api/healthcheck` nie odczytuje `env`, więc odpowiada 
 
 ### Zmienne feature
 
-Feature może mieć plik `src/features/<x>/env.ts`, który eksportuje schemat Zod `envSchema`. Generator dopisuje go do `moduleEnvSchemas` w rejestrze ([02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#rejestr-modulow)), a `env.ts` łączy go ze schematem rdzenia przez `z.intersection`. Żaden feature rdzenia nie ma `env.ts`, więc `moduleEnvSchemas` jest pustą tablicą. Zachowanie połączonego schematu (sprawdzone z przykładowym schematem zmiennej `DEMO_TOKEN`):
+Feature może mieć plik `src/features/<x>/env.ts`, który eksportuje schemat Zod `envSchema`. Generator dopisuje go do `moduleEnvSchemas` w rejestrze ([02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#rejestr-modulow)), a `env.ts` łączy go ze schematem rdzenia przez `z.intersection`. Żaden feature rdzenia nie ma `env.ts`, więc w projekcie z samym rdzeniem `moduleEnvSchemas` jest pustą tablicą. W kicie zawiera schematy modułów `api-keys` i `uploads` ([14b-modul-api-keys-uzycie.md](14b-modul-api-keys-uzycie.md#referencja-env), [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#referencja-env)). Zachowanie połączonego schematu (sprawdzone z przykładowym schematem zmiennej `DEMO_TOKEN`):
 
 - Wynik zawiera zmienne rdzenia i feature.
 - Błędy obu schematów trafiają do jednego komunikatu, na przykład `MULTI_ORG: …; DEMO_TOKEN: Invalid input: expected string, received undefined`.
@@ -437,7 +466,7 @@ Linie w regionie `# wa:modules:start` / `# wa:modules:end` w `.env.example` poch
 
 ### Zmienne ze schematu `src/shared/lib/env.ts`
 
-„Flaga” i `optionalString` opisuje [Reguły parsowania](#reguly-parsowania). „Czyta” wymienia kod aplikacji, który korzysta z wartości. `.env.example` zawiera wszystkie zmienne z tabeli poza `NODE_ENV`.
+„Flaga” i `optionalString` opisuje [Reguły parsowania](#reguly-parsowania). „Czyta” wymienia kod aplikacji, który korzysta z wartości. `.env.example` zawiera wszystkie zmienne z tabeli poza `NODE_ENV`. Zmienne modułów, wpisane w region `wa:modules` w `.env.example`, opisują [14b-modul-api-keys-uzycie.md](14b-modul-api-keys-uzycie.md#referencja-env) (`API_KEY_PEPPER`) i [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#referencja-env) (zmienne `S3_*`).
 
 | Zmienna | Typ i parsowanie | Domyślna | Na produkcji | Czyta | Opis |
 | --- | --- | --- | --- | --- | --- |
@@ -478,3 +507,5 @@ Te zmienne czyta kod, konfiguracja albo biblioteki z pominięciem `env.ts`. Nie 
 | `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD` | `e2e/env.ts` | wartości testowe zapisane w `e2e/env.ts` | Konto administratora zakładane przez `globalSetup`. |
 | `MAILPIT_URL` | `e2e/env.ts` | `http://localhost:<MAILPIT_UI_PORT>` | Adres API mailpit, z którego testy czytają maile. |
 | `CI` | `playwright.config.ts` | brak | Ustawiona: `forbidOnly` i raport HTML. |
+
+Zmienne spoza schematu dla usług i testów modułu `uploads` (`MINIO_PORT`, `MINIO_CONSOLE_PORT`, `INTEGRATION_S3_ENDPOINT`, `INTEGRATION_S3_BUCKET`, a w testach e2e `S3_ENDPOINT` z powłoki) opisuje [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#referencja-env).

@@ -1,231 +1,280 @@
-# Moduły opcjonalne kitu
+# Moduły kitu i warstwa szwów
 
 Po przeczytaniu będziesz wiedzieć:
 
-- czym moduł opcjonalny różni się od rdzenia i jak go dodać do projektu albo usunąć z niego;
-- co daje moduł `audit-logs`: model `AuditLog`, stronę `/audit-log`, komponent `<AuditTrail>` i zdarzenia, które loguje sam;
-- jak działa wspólny punkt wejścia `trackAudit` z rdzenia, jeśli moduł nie jest zainstalowany, i jak działa lista ujść (`auditSinks`);
-- co robi redakcja danych wrażliwych i dlaczego moduł nie ma retencji;
-- co daje moduł `api-keys`: klucze API organizacji, zakresy, uwierzytelnianie tras, limit kluczy i pepper;
-- co daje moduł `uploads`: pliki organizacji w magazynie S3, cele uploadu deklarowane przez moduły, walidacja i skalowanie obrazów, trasy `/api/uploads`, komponent `<FileUpload>` i zmienne S3.
+- czym moduł kitu różni się od rdzenia i od funkcji napisanej w projekcie (modułu projektu);
+- jakie moduły ma kit, czego każdy wymaga i jak dobrać je do projektu;
+- jaką drogę przechodzi moduł od manifestu w kicie do działającej funkcji w projekcie;
+- które szwy generowane i które punkty wejścia rdzenia łączą moduł z aplikacją;
+- co dzieje się z kodem, który korzysta z punktu wejścia, gdy modułu w projekcie nie ma.
 
-Zweryfikowano z kodem: a4d5af3, 2026-10-29
+Zweryfikowano z kodem: 315c068, 2026-10-30
 
 Źródła:
 
-- `kit/modules/audit-logs.json`
-- `src/features/audit-logs/module.ts`
-- `src/features/audit-logs/audit-sink.ts`
-- `src/features/audit-logs/auth.ts`
-- `src/features/audit-logs/components/audit-trail.tsx`
-- `src/features/audit-logs/services/write-audit-log.ts`
-- `src/features/audit-logs/services/redact.ts`
-- `src/features/audit-logs/services/organization-audit-events.ts`
-- `src/features/audit-logs/services/audit-action-labels.ts`
-- `src/features/audit-logs/services/queries/audit-log-queries.ts`
-- `src/features/audit-logs/services/queries/audit-trail-query.ts`
+- `kit/kit.json`
+- `kit/modules/core.json`, `kit/modules/audit-logs.json`, `kit/modules/api-keys.json`, `kit/modules/uploads.json`
+- `kit/cli/src/manifest/schema.ts`
+- `kit/cli/src/manifest/kit-state.ts`
+- `kit/cli/src/generate/index.ts`
+- `kit/cli/src/generate/registry.ts`
+- `kit/cli/src/generate/targets.ts`
+- `src/modules.generated.ts`
+- `src/modules.client.generated.ts`
+- `src/i18n/locales.generated.ts`
 - `src/shared/lib/audit.ts`
 - `src/shared/lib/modules/define-module.ts`
+- `src/shared/components/service-mode/use-service-mode-action.tsx`
+- `src/shared/lib/env.ts`
+- `src/shared/lib/auth/index.ts`
+- `src/shared/lib/auth/client.ts`
+- `src/shared/lib/auth/permissions.ts`
+- `src/shared/lib/auth/require-module-access.ts`
+- `src/shared/lib/modules/nav.ts`
+- `src/i18n/request.ts`
+- `src/i18n/config.ts`
+- `src/test/core-modules.ts`
 - `src/features/organizations/services/commands/member-commands.ts`
 - `src/features/organizations/services/commands/enter-organization-command.ts`
-- `prisma/schema/audit-logs.prisma`
+- pliki modułów, które czytają szwy: `src/features/audit-logs/` (`module.ts`, `audit-sink.ts`, `auth.ts`, `components/audit-trail.tsx`, `components/audit-log-view.tsx`, `services/audit-action-labels.ts`), `src/features/api-keys/` (`module.ts`, `services/api-scopes.ts`, `services/api-scope-labels.ts`, `components/api-keys-manager.tsx`, `contracts/api-key.schemas.ts`, `services/commands/api-key-commands.ts`), `src/features/uploads/` (`module.ts`, `services/upload-purposes.ts`, `components/file-upload.tsx`, `services/commands/create-upload.ts`, `services/commands/upload-commands.ts`)
+- `mutation-gate.json`
 - `.github/workflows/kit.yml`
-- `kit/modules/api-keys.json`
-- `prisma/schema/api-keys.prisma`
-- `src/features/api-keys/module.ts`
-- `src/features/api-keys/env.ts`
-- `src/features/api-keys/services/api-key-secret.ts`
-- `src/features/api-keys/services/api-scopes.ts`
-- `src/features/api-keys/services/api-scope-labels.ts`
-- `src/features/api-keys/services/authenticate-api-key.ts`
-- `src/features/api-keys/services/api-key-pepper.ts`
-- `src/features/api-keys/services/organization-api.ts`
-- `src/features/api-keys/services/commands/api-key-commands.ts`
-- `src/features/api-keys/services/queries/api-key-queries.ts`
-- `src/app/api/v1/organization/route.ts`
-- `src/app/[locale]/(app)/api-keys/page.tsx`
-- `kit/modules/uploads.json`
-- `prisma/schema/uploads.prisma`
-- `docker/uploads.compose.yml`
-- `ci/uploads.integration-steps.yml`
-- `src/features/uploads/module.ts`
-- `src/features/uploads/env.ts`
-- `src/features/uploads/components/file-upload.tsx`
-- `src/features/uploads/services/storage.ts`
-- `src/features/uploads/services/upload-purposes.ts`
-- `src/features/uploads/services/validate-upload.ts`
-- `src/features/uploads/services/prepare-upload-body.ts`
-- `src/features/uploads/services/content-disposition.ts`
-- `src/features/uploads/services/api-org-context.ts`
-- `src/features/uploads/services/commands/create-upload.ts`
-- `src/features/uploads/services/commands/upload-commands.ts`
-- `src/features/uploads/services/read-upload.ts`
-- `src/app/api/uploads/route.ts`
-- `src/app/api/uploads/[id]/route.ts`
-- `src/test/integration/setup-env.ts`
+- `AGENTS.md` („Moduły i pliki generowane”)
+- `src/proxy.ts`
+- zmiany rdzenia dodane razem z modułami: `git diff 5b2d308..76ca2d7 -- src/shared src/app/api src/i18n src/proxy.ts prisma/schema/auth.prisma prisma/schema/organizations.prisma`
 
-## Moduł kitu a rdzeń
+Ten plik wyjaśnia, jak moduły kitu trafiają do projektu i jak łączą się z aplikacją. Każdy moduł ma osobny plik ze szczegółami: [13-modul-audit-logs.md](13-modul-audit-logs.md), [14-modul-api-keys.md](14-modul-api-keys.md) i [15-modul-uploads.md](15-modul-uploads.md). Komendy CLI opisuje [16-cli-wa.md](16-cli-wa.md), pracę nad samym kitem (manifesty, `wa kit sync`, dodanie modułu do kitu) [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md), a generator i pola manifestu [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md).
 
-Rdzeń (`core`) ma każdy projekt. Moduł opcjonalny to osobny wpis w `.wa/kit.json` z manifestem plików (`kit/modules/<nazwa>.json`), który projekt instaluje przez `wa create --modules <nazwa>` albo `npm run wa -- add <nazwa>` i usuwa przez `wa remove <nazwa>` ([kit/README.md](../kit/README.md)). Po instalacji i usunięciu zmienia się schemat bazy, więc migrację tworzy i commituje projekt ([03b](03b-schemat-i-migracje.md#migracje)).
+„(sprawdzone)” znaczy tu, że zachowanie potwierdził przebieg z 2026-10-30 na projekcie założonym z tagu `v0.1.0` (`wa create` bez `--modules`, czyli sam rdzeń), skopiowanym do katalogu tymczasowego, z `npm ci` i `npx prisma generate`. Do kopii doszedł moduł projektu `notes` z wpisem w `projectModules`, który deklaruje `auditActions`, `apiScopes` i `uploadPurposes` i woła `trackAudit`; po `wa generate` przebiegi `npx tsc --noEmit` i `npx vitest run` dla tego feature były zielone.
 
-Rdzeń nie importuje plików modułów opcjonalnych. Łączą się przez pliki generowane ([02b](02b-rejestr-i-generator.md#rejestr-modulow)): `wa generate` dopisuje moduł do tablicy `modules` w `src/modules.generated.ts`, a pliki `auth.ts` i `audit-sink.ts` modułu do tablic `authPlugins` i `auditSinks`. Rdzeń czyta te tablice, więc działa tak samo z modułem i bez niego.
+<a id="modul-a-rdzen"></a>
 
-Instalowanych kombinacji pilnuje job `assemble` w `.github/workflows/kit.yml`: dla każdego wpisu macierzy `combo` składa projekt z kitu i uruchamia w nim bramki. Macierz zawiera kombinacje `core` (sam rdzeń), `audit-logs`, `api-keys`, `uploads` i `all` (`audit-logs,api-keys,uploads`). Dla kombinacji z `uploads` job przed testami integracyjnymi uruchamia MinIO i tworzy bucket `matrix-app-uploads`, a obraz Dockera buduje dla `core` i `all`.
+## Moduł kitu, rdzeń i moduł projektu
 
-## `audit-logs`
+Słowo „moduł” ma w kicie dwa znaczenia ([02-architektura.md](02-architektura.md#kit-rdzen-moduly)):
 
-Dziennik zdarzeń organizacji: kto, kiedy i co zmienił w danych organizacji. Moduł wymaga tylko rdzenia (`requires` jest puste).
+- **moduł kitu**: jednostka, którą CLI kopiuje do projektu i z niego usuwa; opisuje go manifest `kit/modules/<nazwa>.json`;
+- **definicja modułu**: plik `src/features/<x>/module.ts` z `defineModule({...})`, opisujący jeden feature (klucz, menu, role); trafia do rejestru `modules`.
 
-| Część | Plik | Co robi |
-| --- | --- | --- |
-| Model | `prisma/schema/audit-logs.prisma` | Tabela `audit_logs` z modelem `AuditLog` (organizacja, opcjonalny użytkownik, `action`, `entityType`, `entityId`, `oldData`, `newData`, `channel`, `credentialId`, `serviceMode`, `createdAt`) i trzema indeksami z `organizationId`. Usunięcie organizacji kasuje wpisy, usunięcie użytkownika zeruje `userId`. |
-| Ujście | `src/features/audit-logs/audit-sink.ts` | Eksportuje `auditSink`, czyli `writeAuditLog`: zapisuje zdarzenie w tabeli po redakcji danych wrażliwych. |
-| Strona | `src/app/[locale]/(app)/audit-log/page.tsx` | Strona `/audit-log` chroniona przez `requireModuleAccess("audit-logs")`, dostępna dla ról `owner` i `admin` organizacji (`roles` w `module.ts`). Filtry: użytkownik, akcja, typ i id encji, zakres dat; sortowanie i paginacja. |
-| Komponent | `src/features/audit-logs/components/audit-trail.tsx` | `<AuditTrail entityType entityId />`: historia jednej encji (50 ostatnich wpisów organizacji). |
-| Plugin auth | `src/features/audit-logs/auth.ts` | Hooki better-auth, które logują zdarzenia członkostwa. |
+Moduł kitu może obejmować kilka feature. Rdzeń to moduł kitu `core` z pięcioma feature (`account`, `auth`, `dashboard`, `organizations`, `users`), a każdy z modułów opcjonalnych ma jeden feature o tej samej nazwie.
 
-### Punkt wejścia `trackAudit`
+| | Rdzeń (`core`) | Moduł kitu (opcjonalny) | Moduł projektu |
+| --- | --- | --- | --- |
+| Skąd pochodzi | Kit, zawsze. | Kit, wybierany przy `wa create --modules` albo dodawany `wa add`. | Pisze go zespół projektu ([tutorial 09](09-nowy-modul.md)). |
+| Wpis w `.wa/kit.json` | `modules.core`: wersja, manifest, hashe plików. | `modules.<nazwa>`: wersja, manifest, hashe plików. | `projectModules.<nazwa>`: sam manifest, bez wersji i hashy ([D36](decyzje.md#d36)). |
+| Usunięcie | Niemożliwe (`Nie można usunąć rdzenia`). | `wa remove <nazwa>` ([16](16-cli-wa.md#wa-remove)). | Ręcznie: pliki i wpis w `projectModules`. |
+| Rejestracja w aplikacji | `wa generate`, jako pierwszy. | `wa generate`, po rdzeniu, w kolejności nazw. | `wa generate`, po modułach kitu ([16](16-cli-wa.md#moduly-projektu)). |
+| Poprawki | Pull request do `webamigos/wa-kit`, jeśli przydadzą się innym projektom. | Jak rdzeń. | Tylko w projekcie. |
 
-`trackAudit(event)` z `src/shared/lib/audit.ts` należy do rdzenia i woła po kolei każde ujście z `auditSinks`. Błąd ujścia jest tylko logowany (`trackAudit failed`), więc nie przerywa komendy, która go wywołała. Bez zainstalowanego `audit-logs` `auditSinks` jest puste, a `trackAudit` nic nie robi. Dzięki temu rdzeń i moduły projektu mogą go wołać bez sprawdzania, czy dziennik jest zainstalowany.
+Kod modułu kitu jest po skopiowaniu zwykłym kodem projektu, bez paczki npm i bez ładowania pluginów w trakcie działania ([D39](decyzje.md#d39)). Rdzeń nie importuje plików modułów opcjonalnych. Widzi je tylko przez szwy: pliki generowane i regiony `wa:*` ([D03](decyzje.md#d03)). Moduł korzysta z rdzenia wprost, importując jego punkty wejścia ([Punkty wejścia](#punkty-wejscia)). Dzięki temu rdzeń buduje się i działa tak samo z modułem i bez niego.
 
-`AuditEvent` ma pola `organizationId`, `actorUserId`, `action`, `entityType` (wymagane) oraz `entityId`, `oldData`, `newData`, `channel` (`WEB` domyślnie albo `API`), `credentialId` i `serviceMode`. `auditActor(context)` wypełnia `organizationId`, `actorUserId` i `serviceMode` z kontekstu organizacji.
+<a id="lista-modulow"></a>
 
-### Zdarzenia logowane przez moduł
+## Moduły kitu
 
-| Akcja | Źródło | Encja |
-| --- | --- | --- |
-| `member.invited` | hook better-auth `/organization/invite-member` | `invitation` (w `newData` e-mail i rola) |
-| `invitation.canceled` | hook `/organization/cancel-invitation` | `invitation` |
-| `invitation.accepted` | hook `/organization/accept-invitation` oraz `joinOrganizationCommand` rdzenia (rejestracja z zaproszenia) | `invitation` |
-| `member.role_changed` | hook `/organization/update-member-role` (poprzednia rola z hooka `before`) | `member` (`oldData`, `newData` z rolą) |
-| `member.removed` | hook `/organization/remove-member` | `member` (w `oldData` użytkownik i rola) |
-| `organization.entered` | `enterOrganizationCommand` rdzenia, tylko gdy superadmin wchodzi do organizacji bez członkostwa | `organization` |
+Kit w wersji `0.1.0` ma trzy moduły opcjonalne. `wa list` wypisuje je z opisem z manifestu ([16](16-cli-wa.md#wa-list)).
 
-Hooki obejmują wyłącznie ścieżki z `AUDITED_ORGANIZATION_PATHS`. Zdarzenie powstaje po udanym wywołaniu, z danych zwróconych przez better-auth. Endpointy better-auth wymagają członkostwa, więc wpisy z hooków nie mają znacznika trybu serwisowego. Znacznik `serviceMode: true` niesie wpis `organization.entered` superadmina oraz każde zdarzenie komendy, która przekazuje `auditActor(context)` w trybie serwisowym, także komendy modułów i funkcji projektu ([09b](09b-implementacja-i-bramki.md)). Strona `/audit-log` oznacza takie wpisy plakietką.
+<a id="audit-logs"></a>
 
-### Etykiety akcji
+### `audit-logs`
 
-Każdy moduł deklaruje swoje akcje w `auditActions` w `module.ts` jako pary `{ action, labelKey }`. Etykietę czyta się z przestrzeni nazw tłumaczeń modułu, który akcję zadeklarował (`findAuditActionLabel` zwraca klucz modułu i `labelKey`). Akcja bez deklaracji jest wyświetlana jako surowy napis. Akcje członkostwa deklaruje `audit-logs` i trzyma ich etykiety w `src/features/audit-logs/i18n/{pl,en}.json`.
+Dziennik zdarzeń organizacji: kto, kiedy i co zmienił. Dodaje tabelę `audit_logs`, stronę `/audit-log`, komponent `<AuditTrail>` i jedyne w kicie ujście `trackAudit`. Bez zmiennych środowiskowych i usług. Szczegóły: [13-modul-audit-logs.md](13-modul-audit-logs.md).
 
-### Redakcja danych wrażliwych
+<a id="api-keys"></a>
 
-Przed zapisem `oldData` i `newData` przechodzą przez `redactSensitive`: wartość pola zamienia się na `[REDACTED]`, gdy nazwa pola po normalizacji (małe litery, bez `-` i `_`) zawiera którykolwiek z fragmentów: `password`, `secret`, `token`, `apikey`, `authorization`, `cookie`, `privatekey`, `hashedkey`. Dotyczy to także obiektów zagnieżdżonych i tablic, a nazwy takie jak `accessToken`, `x-api-key` czy `client_secret` są redagowane.
+### `api-keys`
 
-### Izolacja organizacji
+Klucze API organizacji z zakresami: zewnętrzny system woła trasy projektu z nagłówkiem `Authorization: Bearer <klucz>`. Dodaje tabelę `api_keys`, stronę `/api-keys`, przykładową trasę `GET /api/v1/organization` i wymaganą zmienną `API_KEY_PEPPER`. Szczegóły: [14-modul-api-keys.md](14-modul-api-keys.md).
 
-Strona i `<AuditTrail>` czytają wpisy przez `getOrgContext()` i zawsze filtrują po `organizationId` aktywnej organizacji. `<AuditTrail>` nie renderuje nic, gdy rola użytkownika nie ma dostępu do modułu `audit-logs`, więc można go bezpiecznie wstawić na stronie dostępnej dla szerszej grupy.
+<a id="uploads"></a>
 
-### Retencja
+### `uploads`
 
-Moduł nie ma retencji (automatycznego usuwania starych wpisów). Dziennik rośnie bez limitu, dopóki projekt sam nie usunie wpisów.
+Pliki organizacji w magazynie zgodnym z S3. Dodaje tabelę `uploads`, trasy `/api/uploads`, komponent `<FileUpload>`, zmienne `S3_*`, usługi `minio` i `minio-init` w `docker-compose.yml` i kroki MinIO w CI projektu. Szczegóły: [15-modul-uploads.md](15-modul-uploads.md).
 
-Jak użyć dziennika w funkcji projektu: [09b, sekcja o dzienniku zdarzeń](09b-implementacja-i-bramki.md#dziennik-zdarzen).
+<a id="macierz-zaleznosci"></a>
 
-## `api-keys`
+### Zależności między modułami
 
-Klucze API organizacji: zewnętrzny system wywołuje trasy projektu z nagłówkiem `Authorization: Bearer <klucz>`, a trasa dostaje organizację i zakresy klucza. Moduł wymaga tylko rdzenia (`requires` jest puste). `audit-logs` nie jest potrzebny, ale jeśli jest zainstalowany, zapisuje zdarzenia kluczy.
+Żaden moduł nie ma `requires`, więc każdy można dodać i usunąć niezależnie od pozostałych. Moduły współpracują jednak przez punkty wejścia: korzystają z wkładu innego modułu, gdy ten jest zainstalowany, i działają bez niego.
 
-| Część | Plik | Co robi |
-| --- | --- | --- |
-| Model | `prisma/schema/api-keys.prisma` | Tabela `api_keys` z modelem `ApiKey` (organizacja, opcjonalny twórca, `name`, `displayPrefix`, unikalny `hashedKey`, `scopes`, `lastUsedAt`, `expiresAt`, `revokedAt`). Usunięcie organizacji kasuje klucze, usunięcie użytkownika zeruje `createdById`. |
-| Zmienna | `src/features/api-keys/env.ts` | `API_KEY_PEPPER`: min. 32 znaki; na produkcji wartość z `.env.example` jest odrzucana, a błąd walidacji dotyczy całej aplikacji ([Pepper](#pepper)). |
-| Sekret | `src/features/api-keys/services/api-key-secret.ts` | Klucz ma postać `<slug>_live_<32 bajty w base64url>` (myślniki ze sluga zamieniane na `_`). W bazie leży tylko HMAC-SHA256 klucza z pepperem i krótki `displayPrefix`. |
-| Zakresy | `src/features/api-keys/module.ts`, `services/api-scopes.ts` | Moduł deklaruje zakresy w `apiScopes` (`{ key, labelKey }`). Moduł `api-keys` deklaruje `organization:read`. `knownApiScopes()` zbiera zakresy wszystkich zainstalowanych modułów z `modules`. |
-| Uwierzytelnianie | `src/features/api-keys/services/authenticate-api-key.ts` | `authenticateApiKey(request, scope)`. |
-| Komendy | `src/features/api-keys/services/commands/api-key-commands.ts` | `createApiKeyCommand`, `revokeApiKeyCommand`, `deleteApiKeyCommand`: przez `requireModuleAccess("api-keys")`, z potwierdzeniem trybu serwisowego. |
-| Strona | `src/app/[locale]/(app)/api-keys/page.tsx` | Strona `/api-keys` dla ról `owner` i `admin` organizacji: lista kluczy, tworzenie, unieważnianie, usuwanie. |
-| Trasa przykładowa | `src/app/api/v1/organization/route.ts` | `GET /api/v1/organization` ze scope `organization:read`: zwraca `id`, `name` i `slug` organizacji klucza. |
+| Moduł | `requires` | Korzysta z innego modułu, jeśli jest | Bez tego modułu |
+| --- | --- | --- | --- |
+| `audit-logs` | — | Pokazuje etykiety akcji, które deklarują `api-keys` i `uploads` (`auditActions`). | Akcja bez deklaracji jest pokazywana jako surowy napis. |
+| `api-keys` | — | Zapisuje zdarzenia kluczy przez `trackAudit`; zapisze je `audit-logs`. | Zdarzenia kluczy nie trafiają nigdzie. |
+| `uploads` | — | Zapisuje `upload.created` i `upload.deleted` przez `trackAudit`; zapisze je `audit-logs`. | Zdarzenia plików nie trafiają nigdzie. |
 
-### Cykl życia klucza
+`requires` modułu projektu może wskazywać moduł kitu. Wtedy `wa remove` odmawia usunięcia tego modułu ([16](16-cli-wa.md#wa-remove)), a każda komenda CLI odmawia pracy, jeśli wymaganego modułu w projekcie nie ma ([16](16-cli-wa.md#moduly-projektu)).
 
-Klucz tworzy `owner` albo `admin` na stronie `/api-keys`: podaje nazwę, zakresy i opcjonalny termin ważności w dniach. Pełny klucz jest pokazany raz, w odpowiedzi komendy `createApiKeyCommand`; później widać tylko `displayPrefix`. Organizacja może mieć najwyżej 10 aktywnych kluczy (nieunieważnionych i niewygasłych). Limit sprawdza transakcja pod blokadą doradczą (`pg_advisory_xact_lock` po `organizationId`), więc równoległe tworzenie nie przekroczy limitu. Powyżej limitu komenda zwraca błąd „Osiągnięto limit 10 aktywnych kluczy”.
+<a id="warstwa-szwow"></a>
 
-Unieważnienie (`revokedAt`) ustawia się raz; powtórne unieważnienie niczego nie zmienia. Usunięcie kasuje wiersz. Komendy działają na danych organizacji, więc w trybie serwisowym superadmin musi je potwierdzić ([09b](09b-implementacja-i-bramki.md#komenda)). Zapisują wpis audytu: `api_key.created`, `api_key.deleted` i `api_key.revoked`; powtórne unieważnienie już unieważnionego klucza jest no-opem bez wpisu audytu.
+## Droga modułu do aplikacji
 
-### `authenticateApiKey`
+Warstwa szwów to wszystko, przez co moduł trafia do projektu i łączy się z aplikacją: manifest, komendy CLI, pliki generowane i regiony, punkty wejścia rdzenia i deklaracje w `module.ts`. Reguły dla tej warstwy podaje `AGENTS.md` („Moduły i pliki generowane”); ta sekcja je wyjaśnia. `AGENTS.md` nie wymienia wszystkich szwów z kodu: brakuje w nim regionu `wa:ci-integration`, tablicy `auditSinks`, pola `ciSteps` i pliku `src/i18n/locales.generated.ts` (R1 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)) oraz punktów wejścia z [Punktów wejścia](#punkty-wejscia) (R13 w tej samej notatce).
 
-`authenticateApiKey(request, requiredScope)` czyta nagłówek `Authorization: Bearer <klucz>`, liczy HMAC klucza i szuka go w `api_keys`. Wynik to:
+```mermaid
+flowchart TD
+    manifest["kit/modules/x.json<br/>(manifest w kicie)"] --> cli["wa create --modules / wa add"]
+    cli --> files["pliki modułu w projekcie<br/>src/features/x/, prisma/schema/x.prisma, …"]
+    cli --> state[".wa/kit.json projektu<br/>(manifest, wersja, hashe)"]
+    cli --> pkg["package.json<br/>(zależności npm modułu)"]
+    project["projectModules w .wa/kit.json<br/>(moduł projektu)"] --> generate
+    state --> generate["wa generate"]
+    files --> generate
+    generate --> registry["rejestr: modules, clientModules,<br/>moduleEnvSchemas, authPlugins,<br/>authClientPlugins, auditSinks,<br/>moduleMessages, locales"]
+    generate --> regions["regiony: wa:relations, wa:modules,<br/>wa:services, wa:ci-integration"]
+    registry --> core["rdzeń czyta rejestr:<br/>env, better-auth, i18n, menu, guard, trackAudit"]
+    registry --> readers["moduły czytają deklaracje innych:<br/>auditActions, apiScopes, uploadPurposes"]
+    files -->|"import punktów wejścia"| entry["punkty wejścia rdzenia:<br/>trackAudit, auditActor, defineModule,<br/>useServiceModeAction"]
+    core -->|"woła"| files
+```
 
-- `{ ok: true, context: { organizationId, apiKeyId, scopes } }`, gdy klucz jest ważny i ma wymagany zakres;
-- `{ ok: false, status: 401, error }` z `error` równym `missing` (brak nagłówka albo pusty token), `invalid` (nieznany klucz), `revoked` albo `expired`;
-- `{ ok: false, status: 403, error: "scope" }`, gdy klucz nie ma wymaganego zakresu.
+<a id="manifest"></a>
 
-Zakresy klucza są przecinane z `knownApiScopes()`: zakres zapisany w kluczu, którego żaden zainstalowany moduł już nie deklaruje (na przykład po usunięciu modułu), nie daje dostępu. Po udanym uwierzytelnieniu `lastUsedAt` jest aktualizowany w tle, a jego błąd jest tylko logowany. Odpowiedzi tras z kluczem mają nagłówek `Cache-Control: no-store`. Jak napisać własną trasę: [09b, sekcja o trasach API](09b-implementacja-i-bramki.md#trasy-api).
+### 1. Manifest
 
-### Pepper
+Moduł kitu opisuje plik `kit/modules/<nazwa>.json`: pliki modułu (`files`), moduły wymagane (`requires`), zależności npm, zmienne środowiskowe (`env`), relacje w schemacie (`schemaRelations`), plik usług Dockera (`compose`) i plik kroków CI (`ciSteps`). Komendy `create`, `add` i `remove` czytają pliki, wymagania i zależności; `wa generate` czyta `files` (żeby znaleźć feature), `env`, `schemaRelations`, `compose` i `ciSteps` (żeby wypełnić regiony). Pełną tabelę „pole → kto czyta” podaje [16b](16b-rozwoj-kitu.md#manifesty), typy i wartości domyślne pól [02b](02b-rejestr-i-generator.md#referencja-manifest).
 
-Klucze są haszowane HMAC-SHA256 z `API_KEY_PEPPER`. Zmiana peppera unieważnia wszystkie istniejące klucze: ich hasze przestają pasować, a trasy zwracają `invalid`. Rotacja peppera to więc świadoma operacja: wszystkie organizacje muszą wystawić nowe klucze.
+Przy instalacji manifest jest kopiowany do `.wa/kit.json` projektu. Od tej chwili projekt nie potrzebuje kitu, żeby wygenerować szwy albo usunąć moduł: `wa generate` i `wa remove` czytają manifest z `.wa/kit.json`.
 
-`wa create` nie losuje peppera: `.env.example` zawiera wartość przykładową, więc musisz ustawić własną przed wdrożeniem na produkcję (losowy ciąg, min. 32 znaki, w zmiennych usługi na Railway, [10-wdrozenie.md](10-wdrozenie.md#zmienne)) i nie zmieniać jej bez potrzeby.
+<a id="wybor-i-kopiowanie"></a>
 
-Uwaga: zmienna należy do schematu env całej aplikacji. Na produkcji brak peppera, wartość krótsza niż 32 znaki albo przykładowa psuje walidację `env` w całej aplikacji: każda strona i akcja odczytująca `env` kończy się błędem 500, a healthcheck dalej odpowiada 200, więc wdrożenie wygląda na udane ([10-wdrozenie.md](10-wdrozenie.md#blad-env)).
+### 2. Wybór i kopiowanie
 
-## `uploads`
+- `wa create --modules <lista>` zakłada projekt z rdzeniem i wybranymi modułami ([16](16-cli-wa.md#wa-create)).
+- `wa add <moduł>` kopiuje pliki modułu do istniejącego projektu, dopisuje jego zależności i uruchamia `wa generate`; jeśli którykolwiek plik modułu już istnieje, przerywa z `Pliki już istnieją, przerwano bez zmian:` i niczego nie kopiuje. `.env` uzupełniasz sam ([16](16-cli-wa.md#wa-add)).
+- `wa remove <moduł>` usuwa pliki modułu, jego zależności i wpis w `.wa/kit.json`, a potem uruchamia `wa generate`; bazy, magazynu S3, `.env` i kodu projektu nie dotyka ([16](16-cli-wa.md#wa-remove)).
 
-Pliki organizacji w magazynie zgodnym z S3: komponent do wysyłania, trasy do zapisu i odczytu oraz cele uploadu, które deklarują moduły. Moduł wymaga tylko rdzenia (`requires` jest puste). `audit-logs` nie jest potrzebny, ale jeśli jest zainstalowany, zapisuje zdarzenia `upload.created` i `upload.deleted`.
+Po każdej z tych komend schemat bazy się zmienia, więc migrację tworzy i commituje projekt ([03b](03b-schemat-i-migracje.md#migracje-w-projekcie)).
 
-| Część | Plik | Co robi |
-| --- | --- | --- |
-| Model | `prisma/schema/uploads.prisma` | Tabela `uploads` z modelem `Upload` (organizacja, opcjonalny `uploadedById`, `purpose`, unikalny `key`, `fileName`, `mimeType`, `size`, `visibility` `PUBLIC` albo `ORGANIZATION`, `createdAt`). Usunięcie organizacji kasuje wiersze, usunięcie użytkownika zeruje `uploadedById`. |
-| Zmienne | `src/features/uploads/env.ts` | `S3_ENDPOINT`, `S3_REGION` (domyślnie `auto`), `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE` (`true` albo `false`). Bez wymaganej zmiennej walidacja `env` całej aplikacji zgłasza błąd. |
-| Magazyn | `src/features/uploads/services/storage.ts` | `putObject`, `getObject`, `deleteObject` na kliencie `@aws-sdk/client-s3`. Obiekt leży pod kluczem `orgs/<organizationId>/<purpose>/<id>.<rozszerzenie>`. |
-| Cele | `src/features/uploads/module.ts`, `services/upload-purposes.ts` | Moduł deklaruje cele w `uploadPurposes`. Moduł `uploads` deklaruje wbudowany cel `editor-image`. |
-| Zapis | `src/app/api/uploads/route.ts`, `services/commands/create-upload.ts` | `POST /api/uploads`. |
-| Odczyt | `src/app/api/uploads/[id]/route.ts`, `services/read-upload.ts` | `GET /api/uploads/<id>`. |
-| Usuwanie | `src/features/uploads/services/commands/upload-commands.ts` | `deleteUploadCommand`. |
-| Komponent | `src/features/uploads/components/file-upload.tsx` | `<FileUpload purpose accept onUploaded>`. |
-| Lokalnie | `docker/uploads.compose.yml` | Usługi `minio` i `minio-init` w regionie `wa:services` pliku `docker-compose.yml` ([Uruchomienie](01-uruchomienie.md#minio)). |
+<a id="szwy-generowane"></a>
 
-Moduł nie ma własnej strony ani pozycji w menu (`nav` jest puste).
+### 3. Szwy generowane
 
-### Cele uploadu
+`wa generate` zapisuje trzy pliki i wypełnia cztery regiony ([02b](02b-rejestr-i-generator.md#wa-generate)). Generator rejestruje najpierw feature modułu `core`, potem modułów kitu w kolejności nazw, a na końcu modułów projektu (`registeredModules` w `kit/cli/src/manifest/kit-state.ts`). Feature trafia do tablicy wtedy, gdy ma odpowiedni plik.
 
-Cel (`purpose`) opisuje, co wolno wysłać i kto potem plik zobaczy. Moduł deklaruje go w `defineModule({ uploadPurposes })` jako obiekt z polami:
+| Szew | Plik feature, z którego powstaje | Kto w aplikacji czyta | Bez modułów opcjonalnych |
+| --- | --- | --- | --- |
+| `modules` w `src/modules.generated.ts` | `module.ts` | Moduły: `knownApiScopes` (`api-keys`), `listUploadPurposes` (`uploads`), `<AuditTrail>` (`audit-logs`). Rdzeń go nie czyta. | Tylko pięć feature rdzenia i moduły projektu. |
+| `clientModules` w `src/modules.client.generated.ts` | `module.ts` | Rdzeń: guard stron i `requireModuleAccess` (`src/shared/lib/auth/permissions.ts`), menu (`src/shared/lib/modules/nav.ts`), filtr testów rdzenia (`src/test/core-modules.ts`). Moduły: widok `/audit-log`, formularz kluczy API. | Jak wyżej. `requireModuleAccess` z kluczem modułu, którego nie ma, kończy się dla użytkownika z aktywną organizacją zawsze 404 (`notFound()`). |
+| `moduleEnvSchemas` | `env.ts` (eksport `envSchema`) | `src/shared/lib/env.ts`: łączy schemat rdzenia ze schematami modułów w jeden. | Pusta (sprawdzone: `never[]`): walidowane są tylko zmienne rdzenia. |
+| `authPlugins` | `auth.ts` (eksport `authPlugin`) | Lista `plugins` better-auth w `src/shared/lib/auth/index.ts`. | Pusta (sprawdzone: `never[]`): better-auth działa tylko z pluginami rdzenia. |
+| `authClientPlugins` | `auth-client.ts` (eksport `authClientPlugin`) | Lista `plugins` klienta better-auth w `src/shared/lib/auth/client.ts`. | Pusta; żaden moduł kitu nie ma tego pliku. |
+| `auditSinks` | `audit-sink.ts` (eksport `auditSink`) | `trackAudit` w `src/shared/lib/audit.ts`. | Pusta: `trackAudit` nic nie zapisuje (sprawdzone). |
+| `moduleMessages` | `i18n/<język>.json` | `src/i18n/request.ts`: teksty feature pod namespace równym nazwie katalogu. | Tylko teksty rdzenia; namespace modułu nie istnieje. |
+| `locales` w `src/i18n/locales.generated.ts` | pole `locales` w `.wa/kit.json` ([D33](decyzje.md#d33)) | `src/i18n/config.ts`. | Nie zależy od modułów. |
+| Region `wa:relations` w `prisma/schema/auth.prisma` i `prisma/schema/organizations.prisma` | `schemaRelations` manifestu | Prisma (relacje zwrotne `User` i `Organization`). | Pusty (sprawdzone). |
+| Region `wa:modules` w `.env.example` | `env` manifestu | Deweloper, który przepisuje zmienne do `.env`. | Pusty (sprawdzone). |
+| Region `wa:services` w `docker-compose.yml` | plik z `compose` manifestu | `docker compose up -d`. | Pusty (sprawdzone): bez MinIO. |
+| Region `wa:ci-integration` w `.github/workflows/ci.yml` | plik z `ciSteps` manifestu ([D45](decyzje.md#d45)) | Job testów integracyjnych w CI projektu. | Pusty (sprawdzone): CI nie startuje MinIO. |
 
-- `key`: unikalna nazwa celu; powtórzenie klucza przez dwa moduły albo cel z zakazanym typem rzuca błąd przy pierwszym użyciu `listUploadPurposes()`;
-- `mimeTypes`: dozwolone typy; typ pliku wykrywa `file-type` po zawartości, a nie po nazwie ani nagłówku `Content-Type` żądania. Formaty tekstowe (`text/plain`, `text/csv`, `application/json`) nie mają sygnatury w bajtach, więc `file-type` niczego nie wykrywa i cel, który je wymienia, zawsze odpowiada 415;
-- `maxBytes`: limit rozmiaru w bajtach;
-- `visibility`: `"public"` albo `"organization"`;
-- `resizeImage` (opcjonalnie): `{ maxWidth }`; dotyczy tylko obrazów (`image/*`), a plik innego typu z tego samego celu przechodzi bez zmian.
+Plików generowanych i regionów nie edytuje się ręcznie; CI projektu sprawdza, że po `wa generate` nie ma diffu ([D04](decyzje.md#d04)). Rejestr importuje pliki feature, więc zmiana treści `module.ts` albo `env.ts` nie wymaga generatora; wymaga go dodanie albo usunięcie takiego pliku.
 
-Typy `image/svg+xml`, `text/html`, `application/xhtml+xml`, `application/xml` i `text/xml` są zakazane dla każdego celu: SVG i HTML mogłyby wykonać skrypt w przeglądarce, która otworzy plik pod adresem aplikacji. `application/xml` i `text/xml` są na liście, bo SVG albo XHTML z prologiem XML `file-type` rozpoznaje jako `application/xml`, a taki dokument też mógłby wykonać skrypt. Wbudowany cel `editor-image` przyjmuje `image/jpeg`, `image/png` i `image/webp` do 5 MB, jest publiczny i skaluje obrazy do 1200 px szerokości.
+Zmienna wymagana przez `env.ts` modułu należy do schematu całej aplikacji: jej brak albo zła wartość psuje pierwszy odczyt `env` w każdej stronie i akcji, nie tylko w module ([07](07-i18n-mail-env.md)). Dlatego po `wa add` modułu z wymaganą zmienną (`api-keys`, `uploads`) trzeba uzupełnić `.env` ([16](16-cli-wa.md#add-po)).
 
-### `POST /api/uploads`
+<a id="punkty-wejscia"></a>
 
-Żądanie `multipart/form-data` z polami `file`, `purpose` i opcjonalnym `serviceModeConfirmation` (JSON z potwierdzeniem trybu serwisowego, [09b](09b-implementacja-i-bramki.md#komenda)). Trasa odpowiada kolejno:
+### 4. Punkty wejścia rdzenia i deklaracje w `module.ts`
 
-| Status | Kiedy |
-| --- | --- |
-| 411 | Brak nagłówka `Content-Length`. |
-| 413 | Zadeklarowana długość przekracza największy `maxBytes` ze wszystkich celów plus 64 KB na obwiednię multipart, albo plik przekracza `maxBytes` celu (`too_large`). |
-| 401 | Brak sesji. Sesję sprawdza trasa przed odczytem treści żądania. |
-| 403 | Użytkownik nie ma aktywnej organizacji albo tryb serwisowy bez potwierdzenia. |
-| 400 | Błędne wejście (`invalid_input`), nieznany cel (`unknown_purpose`), pusty plik (`empty`) albo obraz, którego nie da się przetworzyć (`invalid_image`). |
-| 415 | Typ pliku spoza `mimeTypes` celu albo zakazany (`unsupported_type`). |
-| 201 | Odpowiedź `{ id, url, fileName, mimeType, size }`, gdzie `url` to `/api/uploads/<id>`. |
+Szwy generowane mówią rdzeniowi, jakie moduły istnieją. Punkty wejścia działają w drugą stronę: to kod rdzenia, który importuje moduł albo moduł projektu. Leżą w plikach rdzenia, więc istnieją w każdym projekcie, także bez modułu, który je obsługuje. Decyzje: [D39](decyzje.md#d39), [D40](decyzje.md#d40).
 
-Gdy zapis w magazynie albo w bazie się nie uda, trasa zwraca 500 (`storage_failed`); po nieudanym zapisie wiersza usuwa już zapisany obiekt. Udany zapis wpisuje do audytu `upload.created`.
+Tabela odpowiada na pytanie: co się stanie, gdy kod projektu skorzysta z punktu wejścia, a modułu, który go obsługuje, w projekcie nie ma. Kolumna „Kto korzysta” podaje pliki kitu, które z punktu wejścia korzystają (wołają go, deklarują albo czytają deklaracje).
 
-### Obrazy
+| Punkt wejścia | Plik | Kontrakt | Bez modułu | Kto korzysta |
+| --- | --- | --- | --- | --- |
+| `trackAudit(event)` | `src/shared/lib/audit.ts` | Przyjmuje `AuditEvent` z wymaganymi polami `organizationId`, `actorUserId` (`string` albo `null`), `action` i `entityType` (pozostałe pola: [13](13-modul-audit-logs.md)). Woła po kolei każde ujście z `auditSinks`; błąd ujścia zapisuje w logu jako `trackAudit failed` i woła kolejne; nigdy nie rzuca. | Bez żadnego ujścia `auditSinks` jest puste: wywołanie nic nie zapisuje i nie zgłasza błędu (sprawdzone). W kicie ujście ma tylko `audit-logs`; funkcja projektu z własnym `audit-sink.ts` też trafia do `auditSinks`. | Rdzeń: `joinOrganizationCommand` (`member-commands.ts`), `enterOrganizationCommand`. `audit-logs`: `auth.ts`. `api-keys`: `api-key-commands.ts`. `uploads`: `create-upload.ts`, `upload-commands.ts`. |
+| `auditActor(context)` | `src/shared/lib/audit.ts` | Z `OrgContext` zwraca `organizationId`, `actorUserId` i `serviceMode` dla zdarzenia; wpis z trybu serwisowego jest dzięki temu oznaczony. | Czysta funkcja rdzenia, działa zawsze. | `api-key-commands.ts`, `create-upload.ts`, `upload-commands.ts`. |
+| `AuditSink` i plik `audit-sink.ts` | `src/shared/lib/audit.ts` | Ujście to `(event: AuditEvent) => Promise<void>` wyeksportowane jako `auditSink` z `src/features/<x>/audit-sink.ts`; generator dopisuje je do `auditSinks`. Ujście dostaje zdarzenie przed redakcją danych. | Bez pliku ujścia nikt nie zapisuje zdarzeń. | `src/features/audit-logs/audit-sink.ts`. |
+| `auditActions` w `defineModule` | `src/shared/lib/modules/define-module.ts` | Lista `{ action, labelKey }`: etykieta akcji audytu. Namespace tłumaczeń to `key` modułu, który ją zadeklarował; `moduleMessages` rejestruje namespace pod nazwą katalogu feature, więc `key` musi być równy nazwie katalogu ([D27](decyzje.md#d27)). Moduł projektu z innym `key` dostanie zamiast etykiety surowy klucz tłumaczenia. | Bez `audit-logs` nikt jej nie czyta: deklaracja przechodzi typecheck i nic nie robi (sprawdzone). Po usunięciu modułu, który zadeklarował akcję, dziennik pokazuje ją jako surowy napis. | Deklarują: `audit-logs`, `api-keys`, `uploads` (`module.ts`). Czytają: `audit-action-labels.ts`, `audit-log-view.tsx`, `audit-trail.tsx`. |
+| `apiScopes` w `defineModule` | `src/shared/lib/modules/define-module.ts` | Lista `{ key, labelKey }`: zakres klucza API, z etykietą jak przy `auditActions` (namespace = `key` modułu); `knownApiScopes()` zbiera zakresy wszystkich modułów z rejestru, a klucz dostaje dostęp tylko do zakresów, które ktoś deklaruje. | Bez `api-keys` nikt jej nie czyta (sprawdzone, jak wyżej). Po usunięciu modułu, który zadeklarował zakres, klucze z tym zakresem tracą do niego dostęp. | Deklaruje: `api-keys` (`organization:read`). Czytają: `api-scopes.ts`, `api-scope-labels.ts`, `api-keys-manager.tsx`, `api-key.schemas.ts`. |
+| `uploadPurposes` w `defineModule` | `src/shared/lib/modules/define-module.ts` | Lista celów `{ key, mimeTypes, maxBytes, visibility, resizeImage? }`; `listUploadPurposes()` zbiera je z rejestru i rzuca błąd przy powtórzonym kluczu albo zakazanym typie (SVG, HTML, XML). | Bez `uploads` nikt jej nie czyta (sprawdzone, jak wyżej). | Deklaruje: `uploads` (`editor-image`). Czyta: `upload-purposes.ts`. |
+| `useServiceModeAction().requestConfirmation()` | `src/shared/components/service-mode/use-service-mode-action.tsx` | Poza trybem serwisowym zwraca `undefined`; w trybie serwisowym pokazuje dialog i zwraca `null` po „Anuluj” albo `{ serviceModeConfirmed: true, organizationId }` po potwierdzeniu. Służy wywołaniom, które nie są komendą serwerową, na przykład `fetch` do trasy API. | Część rdzenia, działa zawsze. | `uploads`: `components/file-upload.tsx`. |
 
-Cel z `resizeImage` przepuszcza obraz przez `sharp`: ogranicza wejście do 40 milionów pikseli, stosuje orientację z EXIF, spłaszcza przezroczystość na białym tle (`#ffffff`), zmniejsza szerokość do `maxWidth` (bez powiększania) i zapisuje jako JPEG z jakością 82. Przezroczyste PNG i WebP dostają więc białe, a nie czarne tło. Zapisany plik ma więc typ `image/jpeg` i rozszerzenie `jpg` bez względu na typ wejściowy, a metadane EXIF nie trafiają do magazynu. Obraz, którego `sharp` nie przetworzy, kończy się odpowiedzią 400 `invalid_image`.
+Typy deklaracji i ujścia:
 
-### `GET /api/uploads/<id>`
+`src/shared/lib/modules/define-module.ts`
 
-Plik z widocznością `PUBLIC` odczyta każdy, także bez sesji. Plik `ORGANIZATION` odczyta tylko użytkownik z sesją, którego aktywna organizacja jest organizacją pliku; w każdym innym przypadku trasa zwraca 404, tak samo jak dla nieistniejącego `id`, więc nie ujawnia, że plik istnieje. Odpowiedź ma `Content-Type` zapisanego typu, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'` i `Content-Disposition: inline` z nazwą pliku w `filename*`. Polityka `sandbox` z `default-src 'none'` na każdej odpowiedzi odbiera plikowi skrypty, formularze i zasoby zewnętrzne także wtedy, gdy przeglądarka otworzy go pod adresem aplikacji. Przez ten nagłówek przeglądarka może nie pokazać pliku PDF w karcie (piaskownica blokuje wbudowany podgląd PDF); plik nadal da się pobrać. `Cache-Control` to `public, max-age=31536000, immutable` dla plików publicznych i `private, max-age=300` dla plików organizacji.
+```ts
+export interface ModuleAuditAction {
+  action: string;
+  labelKey: string;
+}
 
-Adres publicznego pliku nie wygasa i nie da się go cofnąć inaczej niż przez usunięcie pliku, a przeglądarki i pośrednicy mogą trzymać kopię rok. Cel `visibility: "public"` wybieraj tylko dla treści przeznaczonych dla każdego.
+export interface ModuleApiScope {
+  key: string;
+  labelKey: string;
+}
 
-### Usuwanie
+export interface ModuleUploadPurpose {
+  key: string;
+  mimeTypes: readonly string[];
+  maxBytes: number;
+  visibility: "public" | "organization";
+  resizeImage?: { maxWidth: number };
+}
+// …
+  auditActions?: ModuleAuditAction[];
+  apiScopes?: ModuleApiScope[];
+  uploadPurposes?: ModuleUploadPurpose[];
+```
 
-`deleteUploadCommand({ id }, confirmation?)` działa przez `getOrgContext()` i `assertServiceModeConfirmed`. Plik w innej organizacji jest dla niej nieistniejący (filtr `organizationId`). Usunąć może autor pliku, `owner` i `admin` organizacji oraz administrator globalny; pozostali dostają „Brak uprawnień do usunięcia pliku”. Komenda usuwa obiekt z magazynu (błąd usuwania jest tylko logowany), potem wiersz, i zapisuje `upload.deleted` w audycie. Wołaj ją z UI przez `useServiceModeAction().run`.
+`src/shared/lib/audit.ts`
 
-Moduł nie ma czyszczenia osieroconych plików: usunięcie encji projektu, która trzyma `id` pliku, nie usuwa pliku. Usuwa go dopiero komenda `deleteUploadCommand`, którą woła kod projektu.
+```ts
+export type AuditSink = (event: AuditEvent) => Promise<void>;
+// …
+export async function trackAudit(
+  event: AuditEvent,
+  sinks: readonly AuditSink[] = auditSinks,
+): Promise<void> {
+  for (const sink of sinks) {
+    try {
+      await sink(event);
+    } catch (error) {
+      logger.error("trackAudit failed", { action: event.action, error });
+    }
+  }
+}
+```
 
-### Lokalnie i w CI
+Z tego wynikają trzy reguły dla kodu projektu:
 
-Lokalnie MinIO działa w kontenerze `minio` z `docker-compose.yml`, a kontener `minio-init` tworzy bucket `<slug>-uploads` (idempotentnie, ponawia próbę do 30 razy). Obrazy to `cgr.dev/chainguard/minio:latest` przypięty przez digest (Chainguard udostępnia bez opłat tylko tag `latest`) i `amazon/aws-cli:2.39.2`: `minio/minio` i `minio/mc` nie da się już pobrać. Kontener MinIO działa jako `user: "0:0"`, bo katalog `./volumes/minio` jest montowany z hosta. Porty zmieniają `MINIO_PORT` (domyślnie 9000) i `MINIO_CONSOLE_PORT` (9001). Szczegóły: [01-uruchomienie.md](01-uruchomienie.md#minio).
+- **Punkty wejścia i deklaracje możesz stosować zawsze.** Wywołanie `trackAudit` i pola `auditActions`, `apiScopes`, `uploadPurposes` w `module.ts` budują się i działają w projekcie z samym rdzeniem (sprawdzone). Zaczną działać, gdy projekt dostanie moduł, który je obsługuje, bez zmiany kodu.
+- **Pliki modułu importujesz tylko wtedy, gdy moduł jest w projekcie.** Import `<AuditTrail>`, `authenticateApiKey` albo `<FileUpload>` w projekcie bez `audit-logs`, `api-keys` albo `uploads` kończy się błędem `TS2307: Cannot find module '@/features/…'` w typechecku i w buildzie (sprawdzone). Taki kod projekt ma tylko razem z modułem, a moduł projektu, który go zawiera, powinien mieć ten moduł w `requires`.
+- **`requireModuleAccess("<moduł>")` dla modułu, którego nie ma, daje użytkownikowi z aktywną organizacją zawsze 404**, bo `moduleByKey` nie znajduje definicji w rejestrze. Kontekst organizacji jest pobierany wcześniej, więc użytkownik bez aktywnej organizacji trafia na `/no-organization`, jak przy każdym module.
 
-W CI projektu `ci/uploads.integration-steps.yml` wypełnia region `wa:ci-integration` w `.github/workflows/ci.yml`: uruchamia MinIO, czeka na jego gotowość i tworzy bucket przed testami integracyjnymi. Testy integracyjne czytają `INTEGRATION_S3_ENDPOINT` (domyślnie `http://localhost:9000`) i `INTEGRATION_S3_BUCKET` (domyślnie `<slug>-uploads`). Projekt bez `uploads` ma region pusty i nie startuje MinIO.
+Co konkretny moduł robi z deklaracjami, opisują sekcje „Szwy modułu” w [13](13-modul-audit-logs.md#szwy), [14](14-modul-api-keys.md#szwy) i [15](15-modul-uploads.md#szwy), a jak ich używać we własnym kodzie, sekcje „Użycie z własnego kodu” w [13b](13b-modul-audit-logs-uzycie.md#uzycie), [14b](14b-modul-api-keys-uzycie.md#uzycie) i [15b](15b-modul-uploads-uzycie.md#uzycie).
 
-Jak użyć uploadu w funkcji projektu: [09b, sekcja o plikach](09b-implementacja-i-bramki.md#pliki-w-funkcji-projektu). Zmienne produkcyjne: [10-wdrozenie.md](10-wdrozenie.md#zmienne).
+<a id="wspolne-zasady"></a>
+
+## Wspólne zasady modułów
+
+Moduły kitu podlegają tym samym regułom co rdzeń ([AGENTS.md](../AGENTS.md), „Dane i organizacje”):
+
+- **Izolacja organizacji.** Zapytania i komendy modułów pobierają kontekst przez `getOrgContext()` albo `requireModuleAccess()` i filtrują po `organizationId` jawnie ([D07](decyzje.md#d07)). Wyjątkiem są trasy z kluczem API: nie mają sesji, więc filtrują po `organizationId` z kontekstu klucza ([D43](decyzje.md#d43)).
+- **Tryb serwisowy.** Komendy modułów na danych organizacji mają sygnaturę `(input, confirmation?)` i wołają `assertServiceModeConfirmed` przed Prismą, a UI woła je przez `useServiceModeAction().run` ([D22](decyzje.md#d22)). Upload pliku idzie przez `fetch` do trasy `POST /api/uploads`, a nie przez komendę, więc `<FileUpload>` pobiera potwierdzenie przez `requestConfirmation()` i wysyła je w formularzu, a trasa sprawdza je tak jak komenda.
+- **Test architektury i mutacje.** Pliki modułów podlegają testowi `src/__tests__/server-entrypoints-guard.test.ts` ([D24](decyzje.md#d24)), a katalogi `src/features/<x>/services/` wszystkich trzech modułów i `src/shared/lib/audit.ts` są na liście `critical` w `mutation-gate.json` ([D26](decyzje.md#d26)).
+- **Moduł nie edytuje plików rdzenia.** Tak mówi reguła z `AGENTS.md` i `CLAUDE.md`, i tak działa projekt: `wa add` i `wa remove` zmieniają w plikach rdzenia tylko regiony `wa:*` i pliki generowane. Zmiany rdzenia zrobione w kicie dla modułów (wartości `API_KEY_PEPPER` i `S3_*` w `src/test/integration/setup-env.ts` i `e2e/env.ts`, katalogi modułów w `mutation-gate.json`, matcher w `src/proxy.ts`) projekt dostaje jednak razem z rdzeniem, także bez modułu ([16b](16b-rozwoj-kitu.md#nowy-modul-kitu), R12 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Matcher `/((?!api(?:/|$)|_next|_vercel|.*\\..*).*)` wyłącza z middleware next-intl tylko `/api` i ścieżki pod `/api/`, więc trasy projektu zaczynające się od `api`, na przykład `/api-keys` albo `/api-docs`, dostają obsługę języków jak inne strony.
+
+<a id="wybor-modulow"></a>
+
+## Jak wybrać moduły dla projektu
+
+Moduły są niezależne, więc wybierasz każdy osobno, według potrzeb klienta. Moduł dodany później przez `wa add` działa tak samo jak wybrany przy `wa create`; usunięcie przez `wa remove` zostawia dane w bazie i w magazynie ([16](16-cli-wa.md#remove-co-zostaje)), więc moduł z danymi klienta usuwa się świadomie.
+
+| Moduł | Dodaj, gdy | Koszt w projekcie | Nie dodawaj, gdy |
+| --- | --- | --- | --- |
+| `audit-logs` | Klient potrzebuje śladu zmian w danych organizacji (członkostwo, klucze, pliki, własne zdarzenia projektu). | Tabela `audit_logs` rośnie bez limitu: moduł nie ma retencji ([D41](decyzje.md#d41)). | Nikt nie będzie czytał dziennika; `trackAudit` w kodzie projektu nie wymaga modułu. |
+| `api-keys` | Zewnętrzny system (integracja, agent) ma wołać API projektu w imieniu organizacji. | Sekret `API_KEY_PEPPER` na każdym środowisku; jego zmiana unieważnia wszystkie klucze ([D43](decyzje.md#d43)). | API wołają tylko zalogowani użytkownicy aplikacji (wystarczy sesja). |
+| `uploads` | Projekt przyjmuje pliki od użytkowników (obrazy, załączniki). | Magazyn zgodny z S3 na produkcji, MinIO lokalnie i w CI, zmienne `S3_*`, zależności `@aws-sdk/client-s3`, `file-type` i `sharp` ([D44](decyzje.md#d44)). | Projekt nie przyjmuje plików albo trzyma je poza aplikacją. |
+
+Kombinacje, które CI kitu składa i sprawdza (`npm run verify`, testy integracyjne, a dla `core` i `all` także `docker build`), to macierz `combo` w `.github/workflows/kit.yml`: sam rdzeń, każdy moduł osobno i wszystkie trzy razem ([16b](16b-rozwoj-kitu.md#ci-kitu)). Pary modułów (na przykład `audit-logs` z `api-keys`) nie mają osobnej pozycji w macierzy.
+
+Kolejne kroki:
+
+- założenie projektu z modułami: [16-cli-wa.md](16-cli-wa.md#wa-create);
+- dodanie i usunięcie modułu w istniejącym projekcie: [16-cli-wa.md](16-cli-wa.md#wa-add), [16-cli-wa.md](16-cli-wa.md#wa-remove);
+- konfiguracja i szwy każdego modułu: [13-modul-audit-logs.md](13-modul-audit-logs.md), [14-modul-api-keys.md](14-modul-api-keys.md), [15-modul-uploads.md](15-modul-uploads.md);
+- użycie modułu we własnym kodzie, bezpieczeństwo i testowanie: [13b-modul-audit-logs-uzycie.md](13b-modul-audit-logs-uzycie.md), [14b-modul-api-keys-uzycie.md](14b-modul-api-keys-uzycie.md), [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md);
+- własna funkcja projektu jako moduł projektu: [09-nowy-modul.md](09-nowy-modul.md);
+- dodanie nowego modułu do kitu: [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#nowy-modul-kitu).

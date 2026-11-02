@@ -233,7 +233,7 @@ Przykład z lokalnego raportu pełnego przebiegu unitowego z 2026-10-27: 908 `Ki
 
 `stryker.config.json` (komendy `npm run test:mutation` i `npm run test:mutation:task`) uruchamia testy jednostkowe. Mutuje logikę: `src/shared/lib/`, `src/shared/utils/`, `services/` i `contracts/` każdego feature, `src/i18n/`, `src/app/api/` i `scripts/lib/`, bez testów, `src/shared/lib/prisma.ts` i `src/shared/lib/logger.ts`. Komponentów i stron nie mutuje, bo logika biznesowa ma być w `services/` ([06-wzorce-kodu.md](06-wzorce-kodu.md#reguly-stylu)).
 
-`stryker.integration.config.json` (komenda `npm run test:mutation:integration`) uruchamia testy integracyjne na prawdziwej bazie `_test` i mutuje tylko pliki, które te testy sprawdzają: `services/` organizacji, `org-context.ts`, `require-module-access.ts` i query feature `users`. Część zachowań tych plików (filtr `organizationId`, sortowanie, transakcje) da się sprawdzić tylko na bazie, więc przebieg unitowy pokazałby je jako niewykryte. Przebieg integracyjny czyści bazę tak samo jak `npm run test:integration` ([08-testy.md](08-testy.md#baza)) i potrzebuje `INTEGRATION_DATABASE_URL`.
+`stryker.integration.config.json` (komenda `npm run test:mutation:integration`) uruchamia testy integracyjne na prawdziwej bazie `_test` i mutuje pliki, które te testy sprawdzają: `services/` każdego feature (`src/features/*/services/**/*.ts`, także modułów kitu i funkcji projektu), `org-context.ts` i `require-module-access.ts`. Część zachowań tych plików (filtr `organizationId`, sortowanie, transakcje) da się sprawdzić tylko na bazie, więc przebieg unitowy pokazałby je jako niewykryte. Przebieg integracyjny czyści bazę tak samo jak `npm run test:integration` ([08-testy.md](08-testy.md#baza)) i potrzebuje `INTEGRATION_DATABASE_URL`, a w projekcie z modułem `uploads` także działającego MinIO, tak jak testy integracyjne ([08-testy.md](08-testy.md#integracyjne)).
 
 <a id="concurrency"></a>
 
@@ -296,7 +296,7 @@ Stryker wypisuje na końcu na przykład `Final mutation score of 83.02 is greate
 
 ## Bramka mutacji
 
-Próg `break` dotyczy wyniku całego kodu, więc przepuszcza pojedyncze luki w poszczególnych plikach. W kodzie auth, organizacji i użytkowników każda luka to możliwy błąd bezpieczeństwa, taki jak brak testu roli admina z [Dlaczego](#dlaczego). Bramka (`npm run test:mutation:gate`, czyli `tsx scripts/mutation-gate.ts`) sprawdza więc pliki krytyczne osobno: każdy niewykryty mutant w nich musi być zabity testem albo mieć wpis wyjątku z uzasadnieniem.
+Próg `break` dotyczy wyniku całego kodu, więc przepuszcza pojedyncze luki w poszczególnych plikach. W kodzie auth, organizacji, użytkowników i usług modułów kitu każda luka to możliwy błąd bezpieczeństwa, taki jak brak testu roli admina z [Dlaczego](#dlaczego). Bramka (`npm run test:mutation:gate`, czyli `tsx scripts/mutation-gate.ts`) sprawdza więc pliki krytyczne osobno: każdy niewykryty mutant w nich musi być zabity testem albo mieć wpis wyjątku z uzasadnieniem.
 
 ### `mutation-gate.json`
 
@@ -307,6 +307,12 @@ Plik ma dwie listy. `critical` to prefiksy ścieżek plików krytycznych:
 - `src/features/organizations/services/`
 - `src/features/users/services/`
 - `scripts/lib/mutation-gate.ts`
+- `src/shared/lib/audit.ts`
+- `src/features/audit-logs/services/`
+- `src/features/api-keys/services/`
+- `src/features/uploads/services/`
+
+Cztery ostatnie wpisy dotyczą modułów kitu: szew `audit.ts` w rdzeniu i katalogi `services/` trzech modułów ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#nowy-modul-kitu), krok 10). `mutation-gate.json` należy do rdzenia, więc projekt bez tych modułów też ma ich katalogi na liście; bramka ocenia tylko pliki obecne w raporcie.
 
 Plik jest krytyczny, gdy jego ścieżka od katalogu głównego repozytorium zaczyna się od któregoś prefiksu. Nowy plik w tych katalogach jest objęty bramką od razu. Ścieżka, która tylko zaczyna się podobnie (w teście bramki „src/shared/lib/authz.ts”) albo zawiera prefiks w środku, krytyczna nie jest.
 
@@ -412,7 +418,7 @@ Nie uruchamiaj dwóch przebiegów Strykera jednocześnie. Powody wynikają z kon
 2. **Jedna baza testowa.** Przebieg integracyjny używa bazy `_test`, w której każdy test zaczyna od wyczyszczenia tabel. Drugi przebieg integracyjny albo `npm run test:integration` na tej samej bazie kasuje dane w trakcie testu. Test pada z tego powodu, a Stryker liczy mutanta jako wykrytego, więc wynik i bramka wychodzą lepsze, niż są. Z tego samego powodu testy integracyjne mają `fileParallelism: false`. `concurrency: 1` w konfiguracji integracyjnej tego nie zapewnia, bo po sprawdzeniu typów działają dwa procesy testów ([Dwie konfiguracje](#concurrency)).
 3. **Procesor.** Bez ustawionego `concurrency` Stryker liczy procesy z `os.availableParallelism()` (liczba logicznych procesorów) minus jeden, gdy procesorów jest więcej niż cztery. Na 8 logicznych procesorach startuje 4 procesy sprawdzania typów i 3 procesy testów, a po sprawdzeniu typów działa 7 procesów testów. Dwa przebiegi naraz spowalniają testy, a test, który przekroczy limit czasu, daje status `Timeout`. `Timeout` liczy się jako wykryty i przechodzi przez bramkę.
 
-Katalog `.stryker-tmp/` sam w sobie nie jest problemem: każdy przebieg ma w nim własny podkatalog i usuwa tylko swój. W CI dwa przebiegi tej samej gałęzi też się nie nakładają, bo nowy push przerywa poprzedni (`cancel-in-progress: true`).
+Katalog `.stryker-tmp/` sam w sobie nie jest problemem: każdy przebieg ma w nim własny podkatalog i usuwa tylko swój. W CI dwa przebiegi tej samej gałęzi też się nie nakładają, bo nowe ręczne uruchomienie workflowu dla tej gałęzi przerywa poprzednie (`concurrency` z `cancel-in-progress: true`).
 
 <a id="referencja"></a>
 
@@ -454,7 +460,7 @@ Katalog `.stryker-tmp/` sam w sobie nie jest problemem: każdy przebieg ma w nim
 | --- | --- | --- |
 | Komendy | `npm run test:mutation`, `npm run test:mutation:task` | `npm run test:mutation:integration` |
 | Testy | domyślna konfiguracja Vitest (`vitest.config.ts`) | `vitest.integration.config.ts`, baza `_test` |
-| `mutate` | `src/shared/lib/**/*.ts`, `src/shared/utils/**/*.ts`, `src/features/**/services/**/*.ts`, `src/features/**/contracts/**/*.ts`, `src/i18n/**/*.ts`, `src/app/api/**/*.ts`, `scripts/lib/**/*.ts`; bez `**/__tests__/**`, `src/shared/lib/prisma.ts`, `src/shared/lib/logger.ts` | `src/features/organizations/services/**/*.ts`, `src/shared/lib/auth/org-context.ts`, `src/shared/lib/auth/require-module-access.ts`, `src/features/users/services/queries/**/*.ts`; bez `**/__tests__/**` |
+| `mutate` | `src/shared/lib/**/*.ts`, `src/shared/utils/**/*.ts`, `src/features/**/services/**/*.ts`, `src/features/**/contracts/**/*.ts`, `src/i18n/**/*.ts`, `src/app/api/**/*.ts`, `scripts/lib/**/*.ts`; bez `**/__tests__/**`, `src/shared/lib/prisma.ts`, `src/shared/lib/logger.ts` | `src/features/*/services/**/*.ts`, `src/shared/lib/auth/org-context.ts`, `src/shared/lib/auth/require-module-access.ts`; bez `**/__tests__/**` |
 | `concurrency` | domyślna Strykera (logiczne procesory minus jeden przy więcej niż czterech; po sprawdzeniu typów tyle procesów testów) | `1` (1 proces sprawdzania typów i 1 proces testów, po sprawdzeniu typów 2 procesy testów) |
 | `incrementalFile` | `reports/stryker-incremental.json` | `reports/stryker-integration-incremental.json` |
 | Raport HTML i JSON | `reports/mutation/` (domyślnie) | `reports/mutation-integration/` |

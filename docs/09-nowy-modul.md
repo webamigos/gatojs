@@ -43,7 +43,7 @@ Kroki zostały wykonane na kopii kitu przygotowanej jak projekt klienta, aż prz
 Pojęcia, których używa tutorial:
 
 - **Feature**: katalog `src/features/<x>/` z kodem jednej funkcji ([Anatomia feature](02-architektura.md#anatomia-feature)).
-- **Moduł**: wpis w `.wa/kit.json` z manifestem plików. Rdzeń to moduł `core` ([02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#kit-json)).
+- **Moduł**: wpis w `.wa/kit.json` projektu z manifestem plików; w repozytorium kitu manifest modułu leży w `kit/modules/<nazwa>.json` ([D38](decyzje.md#d38)). Rdzeń to moduł `core` ([02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#kit-json)).
 - **Definicja modułu**: plik `module.ts` feature z `defineModule(...)` ([Definicja modułu](02-architektura.md#definicja-modulu)).
 - **Rejestr modułów**: tablice w plikach generowanych `src/modules.generated.ts` i `src/modules.client.generated.ts`, z których menu, guard stron i tłumaczenia dowiadują się o feature ([Rejestr modułów](02b-rejestr-i-generator.md#rejestr-modulow)).
 - **Komenda, query, guard, kontekst organizacji, tryb serwisowy**: [Pojęcia w 06-wzorce-kodu.md](06-wzorce-kodu.md).
@@ -129,7 +129,7 @@ export default defineModule({
 
 - `nav`: jedna pozycja menu. `icon` to nazwa ikony lucide, a `order: 50` stawia ją między „Dashboard” (10) a „Użytkownicy” (80).
 - `routePrefixes` jest wymagane przez typ, ale nie chroni trasy. Stronę chroni `requireModuleAccess("notes")` w kroku 7 ([pułapki definicji](02-architektura.md#pulapki-definicji)).
-- Brak `roles`, `adminOnly` i `public` oznacza dostęp dla każdej roli w organizacji. Pozostałe pola opisuje [Referencja `ModuleDef`](02-architektura.md#referencja-moduledef).
+- Brak `roles`, `adminOnly` i `public` oznacza dostęp dla każdej roli w organizacji. Pozostałe pola opisuje [Referencja `ModuleDef`](02-architektura.md#referencja-moduledef). Opcjonalne `auditActions`, `apiScopes` i `uploadPurposes` mają znaczenie tylko w projekcie z modułami `audit-logs`, `api-keys` i `uploads` ([12-moduly-kitu.md](12-moduly-kitu.md#punkty-wejscia)); `notes` ich nie używa.
 - `module.ts` trafia do paczki przeglądarki przez menu, więc nie importuje kodu serwera ([D05](decyzje.md#d05)).
 
 Teksty feature (wzorzec: `src/features/users/i18n/pl.json`). Klucze piszesz małymi literami z myślnikami:
@@ -205,7 +205,7 @@ export async function requireModuleAccess(
 
 ## Krok 3. Wpis w `projectModules`
 
-`.wa/kit.json` ma dwie sekcje modułów. `modules` opisuje kod, który projekt dostał z kitu (wersje, hashe plików, aktualizacje). `projectModules` opisuje funkcje napisane w projekcie: wpis ma tylko `manifest`, bez własnej wersji i hashy plików, a `wa generate` czyta go tak samo jak moduły kitu ([D02](decyzje.md#d02)). Moduły projektu trafiają do rejestru po modułach kitu, alfabetycznie, a `wa kit sync` zachowuje je bez zmian.
+`.wa/kit.json` ma dwie sekcje modułów. `modules` opisuje kod, który projekt dostał z kitu (wersje, hashe plików, aktualizacje). `projectModules` opisuje funkcje napisane w projekcie: wpis ma tylko `manifest`, bez własnej wersji i hashy plików, a `wa generate` czyta go tak samo jak moduły kitu ([D36](decyzje.md#d36)). Moduły projektu trafiają do rejestru po modułach kitu, alfabetycznie, a `wa kit sync` zachowuje je bez zmian.
 
 Dopisz do słownika `projectModules` wpis `notes`. Manifest musi przejść schemat `moduleManifestSchema` z `kit/cli/src/manifest/schema.ts`, a `wa generate` przy odczycie sprawdza jeszcze cztery reguły, inaczej przerwie pracę z komunikatem po polsku ([Referencja manifestu](02b-rejestr-i-generator.md#referencja-manifest)):
 
@@ -218,7 +218,16 @@ Dopisz do słownika `projectModules` wpis `notes`. Manifest musi przejść schem
 
 ```json
 {
-  "kitVersion": "0.0.0",
+  "kitVersion": "0.1.0",
+  "kitRepo": "https://github.com/webamigos/wa-kit.git",
+  "project": {
+    "name": "WA App",
+    "slug": "wa-app"
+  },
+  "locales": [
+    "pl",
+    "en"
+  ],
   "modules": {
 // …
   },
@@ -241,6 +250,7 @@ Dopisz do słownika `projectModules` wpis `notes`. Manifest musi przejść schem
           { "model": "Organization", "field": "notes Note[]" }
         ],
         "compose": null,
+        "ciSteps": null,
         "workspaces": []
       }
     }
@@ -250,9 +260,9 @@ Dopisz do słownika `projectModules` wpis `notes`. Manifest musi przejść schem
 
 | Pole | Znaczenie we wpisie `notes` |
 | --- | --- |
-| `files` | Generator czyta z tej listy tylko `src/features/notes/**`. Ten wzorzec rejestruje feature. Pozostałe dwa wzorce są zapisem własności plików, którego nic nie sprawdza. Każdy feature potrzebuje własnego wzorca ([D02](decyzje.md#d02)). |
+| `files` | Generator czyta z tej listy tylko wzorce zaczynające się od `src/features/<nazwa>/`, tu `src/features/notes/**`. Ten wzorzec rejestruje feature. Pozostałe dwa wzorce w projekcie nic nie czyta: test własności plików z [D38](decyzje.md#d38) sprawdza tylko manifesty `kit/modules/*.json` w repozytorium kitu i do projektu nie trafia, więc służą tylko jako opis. Każdy feature potrzebuje osobnego wzorca bez nawiasów `{…}`; wzorzec z nawiasem generator pomija bez błędu. |
 | `schemaRelations` | Linia `notes Note[]` trafi do regionu `wa:relations` w modelu `Organization`. To jedyny sposób dodania relacji zwrotnej do modelu rdzenia. Generator obsługuje tylko modele `User` i `Organization`; relację z innym modelem pomija bez błędu ([Regiony](02b-rejestr-i-generator.md#regiony)). |
-| `env`, `compose` | Puste: feature nie ma własnych zmiennych ani usług Dockera. |
+| `env`, `compose`, `ciSteps` | Puste: feature nie ma własnych zmiennych, usług Dockera ani kroków CI przed testami integracyjnymi (`ciSteps` wskazuje plik z krokami do regionu `wa:ci-integration` w `.github/workflows/ci.yml`, [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#regiony)). |
 | `name` | Musi być równe kluczowi wpisu. Generator używa go też jako nagłówka bloku modułu w `.env.example`, gdy `env` nie jest puste. |
 | `version` | Schemat wymaga niepustego napisu. Przy awansie funkcji do kitu staje się wersją modułu kitu. |
 | `requires` | Moduły kitu albo inne moduły projektu, od których zależy funkcja. Brakujący moduł kończy odczyt błędem. |
@@ -273,7 +283,7 @@ zmieniono src/modules.client.generated.ts
 zmieniono prisma/schema/organizations.prisma
 ```
 
-Rejestr importuje teraz definicję modułu i tłumaczenia `notes` po modułach kitu, a region w modelu `Organization` zawiera relację:
+Rejestr importuje teraz definicję modułu i tłumaczenia `notes` po modułach kitu, a region w modelu `Organization` zawiera relację. Fragmenty pochodzą z przebiegu na projekcie z samym rdzeniem; w projekcie z modułami kitu `clientModules` ma przed `notesModule` także ich definicje, a region ich relacje (na przykład `auditLogs AuditLog[]`):
 
 `src/modules.client.generated.ts`
 

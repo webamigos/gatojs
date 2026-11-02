@@ -34,10 +34,10 @@ Opisy modułów: [docs/12-moduly-kitu.md](../docs/12-moduly-kitu.md). Manifesty 
 | `--yes`                 | Bez pytań: opcje, których nie podano, dostają wartości domyślne.                                                 |
 | `--setup`               | Po instalacji uruchamia środowisko (Docker, migracja, admin). Nie łączy się z `--no-install`.                    |
 | `--no-install`          | Pomija `npm install`.                                                                                            |
-| `--no-git`              | Pomija `git init` i pierwszy commit.                                                                             |
+| `--no-git`              | Pomija `git init` i pierwszy commit projektu. `git` jest potrzebny i tak, do odczytu plików kitu.                |
 | `--kit <ścieżka>`       | Lokalny klon wa-kit, z którego powstaje projekt.                                                                 |
 
-Bez `--no-git` projekt dostaje `git init` i pierwszy commit, więc `git` musi mieć ustawione `user.name` i `user.email`.
+Bez `--no-git` projekt dostaje `git init` i pierwszy commit, więc `git` musi mieć ustawione `user.name` i `user.email`. Pełny opis komend, kolejności kontroli, cofania i komunikatów: `docs/16-cli-wa.md` w repozytorium kitu.
 
 ## Komendy w projekcie
 
@@ -48,10 +48,10 @@ Uruchamiane jako `npm run wa -- <komenda>` (bundel `.wa/bin/wa.mjs`).
 - `wa list [--kit <źródło>]`: moduły zainstalowane, dostępne w kicie i moduły projektu.
 - `wa add <moduł> [--kit <źródło>] [--no-install]`: kopiuje pliki modułu i jego zależności, dopisuje zależności npm i uruchamia `wa generate`.
 - `wa remove <moduł> [--force] [--no-install]`: usuwa pliki modułu, zależności npm, które nie służą innym modułom, i uruchamia `wa generate`. Pliki zmienione lokalnie (inny hash niż w stanie) zatrzymują komendę, dopóki nie podasz `--force`. Moduł wymagany przez inny moduł i moduł projektu nie zostanie usunięty.
-- `wa generate`: odświeża pliki generowane (rejestr modułów, regiony w `.env.example`, schemacie i `docker-compose.yml`).
+- `wa generate`: odświeża pliki generowane (rejestr modułów, regiony w `.env.example`, schemacie, `docker-compose.yml` i region `wa:ci-integration` w `.github/workflows/ci.yml`).
 - `wa kit sync`: odświeża `.wa/kit.json` z `kit/modules/*.json` i `kit/kit.json` (praca nad samym kitem).
 
-Po `add` i `remove` zmienia się schemat bazy; migrację trzeba utworzyć i zacommitować.
+Po `add` i `remove` zmienia się schemat bazy; migrację trzeba utworzyć i zacommitować. `add` nie zmienia `.env`: nowe zmienne modułu (na przykład `API_KEY_PEPPER`, `S3_*`) trafiają tylko do regionu `wa:modules` w `.env.example`, więc skopiuj je do `.env` sam. `remove` zostawia zmienne modułu w `.env`.
 
 ### Bezpieczeństwo `wa remove`
 
@@ -61,7 +61,9 @@ Po `add` i `remove` zmienia się schemat bazy; migrację trzeba utworzyć i zaco
 
 ## Rozwój kitu
 
-- Bramka CLI: `npm run verify --prefix kit/cli` (typecheck, testy, build bundla). W CI: job `cli` w `.github/workflows/kit.yml`.
+Szczegóły: `docs/16b-rozwoj-kitu.md` w repozytorium kitu (manifesty, `wa kit sync`, własność plików, bundel, bramka, CI i wydanie).
+
+- Bramka CLI: `npm run verify --prefix kit/cli` (lint → typecheck → testy → build bundla). W CI: job `cli` w `.github/workflows/kit.yml`.
 - Po zmianie w `kit/cli/src` zbuduj bundel (`npm run build --prefix kit/cli`) i zacommituj `.wa/bin/wa.mjs` razem ze zmianą; CI sprawdza, że bundel jest aktualny.
 - Po zmianie manifestów modułów (`kit/modules/*.json`) albo `kit/kit.json` uruchom `npm run wa -- kit sync`, żeby odświeżyć `.wa/kit.json`.
 - Test własności plików (`kit/cli/src/kit/__tests__/ownership.test.ts`) pilnuje, że każdy plik repozytorium należy do dokładnie jednego modułu albo do `kitOnly`. Nowy plik dopisz do manifestu odpowiedniego modułu.
