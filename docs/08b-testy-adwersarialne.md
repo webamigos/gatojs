@@ -466,7 +466,7 @@ Katalog `.stryker-tmp/` sam w sobie nie jest problemem: każdy przebieg ma w nim
 | Raport HTML i JSON | `reports/mutation/` (domyślnie) | `reports/mutation-integration/` |
 | `thresholds` (`high`, `low`, `break`) | 85, 75, 75 | 80, 70, `null` |
 | `timeoutMS` (zapas w milisekundach dodawany do czasu testów bez mutanta, pomnożonego przez `timeoutFactor`) | 15000 | 30000 |
-| Wspólne | `testRunner: "vitest"`, `checkers: ["typescript"]`, `tsconfigFile: "tsconfig.json"`, `incremental: true`, reportery `html`, `json`, `clear-text`, `progress`, `tempDirName: ".stryker-tmp"`, `ignorePatterns` z `docs`, `reports`, `.next`, `.superpowers` i innymi katalogami spoza kodu | |
+| Wspólne | `testRunner: "vitest"`, `vitest.pool: "forks"` (jak `npm test`; domyślna pula runnera Strykera, `threads`, nie stosuje `vi.stubEnv("TZ", …)`, więc testy dat padały na runnerze z UTC), `checkers: ["typescript"]`, `tsconfigFile: "tsconfig.json"`, `incremental: true`, reportery `html`, `json`, `clear-text`, `progress`, `tempDirName: ".stryker-tmp"`, `ignorePatterns` z `docs`, `reports`, `.next`, `.superpowers` i innymi katalogami spoza kodu | |
 
 <a id="referencja-pliki"></a>
 
