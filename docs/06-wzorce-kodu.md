@@ -137,6 +137,7 @@ import { randomBytes } from "node:crypto";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/lib/prisma";
+import { auditActor, trackAudit } from "@/shared/lib/audit";
 import { getAdminUserOrNull } from "@/shared/lib/auth/helpers";
 import { getOrgContext } from "@/shared/lib/auth/org-context";
 import { assertServiceModeConfirmed } from "@/shared/lib/auth/service-mode";
@@ -200,6 +201,13 @@ export async function inviteUserCommand(
       { name, email, invitationId: invitation.id },
       requestHeaders,
     );
+    await trackAudit({
+      ...auditActor(context),
+      action: "member.invited",
+      entityType: "invitation",
+      entityId: invitation.id,
+      newData: { email, role },
+    });
 
     await markEmailVerified(userId);
     const mailSent = await sendWelcomeEmailBestEffort({ name, email, userId });
@@ -223,8 +231,9 @@ export async function inviteUserCommand(
 | 4 | `assertServiceModeConfirmed(context, confirmation)` | W trybie serwisowym bez potwierdzenia aktywnej organizacji rzuca błąd, zanim komenda dotknie bazy. |
 | 5 | `prisma.user.findUnique` | Sprawdza, czy adres ma już konto. Konta są globalne, więc to zapytanie nie filtruje po organizacji ([D07](decyzje.md#d07)). |
 | 6 | `prisma.invitation.create` z `organizationId: context.organizationId` | Zaproszenie należy do aktywnej organizacji z kontekstu. |
-| 7 | `registerInvitedUser`, `markEmailVerified`, `sendWelcomeEmailBestEffort`, `revalidatePath("/users")`, `return mailSent ? … : …` | Funkcje pomocnicze z tego samego pliku, bez `export`, więc nie są endpointami. `revalidatePath` oznacza dane strony `/users` w pamięci podręcznej Next.js jako nieaktualne. Gdy mail się nie wyśle, konto i tak powstało, więc wynik to sukces z ostrzeżeniem `warning: "mail-failed"`, które dodaje typ `OperationResult<{ userId: string }> & { warning?: "mail-failed" }`. |
-| 8 | `catch` i `handleCommandError` | Każdy wyjątek poza przekierowaniem, także błąd potwierdzenia z kroku 4, zamienia na `OperationResult`. Przekierowanie rzuca dalej. |
+| 7 | `trackAudit` z `auditActor(context)` | Wpis `member.invited` w dzienniku zdarzeń po udanej rejestracji. Autor, organizacja i `serviceMode` pochodzą z kontekstu, więc w trybie serwisowym wpis ma `serviceMode: true`. Gdy rejestracja się nie uda, `registerInvitedUser` usuwa zaproszenie i rzuca błąd, zanim komenda dojdzie do wpisu ([13-modul-audit-logs.md](13-modul-audit-logs.md#zdarzenia)). |
+| 8 | `registerInvitedUser`, `markEmailVerified`, `sendWelcomeEmailBestEffort`, `revalidatePath("/users")`, `return mailSent ? … : …` | Funkcje pomocnicze z tego samego pliku, bez `export`, więc nie są endpointami. `revalidatePath` oznacza dane strony `/users` w pamięci podręcznej Next.js jako nieaktualne. Gdy mail się nie wyśle, konto i tak powstało, więc wynik to sukces z ostrzeżeniem `warning: "mail-failed"`, które dodaje typ `OperationResult<{ userId: string }> & { warning?: "mail-failed" }`. |
+| 9 | `catch` i `handleCommandError` | Każdy wyjątek poza przekierowaniem, także błąd potwierdzenia z kroku 4, zamienia na `OperationResult`. Przekierowanie rzuca dalej. |
 
 <a id="kolejnosc"></a>
 

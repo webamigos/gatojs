@@ -1412,7 +1412,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 - `audit-logs` ma własny plugin better-auth (`src/features/audit-logs/auth.ts`, eksport `authPlugin`), który generator dopisuje do `authPlugins` w rejestrze.
 - Hook `after` dla ścieżek z `AUDITED_ORGANIZATION_PATHS` (`src/features/audit-logs/services/organization-audit-events.ts`): `/organization/invite-member`, `/organization/cancel-invitation`, `/organization/accept-invitation`, `/organization/update-member-role`, `/organization/remove-member` buduje zdarzenie i woła `trackAudit`. Hook `before` dla `/organization/update-member-role` czyta poprzednią rolę członka, żeby wpis miał stan przed zmianą.
-- Dwa zdarzenia woła kod rdzenia bezpośrednio: `invitation.accepted` przy rejestracji z zaproszeniem (`joinOrganizationCommand` w `src/features/organizations/services/commands/member-commands.ts`) i `organization.entered` przy wejściu do organizacji (`enterOrganizationCommand`).
+- Trzy zdarzenia woła kod rdzenia bezpośrednio: `invitation.accepted` przy rejestracji z zaproszeniem (`joinOrganizationCommand` w `src/features/organizations/services/commands/member-commands.ts`), `member.invited` przy zaproszeniu ze strony „Użytkownicy” (`inviteUserCommand`, które tworzy zaproszenie bez endpointu pluginu) i `organization.entered` przy wejściu do organizacji (`enterOrganizationCommand` oraz `trackServiceModeEntry` w hooku `session.create.after` przy logowaniu).
 
 **Odrzucone alternatywy.** Nie zapisano. Spec dopuszczał też `organizationHooks` albo `databaseHooks`; wykonawca wybrał plugin z hookami ścieżek, ograniczony do ścieżek z listy (commit `999e651`).
 

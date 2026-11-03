@@ -341,7 +341,7 @@ Wzór testu izolacji dla nowego query. Zaloguj użytkownika w jednej organizacji
   });
 ```
 
-Dla komendy test wywołuje ją w kontekście jednej organizacji i sprawdza, że rekordy drugiej się nie zmieniły. Oczekiwane wartości są literałami, a nie wynikiem kodu produkcyjnego ([08-testy.md](08-testy.md)). Zapis zaproszenia przez `inviteUserCommand` sprawdza tylko test jednostkowy `invite-user-command.test.ts` z zamockowanym `getOrgContext` (zaproszenie ma `organizationId` z kontekstu). Test integracyjny tej komendy nie obejmuje.
+Dla komendy test wywołuje ją w kontekście jednej organizacji i sprawdza, że rekordy drugiej się nie zmieniły. Oczekiwane wartości są literałami, a nie wynikiem kodu produkcyjnego ([08-testy.md](08-testy.md)). Zapis zaproszenia przez `inviteUserCommand` sprawdza tylko test jednostkowy `invite-user-command.test.ts` z zamockowanym `getOrgContext` (zaproszenie ma `organizationId` z kontekstu). Test integracyjny `invite-user-command.integration.test.ts` sprawdza na prawdziwej bazie tylko wpisy dziennika zdarzeń (organizacja wpisu, autor), a nie to, że zapis zaproszenia omija drugą organizację.
 
 Izolację w interfejsie sprawdza też e2e `e2e/multi-org.spec.ts` (`MULTI_ORG=true`, `AUTH_PUBLIC_SIGNUP=true`): rejestracje Ani i Bartka tworzą dwie organizacje, a Bartek na stronie „Członkowie” nie widzi Ani.
 
@@ -353,7 +353,7 @@ Aktywna organizacja jest zapisana w wierszu sesji, nie w koncie. Ustawiają ją 
 
 | Zdarzenie | Kod | Nowa aktywna organizacja |
 | --- | --- | --- |
-| Utworzenie sesji: logowanie i impersonacja | hook `databaseHooks.session.create.before` w `src/shared/lib/auth/index.ts`, `getDefaultActiveOrganizationId` | Organizacja najstarszego członkostwa (`Member.createdAt` rosnąco). Superadmin bez członkostw dostaje najstarszą organizację w bazie, a pozostałe konta bez członkostw `null`. Błąd bazy daje `null` i wpis w logu, ale nie blokuje logowania. |
+| Utworzenie sesji: logowanie i impersonacja | hook `databaseHooks.session.create.before` w `src/shared/lib/auth/index.ts`, `getDefaultActiveOrganizationId` | Organizacja najstarszego członkostwa (`Member.createdAt` rosnąco). Superadmin bez członkostw dostaje najstarszą organizację w bazie, a pozostałe konta bez członkostw `null`. Błąd bazy daje `null` i wpis w logu, ale nie blokuje logowania. Superadmin bez członkostwa w tej organizacji dostaje wpis `organization.entered` z hooka `session.create.after` ([04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md#wejscie-do-organizacji)). |
 | Rejestracja | `autoSignIn: false` | Rejestracja nie tworzy sesji. Organizację ustawia pierwsze logowanie. |
 | Przyjęcie zaproszenia przez zalogowanego | `auth.api.acceptInvitation` i `auth.api.setActiveOrganization` na stronie `/accept-invitation/[id]` | Organizacja z zaproszenia. Potem przekierowanie na `/dashboard`. |
 | Utworzenie organizacji (`MULTI_ORG=true`) | `authClient.organization.create` w `create-organization-form.tsx` | Nowa organizacja. better-auth ustawia ją jako aktywną, bo formularz nie wysyła `keepCurrentActiveOrganization`. |
