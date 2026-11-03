@@ -32,6 +32,7 @@ npm run test:mutation:gate   # bramka plików krytycznych (mutation-gate.json) n
 npm run test:mutation:task -- src/a.ts,src/b.ts   # mutacje tylko w plikach zadania
 npm run admin:create -- --email <email>   # pierwszy admin + pierwsza organizacja
 npm run wa -- generate   # odśwież pliki generowane
+npm run wa -- update <wersja>   # przenosi projekt na nowszą wersję kitu (wa-kit)
 npx prisma migrate dev --name <nazwa>     # nowa migracja
 ```
 

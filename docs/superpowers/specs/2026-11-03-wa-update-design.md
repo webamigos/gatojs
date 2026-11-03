@@ -136,7 +136,9 @@ Szczegóły:
   „Projekt równy bazie” wymaga więc dwóch warunków: hash pliku projektu równy hashowi zapisanemu w `.wa/kit.json`
   **i** hash bazy z tagu równy temu samemu hashowi. Gdy brakuje drugiego, plik idzie ścieżką „inny niż baza”
   (scalenie albo „do decyzji”), nigdy nadpisaniem ani usunięciem. Komenda wypisuje wtedy jedną linię
-  `Uwaga: <n> plików różni się od v<stara> z tagu; potraktowano je jak zmienione w projekcie`.
+  `Uwaga: <n> plików różni się od v<stara> z tagu; potraktowano je jak zmienione w projekcie` z odmianą przez
+  liczbę: `Uwaga: 1 plik różni się od v<stara> z tagu; potraktowano go jak zmieniony w projekcie` i
+  `Uwaga: 2 pliki różnią się od v<stara> z tagu; potraktowano je jak zmienione w projekcie` (2–4, 22–24…, bez 12–14).
 - **Równość** liczona jak hash w `.wa/kit.json` ([D31](../../decyzje.md#d31)): dla plików z `REGION_FILES` bez treści
   regionów `wa:*`, dla pozostałych bajt w bajt.
 - **Scalenie**: `git merge-file -p` (z etykietami `projekt`, `v<stara>`, `v<nowa>`) na trzech plikach tymczasowych.

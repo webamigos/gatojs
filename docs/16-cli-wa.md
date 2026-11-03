@@ -107,7 +107,7 @@ Turn off this advice by setting config variable advice.detachedHead to false
 - Tag nie jest gałęzią, więc klon zostaje na „odłączonym HEAD” (`detached HEAD`). Z klonu tylko czytasz, więc to bez znaczenia.
 - Przy polskich ustawieniach języka git pisze te same informacje po polsku: `warning: refs/tags/v0.1.0 … nie jest zapisem!` i `Jesteś w stanie „odłączonego HEAD”.` (sprawdzone).
 
-To samo ostrzeżenie pojawia się nad wynikiem `wa add` i `wa list`, gdy klonują kit z GitHuba ([Źródło kitu](#zrodlo-kitu)); opcja `--quiet`, z którą klonują, go nie wycisza (sprawdzone).
+To samo ostrzeżenie pojawia się nad wynikiem `wa add` i `wa list`, gdy klonują kit z GitHuba ([Źródło kitu](#zrodlo-kitu)); opcja `--quiet`, z którą klonują, go nie wycisza (sprawdzone). Porady o odłączonym HEAD tam nie ma: CLI klonuje z `-c advice.detachedHead=false`.
 
 Błąd klonowania (brak dostępu do repozytorium, nieistniejący tag) przerywa linię na `git clone` z komunikatem gita, a `create` się nie uruchamia.
 
@@ -253,7 +253,7 @@ Po `create` bez setupu postępujesz jak w [01-uruchomienie.md](01-uruchomienie.m
 const REMOTE_PREFIXES = ["https://", "ssh://", "file://", "git@"];
 ```
 
-- **Źródło zdalne** (zaczyna się jednym z tych prefiksów) CLI klonuje poleceniem `git clone --depth 1 --branch v<kitVersion> --quiet` do katalogu tymczasowego (`wa-add-…` albo `wa-list-…` w katalogu tymczasowym systemu), który znika po komendzie, także po błędzie. Nad wynikiem widać ostrzeżenie gita o tagu z adnotacją, takie jak przy [one-linerze](#one-liner). Nieudany klon daje `Nie udało się pobrać wa-kit v<wersja> z <adres>. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`, a nad nim wyjście gita, na przykład `fatal: repository '…' not found` (sprawdzone).
+- **Źródło zdalne** (zaczyna się jednym z tych prefiksów) CLI klonuje poleceniem `git -c advice.detachedHead=false clone --depth 1 --branch v<kitVersion> --quiet` do katalogu tymczasowego (`wa-add-…` albo `wa-list-…` w katalogu tymczasowym systemu), który znika po komendzie, także po błędzie. Nad wynikiem widać jedną linię gita: ostrzeżenie o tagu z adnotacją, takie jak przy [one-linerze](#one-liner) (`warning: refs/tags/v<kitVersion> <sha> is not a commit!`). Porady o odłączonym HEAD nie ma, bo wyłącza ją `-c advice.detachedHead=false`. Nieudany klon daje `Nie udało się pobrać wa-kit v<wersja> z <adres>. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`, a nad nim wyjście gita, na przykład `fatal: repository '…' not found` (sprawdzone).
 - **Ścieżka lokalna** musi wskazywać katalog z `kit/kit.json` (inaczej `Brak kit/kit.json w <ścieżka> — to nie jest repozytorium wa-kit`), a `version` z tego pliku musi być równa `kitVersion` projektu (inaczej `Kit w <ścieżka> ma wersję <x>, projekt używa <y>`).
 - **Odrzucane źródła:** wartość zaczynająca się od `-` (żeby nie stała się opcją gita) i wartość z `://` albo `::` spoza listy prefiksów, na przykład `ext::sh`. Komunikat: `Nieprawidłowe źródło wa-kit: <źródło>` (sprawdzone dla `--kit=-x` i `--kit ext::sh`). Dotyczy tylko `add` i `list`: `create` nie korzysta z `resolveKitSource`, tylko z `--kit` jako ścieżki.
 - **Pusty `WA_KIT_SOURCE`** (`WA_KIT_SOURCE=`) jest ścieżką lokalną: wskazuje katalog bieżący, czyli zwykle projekt, który nie ma `kit/kit.json` (sprawdzone).
@@ -315,12 +315,11 @@ flowchart TD
 9. **`wa generate`**, potem `npm install` (bez `--no-install`).
 10. **Podpowiedź migracji:** ostatnia linia wyjścia to `npx prisma migrate dev --name add-<moduł>`, z nazwą z argumentu, także gdy CLI dodało moduły z `requires`. Migrację tworzysz i commitujesz sam ([03b](03b-schemat-i-migracje.md#migracje-w-projekcie)).
 
-Przebieg w projekcie `acme-app` z modułem `uploads` (sprawdzone, domyślne źródło, wyjście gita skrócone):
+Przebieg w projekcie `acme-app` z modułem `uploads` (sprawdzone, domyślne źródło, wyjście skrócone):
 
 ```text
 $ npm run wa -- add api-keys --no-install
 warning: refs/tags/v0.1.0 14772ce361ec63b4777cb9925802cea0442afd05 is not a commit!
-Note: switching to '76ca2d7ccfb23b43d53d4d9d492d1ba59ba3ca88'.
 …
 npx prisma migrate dev --name add-api-keys
 ```
@@ -529,7 +528,7 @@ Wszystkie kontrole i całe scalanie idą w pamięci, przed pierwszym zapisem.
 4. **Czyste drzewo git** (bez `--dry-run`): `git status --porcelain` musi być pusty; pliki ignorowane się nie liczą, nieśledzone tak. Brudne drzewo: `Niezacommitowane zmiany w projekcie; zrób commit albo stash przed wa update` (sprawdzone). Katalog poza repozytorium git: `<katalog> nie jest repozytorium git; wa update wymaga gita, żeby dało się cofnąć zmiany`.
 5. **Źródło kitu:** `Nieprawidłowe źródło wa-kit: <źródło>` jak w `add`.
 6. **Bundel z klonu** (one-liner): wersja jego kitu równa `<wersja>` ([wyżej](#update-pierwsza)).
-7. **Pobranie wersji docelowej i bazowej:** `git clone --depth 1 --branch v<wersja> --quiet` do katalogu tymczasowego `wa-update-…`, który znika po komendzie, także po błędzie. Brak tagu: `Nie udało się pobrać wa-kit v<wersja> z <źródło>. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`, a nad nim linia gita (sprawdzone; przy polskich ustawieniach `fatal: Nie znaleziono zdalnej gałęzi v0.4.0 w repozytorium origin`). Tag z inną `version` w `kit/kit.json`: `Kit w <klon> ma wersję <x>, oczekiwano <wersja>`. Bundel projektu klonuje tu wersję docelową i przekazuje pracę ([wyżej](#update-delegacja)); proces potomny powtarza kroki 2–5 i klonuje wersję bazową `v<kitVersion>`.
+7. **Pobranie wersji docelowej i bazowej:** `git -c advice.detachedHead=false clone --depth 1 --branch v<wersja> --quiet` (dla ścieżki lokalnej bez `--depth 1`) do katalogu tymczasowego `wa-update-…`, który znika po komendzie, także po błędzie. Brak tagu: `Nie udało się pobrać wa-kit v<wersja> z <źródło>. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`, a nad nim linia gita (sprawdzone; przy polskich ustawieniach `fatal: Nie znaleziono zdalnej gałęzi v0.4.0 w repozytorium origin`). Tag z inną `version` w `kit/kit.json`: `Kit w <klon> ma wersję <x>, oczekiwano <wersja>`. Bundel projektu klonuje tu wersję docelową i przekazuje pracę ([wyżej](#update-delegacja)); proces potomny powtarza kroki 2–5 i klonuje wersję bazową `v<kitVersion>`.
 8. **Odczyt obu wersji**, najpierw bazowej (`readKitSnapshot` w `kit/cli/src/update/snapshot.ts`): `kit/kit.json` i manifesty (błąd schematu to surowy błąd Zod), potem moduły. Każdy moduł kitu z `.wa/kit.json` musi istnieć w obu wersjach: `Moduł <x> nie istnieje w wa-kit <wersja>` (moduł usunięty albo przemianowany w kicie wymaga ręcznej decyzji). Kit wskazany przez `--from-kit` w innej wersji niż docelowa: `Kit docelowy ma wersję <x>, oczekiwano <wersja>`.
 9. **`requires`** modułów w wersji docelowej muszą być zainstalowane: `Moduł <x> w wa-kit <wersja> wymaga niezainstalowanych modułów: <lista>`. Komenda nie dodaje modułów sama. `projectModules` zostają bez zmian, a ich `requires` sprawdza odczyt `.wa/kit.json` jak w każdej komendzie.
 10. **Plan dla każdego pliku** ([niżej](#update-plan)), razem ze scaleniem treści. Ścieżka, która po rozwiązaniu symlinków wychodzi poza projekt, daje `Ścieżka poza projektem: <ścieżka>`; błąd `git merge-file` daje `git merge-file: <komunikat gita>`.
@@ -587,13 +586,13 @@ Aktualizacja wa-kit 0.1.0 → 0.2.0
   usunięto       src/shared/lib/legacy.ts
   konflikt       src/features/uploads/services/upload-purposes.ts
   do decyzji     src/shared/lib/old-helper.ts (zmieniony w projekcie, usunięty w kicie)
-Uwaga: 2 plików różni się od v0.1.0 z tagu; potraktowano je jak zmienione w projekcie
+Uwaga: 2 pliki różnią się od v0.1.0 z tagu; potraktowano je jak zmienione w projekcie
 ```
 
 - `--dry-run` zaczyna od `Plan aktualizacji wa-kit <x> → <wersja> (bez zmian w projekcie)` (sprawdzone).
 - Gdy kit nie zmienił żadnego pliku projektu, pod nagłówkiem stoi `  bez zmian w plikach`, a `.wa/kit.json` i tak dostaje nową wersję.
 - Bez `--dry-run` plan pojawia się dopiero po udanym zapisie; przy błędzie zapisu widać tylko błąd.
-- Nad wynikiem jest wyjście `git clone`: po jednym przebiegu na każdy klon (dwa przy `npm run wa -- update`, trzy przy one-linerze), z ostrzeżeniem o tagu z adnotacją i poradą o odłączonym HEAD jak przy [one-linerze](#one-liner). Przy źródle będącym ścieżką lokalną git dopisuje `warning: --depth is ignored in local clones; use file:// instead.` (sprawdzone). To nie są błędy.
+- Nad wynikiem jest wyjście `git clone`: jedna linia na każdy klon (dwa przy `npm run wa -- update`, trzy przy one-linerze, licząc klon z samego one-linera), ostrzeżenie o tagu z adnotacją `warning: refs/tags/v<wersja> <sha> is not a commit!` (po polsku `… nie jest zapisem!`). Porady o odłączonym HEAD nie ma (CLI klonuje z `-c advice.detachedHead=false`; one-liner, który klonuje bez tej opcji, ją wypisuje), a ścieżkę lokalną CLI klonuje bez `--depth 1`, więc nie ma też ostrzeżenia `--depth is ignored in local clones` (sprawdzone na git 2.56 dla ścieżki lokalnej i `file://`). To nie są błędy.
 
 Przebieg z konfliktem (sprawdzone, wyjście gita pominięte):
 
@@ -674,7 +673,7 @@ Potem:
 
 - **Błąd przed zapisem** (kroki 1–11 z [Kolejności](#update-kolejnosc)) niczego nie zmienia: treść każdego pliku, łącznie ze scaleniem, powstaje w pamięci.
 - **Błąd zapisu** (krok 12, na przykład brak miejsca na dysku albo plik w miejscu katalogu) cofa zmiany: przywraca oryginalną treść i bity uprawnień zmienionych i usuniętych plików (zapamiętane jako bajty przed zapisem), usuwa dodane pliki i katalogi utworzone przez komendę i przywraca `.wa/kit.json`. Nieudany krok sprzątania daje linię `Nie udało się posprzątać: <ścieżka> (<kod albo komunikat>)` na stdout, a na końcu pada pierwotny błąd z drugą linią `Sprawdź git status; całość cofa: git restore . && git clean -fd` (testy w `kit/cli/src/commands/__tests__/update-rollback.test.ts`). Czyste drzewo git na starcie jest siatką bezpieczeństwa: te dwie komendy przywracają projekt sprzed `wa update`.
-- **Błąd `wa generate`** (krok 13) nie cofa zmian: pliki i `.wa/kit.json` są już w nowej wersji, a komenda kończy się surowym błędem generatora. Usuń przyczynę i uruchom `npm run wa -- generate`.
+- **Błąd `wa generate`** (krok 13) nie cofa zmian: pliki i `.wa/kit.json` są już w nowej wersji, a komenda kończy się komunikatem `Zaktualizowano do wa-kit <wersja>, ale wa generate się nie powiódł. Uruchom: npm run wa -- generate`, kod 1 (błąd generatora jest w `cause`). Podpowiedzi i `npm install` się wtedy nie wykonują. Usuń przyczynę, uruchom `npm run wa -- generate`, potem `npm install`.
 - **Błąd `npm install`** nie cofa zmian: `Zaktualizowano do wa-kit <wersja>, ale npm install się nie powiódł. Uruchom: npm install`, kod 1. Podpowiedzi są wtedy wypisane przed błędem.
 - **Konflikt** nie jest błędem zapisu i niczego nie cofa.
 
@@ -804,6 +803,7 @@ Każdy komunikat z tej tabeli trafia na stderr i kończy komendę kodem 1. Komun
 | `update` | ścieżka z planu wychodzi poza projekt | `Ścieżka poza projektem: <ścieżka>` |
 | `update` | błąd `git merge-file` inny niż konflikt | `git merge-file: <komunikat gita>` |
 | `update` | błąd zapisu | pierwotny błąd (zwykle surowy błąd Node) i druga linia `Sprawdź git status; całość cofa: git restore . && git clean -fd`; przed nim ewentualne linie `Nie udało się posprzątać: …` |
+| `update` | błąd `wa generate` | `Zaktualizowano do wa-kit <wersja>, ale wa generate się nie powiódł. Uruchom: npm run wa -- generate` |
 | `update` | błąd `npm install` | `Zaktualizowano do wa-kit <wersja>, ale npm install się nie powiódł. Uruchom: npm install` |
 | `update` | błąd procesu bundla wersji docelowej | brak własnego komunikatu: błąd wypisał proces potomny |
 
@@ -822,7 +822,7 @@ Linie, które nie kończą komendy błędem (stdout):
 | `update` | `Aktualizacja wa-kit <x> → <wersja>` i linie plików | Po zapisie ([Wyjście](#update-wyjscie)). |
 | `update` | `Plan aktualizacji wa-kit <x> → <wersja> (bez zmian w projekcie)` i linie plików | `--dry-run`; kod 0. |
 | `update` | `  bez zmian w plikach` | Plan bez pozycji. |
-| `update` | `Uwaga: <n> plików różni się od v<x> z tagu; potraktowano je jak zmienione w projekcie` | Baza z tagu inna niż hash w `.wa/kit.json` ([Plan dla pliku](#update-plan)). |
+| `update` | `Uwaga: <n> plików różni się od v<x> z tagu; potraktowano je jak zmienione w projekcie`; dla 1: `Uwaga: 1 plik różni się od v<x> z tagu; potraktowano go jak zmieniony w projekcie`, dla 2–4 (22–24…, bez 12–14): `Uwaga: <n> pliki różnią się od v<x> z tagu; potraktowano je jak zmienione w projekcie` | Baza z tagu inna niż hash w `.wa/kit.json` ([Plan dla pliku](#update-plan)). |
 | `update` | `Rozwiąż konflikty, potem: npm run wa -- generate && npm install` i `Cofnięcie całej aktualizacji: git restore . && git clean -fd` | Konflikt; kod 1 (sprawdzone). |
 | `update` | `npx prisma migrate dev --name kit-<wersja>` | Bez konfliktów, kit zmienił `prisma/schema/**` (sprawdzone). |
 | `update` | `Nowe zmienne w .env.example: <lista>; uzupełnij .env` | Bez konfliktów, nowe zmienne `env` w manifestach. |
