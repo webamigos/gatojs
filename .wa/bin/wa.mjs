@@ -20623,7 +20623,7 @@ function looksLikeTransport(source) {
   return source.includes("://") || source.includes("::");
 }
 async function cloneKit(input2) {
-  const target = join6(input2.tmpDir, "wa-kit");
+  const target = join6(input2.tmpDir, input2.name);
   try {
     await input2.runner(
       "git",
@@ -20635,40 +20635,44 @@ async function cloneKit(input2) {
         `v${input2.version}`,
         "--quiet",
         "--",
-        input2.url,
+        input2.source,
         target
       ],
       input2.tmpDir
     );
   } catch {
     throw new Error(
-      `Nie uda\u0142o si\u0119 pobra\u0107 wa-kit v${input2.version} z ${input2.url}. Sprawd\u017A dost\u0119p (gh auth status) albo podaj --kit <\u015Bcie\u017Cka>`
+      `Nie uda\u0142o si\u0119 pobra\u0107 wa-kit v${input2.version} z ${input2.source}. Sprawd\u017A dost\u0119p (gh auth status) albo podaj --kit <\u015Bcie\u017Cka>`
     );
   }
   return target;
 }
-async function resolveKitSource(input2) {
-  const { state } = input2;
-  const source = input2.kitFlag ?? input2.envSource ?? state.kitRepo;
+function kitSourceLocation(input2) {
+  const source = input2.kitFlag ?? input2.envSource ?? input2.state.kitRepo;
   if (source.startsWith("-") || !isRemote(source) && looksLikeTransport(source)) {
     throw new Error(`Nieprawid\u0142owe \u017Ar\xF3d\u0142o wa-kit: ${source}`);
   }
+  return isRemote(source) ? source : resolve(source);
+}
+async function resolveKitSource(input2) {
+  const { state } = input2;
+  const source = kitSourceLocation(input2);
   if (isRemote(source)) {
     return cloneKit({
-      url: source,
+      source,
       version: state.kitVersion,
       runner: input2.runner,
-      tmpDir: input2.tmpDir
+      tmpDir: input2.tmpDir,
+      name: "wa-kit"
     });
   }
-  const kitDir = resolve(source);
-  const config2 = await readKitConfig(kitDir);
+  const config2 = await readKitConfig(source);
   if (config2.version !== state.kitVersion) {
     throw new Error(
-      `Kit w ${kitDir} ma wersj\u0119 ${config2.version}, projekt u\u017Cywa ${state.kitVersion}`
+      `Kit w ${source} ma wersj\u0119 ${config2.version}, projekt u\u017Cywa ${state.kitVersion}`
     );
   }
-  return kitDir;
+  return source;
 }
 
 // src/commands/add.ts
