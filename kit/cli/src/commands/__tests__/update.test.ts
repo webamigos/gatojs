@@ -376,20 +376,80 @@ describe("update: kit zmienił plik, projekt nie", () => {
     expect((await rawState(setup.dir)).kitVersion).toBe("0.2.0");
   });
 
-  it("błąd npm install nie cofa zmian i podaje komendę do uruchomienia", async () => {
-    const setup = await prepare({ kit: changeAuthModule });
-    runner.mockRejectedValue(new Error("npm install zakończone kodem 1"));
+  it("błąd npm install rzuca błąd z przyczyną, nie cofa zmian, a podpowiedzi są wypisane przed nim", async () => {
+    const setup = await prepare({
+      kit: async (kitDir) => {
+        await changeAuthModule(kitDir);
+        await writeFile(
+          join(kitDir, "prisma/schema/auth.prisma"),
+          "model User {\n  id String @id\n  email String\n  // wa:relations:start\n  // wa:relations:end\n}\n",
+        );
+      },
+    });
+    const installError = new Error("npm install zakończone kodem 1");
+    runner.mockRejectedValue(installError);
 
-    await run(setup).catch(() => null);
-
-    expect(lines()).toContain(
+    const failure = run(setup);
+    await expect(failure).rejects.toThrow(
       "Zaktualizowano do wa-kit 0.2.0, ale npm install się nie powiódł. Uruchom: npm install",
     );
+    await expect(failure).rejects.toMatchObject({ cause: installError });
+
+    expect(lines()).toContain("npx prisma migrate dev --name kit-0.2.0");
     expect(await read(setup.dir, AUTH_MODULE)).toBe(
       'export default { key: "auth", version: "v0.2.0" };\n',
     );
+    expect(await read(setup.dir, "prisma/schema/auth.prisma")).toBe(
+      "model User {\n  id String @id\n  email String\n  // wa:relations:start\n  // wa:relations:end\n}\n",
+    );
     expect((await rawState(setup.dir)).kitVersion).toBe("0.2.0");
   });
+
+  it("po aktualizacji package-lock.json ma w .wa/kit.json znacznik managed", async () => {
+    const setup = await prepare({ kit: changeAuthModule });
+
+    expect(await run(setup)).toEqual({ exitCode: 0 });
+
+    expect(
+      (await rawState(setup.dir)).modules.core?.files["package-lock.json"],
+    ).toBe("managed");
+  });
+
+  it("kit docelowy w innej wersji niż żądana: błąd, projekt bez zmian", async () => {
+    const setup = await prepare({ kit: changeAuthModule });
+    const before = await snapshotDir(setup.dir, IGNORE);
+
+    await expect(run(setup, { version: "0.3.0" })).rejects.toThrow(
+      "Kit docelowy ma wersję 0.2.0, oczekiwano 0.3.0",
+    );
+
+    expect(await snapshotDir(setup.dir, IGNORE)).toEqual(before);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it.skipIf(process.getuid?.() === 0)(
+    "plik do aktualizacji bez prawa odczytu: błąd EACCES, projekt i .wa/kit.json bez zmian",
+    async () => {
+      const setup = await prepare({ kit: changeAuthModule });
+      const before = await snapshotDir(setup.dir, IGNORE);
+      await exec("git", [
+        "-C",
+        setup.dir,
+        "update-index",
+        "--assume-unchanged",
+        AUTH_MODULE,
+      ]);
+      await chmod(join(setup.dir, AUTH_MODULE), 0o200);
+      try {
+        await expect(run(setup)).rejects.toThrow("EACCES");
+      } finally {
+        await chmod(join(setup.dir, AUTH_MODULE), 0o644);
+      }
+
+      expect(await snapshotDir(setup.dir, IGNORE)).toEqual(before);
+      expect(runner).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("update: scalanie", () => {

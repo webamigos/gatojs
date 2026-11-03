@@ -46,6 +46,7 @@ const execFileAsync = promisify(execFile);
 const UNDO_HINT =
   "Sprawdź git status; całość cofa: git restore . && git clean -fd";
 const PERMISSION_BITS = 0o777;
+const MANAGED = "managed";
 
 export function checkVersions(
   current: string,
@@ -142,12 +143,12 @@ async function applyWrite(
 async function restoreOriginal(original: Original): Promise<void> {
   const current = await readIfExists(original.path);
   if (!current?.equals(original.content)) {
+    // WHY: aktualizacja mogła zostawić plik tylko do odczytu; po usunięciu writeFile tworzy go od nowa
+    await rm(original.path, { force: true });
     await mkdir(dirname(original.path), { recursive: true });
     await writeFile(original.path, original.content);
   }
-  if (((await stat(original.path)).mode & PERMISSION_BITS) !== original.mode) {
-    await chmod(original.path, original.mode);
-  }
+  await chmod(original.path, original.mode);
 }
 
 async function rollbackUpdate(input: {
@@ -159,18 +160,14 @@ async function rollbackUpdate(input: {
 }): Promise<void> {
   const { projectDir, originals } = input;
   const steps = [
-    ...input.writes
-      .filter(({ absolute }) => !originals.has(absolute))
-      .map(({ file, absolute }) => ({
+    ...input.writes.map(({ file, absolute }) => {
+      const original = originals.get(absolute);
+      return {
         path: file.path,
-        run: () => rm(absolute, { force: true }),
-      })),
-    ...input.writes
-      .filter(({ absolute }) => originals.has(absolute))
-      .map(({ file, absolute }) => ({
-        path: file.path,
-        run: () => restoreOriginal(originals.get(absolute) as Original),
-      })),
+        run: () =>
+          original ? restoreOriginal(original) : rm(absolute, { force: true }),
+      };
+    }),
     ...input.createdDirectories
       .filter((directory) => existsSync(join(projectDir, directory)))
       .map((directory) => ({
@@ -203,8 +200,15 @@ function nextState(
   const paths = [...target.files.keys()];
   const modules = Object.fromEntries(
     target.manifests.map((manifest) => {
-      const files = Object.fromEntries(
-        moduleFiles(manifest, paths)
+      const managed = Object.entries(
+        state.modules[manifest.name]?.files ?? {},
+      ).filter(
+        ([path, hash]) =>
+          hash === MANAGED && target.config.managedFiles.includes(path),
+      );
+      const files = Object.fromEntries([
+        ...managed,
+        ...moduleFiles(manifest, paths)
           .filter((path) => !undecided.has(path))
           .map((path) => [
             path,
@@ -214,7 +218,7 @@ function nextState(
               target.config,
             ),
           ]),
-      );
+      ]);
       return [manifest.name, { version: manifest.version, manifest, files }];
     }),
   );
@@ -284,6 +288,11 @@ export async function update(
   const modules = Object.keys(state.modules);
   const base = await readKitSnapshot(options.baseKitDir, modules, names);
   const target = await readKitSnapshot(options.targetKitDir, modules, names);
+  if (target.version !== version) {
+    throw new Error(
+      `Kit docelowy ma wersję ${target.version}, oczekiwano ${version}`,
+    );
+  }
   assertRequirementsInstalled(state, target);
   const recordedHashes = Object.assign(
     {},
@@ -333,17 +342,16 @@ export async function update(
     return { exitCode: 1 };
   }
   await generate(projectDir);
-  let installFailed = false;
+  successHints(base, target).forEach((line) => log(line));
   if (options.install) {
     try {
       await runner("npm", ["install"], projectDir);
-    } catch {
-      installFailed = true;
-      log(
+    } catch (error) {
+      throw new Error(
         `Zaktualizowano do wa-kit ${version}, ale npm install się nie powiódł. Uruchom: npm install`,
+        { cause: error },
       );
     }
   }
-  successHints(base, target).forEach((line) => log(line));
-  return { exitCode: installFailed || undecided.size > 0 ? 1 : 0 };
+  return { exitCode: undecided.size > 0 ? 1 : 0 };
 }

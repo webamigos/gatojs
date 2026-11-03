@@ -144,9 +144,13 @@ describe("update: błąd zapisu cofa wszystkie zmiany", () => {
     const binModeBefore = (await stat(join(setup.dir, BIN))).mode & 0o777;
     failures.halfWritePath = join(setup.dir, ".wa/kit.json");
 
-    await expect(run(setup)).rejects.toThrow(
+    const failure = run(setup);
+    await expect(failure).rejects.toThrow(
       `brak miejsca na dysku\n${UNDO_HINT}`,
     );
+    await expect(failure).rejects.toMatchObject({
+      cause: { code: "ENOSPC", message: "brak miejsca na dysku" },
+    });
 
     expect(await snapshotDir(setup.dir, IGNORE)).toEqual(before);
     expect(await readFile(join(setup.dir, AUTH_MODULE), "utf8")).toBe(
@@ -166,9 +170,13 @@ describe("update: błąd zapisu cofa wszystkie zmiany", () => {
     failures.halfWritePath = join(setup.dir, ".wa/kit.json");
     failures.removePath = join(setup.dir, ADDED);
 
-    await expect(run(setup)).rejects.toThrow(
+    const failure = run(setup);
+    await expect(failure).rejects.toThrow(
       `brak miejsca na dysku\n${UNDO_HINT}`,
     );
+    await expect(failure).rejects.toMatchObject({
+      cause: { code: "ENOSPC" },
+    });
 
     expect(cleanupWarnings()).toContain(
       "Nie udało się posprzątać: src/shared/lib/rate-limit.ts (EBUSY)",
@@ -214,7 +222,38 @@ describe("update: błąd zapisu cofa wszystkie zmiany", () => {
 
       expect(await snapshotDir(dir, IGNORE)).toEqual(before);
       expect(existsSync(join(dir, "src/shared/lib"))).toBe(false);
+      expect(cleanupWarnings()).toEqual([]);
       expect(runner).not.toHaveBeenCalled();
     },
   );
+
+  it("plik z kitu w trybie 0o444, zapis .wa/kit.json pada ENOSPC: plik bajt w bajt jak przed, tryb 0o644, bez linii sprzątania", async () => {
+    const kitDir = await makeTaggedKit(async (kit) => {
+      await writeFile(
+        join(kit, BIN),
+        '#!/usr/bin/env node\nconsole.log("wa 0.2.0");\n',
+      );
+    });
+    const dir = await createProjectFromTag(kitDir, "app", []);
+    const targetKitDir = await cloneTag(kitDir, "0.2.0");
+    await chmod(join(targetKitDir, BIN), 0o444);
+    const setup = {
+      dir,
+      baseKitDir: await cloneTag(kitDir, "0.1.0"),
+      targetKitDir,
+    };
+    const before = await snapshotDir(dir, IGNORE);
+    failures.halfWritePath = join(dir, ".wa/kit.json");
+
+    await expect(run(setup)).rejects.toThrow(
+      `brak miejsca na dysku\n${UNDO_HINT}`,
+    );
+
+    expect(await readFile(join(dir, BIN), "utf8")).toBe(
+      '#!/usr/bin/env node\nconsole.log("wa");\n',
+    );
+    expect((await stat(join(dir, BIN))).mode & 0o777).toBe(0o644);
+    expect(await snapshotDir(dir, IGNORE)).toEqual(before);
+    expect(cleanupWarnings()).toEqual([]);
+  });
 });
