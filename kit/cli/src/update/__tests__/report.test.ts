@@ -31,7 +31,7 @@ describe("planReport: linia Uwaga", () => {
     );
   });
 
-  it.each([5, 12, 13, 14, 25, 112])(
+  it.each([5, 10, 11, 12, 13, 14, 21, 25, 112])(
     "%i plików dostaje formę plików",
     (count) => {
       expect(warningFor(count)).toBe(
