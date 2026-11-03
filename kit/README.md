@@ -43,15 +43,22 @@ Bez `--no-git` projekt dostaje `git init` i pierwszy commit, więc `git` musi mi
 
 Uruchamiane jako `npm run wa -- <komenda>` (bundel `.wa/bin/wa.mjs`).
 
-Źródło kitu dla `add` i `list` (`--kit` albo zmienna `WA_KIT_SOURCE`) to `https://...`, `ssh://...`, `file://...`, `git@...` albo ścieżka lokalna.
+Źródło kitu dla `add`, `list` i `update` (`--kit` albo zmienna `WA_KIT_SOURCE`) to `https://...`, `ssh://...`, `file://...`, `git@...` albo ścieżka lokalna.
 
 - `wa list [--kit <źródło>]`: moduły zainstalowane, dostępne w kicie i moduły projektu.
 - `wa add <moduł> [--kit <źródło>] [--no-install]`: kopiuje pliki modułu i jego zależności, dopisuje zależności npm i uruchamia `wa generate`.
 - `wa remove <moduł> [--force] [--no-install]`: usuwa pliki modułu, zależności npm, które nie służą innym modułom, i uruchamia `wa generate`. Pliki zmienione lokalnie (inny hash niż w stanie) zatrzymują komendę, dopóki nie podasz `--force`. Moduł wymagany przez inny moduł i moduł projektu nie zostanie usunięty.
+- `wa update <wersja> [--kit <źródło>] [--dry-run] [--no-install]`: przenosi rdzeń i wszystkie moduły kitu na tag `v<wersja>`, scalając zmiany kitu z lokalnymi zmianami projektu (`git merge-file`). Wymaga czystego drzewa git (poza `--dry-run`, który tylko wypisuje plan). Konflikt zostawia markery w pliku, zapisuje nową wersję w `.wa/kit.json`, pomija `wa generate` i `npm install` i kończy się kodem 1; plik „do decyzji” (usunięty po jednej stronie, zmieniony po drugiej) też daje kod 1. Cofnięcie całości: `git restore . && git clean -fd`. `.env` i `package-lock.json` zmieniasz sam (`npm install`).
 - `wa generate`: odświeża pliki generowane (rejestr modułów, regiony w `.env.example`, schemacie, `docker-compose.yml` i region `wa:ci-integration` w `.github/workflows/ci.yml`).
 - `wa kit sync`: odświeża `.wa/kit.json` z `kit/modules/*.json` i `kit/kit.json` (praca nad samym kitem).
 
-Po `add` i `remove` zmienia się schemat bazy; migrację trzeba utworzyć i zacommitować. `add` nie zmienia `.env`: nowe zmienne modułu (na przykład `API_KEY_PEPPER`, `S3_*`) trafiają tylko do regionu `wa:modules` w `.env.example`, więc skopiuj je do `.env` sam. `remove` zostawia zmienne modułu w `.env`.
+Pierwszą aktualizację projektu z `v0.1.0` (jego bundel nie zna `update`) uruchamiasz w katalogu projektu bundlem z klonu tagu docelowego:
+
+```bash
+KIT_DIR=$(mktemp -d) && git clone --depth 1 --branch v<wersja> https://github.com/webamigos/wa-kit.git "$KIT_DIR" && node "$KIT_DIR/.wa/bin/wa.mjs" update <wersja>
+```
+
+Po `add`, `remove` i `update` może się zmienić schemat bazy; migrację trzeba utworzyć i zacommitować. `add` nie zmienia `.env`: nowe zmienne modułu (na przykład `API_KEY_PEPPER`, `S3_*`) trafiają tylko do regionu `wa:modules` w `.env.example`, więc skopiuj je do `.env` sam. `remove` zostawia zmienne modułu w `.env`.
 
 ### Bezpieczeństwo `wa remove`
 
