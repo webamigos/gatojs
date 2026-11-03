@@ -6,13 +6,66 @@ var __export = (target, all) => {
 };
 
 // src/bin.ts
-import { dirname as dirname6, join as join11, resolve as resolve4 } from "node:path";
+import { dirname as dirname7, join as join13, resolve as resolve5 } from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdtemp as mkdtemp2, rm as rm4 } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdtemp as mkdtemp4, rm as rm6 } from "node:fs/promises";
+import { tmpdir as tmpdir2 } from "node:os";
 
 // src/args.ts
 import { parseArgs } from "node:util";
+
+// src/update/version.ts
+var VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?$/;
+function parseVersion(value) {
+  if (!VERSION_PATTERN.test(value)) {
+    throw new Error(`Nieprawid\u0142owa wersja: ${value}; podaj na przyk\u0142ad 0.2.0`);
+  }
+  return value;
+}
+function compareIdentifiers(a, b) {
+  const aNumeric = /^\d+$/.test(a);
+  const bNumeric = /^\d+$/.test(b);
+  if (aNumeric && bNumeric) {
+    return Number(a) - Number(b);
+  }
+  if (aNumeric !== bNumeric) {
+    return aNumeric ? -1 : 1;
+  }
+  return Number(a > b) - Number(a < b);
+}
+function comparePrerelease(a, b) {
+  if (a.length === 0 || b.length === 0) {
+    return b.length - a.length;
+  }
+  for (let index = 0; index < Math.min(a.length, b.length); index++) {
+    const result = compareIdentifiers(a[index], b[index]);
+    if (result !== 0) {
+      return result;
+    }
+  }
+  return a.length - b.length;
+}
+function splitVersion(value) {
+  const [core, ...rest] = value.split("-");
+  const prerelease = rest.join("-");
+  return {
+    core: core.split(".").map(Number),
+    prerelease: prerelease === "" ? [] : prerelease.split(".")
+  };
+}
+function compareVersions(a, b) {
+  const left = splitVersion(a);
+  const right = splitVersion(b);
+  for (let index = 0; index < 3; index++) {
+    const result = left.core[index] - right.core[index];
+    if (result !== 0) {
+      return result;
+    }
+  }
+  return comparePrerelease(left.prerelease, right.prerelease);
+}
+
+// src/args.ts
 var LOCALES_ERROR = "--locales: dozwolone pl,en; pl jest wymagany";
 var ALLOWED_LOCALES = ["pl", "en"];
 function parseList(value) {
@@ -127,6 +180,26 @@ function parseListArgs(argv) {
   });
   assertMaxPositionals(positionals, 0);
   return { kit: optionalValue(values.kit, "--kit") };
+}
+function parseUpdateArgs(argv) {
+  const { values, positionals } = parseOptions(argv, {
+    kit: { type: "string" },
+    "from-kit": { type: "string" },
+    "dry-run": { type: "boolean", default: false },
+    "no-install": { type: "boolean", default: false }
+  });
+  const [version2] = positionals;
+  if (version2 === void 0) {
+    throw new Error("Podaj wersj\u0119 kitu");
+  }
+  assertMaxPositionals(positionals, 1);
+  return {
+    version: parseVersion(version2),
+    kit: optionalValue(values.kit, "--kit"),
+    fromKit: optionalValue(values["from-kit"], "--from-kit"),
+    dryRun: values["dry-run"],
+    install: !values["no-install"]
+  };
 }
 
 // src/commands/add.ts
@@ -5616,7 +5689,7 @@ var recursive = /* @__PURE__ */ new WeakMap();
 var NONE = 0;
 var ASSUMED = 1;
 var PROVEN = 2;
-function isRecursive(inst, stack, resolve5) {
+function isRecursive(inst, stack, resolve6) {
   const cached2 = recursive.get(inst);
   if (cached2 !== void 0)
     return cached2 ? PROVEN : NONE;
@@ -5626,7 +5699,7 @@ function isRecursive(inst, stack, resolve5) {
   let result = NONE;
   const check2 = (child) => {
     if (result !== PROVEN && child?._zod) {
-      const answer = isRecursive(child, stack, resolve5);
+      const answer = isRecursive(child, stack, resolve6);
       if (answer > result)
         result = answer;
     }
@@ -5637,7 +5710,7 @@ function isRecursive(inst, stack, resolve5) {
       const desc = Object.getOwnPropertyDescriptor(sh, key);
       if (spread && !desc.enumerable)
         continue;
-      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve5) : NONE;
+      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve6) : NONE;
       if (child > answer)
         answer = child;
     }
@@ -5701,7 +5774,7 @@ function isRecursive(inst, stack, resolve5) {
       break;
     // `$ZodLazy` caches its inner on the def, so a resolved edge is followed exactly
     case "lazy": {
-      const inner = def._cachedInner ?? (resolve5 ? inst._zod.innerType : void 0);
+      const inner = def._cachedInner ?? (resolve6 ? inst._zod.innerType : void 0);
       merge2(inner ? isRecursive(inner, stack, false) : ASSUMED);
       break;
     }
@@ -20052,7 +20125,7 @@ function visit(schema, fnOrHandlers) {
     return h ? h(node2, rewritten) : node2;
   };
   const cache = /* @__PURE__ */ new Map();
-  function run2(s) {
+  function run3(s) {
     const cached2 = cache.get(s);
     if (cached2 === RESOLVING) {
       return new $ZodLazy({
@@ -20078,21 +20151,21 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newShape = {};
         for (const k of keys) {
-          const mapped = run2(oldShape[k]);
+          const mapped = run3(oldShape[k]);
           if (mapped !== oldShape[k])
             changed = true;
           newShape[k] = mapped;
         }
         let newCatchall = def.catchall;
         if (def.catchall) {
-          newCatchall = run2(def.catchall);
+          newCatchall = run3(def.catchall);
           if (newCatchall !== def.catchall)
             changed = true;
         }
         return changed ? clone(s, { ...def, shape: newShape, catchall: newCatchall }) : s;
       }
       case "array": {
-        const mapped = run2(def.element);
+        const mapped = run3(def.element);
         return mapped === def.element ? s : clone(s, { ...def, element: mapped });
       }
       case "tuple": {
@@ -20100,14 +20173,14 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newItems = [];
         for (const item of oldItems) {
-          const mapped = run2(item);
+          const mapped = run3(item);
           if (mapped !== item)
             changed = true;
           newItems.push(mapped);
         }
         let newRest = def.rest;
         if (def.rest) {
-          newRest = run2(def.rest);
+          newRest = run3(def.rest);
           if (newRest !== def.rest)
             changed = true;
         }
@@ -20115,12 +20188,12 @@ function visit(schema, fnOrHandlers) {
       }
       case "record":
       case "map": {
-        const newKey = run2(def.keyType);
-        const newVal = run2(def.valueType);
+        const newKey = run3(def.keyType);
+        const newVal = run3(def.valueType);
         return newKey === def.keyType && newVal === def.valueType ? s : clone(s, { ...def, keyType: newKey, valueType: newVal });
       }
       case "set": {
-        const newVal = run2(def.valueType);
+        const newVal = run3(def.valueType);
         return newVal === def.valueType ? s : clone(s, { ...def, valueType: newVal });
       }
       case "union": {
@@ -20128,7 +20201,7 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newOptions = [];
         for (const opt of oldOptions) {
-          const mapped = run2(opt);
+          const mapped = run3(opt);
           if (mapped !== opt)
             changed = true;
           newOptions.push(mapped);
@@ -20136,8 +20209,8 @@ function visit(schema, fnOrHandlers) {
         return changed ? clone(s, { ...def, options: newOptions }) : s;
       }
       case "intersection": {
-        const newLeft = run2(def.left);
-        const newRight = run2(def.right);
+        const newLeft = run3(def.left);
+        const newRight = run3(def.right);
         return newLeft === def.left && newRight === def.right ? s : clone(s, { ...def, left: newLeft, right: newRight });
       }
       case "optional":
@@ -20149,23 +20222,23 @@ function visit(schema, fnOrHandlers) {
       case "nonoptional":
       case "promise":
       case "success": {
-        const newInner = run2(def.innerType);
+        const newInner = run3(def.innerType);
         return newInner === def.innerType ? s : clone(s, { ...def, innerType: newInner });
       }
       case "pipe": {
-        const newIn = run2(def.in);
-        const newOut = run2(def.out);
+        const newIn = run3(def.in);
+        const newOut = run3(def.out);
         return newIn === def.in && newOut === def.out ? s : clone(s, { ...def, in: newIn, out: newOut });
       }
       case "function": {
-        const newInput = run2(def.input);
-        const newOutput = run2(def.output);
+        const newInput = run3(def.input);
+        const newOutput = run3(def.output);
         return newInput === def.input && newOutput === def.output ? s : clone(s, { ...def, input: newInput, output: newOutput });
       }
       case "lazy": {
         const original = def.getter;
         const { _cachedInner, ...rest } = def;
-        return clone(s, { ...rest, getter: () => run2(original()) });
+        return clone(s, { ...rest, getter: () => run3(original()) });
       }
       // A leaf by choice: `parts` are regex fragments, not data positions.
       case "template_literal":
@@ -20196,7 +20269,7 @@ function visit(schema, fnOrHandlers) {
       }
     }
   }
-  return run2(schema);
+  return run3(schema);
 }
 
 // node_modules/zod/v4/classic/deep-partial.js
@@ -20657,6 +20730,16 @@ async function cloneKit(input2) {
   } catch {
     throw new Error(
       `Nie uda\u0142o si\u0119 pobra\u0107 wa-kit v${input2.version} z ${input2.source}. Sprawd\u017A dost\u0119p (gh auth status) albo podaj --kit <\u015Bcie\u017Cka>`
+    );
+  }
+  return target;
+}
+async function cloneKitVersion(input2) {
+  const target = await cloneKit(input2);
+  const config2 = await readKitConfig(target);
+  if (config2.version !== input2.version) {
+    throw new Error(
+      `Kit w ${target} ma wersj\u0119 ${config2.version}, oczekiwano ${input2.version}`
     );
   }
   return target;
@@ -21150,12 +21233,12 @@ var readlinePrompter = {
 
 // src/process/runner.ts
 import { spawn } from "node:child_process";
-var spawnRunner = (command, args, cwd) => new Promise((resolve5, reject) => {
+var spawnRunner = (command, args, cwd) => new Promise((resolve6, reject) => {
   const child = spawn(command, args, { cwd, stdio: "inherit" });
   child.on("error", reject);
   child.on("close", (code) => {
     if (code === 0) {
-      resolve5();
+      resolve6();
       return;
     }
     reject(
@@ -21396,12 +21479,668 @@ ${changed.map((file2) => `  ${file2}`).join("\n")}`
   return { removed: [module] };
 }
 
+// src/commands/update.ts
+import { execFile as execFile3 } from "node:child_process";
+import { existsSync as existsSync3 } from "node:fs";
+import {
+  chmod as chmod3,
+  mkdir as mkdir5,
+  mkdtemp as mkdtemp3,
+  readFile as readFile10,
+  rm as rm5,
+  rmdir as rmdir3,
+  stat as stat3,
+  writeFile as writeFile8
+} from "node:fs/promises";
+import { dirname as dirname6, join as join12, resolve as resolve4 } from "node:path";
+import { promisify as promisify3 } from "node:util";
+
+// src/update/merge.ts
+import { execFile as execFile2 } from "node:child_process";
+import { mkdtemp as mkdtemp2, rm as rm4, writeFile as writeFile7 } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join as join11 } from "node:path";
+import { promisify as promisify2 } from "node:util";
+var run2 = promisify2(execFile2);
+var MAX_CONFLICT_EXIT_CODE = 127;
+function prepareSides(path, sides) {
+  if (!REGION_FILES.includes(path)) {
+    return sides;
+  }
+  const strip = (content) => Buffer.from(stripRegions(content.toString("utf8")));
+  return {
+    base: strip(sides.base),
+    ours: strip(sides.ours),
+    theirs: strip(sides.theirs)
+  };
+}
+async function mergeFile(input2) {
+  if ([input2.base, input2.ours, input2.theirs].some((side) => side.includes(0))) {
+    return { binary: true };
+  }
+  const sides = prepareSides(input2.path, input2);
+  const dir = await mkdtemp2(join11(tmpdir(), "wa-merge-"));
+  try {
+    const oursFile = join11(dir, "ours");
+    const baseFile = join11(dir, "base");
+    const theirsFile = join11(dir, "theirs");
+    await Promise.all([
+      writeFile7(oursFile, sides.ours),
+      writeFile7(baseFile, sides.base),
+      writeFile7(theirsFile, sides.theirs)
+    ]);
+    const args = [
+      "merge-file",
+      "-p",
+      "--diff3",
+      "-L",
+      input2.labels.ours,
+      "-L",
+      input2.labels.base,
+      "-L",
+      input2.labels.theirs,
+      oursFile,
+      baseFile,
+      theirsFile
+    ];
+    try {
+      const { stdout } = await run2("git", args, {
+        encoding: "buffer",
+        maxBuffer: 64 * 1024 * 1024
+      });
+      return { content: stdout, conflicts: 0 };
+    } catch (error62) {
+      const failure2 = error62;
+      if (typeof failure2.code === "number" && failure2.code <= MAX_CONFLICT_EXIT_CODE && Buffer.isBuffer(failure2.stdout)) {
+        return { content: failure2.stdout, conflicts: failure2.code };
+      }
+      const stderr = failure2.stderr.toString("utf8").trim();
+      throw new Error(`git merge-file: ${stderr || String(error62)}`, {
+        cause: error62
+      });
+    }
+  } finally {
+    await rm4(dir, { recursive: true });
+  }
+}
+
+// src/update/plan.ts
+var MANAGED = "managed";
+var UNCHANGED = { file: null, mismatchedBase: false };
+function planned(path, action, fields = {}) {
+  return { path, action, reason: null, content: null, mode: null, ...fields };
+}
+function undecided(path, reason) {
+  return planned(path, "do decyzji", { reason });
+}
+async function decideAdded(path, kit, input2) {
+  const project = await input2.readProject(path);
+  if (!project) {
+    return {
+      file: planned(path, "dodano", { content: kit.content, mode: kit.mode }),
+      mismatchedBase: false
+    };
+  }
+  if (contentHash(path, project) === contentHash(path, kit.content)) {
+    return UNCHANGED;
+  }
+  return {
+    file: planned(path, "konflikt", {
+      reason: "plik projektu na \u015Bcie\u017Cce nowego pliku kitu"
+    }),
+    mismatchedBase: false
+  };
+}
+async function mergeChanged(path, base, project, kit, input2) {
+  const merged = await mergeFile({
+    path,
+    base,
+    ours: project,
+    theirs: kit.content,
+    labels: {
+      ours: "projekt",
+      base: `v${input2.base.version}`,
+      theirs: `v${input2.target.version}`
+    }
+  });
+  if ("binary" in merged) {
+    return planned(path, "konflikt", {
+      reason: "plik binarny zmieniony w projekcie i w kicie"
+    });
+  }
+  if (merged.conflicts > 0) {
+    return planned(path, "konflikt", {
+      content: merged.content,
+      mode: kit.mode
+    });
+  }
+  if (contentHash(path, merged.content) === contentHash(path, project)) {
+    return null;
+  }
+  return planned(path, "scalono", { content: merged.content, mode: kit.mode });
+}
+async function decideExisting(path, base, kit, input2) {
+  const baseHash = contentHash(path, base.content);
+  if (kit && contentHash(path, kit.content) === baseHash) {
+    return UNCHANGED;
+  }
+  const project = await input2.readProject(path);
+  if (!project) {
+    if (!kit) {
+      return UNCHANGED;
+    }
+    return {
+      file: undecided(path, "usuni\u0119ty w projekcie, zmieniony w kicie"),
+      mismatchedBase: false
+    };
+  }
+  const projectHash = contentHash(path, project);
+  const recordedHash = input2.recordedHashes[path];
+  const recordedMatchesBase = recordedHash === void 0 || recordedHash === MANAGED || recordedHash === baseHash;
+  const projectEqualsBase = projectHash === baseHash && recordedMatchesBase;
+  const mismatchedBase = projectHash === recordedHash && recordedHash !== baseHash;
+  if (!kit) {
+    const file3 = projectEqualsBase ? planned(path, "usuni\u0119to") : undecided(path, "zmieniony w projekcie, usuni\u0119ty w kicie");
+    return { file: file3, mismatchedBase };
+  }
+  if (projectEqualsBase) {
+    return {
+      file: planned(path, "zaktualizowano", {
+        content: kit.content,
+        mode: kit.mode
+      }),
+      mismatchedBase
+    };
+  }
+  if (projectHash === contentHash(path, kit.content)) {
+    return UNCHANGED;
+  }
+  const file2 = await mergeChanged(path, base.content, project, kit, input2);
+  if (!file2) {
+    return UNCHANGED;
+  }
+  return { file: file2, mismatchedBase };
+}
+async function planUpdate(input2) {
+  const decisions = [];
+  for (const [path, base] of input2.base.files) {
+    decisions.push([
+      path,
+      await decideExisting(path, base, input2.target.files.get(path), input2)
+    ]);
+  }
+  for (const [path, kit] of input2.target.files) {
+    if (!input2.base.files.has(path)) {
+      decisions.push([path, await decideAdded(path, kit, input2)]);
+    }
+  }
+  decisions.sort(([a], [b]) => compareCodePoint(a, b));
+  const files = [];
+  const mismatchedBase = [];
+  for (const [path, decision] of decisions) {
+    if (decision.file) {
+      files.push(decision.file);
+    }
+    if (decision.mismatchedBase) {
+      mismatchedBase.push(path);
+    }
+  }
+  return { files, mismatchedBase };
+}
+
+// src/update/report.ts
+var ACTION_ORDER = [
+  "zaktualizowano",
+  "scalono",
+  "dodano",
+  "usuni\u0119to",
+  "konflikt",
+  "do decyzji"
+];
+var ACTION_WIDTH = "zaktualizowano".length;
+var SCHEMA_PREFIX = "prisma/schema/";
+function fileLine(file2) {
+  const reason = file2.reason === null ? "" : ` (${file2.reason})`;
+  return `  ${file2.action.padEnd(ACTION_WIDTH)} ${file2.path}${reason}`;
+}
+function planReport(input2) {
+  const { plan, from, to } = input2;
+  const header = input2.dryRun ? `Plan aktualizacji wa-kit ${from} \u2192 ${to} (bez zmian w projekcie)` : `Aktualizacja wa-kit ${from} \u2192 ${to}`;
+  const items = ACTION_ORDER.flatMap(
+    (action) => plan.files.filter((file2) => file2.action === action).sort((a, b) => compareCodePoint(a.path, b.path)).map(fileLine)
+  );
+  const warning = plan.mismatchedBase.length > 0 ? [
+    `Uwaga: ${plan.mismatchedBase.length} plik\xF3w r\xF3\u017Cni si\u0119 od v${from} z tagu; potraktowano je jak zmienione w projekcie`
+  ] : [];
+  return [
+    header,
+    ...items.length > 0 ? items : ["  bez zmian w plikach"],
+    ...warning
+  ];
+}
+function schemaChanged(base, target) {
+  const paths = /* @__PURE__ */ new Set([...base.files.keys(), ...target.files.keys()]);
+  return [...paths].filter((path) => path.startsWith(SCHEMA_PREFIX)).some((path) => {
+    const before = base.files.get(path)?.content;
+    const after = target.files.get(path)?.content;
+    return !before || !after || !before.equals(after);
+  });
+}
+function newEnvNames(base, target) {
+  const known = new Set(
+    base.manifests.flatMap((manifest) => manifest.env.map(({ name }) => name))
+  );
+  const added = target.manifests.flatMap((manifest) => manifest.env.map(({ name }) => name)).filter((name) => !known.has(name));
+  return [...new Set(added)].sort(compareCodePoint);
+}
+function successHints(base, target) {
+  const hints = [];
+  if (schemaChanged(base, target)) {
+    hints.push(`npx prisma migrate dev --name kit-${target.version}`);
+  }
+  const envNames = newEnvNames(base, target);
+  if (envNames.length > 0) {
+    hints.push(
+      `Nowe zmienne w .env.example: ${envNames.join(", ")}; uzupe\u0142nij .env`
+    );
+  }
+  return hints;
+}
+
+// src/update/snapshot.ts
+var PACKAGE_JSON2 = "package.json";
+var PACKAGE_LOCK = "package-lock.json";
+function selectManifests(modules, available, version2) {
+  const byName = new Map(
+    available.map((manifest) => [manifest.name, manifest])
+  );
+  return [...new Set(modules)].sort(compareModuleNames).map((name) => {
+    const manifest = byName.get(name);
+    if (!manifest) {
+      throw new Error(`Modu\u0142 ${name} nie istnieje w wa-kit ${version2}`);
+    }
+    return manifest;
+  });
+}
+async function readKitSnapshot(kitDir, modules, names) {
+  const config2 = await readKitConfig(kitDir);
+  const manifests = selectManifests(
+    modules,
+    await readKitManifests(kitDir),
+    config2.version
+  );
+  const available = await assemblableFiles(kitDir, config2);
+  const files = /* @__PURE__ */ new Map();
+  for (const manifest of manifests) {
+    for (const file2 of moduleFiles(manifest, available)) {
+      if (file2 !== PACKAGE_LOCK) {
+        files.set(
+          file2,
+          await readAssembledFile({ kitDir, file: file2, config: config2, names })
+        );
+      }
+    }
+  }
+  const packageJson = files.get(PACKAGE_JSON2);
+  if (packageJson) {
+    files.set(PACKAGE_JSON2, {
+      content: Buffer.from(
+        projectPackageJson(
+          packageJson.content.toString("utf8"),
+          manifests,
+          names
+        )
+      ),
+      mode: packageJson.mode
+    });
+  }
+  return { version: config2.version, config: config2, manifests, files };
+}
+
+// src/commands/update.ts
+var execFileAsync = promisify3(execFile3);
+var UNDO_HINT = "Sprawd\u017A git status; ca\u0142o\u015B\u0107 cofa: git restore . && git clean -fd";
+var PERMISSION_BITS2 = 511;
+var MANAGED2 = "managed";
+function checkVersions(current, target) {
+  const order = compareVersions(target, current);
+  if (order === 0) {
+    return "same";
+  }
+  if (order < 0) {
+    throw new Error(
+      `Projekt ma wa-kit ${current}, nowsz\u0105 ni\u017C ${target}; wa update nie obni\u017Ca wersji`
+    );
+  }
+  return "newer";
+}
+async function assertCleanTree(projectDir) {
+  let status;
+  try {
+    ({ stdout: status } = await execFileAsync(
+      "git",
+      ["status", "--porcelain"],
+      {
+        cwd: projectDir
+      }
+    ));
+  } catch (error62) {
+    throw new Error(
+      `${projectDir} nie jest repozytorium git; wa update wymaga gita, \u017Ceby da\u0142o si\u0119 cofn\u0105\u0107 zmiany`,
+      { cause: error62 }
+    );
+  }
+  if (status.trim() !== "") {
+    throw new Error(
+      "Niezacommitowane zmiany w projekcie; zr\xF3b commit albo stash przed wa update"
+    );
+  }
+}
+function assertRequirementsInstalled(state, target) {
+  for (const manifest of target.manifests) {
+    const missing = manifest.requires.filter((name) => !(name in state.modules)).sort(compareCodePoint);
+    if (missing.length > 0) {
+      throw new Error(
+        `Modu\u0142 ${manifest.name} w wa-kit ${target.version} wymaga niezainstalowanych modu\u0142\xF3w: ${missing.join(", ")}`
+      );
+    }
+  }
+}
+async function readIfExists2(path) {
+  try {
+    return await readFile10(path);
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      return null;
+    }
+    throw error62;
+  }
+}
+async function rememberOriginal(absolute) {
+  const content = await readIfExists2(absolute);
+  if (!content) {
+    return null;
+  }
+  const mode = (await stat3(absolute)).mode & PERMISSION_BITS2;
+  return { path: absolute, content, mode };
+}
+async function applyWrite(projectDir, { file: file2, absolute }) {
+  if (file2.action === "usuni\u0119to") {
+    await rm5(absolute);
+    await removeEmptyParents(projectDir, absolute);
+    return;
+  }
+  await mkdir5(dirname6(absolute), { recursive: true });
+  await writeFile8(absolute, file2.content);
+  await chmod3(absolute, file2.mode);
+}
+async function restoreOriginal(original) {
+  const current = await readIfExists2(original.path);
+  if (!current?.equals(original.content)) {
+    await rm5(original.path, { force: true });
+    await mkdir5(dirname6(original.path), { recursive: true });
+    await writeFile8(original.path, original.content);
+  }
+  await chmod3(original.path, original.mode);
+}
+async function rollbackUpdate(input2) {
+  const { projectDir, originals } = input2;
+  const steps = [
+    ...input2.writes.map(({ file: file2, absolute }) => {
+      const original = originals.get(absolute);
+      return {
+        path: file2.path,
+        run: () => original ? restoreOriginal(original) : rm5(absolute, { force: true })
+      };
+    }),
+    ...input2.createdDirectories.filter((directory) => existsSync3(join12(projectDir, directory))).map((directory) => ({
+      path: directory,
+      run: () => rmdir3(join12(projectDir, directory))
+    })),
+    {
+      path: KIT_STATE_PATH,
+      run: () => restoreOriginal(
+        originals.get(join12(projectDir, KIT_STATE_PATH))
+      )
+    }
+  ];
+  for (const step of steps) {
+    try {
+      await step.run();
+    } catch (error62) {
+      const { code, message } = error62;
+      input2.log(`Nie uda\u0142o si\u0119 posprz\u0105ta\u0107: ${step.path} (${code ?? message})`);
+    }
+  }
+}
+function nextState(state, target, undecided2) {
+  const paths = [...target.files.keys()];
+  const modules = Object.fromEntries(
+    target.manifests.map((manifest) => {
+      const managed = Object.entries(
+        state.modules[manifest.name]?.files ?? {}
+      ).filter(
+        ([path, hash2]) => hash2 === MANAGED2 && target.config.managedFiles.includes(path)
+      );
+      const files = Object.fromEntries([
+        ...managed,
+        ...moduleFiles(manifest, paths).filter((path) => !undecided2.has(path)).map((path) => [
+          path,
+          fileHash(
+            path,
+            target.files.get(path).content,
+            target.config
+          )
+        ])
+      ]);
+      return [manifest.name, { version: manifest.version, manifest, files }];
+    })
+  );
+  return { ...state, kitVersion: target.version, modules };
+}
+async function writeUpdate(input2) {
+  const { projectDir, writes } = input2;
+  const kitStatePath = join12(projectDir, KIT_STATE_PATH);
+  const originals = /* @__PURE__ */ new Map();
+  for (const absolute of [
+    ...writes.map((write) => write.absolute),
+    kitStatePath
+  ]) {
+    const original = await rememberOriginal(absolute);
+    if (original) {
+      originals.set(absolute, original);
+    }
+  }
+  const createdDirectories = missingDirectories(
+    projectDir,
+    writes.filter(({ file: file2 }) => file2.action !== "usuni\u0119to").map(({ file: file2 }) => file2.path)
+  );
+  try {
+    for (const write of writes) {
+      await applyWrite(projectDir, write);
+    }
+    await writeKitState(projectDir, input2.state);
+  } catch (error62) {
+    await rollbackUpdate({
+      projectDir,
+      writes,
+      originals,
+      createdDirectories,
+      log: input2.log
+    });
+    throw new Error(`${error62.message}
+${UNDO_HINT}`, {
+      cause: error62
+    });
+  }
+}
+async function update(options) {
+  const { projectDir, version: version2, runner, log } = options;
+  const state = await readKitState(projectDir);
+  if (checkVersions(state.kitVersion, version2) === "same") {
+    log(`Projekt ma ju\u017C wa-kit ${version2}`);
+    return { exitCode: 0 };
+  }
+  if (!options.dryRun) {
+    await assertCleanTree(projectDir);
+  }
+  const names = {
+    name: state.project.name,
+    slug: state.project.slug,
+    snake: state.project.slug.replaceAll("-", "_")
+  };
+  const modules = Object.keys(state.modules);
+  const base = await readKitSnapshot(options.baseKitDir, modules, names);
+  const target = await readKitSnapshot(options.targetKitDir, modules, names);
+  if (target.version !== version2) {
+    throw new Error(
+      `Kit docelowy ma wersj\u0119 ${target.version}, oczekiwano ${version2}`
+    );
+  }
+  assertRequirementsInstalled(state, target);
+  const recordedHashes = Object.assign(
+    {},
+    ...Object.values(state.modules).map((entry) => entry.files)
+  );
+  const plan = await planUpdate({
+    base,
+    target,
+    recordedHashes,
+    readProject: async (path) => readIfExists2(await insideProject(projectDir, path))
+  });
+  const report = planReport({
+    plan,
+    from: state.kitVersion,
+    to: version2,
+    dryRun: options.dryRun
+  });
+  if (options.dryRun) {
+    report.forEach((line) => log(line));
+    return { exitCode: 0 };
+  }
+  const writes = [];
+  for (const file2 of plan.files) {
+    const absolute = await insideProject(projectDir, file2.path);
+    if (file2.content || file2.action === "usuni\u0119to") {
+      writes.push({ file: file2, absolute });
+    }
+  }
+  const undecided2 = new Set(
+    plan.files.filter((file2) => file2.action === "do decyzji").map((file2) => file2.path)
+  );
+  await writeUpdate({
+    projectDir,
+    writes,
+    state: nextState(state, target, undecided2),
+    log
+  });
+  report.forEach((line) => log(line));
+  if (plan.files.some((file2) => file2.action === "konflikt")) {
+    log("Rozwi\u0105\u017C konflikty, potem: npm run wa -- generate && npm install");
+    log("Cofni\u0119cie ca\u0142ej aktualizacji: git restore . && git clean -fd");
+    return { exitCode: 1 };
+  }
+  await generate(projectDir);
+  successHints(base, target).forEach((line) => log(line));
+  if (options.install) {
+    try {
+      await runner("npm", ["install"], projectDir);
+    } catch (error62) {
+      throw new Error(
+        `Zaktualizowano do wa-kit ${version2}, ale npm install si\u0119 nie powi\xF3d\u0142. Uruchom: npm install`,
+        { cause: error62 }
+      );
+    }
+  }
+  return { exitCode: undecided2.size > 0 ? 1 : 0 };
+}
+async function bundleKitVersion(bundleKitDir2) {
+  if (!existsSync3(join12(bundleKitDir2, "kit", "kit.json"))) {
+    return null;
+  }
+  return (await readKitConfig(bundleKitDir2)).version;
+}
+async function delegateToTarget(input2) {
+  const { args, targetKitDir } = input2;
+  const flags = [
+    ...args.dryRun ? ["--dry-run"] : [],
+    ...args.install ? [] : ["--no-install"]
+  ];
+  try {
+    await input2.runner(
+      "node",
+      [
+        join12(targetKitDir, ".wa/bin/wa.mjs"),
+        "update",
+        args.version,
+        "--from-kit",
+        targetKitDir,
+        "--kit",
+        input2.source,
+        ...flags
+      ],
+      input2.projectDir
+    );
+  } catch {
+    return { exitCode: 1 };
+  }
+  return { exitCode: 0 };
+}
+async function updateFromSource(options) {
+  const { projectDir, args, runner } = options;
+  const state = await readKitState(projectDir);
+  if (checkVersions(state.kitVersion, args.version) === "same") {
+    options.log(`Projekt ma ju\u017C wa-kit ${args.version}`);
+    return { exitCode: 0 };
+  }
+  if (!args.dryRun) {
+    await assertCleanTree(projectDir);
+  }
+  const source = kitSourceLocation({
+    kitFlag: args.kit,
+    envSource: options.envSource,
+    state
+  });
+  const bundleVersion = args.fromKit === null ? await bundleKitVersion(options.bundleKitDir) : null;
+  if (bundleVersion !== null && bundleVersion !== args.version) {
+    throw new Error(
+      `Bundel pochodzi z wa-kit ${bundleVersion}, a aktualizacja prowadzi do ${args.version}`
+    );
+  }
+  const tmpDir = await mkdtemp3(join12(options.tmpRoot, "wa-update-"));
+  try {
+    const clone2 = (version2, name) => cloneKitVersion({ source, version: version2, runner, tmpDir, name });
+    if (args.fromKit === null && bundleVersion === null) {
+      return await delegateToTarget({
+        projectDir,
+        args,
+        source,
+        targetKitDir: await clone2(args.version, "target"),
+        runner
+      });
+    }
+    const targetKitDir = args.fromKit === null ? await clone2(args.version, "target") : resolve4(args.fromKit);
+    return await update({
+      projectDir,
+      version: args.version,
+      baseKitDir: await clone2(state.kitVersion, "base"),
+      targetKitDir,
+      dryRun: args.dryRun,
+      install: args.install,
+      runner,
+      log: options.log
+    });
+  } finally {
+    await rm5(tmpDir, { recursive: true });
+  }
+}
+
 // src/bin.ts
-var USAGE = "U\u017Cycie: wa generate | wa kit sync | wa create <katalog> [opcje] | wa add <modu\u0142> [--kit <\u015Bcie\u017Cka|url>] [--no-install] | wa remove <modu\u0142> [--force] [--no-install] | wa list [--kit <\u015Bcie\u017Cka|url>]";
+var USAGE = "U\u017Cycie: wa generate | wa kit sync | wa create <katalog> [opcje] | wa add <modu\u0142> [--kit <\u015Bcie\u017Cka|url>] [--no-install] | wa remove <modu\u0142> [--force] [--no-install] | wa list [--kit <\u015Bcie\u017Cka|url>] | wa update <wersja> [--kit <\u015Bcie\u017Cka|url>] [--dry-run] [--no-install]";
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);
-  const tmpDir = await mkdtemp2(join11(tmpdir(), "wa-list-"));
+  const tmpDir = await mkdtemp4(join13(tmpdir2(), "wa-list-"));
   try {
     let available = null;
     let availableError = null;
@@ -21419,8 +22158,11 @@ async function listCommand(kit) {
     }
     list({ state, available, availableError, log: console.log });
   } finally {
-    await rm4(tmpDir, { recursive: true });
+    await rm6(tmpDir, { recursive: true });
   }
+}
+function bundleKitDir() {
+  return resolve5(dirname7(fileURLToPath(import.meta.url)), "../..");
 }
 async function main(argv) {
   const [command, subcommand] = argv;
@@ -21439,7 +22181,7 @@ async function main(argv) {
       install,
       runner: spawnRunner,
       log: console.log,
-      tmpRoot: tmpdir()
+      tmpRoot: tmpdir2()
     });
     return 0;
   }
@@ -21459,15 +22201,24 @@ async function main(argv) {
     await listCommand(parseListArgs(argv.slice(1)).kit);
     return 0;
   }
+  if (command === "update") {
+    const { exitCode } = await updateFromSource({
+      projectDir: process.cwd(),
+      args: parseUpdateArgs(argv.slice(1)),
+      envSource: process.env["WA_KIT_SOURCE"],
+      bundleKitDir: bundleKitDir(),
+      runner: spawnRunner,
+      log: console.log,
+      tmpRoot: tmpdir2()
+    });
+    return exitCode;
+  }
   if (command === "create") {
     const { kit, ...parsed } = parseCreateArgs(argv.slice(1));
-    const defaultKit = resolve4(
-      dirname6(fileURLToPath(import.meta.url)),
-      "../.."
-    );
+    const defaultKit = bundleKitDir();
     await create({
       ...parsed,
-      kitDir: kit === null ? defaultKit : resolve4(kit),
+      kitDir: kit === null ? defaultKit : resolve5(kit),
       runner: spawnRunner,
       prompter: readlinePrompter,
       log: console.log

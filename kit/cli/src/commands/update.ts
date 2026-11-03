@@ -3,15 +3,19 @@ import { existsSync } from "node:fs";
 import {
   chmod,
   mkdir,
+  mkdtemp,
   readFile,
   rm,
   rmdir,
   stat,
   writeFile,
 } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
+import type { UpdateArgs } from "../args.js";
 import { fileHash } from "../assemble/hash.js";
+import { readKitConfig } from "../kit/kit-config.js";
+import { cloneKitVersion, kitSourceLocation } from "../kit/source.js";
 import { moduleFiles } from "../assemble/resolve-modules.js";
 import { compareCodePoint } from "../compare.js";
 import { generate } from "../generate/index.js";
@@ -354,4 +358,107 @@ export async function update(
     }
   }
   return { exitCode: undecided.size > 0 ? 1 : 0 };
+}
+
+async function bundleKitVersion(bundleKitDir: string): Promise<string | null> {
+  if (!existsSync(join(bundleKitDir, "kit", "kit.json"))) {
+    return null;
+  }
+  return (await readKitConfig(bundleKitDir)).version;
+}
+
+async function delegateToTarget(input: {
+  projectDir: string;
+  args: UpdateArgs;
+  source: string;
+  targetKitDir: string;
+  runner: Runner;
+}): Promise<{ exitCode: 0 | 1 }> {
+  const { args, targetKitDir } = input;
+  const flags = [
+    ...(args.dryRun ? ["--dry-run"] : []),
+    ...(args.install ? [] : ["--no-install"]),
+  ];
+  try {
+    await input.runner(
+      "node",
+      [
+        join(targetKitDir, ".wa/bin/wa.mjs"),
+        "update",
+        args.version,
+        "--from-kit",
+        targetKitDir,
+        "--kit",
+        input.source,
+        ...flags,
+      ],
+      input.projectDir,
+    );
+  } catch {
+    // WHY: proces potomny wypisał już swój błąd; jego kod wyjścia staje się kodem komendy
+    return { exitCode: 1 };
+  }
+  return { exitCode: 0 };
+}
+
+export async function updateFromSource(options: {
+  projectDir: string;
+  args: UpdateArgs;
+  envSource: string | undefined;
+  bundleKitDir: string;
+  runner: Runner;
+  log: (line: string) => void;
+  tmpRoot: string;
+}): Promise<{ exitCode: 0 | 1 }> {
+  const { projectDir, args, runner } = options;
+  const state = await readKitState(projectDir);
+  if (checkVersions(state.kitVersion, args.version) === "same") {
+    options.log(`Projekt ma już wa-kit ${args.version}`);
+    return { exitCode: 0 };
+  }
+  if (!args.dryRun) {
+    await assertCleanTree(projectDir);
+  }
+  const source = kitSourceLocation({
+    kitFlag: args.kit,
+    envSource: options.envSource,
+    state,
+  });
+  const bundleVersion =
+    args.fromKit === null ? await bundleKitVersion(options.bundleKitDir) : null;
+  if (bundleVersion !== null && bundleVersion !== args.version) {
+    throw new Error(
+      `Bundel pochodzi z wa-kit ${bundleVersion}, a aktualizacja prowadzi do ${args.version}`,
+    );
+  }
+  const tmpDir = await mkdtemp(join(options.tmpRoot, "wa-update-"));
+  try {
+    const clone = (version: string, name: string) =>
+      cloneKitVersion({ source, version, runner, tmpDir, name });
+    if (args.fromKit === null && bundleVersion === null) {
+      return await delegateToTarget({
+        projectDir,
+        args,
+        source,
+        targetKitDir: await clone(args.version, "target"),
+        runner,
+      });
+    }
+    const targetKitDir =
+      args.fromKit === null
+        ? await clone(args.version, "target")
+        : resolve(args.fromKit);
+    return await update({
+      projectDir,
+      version: args.version,
+      baseKitDir: await clone(state.kitVersion, "base"),
+      targetKitDir,
+      dryRun: args.dryRun,
+      install: args.install,
+      runner,
+      log: options.log,
+    });
+  } finally {
+    await rm(tmpDir, { recursive: true });
+  }
 }

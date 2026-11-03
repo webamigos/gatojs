@@ -7,6 +7,7 @@ import {
   parseCreateArgs,
   parseListArgs,
   parseRemoveArgs,
+  parseUpdateArgs,
 } from "./args.js";
 import { addFromSource } from "./commands/add.js";
 import { create } from "./commands/create.js";
@@ -16,12 +17,13 @@ import { kitSync } from "./commands/kit-sync.js";
 import { generate } from "./generate/index.js";
 import { list } from "./commands/list.js";
 import { remove } from "./commands/remove.js";
+import { updateFromSource } from "./commands/update.js";
 import { readKitManifests } from "./kit/kit-config.js";
 import { resolveKitSource } from "./kit/source.js";
 import { readKitState } from "./manifest/kit-state.js";
 
 const USAGE =
-  "Użycie: wa generate | wa kit sync | wa create <katalog> [opcje] | wa add <moduł> [--kit <ścieżka|url>] [--no-install] | wa remove <moduł> [--force] [--no-install] | wa list [--kit <ścieżka|url>]";
+  "Użycie: wa generate | wa kit sync | wa create <katalog> [opcje] | wa add <moduł> [--kit <ścieżka|url>] [--no-install] | wa remove <moduł> [--force] [--no-install] | wa list [--kit <ścieżka|url>] | wa update <wersja> [--kit <ścieżka|url>] [--dry-run] [--no-install]";
 
 async function listCommand(kit: string | null): Promise<void> {
   const projectDir = process.cwd();
@@ -46,6 +48,10 @@ async function listCommand(kit: string | null): Promise<void> {
   } finally {
     await rm(tmpDir, { recursive: true });
   }
+}
+
+function bundleKitDir(): string {
+  return resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 }
 
 async function main(argv: string[]): Promise<number> {
@@ -85,12 +91,21 @@ async function main(argv: string[]): Promise<number> {
     await listCommand(parseListArgs(argv.slice(1)).kit);
     return 0;
   }
+  if (command === "update") {
+    const { exitCode } = await updateFromSource({
+      projectDir: process.cwd(),
+      args: parseUpdateArgs(argv.slice(1)),
+      envSource: process.env["WA_KIT_SOURCE"],
+      bundleKitDir: bundleKitDir(),
+      runner: spawnRunner,
+      log: console.log,
+      tmpRoot: tmpdir(),
+    });
+    return exitCode;
+  }
   if (command === "create") {
     const { kit, ...parsed } = parseCreateArgs(argv.slice(1));
-    const defaultKit = resolve(
-      dirname(fileURLToPath(import.meta.url)),
-      "../..",
-    );
+    const defaultKit = bundleKitDir();
     await create({
       ...parsed,
       kitDir: kit === null ? defaultKit : resolve(kit),
