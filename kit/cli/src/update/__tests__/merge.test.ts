@@ -1,7 +1,15 @@
-import { readdir } from "node:fs/promises";
+import {
+  chmod,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { basename, dirname, join } from "node:path";
 import { fc, test } from "@fast-check/vitest";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { REGION_FILES } from "../../generate/targets.js";
 import { mergeFile } from "../merge.js";
 
@@ -169,4 +177,84 @@ describe("mergeFile", () => {
       expect(result).toEqual({ content: ours, conflicts: 0 });
     },
   );
+});
+
+describe("mergeFile z fałszywym gitem", () => {
+  let fakeDir: string;
+  let argsFile: string;
+
+  beforeEach(async () => {
+    fakeDir = await mkdtemp(join(tmpdir(), "wa-fake-git-"));
+    argsFile = join(fakeDir, "args.txt");
+    await writeFile(
+      join(fakeDir, "git"),
+      [
+        "#!/bin/sh",
+        'for a in "$@"; do',
+        `  printf '%s\\n' "$a" >> "${argsFile}"`,
+        `  if [ -f "$a" ]; then printf 'TRESC:' >> "${argsFile}"; /bin/cat "$a" >> "${argsFile}"; fi`,
+        "done",
+        'if [ "$WA_FAKE_CODE" = "signal" ]; then kill -9 $$; fi',
+        "printf 'X'",
+        "printf 'fatal: boom\\n' >&2",
+        'exit "$WA_FAKE_CODE"',
+        "",
+      ].join("\n"),
+    );
+    await chmod(join(fakeDir, "git"), 0o755);
+    process.env.PATH = fakeDir;
+  });
+
+  afterEach(async () => {
+    delete process.env.WA_FAKE_CODE;
+    process.env.PATH = originalPath;
+    await rm(fakeDir, { recursive: true, force: true });
+  });
+
+  it("traktuje kod 127 jako 127 konfliktów i zwraca stdout", async () => {
+    process.env.WA_FAKE_CODE = "127";
+    const result = await merge("src/a.ts", "a\n", "b\n", "c\n");
+    expect(result).toEqual({ content: Buffer.from("X"), conflicts: 127 });
+  });
+
+  it("odrzuca kod 128 z komunikatem ze stderr i przyczyną z kodem", async () => {
+    process.env.WA_FAKE_CODE = "128";
+    await expect(merge("src/a.ts", "a\n", "b\n", "c\n")).rejects.toMatchObject({
+      message: "git merge-file: fatal: boom",
+      cause: { code: 128 },
+    });
+  });
+
+  it("odrzuca zakończenie gita sygnałem", async () => {
+    process.env.WA_FAKE_CODE = "signal";
+    await expect(merge("src/a.ts", "a\n", "b\n", "c\n")).rejects.toThrow(
+      /^git merge-file: /,
+    );
+  });
+
+  it("przekazuje gitowi flagi, etykiety i pliki ours, base, theirs w tej kolejności", async () => {
+    process.env.WA_FAKE_CODE = "0";
+    await merge("src/a.ts", "BAZA\n", "PROJEKT\n", "KIT\n");
+    const lines = (await readFile(argsFile, "utf8")).split("\n");
+    expect(lines.slice(0, 9)).toEqual([
+      "merge-file",
+      "-p",
+      "--diff3",
+      "-L",
+      "projekt",
+      "-L",
+      "v0.1.0",
+      "-L",
+      "v0.2.0",
+    ]);
+    const paths = [lines[9], lines[11], lines[13]] as string[];
+    for (const path of paths) {
+      expect(basename(dirname(path)).startsWith("wa-merge-")).toBe(true);
+    }
+    expect([lines[10], lines[12], lines[14]]).toEqual([
+      "TRESC:PROJEKT",
+      "TRESC:BAZA",
+      "TRESC:KIT",
+    ]);
+  });
 });

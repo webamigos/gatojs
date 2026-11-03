@@ -14,7 +14,7 @@ export type MergeResult =
 
 type MergeSides = { base: Buffer; ours: Buffer; theirs: Buffer };
 
-type ExecFileFailure = { code?: unknown; stdout?: unknown; stderr?: unknown };
+type ExecFileFailure = { code?: unknown; stdout?: unknown; stderr: Buffer };
 
 function prepareSides(path: string, sides: MergeSides): MergeSides {
   if (!REGION_FILES.includes(path)) {
@@ -80,14 +80,12 @@ export async function mergeFile(input: {
       ) {
         return { content: failure.stdout, conflicts: failure.code };
       }
-      const stderr = Buffer.isBuffer(failure.stderr)
-        ? failure.stderr.toString("utf8").trim()
-        : "";
+      const stderr = failure.stderr.toString("utf8").trim();
       throw new Error(`git merge-file: ${stderr || String(error)}`, {
         cause: error,
       });
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true });
   }
 }
