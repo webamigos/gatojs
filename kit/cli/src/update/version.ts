@@ -17,10 +17,7 @@ function compareIdentifiers(a: string, b: string): number {
   if (aNumeric !== bNumeric) {
     return aNumeric ? -1 : 1;
   }
-  if (a === b) {
-    return 0;
-  }
-  return a < b ? -1 : 1;
+  return Number(a > b) - Number(a < b);
 }
 
 function comparePrerelease(a: string[], b: string[]): number {

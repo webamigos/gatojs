@@ -13,6 +13,10 @@ const prereleaseArbitrary = fc.constantFrom(
   "beta.2",
   "0",
   "x-y",
+  "-",
+  "a1",
+  "1a",
+  "rc.-",
 );
 
 describe("parseVersion", () => {
@@ -94,6 +98,27 @@ describe("compareVersions", () => {
 
   it("identyfikator liczbowy jest niższy od tekstowego", () => {
     expect(compareVersions("1.0.0-1", "1.0.0-alpha")).toBeLessThan(0);
+  });
+
+  it("identyfikator z cyframi i literami jest tekstowy", () => {
+    expect(compareVersions("1.0.0-a1", "1.0.0-2")).toBeGreaterThan(0);
+    expect(compareVersions("1.0.0-1a", "1.0.0-2")).toBeGreaterThan(0);
+    expect(compareVersions("1.0.0-2", "1.0.0-a1")).toBeLessThan(0);
+    expect(compareVersions("1.0.0-2", "1.0.0-1a")).toBeLessThan(0);
+  });
+
+  it("liczbowy jest niższy od tekstowego, także gdy tekstowy jest leksykalnie mniejszy", () => {
+    expect(compareVersions("1.0.0-10", "1.0.0--")).toBeLessThan(0);
+    expect(compareVersions("1.0.0--", "1.0.0-10")).toBeGreaterThan(0);
+    expect(compareVersions("1.0.0-1", "1.0.0--")).toBeLessThan(0);
+  });
+
+  it("beta jest nowsza od alpha", () => {
+    expect(compareVersions("1.0.0-beta", "1.0.0-alpha")).toBeGreaterThan(0);
+  });
+
+  it("myślnik w prerelease nie jest separatorem identyfikatorów", () => {
+    expect(compareVersions("1.0.0-x-y", "1.0.0-xy")).toBeLessThan(0);
   });
 
   it("dłuższy prerelease ze wspólnym początkiem jest nowszy", () => {
