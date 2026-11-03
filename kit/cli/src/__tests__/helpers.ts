@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { cp, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import {
+  cp,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -51,13 +58,63 @@ export async function snapshotDir(
   return snapshot;
 }
 
+async function commitAll(dir: string, message: string): Promise<void> {
+  await run("git", ["-C", dir, "add", "-A"]);
+  await run("git", ["-C", dir, "commit", "-q", "--no-verify", "-m", message]);
+}
+
+async function tag(dir: string, version: string): Promise<void> {
+  await run("git", ["-C", dir, "tag", "-a", `v${version}`, "-m", version]);
+}
+
+export async function makeTaggedKit(
+  changes: (kitDir: string) => Promise<void>,
+): Promise<string> {
+  const kitDir = await makeKitRepo("kit");
+  await commitAll(kitDir, "v0.1.0");
+  await tag(kitDir, "0.1.0");
+  await changes(kitDir);
+  const configPath = join(kitDir, "kit", "kit.json");
+  const config = await readFile(configPath, "utf8");
+  await writeFile(
+    configPath,
+    config.replace('"version": "0.1.0"', '"version": "0.2.0"'),
+  );
+  await commitAll(kitDir, "v0.2.0");
+  await tag(kitDir, "0.2.0");
+  return kitDir;
+}
+
+export async function createProjectFromTag(
+  kitDir: string,
+  name: string,
+  modules: string[],
+): Promise<string> {
+  const clone = join(await makeTempDir("wa-kit-clone-"), "kit");
+  await run("git", ["clone", "-q", "--branch", "v0.1.0", kitDir, clone]);
+  const target = await createFromKit(clone, name, modules);
+  await run("git", ["-C", target, "init", "-q"]);
+  await run("git", ["-C", target, "config", "user.name", "Test"]);
+  await run("git", ["-C", target, "config", "user.email", "test@example.com"]);
+  await commitAll(target, "initial");
+  return target;
+}
+
 export async function createProject(
   name: string,
   modules: string[],
   parent?: string,
 ): Promise<string> {
+  return createFromKit(await makeKitRepo("kit"), name, modules, parent);
+}
+
+async function createFromKit(
+  kitDir: string,
+  name: string,
+  modules: string[],
+  parent?: string,
+): Promise<string> {
   const { create } = await import("../commands/create.js");
-  const kitDir = await makeKitRepo("kit");
   const target = join(await makeTempDir(), parent ?? "", name);
   await create({
     target,
