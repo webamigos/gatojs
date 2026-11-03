@@ -244,9 +244,13 @@ describe("assertCleanTree", () => {
 
   it("katalog bez repozytorium git daje błąd braku gita", async () => {
     const dir = await makeTempDir("wa-kit-nogit-");
-    await expect(assertCleanTree(dir)).rejects.toThrow(
+    const failure = assertCleanTree(dir);
+    await expect(failure).rejects.toThrow(
       `${dir} nie jest repozytorium git; wa update wymaga gita, żeby dało się cofnąć zmiany`,
     );
+    await expect(failure).rejects.toMatchObject({
+      cause: expect.any(Error),
+    });
   });
 });
 
@@ -833,9 +837,13 @@ describe("update: kontrole przed zapisem", () => {
     await rm(join(setup.dir, ".git"), { recursive: true, force: true });
     const before = await snapshotDir(setup.dir, IGNORE);
 
-    await expect(run(setup)).rejects.toThrow(
+    const failure = run(setup);
+    await expect(failure).rejects.toThrow(
       `${setup.dir} nie jest repozytorium git; wa update wymaga gita, żeby dało się cofnąć zmiany`,
     );
+    await expect(failure).rejects.toMatchObject({
+      cause: expect.any(Error),
+    });
 
     expect(await snapshotDir(setup.dir, IGNORE)).toEqual(before);
   });
