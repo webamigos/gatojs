@@ -72,7 +72,7 @@ async function realpathOfDeepestAncestor(path: string): Promise<string> {
   }
 }
 
-async function insideProject(
+export async function insideProject(
   projectDir: string,
   file: string,
 ): Promise<string> {
@@ -124,7 +124,7 @@ async function lstatIfExists(path: string): Promise<Stats | null> {
   }
 }
 
-async function removeEmptyParents(
+export async function removeEmptyParents(
   projectDir: string,
   start: string,
 ): Promise<void> {
