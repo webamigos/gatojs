@@ -529,6 +529,29 @@ describe("planUpdate", () => {
     ).toEqual({ files: [], mismatchedBase: [] });
   });
 
+  it("nie planuje niczego dla pliku binarnego, który projekt ma już w wersji kitu", async () => {
+    expect(
+      await plan({
+        base: { "public/logo.png": Buffer.from([0, 1]) },
+        target: { "public/logo.png": Buffer.from([0, 2]) },
+        project: { "public/logo.png": Buffer.from([0, 2]) },
+      }),
+    ).toEqual({ files: [], mismatchedBase: [] });
+  });
+
+  it("nie planuje niczego ani nie ostrzega, gdy czyste scalenie daje treść projektu równego zapisanemu hashowi innemu niż baza", async () => {
+    expect(
+      await plan({
+        base: { "src/a.ts": BASE },
+        target: { "src/a.ts": { content: KIT, mode: 0o755 } },
+        project: { "src/a.ts": "a\nPROJEKT\nc\nd\ne\nKIT\n" },
+        recordedHashes: {
+          "src/a.ts": recorded("src/a.ts", "a\nPROJEKT\nc\nd\ne\nKIT\n"),
+        },
+      }),
+    ).toEqual({ files: [], mismatchedBase: [] });
+  });
+
   const packageBase =
     '{\n  "name": "app",\n  "scripts": {\n    "dev": "next dev"\n  },\n  "dependencies": {\n    "next": "15.0.0"\n  }\n}\n';
   const packageKit =
