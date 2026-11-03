@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -122,6 +122,7 @@ describe("updateFromSource — bundel projektu", () => {
     ]);
     const clonePath = clonePathOf(clone as Parameters<Runner>);
     expect(clonePath.startsWith(`${tmpRoot}/wa-update-`)).toBe(true);
+    expect(clonePath).toMatch(/\/wa-update-[^/]+\/target$/);
     expect(node).toEqual([
       "node",
       [
@@ -229,6 +230,17 @@ describe("updateFromSource — bundel projektu", () => {
     expect(log).not.toHaveBeenCalled();
     expect(await readdir(tmpRoot)).toEqual([]);
   });
+
+  it("bundleKitDir z katalogiem kit/ bez kit/kit.json jest bundlem projektu i deleguje do node z --from-kit", async () => {
+    const bundleDir = await makeTempDir("wa-kit-bundle-");
+    await mkdir(join(bundleDir, "kit"));
+    await writeFile(join(bundleDir, "kit", "README.md"), "inny plik\n");
+    const result = await run({}, { bundleKitDir: bundleDir });
+    expect(result).toEqual({ exitCode: 0 });
+    const nodeCalls = callsOf("node");
+    expect(nodeCalls).toHaveLength(1);
+    expect(nodeCalls[0]?.[1]).toContain("--from-kit");
+  });
 });
 
 describe("updateFromSource — kontrole przed klonem", () => {
@@ -251,6 +263,7 @@ describe("updateFromSource — kontrole przed klonem", () => {
   it("ta sama wersja kończy się kodem 0 bez klonowania i bez delegacji", async () => {
     const result = await run({ version: "0.1.0" });
     expect(result).toEqual({ exitCode: 0 });
+    expect(log).toHaveBeenCalledWith("Projekt ma już wa-kit 0.1.0");
     expect(runner).not.toHaveBeenCalled();
     expect(await readdir(tmpRoot)).toEqual([]);
   });
@@ -283,6 +296,17 @@ describe("updateFromSource — bundel z klonu kitu", () => {
     expect(callsOf("node")).toEqual([]);
     expect(await readAuth()).toBe(UPDATED_AUTH);
     expect(await readdir(tmpRoot)).toEqual([]);
+    const clones = callsOf("git").map((call) => [
+      call[1][4],
+      clonePathOf(call),
+    ]);
+    expect(clones).toHaveLength(2);
+    expect(clones).toEqual(
+      expect.arrayContaining([
+        ["v0.1.0", expect.stringMatching(/\/wa-update-[^/]+\/base$/)],
+        ["v0.2.0", expect.stringMatching(/\/wa-update-[^/]+\/target$/)],
+      ]),
+    );
   });
 });
 
