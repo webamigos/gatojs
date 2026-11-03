@@ -357,19 +357,30 @@ function applyPlaceholders(file2, content, config2, names) {
 
 // src/assemble/copy.ts
 var PERMISSION_BITS = 511;
+async function readAssembledFile(input2) {
+  const source = join2(input2.kitDir, input2.file);
+  const original = await readFile2(source);
+  const text = original.toString("utf8");
+  const replaced = applyPlaceholders(
+    input2.file,
+    text,
+    input2.config,
+    input2.names
+  );
+  return {
+    content: replaced === text ? original : Buffer.from(replaced),
+    mode: (await stat(source)).mode & PERMISSION_BITS
+  };
+}
 async function copyFiles(input2) {
   const hashes = {};
   for (const file2 of input2.files) {
-    const source = join2(input2.kitDir, file2);
     const destination = join2(input2.projectDir, file2);
-    const original = await readFile2(source);
-    const text = original.toString("utf8");
-    const content = applyPlaceholders(file2, text, input2.config, input2.names);
+    const { content, mode } = await readAssembledFile({ ...input2, file: file2 });
     await mkdir(dirname(destination), { recursive: true });
-    const written = content === text ? original : Buffer.from(content);
-    await writeFile(destination, written);
-    await chmod(destination, (await stat(source)).mode & PERMISSION_BITS);
-    hashes[file2] = fileHash(file2, written, input2.config);
+    await writeFile(destination, content);
+    await chmod(destination, mode);
+    hashes[file2] = fileHash(file2, content, input2.config);
   }
   return hashes;
 }

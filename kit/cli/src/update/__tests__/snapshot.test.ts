@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { chmod, readFile, writeFile } from "node:fs/promises";
+import { chmod, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -8,6 +8,7 @@ import {
   makeKitRepo,
   removeTempDirs,
 } from "../../__tests__/helpers.js";
+import { REGION_FILES } from "../../generate/targets.js";
 import { readKitSnapshot } from "../snapshot.js";
 
 const run = promisify(execFile);
@@ -97,12 +98,48 @@ describe("readKitSnapshot", () => {
 
     const snapshot = await readKitSnapshot(kit, ["core", "demo"], names);
 
-    expect(text(snapshot, "src/features/auth/module.ts")).toBe(
-      'export default { key: "auth", title: "WA App", slug: "wa-app", db: "wa_app" };\n',
+    expect(snapshot.files.get("src/features/auth/module.ts")?.content).toEqual(
+      Buffer.from(
+        'export default { key: "auth", title: "WA App", slug: "wa-app", db: "wa_app" };\n',
+      ),
     );
-    expect(text(snapshot, "src/features/demo/env.ts")).toBe(
-      "export const envSchema = {};\n",
+    expect(snapshot.files.get("src/features/demo/env.ts")?.content).toEqual(
+      Buffer.from("export const envSchema = {};\n"),
     );
+  });
+
+  it("zachowuje plik binarny bajt w bajt", async () => {
+    const logo = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe, 0x00, 0x80]);
+    await writeFile(join(kit, "src/features/demo/logo.png"), logo);
+    await run("git", ["-C", kit, "add", "-A"]);
+
+    const snapshot = await readKitSnapshot(kit, ["core", "demo"], names);
+
+    expect(snapshot.files.get("src/features/demo/logo.png")?.content).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe, 0x00, 0x80]),
+    );
+  });
+
+  it("każdy plik migawki poza plikami regionów ma w projekcie po create te same bajty i mode", async () => {
+    const snapshot = await readKitSnapshot(kit, ["core", "demo"], names);
+    const project = await createProject("my-app", ["demo"]);
+
+    const compared = [...snapshot.files.keys()].filter(
+      (path) => !REGION_FILES.includes(path),
+    );
+    expect(compared.length).toBeGreaterThan(0);
+    for (const path of compared) {
+      const file = snapshot.files.get(path);
+      const projectContent = await readFile(join(project, path));
+      expect({ path, equal: file?.content.equals(projectContent) }).toEqual({
+        path,
+        equal: true,
+      });
+      expect({ path, mode: file?.mode }).toEqual({
+        path,
+        mode: (await stat(join(project, path))).mode & 0o777,
+      });
+    }
   });
 
   it("package.json jest równy package.json projektu po create --modules demo z tej samej wersji", async () => {

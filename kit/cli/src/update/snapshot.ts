@@ -1,7 +1,5 @@
-import { readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { readAssembledFile } from "../assemble/copy.js";
 import { projectPackageJson } from "../assemble/package-json.js";
-import { applyPlaceholders } from "../assemble/placeholders.js";
 import type { ProjectNames } from "../assemble/project-names.js";
 import { moduleFiles } from "../assemble/resolve-modules.js";
 import { compareModuleNames } from "../compare.js";
@@ -19,7 +17,6 @@ export type KitSnapshot = {
   files: Map<string, KitFile>;
 };
 
-const PERMISSION_BITS = 0o777;
 const PACKAGE_JSON = "package.json";
 const PACKAGE_LOCK = "package-lock.json";
 
@@ -40,22 +37,6 @@ function selectManifests(
   });
 }
 
-async function readKitFile(
-  kitDir: string,
-  file: string,
-  config: KitConfig,
-  names: ProjectNames,
-): Promise<KitFile> {
-  const source = join(kitDir, file);
-  const original = await readFile(source);
-  const text = original.toString("utf8");
-  const replaced = applyPlaceholders(file, text, config, names);
-  return {
-    content: replaced === text ? original : Buffer.from(replaced),
-    mode: (await stat(source)).mode & PERMISSION_BITS,
-  };
-}
-
 export async function readKitSnapshot(
   kitDir: string,
   modules: string[],
@@ -72,7 +53,10 @@ export async function readKitSnapshot(
   for (const manifest of manifests) {
     for (const file of moduleFiles(manifest, available)) {
       if (file !== PACKAGE_LOCK) {
-        files.set(file, await readKitFile(kitDir, file, config, names));
+        files.set(
+          file,
+          await readAssembledFile({ kitDir, file, config, names }),
+        );
       }
     }
   }
