@@ -1016,6 +1016,7 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 - Po każdej zmianie w `kit/cli/src` trzeba przebudować bundel (`npm run build --prefix kit/cli`) i zacommitować go razem ze zmianą (`kit/CLAUDE.md`, „Bundel CLI”).
 - Bez tagu `v<wersja>` na GitHubie nie działa one-liner ani domyślne źródło `wa add`; `wa list` pokazuje wtedy tylko zainstalowane moduły ([D46](#d46)). Klonowanie tagu z adnotacją przy `--depth 1` wypisuje ostrzeżenie gita i komunikat o odłączonym HEAD; to nie jest błąd.
 - `npm run verify` projektu nie testuje CLI: testy CLI leżą w `kit/cli` i działają tylko w repozytorium kitu.
+- Zależności CLI z `dependencies` w `kit/cli/package.json` (`zod`, od 2026-11-03 także `@inquirer/checkbox` za zgodą Jakuba) trafiają do bundla i powiększają go. `@inquirer/checkbox` dołożyła około 65 KB. Nowa zależność wymaga zgody Jakuba. Zależności w CommonJS wołają `require`, więc `kit/cli/bundle.mjs` dokleja na początek bundla `createRequire(import.meta.url)`. Bez tego bundel ESM kończy się błędem `Dynamic require of "stream" is not supported` już przy starcie, a testy jednostkowe tego nie wykrywają, bo nie uruchamiają bundla.
 
 **Jak egzekwowana.**
 

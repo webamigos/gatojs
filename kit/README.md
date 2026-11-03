@@ -37,6 +37,8 @@ Opisy modułów: [docs/12-moduly-kitu.md](../docs/12-moduly-kitu.md). Manifesty 
 | `--no-git`              | Pomija `git init` i pierwszy commit projektu. `git` jest potrzebny i tak, do odczytu plików kitu.                |
 | `--kit <ścieżka>`       | Lokalny klon wa-kit, z którego powstaje projekt.                                                                 |
 
+Bez `--yes` CLI pyta o brakujące opcje. Moduły i języki wybiera się z listy: strzałki przesuwają kursor, spacja zaznacza, Enter zatwierdza. Język `pl` jest zaznaczony na stałe. Bez terminala trzeba podać `--yes`.
+
 Bez `--no-git` projekt dostaje `git init` i pierwszy commit, więc `git` musi mieć ustawione `user.name` i `user.email`. Pełny opis komend, kolejności kontroli, cofania i komunikatów: `docs/16-cli-wa.md` w repozytorium kitu.
 
 ## Komendy w projekcie
