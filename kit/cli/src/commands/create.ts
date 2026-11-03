@@ -9,7 +9,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { parseList, parseLocales } from "../args.js";
+import { parseLocales } from "../args.js";
 import type { Locale } from "../args.js";
 import { copyFiles } from "../assemble/copy.js";
 import { projectPackageJson } from "../assemble/package-json.js";
@@ -22,7 +22,7 @@ import { readKitConfig, readKitManifests } from "../kit/kit-config.js";
 import type { KitConfig } from "../kit/kit-config.js";
 import { writeKitState } from "../manifest/kit-state.js";
 import type { ModuleManifest } from "../manifest/schema.js";
-import type { Prompter } from "../process/prompter.js";
+import type { Prompter, SelectChoice } from "../process/prompter.js";
 import type { Runner } from "../process/runner.js";
 
 export type CreateOptions = {
@@ -59,11 +59,18 @@ async function isNonEmptyDirectory(dir: string): Promise<boolean> {
   return (await readdir(dir)).length > 0;
 }
 
-function moduleQuestion(manifests: ModuleManifest[]): string {
-  const lines = manifests
+const LOCALE_CHOICES: SelectChoice[] = [
+  { value: "pl", label: "pl", checked: true, locked: true },
+  { value: "en", label: "en", checked: true },
+];
+
+function moduleChoices(manifests: ModuleManifest[]): SelectChoice[] {
+  return manifests
     .filter((manifest) => manifest.name !== "core")
-    .map((manifest) => `  ${manifest.name} — ${manifest.description}`);
-  return `Moduły (po przecinku, puste = żaden):\n${lines.join("\n")}\nWybór`;
+    .map((manifest) => ({
+      value: manifest.name,
+      label: `${manifest.name} — ${manifest.description}`,
+    }));
 }
 
 async function collectAnswers(
@@ -74,12 +81,12 @@ async function collectAnswers(
   const { prompter, yes } = options;
   let modules = options.modules ?? [];
   if (options.modules === null && !yes) {
-    modules = parseList(await prompter.ask(moduleQuestion(manifests), ""));
+    modules = await prompter.select("Moduły", moduleChoices(manifests));
   }
   let locales = options.locales ?? parseLocales(DEFAULT_LOCALES);
   if (options.locales === null && !yes) {
     locales = parseLocales(
-      await prompter.ask("Języki (pl,en)", DEFAULT_LOCALES),
+      (await prompter.select("Języki", LOCALE_CHOICES)).join(","),
     );
   }
   let title = options.title;

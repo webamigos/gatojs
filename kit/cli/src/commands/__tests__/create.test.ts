@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generate } from "../../generate/index.js";
 import { readKitState } from "../../manifest/kit-state.js";
-import type { Prompter } from "../../process/prompter.js";
+import type { Prompter, SelectChoice } from "../../process/prompter.js";
 import { readlinePrompter } from "../../process/prompter.js";
 import type { Runner } from "../../process/runner.js";
 import {
@@ -24,11 +24,32 @@ let tmp: string;
 let logs: string[];
 let runner: ReturnType<typeof vi.fn<Runner>>;
 
-function scriptedPrompter(asks: string[], confirms: boolean[] = []) {
-  const questions: { question: string; fallback: string | boolean }[] = [];
+function checkedValues(choices: SelectChoice[]): string[] {
+  return choices
+    .filter((choice) => choice.checked)
+    .map((choice) => choice.value);
+}
+
+function scriptedPrompter(
+  asks: string[],
+  confirms: boolean[] = [],
+  selects: string[][] = [],
+) {
+  const questions: {
+    question: string;
+    fallback?: string | boolean;
+    choices?: SelectChoice[];
+  }[] = [];
+  const selections: { question: string; choices: SelectChoice[] }[] = [];
   const pendingAsks = [...asks];
   const pendingConfirms = [...confirms];
+  const pendingSelects = [...selects];
   const prompter: Prompter = {
+    select: vi.fn(async (question: string, choices: SelectChoice[]) => {
+      questions.push({ question, choices });
+      selections.push({ question, choices });
+      return pendingSelects.shift() ?? checkedValues(choices);
+    }),
     ask: vi.fn(async (question: string, fallback: string) => {
       questions.push({ question, fallback });
       return pendingAsks.shift() ?? fallback;
@@ -38,7 +59,7 @@ function scriptedPrompter(asks: string[], confirms: boolean[] = []) {
       return pendingConfirms.shift() ?? fallback;
     }),
   };
-  return { prompter, questions };
+  return { prompter, questions, selections };
 }
 
 function opts(overrides: Partial<CreateOptions> = {}): CreateOptions {
@@ -382,6 +403,7 @@ describe("create: katalog docelowy", () => {
     ).rejects.toThrow("istnieje i nie jest pusty");
     expect(runner).not.toHaveBeenCalled();
     expect(prompter.ask).not.toHaveBeenCalled();
+    expect(prompter.select).not.toHaveBeenCalled();
   });
 
   it("istniejący pusty katalog → sukces", async () => {
@@ -412,6 +434,7 @@ describe("create: katalog docelowy", () => {
       ),
     ).rejects.toThrow("Nazwa projektu");
     expect(prompter.ask).not.toHaveBeenCalled();
+    expect(prompter.select).not.toHaveBeenCalled();
     expect(runner).not.toHaveBeenCalled();
   });
 });
@@ -617,6 +640,9 @@ describe("create: polecenia", () => {
         confirm: vi.fn(
           async (_question: string, fallback: boolean) => fallback,
         ),
+        select: vi.fn(async (_question: string, choices: SelectChoice[]) =>
+          checkedValues(choices),
+        ),
       };
       await expect(
         create(opts({ target: dir, modules: null, prompter })),
@@ -628,10 +654,23 @@ describe("create: polecenia", () => {
   );
 });
 
+const MODULE_CHOICES = [
+  { value: "demo", label: "demo — Demo fixture" },
+  { value: "needs-demo", label: "needs-demo — Needs demo fixture" },
+];
+const LOCALE_CHOICES = [
+  { value: "pl", label: "pl", checked: true, locked: true },
+  { value: "en", label: "en", checked: true },
+];
+
 describe("create: pytania", () => {
-  it("odpowiedzi demo, pl, Acme, pusty email i brak setupu składają projekt", async () => {
+  it("wybór demo, pl, Acme, pusty email i brak setupu składają projekt", async () => {
     const dir = join(tmp, "acme-shop");
-    const { prompter } = scriptedPrompter(["demo", "pl", "Acme", ""], [false]);
+    const { prompter } = scriptedPrompter(
+      ["Acme", ""],
+      [false],
+      [["demo"], ["pl"]],
+    );
     await create(opts({ target: dir, modules: null, install: true, prompter }));
     const state = await readKitState(dir);
     expect(Object.keys(state.modules)).toEqual(["core", "demo"]);
@@ -644,21 +683,39 @@ describe("create: pytania", () => {
   it("pyta w kolejności: moduły, języki, nazwa, email, setup, z domyślnymi wartościami", async () => {
     const { prompter, questions } = scriptedPrompter([], []);
     await create(opts({ modules: null, install: true, prompter }));
-    expect(questions).toHaveLength(5);
-    expect(questions[0]?.question).toContain("demo — Demo fixture");
-    expect(questions[0]?.question).toContain("needs-demo — Needs demo fixture");
-    expect(questions[1]?.fallback).toBe("pl,en");
-    expect(questions[2]?.fallback).toBe("Acme Shop");
-    expect(questions[3]?.fallback).toBe("");
-    expect(questions[4]?.question).toBe(
-      "Uruchomić bazę, migrację i admin:create teraz? [t/N]",
-    );
-    expect(questions[4]?.fallback).toBe(false);
+    expect(questions).toEqual([
+      { question: "Moduły", choices: MODULE_CHOICES },
+      { question: "Języki", choices: LOCALE_CHOICES },
+      { question: "Nazwa wyświetlana", fallback: "Acme Shop" },
+      { question: "Email admina (puste = pomiń)", fallback: "" },
+      {
+        question: "Uruchomić bazę, migrację i admin:create teraz? [t/N]",
+        fallback: false,
+      },
+    ]);
   });
 
-  it("odpowiedź z wieloma modułami po przecinku dociąga zależności", async () => {
+  it("lista modułów zawiera moduły kitu z opisami, bez core, niezaznaczone", async () => {
+    const { prompter, selections } = scriptedPrompter([]);
+    await create(opts({ modules: null, prompter }));
+    expect(selections[0]).toEqual({
+      question: "Moduły",
+      choices: MODULE_CHOICES,
+    });
+  });
+
+  it("lista języków ma pl zaznaczony i zablokowany oraz zaznaczony en", async () => {
+    const { prompter, selections } = scriptedPrompter([]);
+    await create(opts({ modules: null, prompter }));
+    expect(selections[1]).toEqual({
+      question: "Języki",
+      choices: LOCALE_CHOICES,
+    });
+  });
+
+  it("wybór samego needs-demo dociąga zależność demo", async () => {
     const dir = join(tmp, "acme-shop");
-    const { prompter } = scriptedPrompter(["demo,needs-demo", "pl,en"]);
+    const { prompter } = scriptedPrompter([], [], [["needs-demo"]]);
     await create(opts({ target: dir, modules: null, prompter }));
     expect(Object.keys((await readKitState(dir)).modules)).toEqual([
       "core",
@@ -667,22 +724,36 @@ describe("create: pytania", () => {
     ]);
   });
 
-  it("pusta odpowiedź o moduły oznacza żaden moduł poza core", async () => {
+  it("pusty wybór modułów oznacza żaden moduł poza core", async () => {
     const dir = join(tmp, "acme-shop");
-    const { prompter } = scriptedPrompter([""]);
+    const { prompter } = scriptedPrompter([], [], [[]]);
     await create(opts({ target: dir, modules: null, prompter }));
     expect(Object.keys((await readKitState(dir)).modules)).toEqual(["core"]);
   });
 
+  it("wybór samego pl zapisuje języki [pl]", async () => {
+    const dir = join(tmp, "acme-shop");
+    const { prompter } = scriptedPrompter([], [], [[], ["pl"]]);
+    await create(opts({ target: dir, modules: null, prompter }));
+    expect((await readKitState(dir)).locales).toEqual(["pl"]);
+  });
+
+  it("wybór pl i en zapisuje języki [pl, en]", async () => {
+    const dir = join(tmp, "acme-shop");
+    const { prompter } = scriptedPrompter([], [], [[], ["pl", "en"]]);
+    await create(opts({ target: dir, modules: null, prompter }));
+    expect((await readKitState(dir)).locales).toEqual(["pl", "en"]);
+  });
+
   it("odpowiedź z emailem trafia do .env", async () => {
     const dir = join(tmp, "acme-shop");
-    const { prompter } = scriptedPrompter(["", "pl,en", "Acme", "b@x.pl"]);
+    const { prompter } = scriptedPrompter(["Acme", "b@x.pl"]);
     await create(opts({ target: dir, modules: null, prompter }));
     expect(await read(dir, ".env")).toMatch(/^ADMIN_EMAIL=b@x\.pl$/m);
   });
 
-  it("odpowiedź o języki bez pl daje błąd walidacji bez ponawiania pytania", async () => {
-    const { prompter, questions } = scriptedPrompter(["", "en"]);
+  it("wybór języków bez pl daje błąd walidacji bez ponawiania pytania", async () => {
+    const { prompter, questions } = scriptedPrompter([], [], [[], ["en"]]);
     await expect(create(opts({ modules: null, prompter }))).rejects.toThrow(
       "--locales: dozwolone pl,en; pl jest wymagany",
     );
@@ -690,16 +761,16 @@ describe("create: pytania", () => {
     expect(existsSync(join(tmp, "acme-shop"))).toBe(false);
   });
 
-  it("odpowiedź o języki spoza pl,en daje błąd walidacji", async () => {
-    const { prompter } = scriptedPrompter(["", "pl,de"]);
+  it("wybór języka spoza pl,en daje błąd walidacji", async () => {
+    const { prompter } = scriptedPrompter([], [], [[], ["pl", "de"]]);
     await expect(create(opts({ modules: null, prompter }))).rejects.toThrow(
       "--locales: dozwolone pl,en; pl jest wymagany",
     );
   });
 
-  it("odpowiedź o języki z duplikatami daje błąd walidacji i nie tworzy katalogu", async () => {
+  it("wybór języków z duplikatami daje błąd walidacji i nie tworzy katalogu", async () => {
     const dir = join(tmp, "acme-shop");
-    const { prompter } = scriptedPrompter(["", "pl,pl"]);
+    const { prompter } = scriptedPrompter([], [], [[], ["pl", "pl"]]);
     await expect(
       create(opts({ target: dir, modules: null, prompter })),
     ).rejects.toThrow("--locales: dozwolone pl,en; pl jest wymagany");
@@ -707,12 +778,36 @@ describe("create: pytania", () => {
     expect(runner).not.toHaveBeenCalled();
   });
 
+  it("ask pyta tylko o nazwę i email, nie o moduły ani języki", async () => {
+    const { prompter } = scriptedPrompter([]);
+    await create(opts({ modules: null, prompter }));
+    expect(
+      vi.mocked(prompter.ask).mock.calls.map(([question]) => question),
+    ).toEqual(["Nazwa wyświetlana", "Email admina (puste = pomiń)"]);
+  });
+
+  it("z podanymi modułami lista pojawia się tylko dla języków", async () => {
+    const { prompter, selections } = scriptedPrompter([]);
+    await create(opts({ modules: ["demo"], prompter }));
+    expect(selections.map(({ question }) => question)).toEqual(["Języki"]);
+  });
+
+  it("z podanymi językami lista pojawia się tylko dla modułów", async () => {
+    const { prompter, selections } = scriptedPrompter([]);
+    await create(opts({ modules: null, locales: ["pl"], prompter }));
+    expect(selections.map(({ question }) => question)).toEqual(["Moduły"]);
+  });
+
   it("bez install nie pyta o setup, ale pyta o moduły, języki, nazwę i email", async () => {
     const { prompter, questions } = scriptedPrompter([]);
     await create(opts({ modules: null, install: false, prompter }));
-    expect(questions).toHaveLength(4);
+    expect(questions.map(({ question }) => question)).toEqual([
+      "Moduły",
+      "Języki",
+      "Nazwa wyświetlana",
+      "Email admina (puste = pomiń)",
+    ]);
     expect(prompter.confirm).not.toHaveBeenCalled();
-    expect(questions[3]?.fallback).toBe("");
   });
 
   it("z install bez yes pyta o setup", async () => {
@@ -744,6 +839,7 @@ describe("create: pytania", () => {
     const { prompter } = scriptedPrompter([]);
     await create(opts({ yes: true, modules: null, prompter }));
     expect(prompter.ask).not.toHaveBeenCalled();
+    expect(prompter.select).not.toHaveBeenCalled();
     expect(prompter.confirm).not.toHaveBeenCalled();
   });
 
@@ -760,15 +856,19 @@ describe("create: pytania", () => {
       }),
     );
     expect(prompter.ask).not.toHaveBeenCalled();
+    expect(prompter.select).not.toHaveBeenCalled();
     expect(prompter.confirm).not.toHaveBeenCalled();
   });
 
   it("pyta tylko o brakujące: przy podanych modułach trzy pytania i setup", async () => {
     const { prompter, questions } = scriptedPrompter([]);
     await create(opts({ modules: ["demo"], install: true, prompter }));
-    expect(questions).toHaveLength(4);
-    expect(questions[0]?.fallback).toBe("pl,en");
-    expect(questions[3]?.question).toContain("Uruchomić bazę");
+    expect(questions.map(({ question }) => question)).toEqual([
+      "Języki",
+      "Nazwa wyświetlana",
+      "Email admina (puste = pomiń)",
+      "Uruchomić bazę, migrację i admin:create teraz? [t/N]",
+    ]);
   });
 });
 
@@ -842,22 +942,22 @@ describe("readlinePrompter", () => {
       "Brak terminala: użyj --yes",
     );
   });
+
+  it("create bez terminala i bez modułów w opcjach zgłasza Brak terminala i nie tworzy katalogu", async () => {
+    const dir = join(tmp, "acme-shop");
+    await expect(
+      create(opts({ target: dir, modules: null, prompter: readlinePrompter })),
+    ).rejects.toThrow("Brak terminala: użyj --yes");
+    expect(existsSync(dir)).toBe(false);
+  });
 });
 
 describe("create: pytania i kotwice linii .env", () => {
-  it("pytanie o moduły wypisuje moduły z opisami bez core", async () => {
-    const { prompter, questions } = scriptedPrompter([]);
-    await create(opts({ modules: null, prompter }));
-    expect(questions[0]?.question).toBe(
-      "Moduły (po przecinku, puste = żaden):\n  demo — Demo fixture\n  needs-demo — Needs demo fixture\nWybór",
-    );
-  });
-
   it("zadaje pytania o języki, nazwę, email admina i setup", async () => {
     const { prompter, questions } = scriptedPrompter([]);
     await create(opts({ modules: [], install: true, prompter }));
     expect(questions.slice(0, 4)).toEqual([
-      { question: "Języki (pl,en)", fallback: "pl,en" },
+      { question: "Języki", choices: LOCALE_CHOICES },
       { question: "Nazwa wyświetlana", fallback: "Acme Shop" },
       { question: "Email admina (puste = pomiń)", fallback: "" },
       {
