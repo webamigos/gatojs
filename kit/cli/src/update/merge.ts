@@ -74,7 +74,6 @@ export async function mergeFile(input: {
       const failure = error as ExecFileFailure;
       if (
         typeof failure.code === "number" &&
-        failure.code >= 1 &&
         failure.code <= MAX_CONFLICT_EXIT_CODE &&
         Buffer.isBuffer(failure.stdout)
       ) {
