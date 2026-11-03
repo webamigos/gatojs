@@ -507,6 +507,28 @@ describe("planUpdate", () => {
     });
   });
 
+  it("nie planuje niczego, gdy czyste scalenie daje treść identyczną z projektem", async () => {
+    expect(
+      await plan({
+        base: { "src/a.ts": BASE },
+        target: { "src/a.ts": { content: KIT, mode: 0o755 } },
+        project: { "src/a.ts": "a\nPROJEKT\nc\nd\ne\nKIT\n" },
+        recordedHashes: { "src/a.ts": recorded("src/a.ts", BASE) },
+      }),
+    ).toEqual({ files: [], mismatchedBase: [] });
+  });
+
+  it("nie planuje niczego ani nie ostrzega, gdy projekt równy zapisanemu hashowi innemu niż baza jest już równy kitowi", async () => {
+    expect(
+      await plan({
+        base: { "src/a.ts": BASE },
+        target: { "src/a.ts": KIT },
+        project: { "src/a.ts": KIT },
+        recordedHashes: { "src/a.ts": recorded("src/a.ts", KIT) },
+      }),
+    ).toEqual({ files: [], mismatchedBase: [] });
+  });
+
   const packageBase =
     '{\n  "name": "app",\n  "scripts": {\n    "dev": "next dev"\n  },\n  "dependencies": {\n    "next": "15.0.0"\n  }\n}\n';
   const packageKit =

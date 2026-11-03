@@ -337,14 +337,17 @@ function stripRegions(content) {
 function sha256(data) {
   return createHash("sha256").update(data).digest("hex");
 }
-function fileHash(file2, content, config2) {
-  if (config2.managedFiles.includes(file2)) {
-    return "managed";
-  }
+function contentHash(file2, content) {
   if (REGION_FILES.includes(file2)) {
     return sha256(stripRegions(content.toString("utf8")));
   }
   return sha256(content);
+}
+function fileHash(file2, content, config2) {
+  if (config2.managedFiles.includes(file2)) {
+    return "managed";
+  }
+  return contentHash(file2, content);
 }
 
 // src/assemble/placeholders.ts

@@ -33,6 +33,13 @@ function sha256(data: string | Buffer): string {
   return createHash("sha256").update(data).digest("hex");
 }
 
+export function contentHash(file: string, content: Buffer): string {
+  if (REGION_FILES.includes(file)) {
+    return sha256(stripRegions(content.toString("utf8")));
+  }
+  return sha256(content);
+}
+
 export function fileHash(
   file: string,
   content: Buffer,
@@ -41,8 +48,5 @@ export function fileHash(
   if (config.managedFiles.includes(file)) {
     return "managed";
   }
-  if (REGION_FILES.includes(file)) {
-    return sha256(stripRegions(content.toString("utf8")));
-  }
-  return sha256(content);
+  return contentHash(file, content);
 }

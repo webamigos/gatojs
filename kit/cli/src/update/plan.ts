@@ -1,4 +1,4 @@
-import { fileHash } from "../assemble/hash.js";
+import { contentHash } from "../assemble/hash.js";
 import { compareCodePoint } from "../compare.js";
 import { mergeFile } from "./merge.js";
 import type { KitFile, KitSnapshot } from "./snapshot.js";
@@ -31,10 +31,7 @@ type PlanInput = {
 type Decision = { file: PlannedFile | null; mismatchedBase: boolean };
 
 const MANAGED = "managed";
-
-function hash(path: string, content: Buffer): string {
-  return fileHash(path, content, { managedFiles: [] });
-}
+const UNCHANGED: Decision = { file: null, mismatchedBase: false };
 
 function planned(
   path: string,
@@ -44,9 +41,29 @@ function planned(
   return { path, action, reason: null, content: null, mode: null, ...fields };
 }
 
-function undecided(path: string, reason: string): Decision {
+function undecided(path: string, reason: string): PlannedFile {
+  return planned(path, "do decyzji", { reason });
+}
+
+async function decideAdded(
+  path: string,
+  kit: KitFile,
+  input: PlanInput,
+): Promise<Decision> {
+  const project = await input.readProject(path);
+  if (!project) {
+    return {
+      file: planned(path, "dodano", { content: kit.content, mode: kit.mode }),
+      mismatchedBase: false,
+    };
+  }
+  if (contentHash(path, project) === contentHash(path, kit.content)) {
+    return UNCHANGED;
+  }
   return {
-    file: planned(path, "do decyzji", { reason }),
+    file: planned(path, "konflikt", {
+      reason: "plik projektu na ścieżce nowego pliku kitu",
+    }),
     mismatchedBase: false,
   };
 }
@@ -57,7 +74,7 @@ async function mergeChanged(
   project: Buffer,
   kit: KitFile,
   input: PlanInput,
-): Promise<PlannedFile> {
+): Promise<PlannedFile | null> {
   const merged = await mergeFile({
     path,
     base,
@@ -74,50 +91,40 @@ async function mergeChanged(
       reason: "plik binarny zmieniony w projekcie i w kicie",
     });
   }
-  return planned(path, merged.conflicts > 0 ? "konflikt" : "scalono", {
-    content: merged.content,
-    mode: kit.mode,
-  });
+  if (merged.conflicts > 0) {
+    return planned(path, "konflikt", {
+      content: merged.content,
+      mode: kit.mode,
+    });
+  }
+  if (contentHash(path, merged.content) === contentHash(path, project)) {
+    return null;
+  }
+  return planned(path, "scalono", { content: merged.content, mode: kit.mode });
 }
 
-async function decide(path: string, input: PlanInput): Promise<Decision> {
-  const base = input.base.files.get(path);
-  const kit = input.target.files.get(path);
+async function decideExisting(
+  path: string,
+  base: KitFile,
+  kit: KitFile | undefined,
+  input: PlanInput,
+): Promise<Decision> {
+  const baseHash = contentHash(path, base.content);
+  if (kit && contentHash(path, kit.content) === baseHash) {
+    return UNCHANGED;
+  }
   const project = await input.readProject(path);
-
-  if (!base) {
+  if (!project) {
     if (!kit) {
-      return { file: null, mismatchedBase: false };
-    }
-    if (!project) {
-      return {
-        file: planned(path, "dodano", { content: kit.content, mode: kit.mode }),
-        mismatchedBase: false,
-      };
-    }
-    if (hash(path, project) === hash(path, kit.content)) {
-      return { file: null, mismatchedBase: false };
+      return UNCHANGED;
     }
     return {
-      file: planned(path, "konflikt", {
-        reason: "plik projektu na ścieżce nowego pliku kitu",
-      }),
+      file: undecided(path, "usunięty w projekcie, zmieniony w kicie"),
       mismatchedBase: false,
     };
   }
 
-  const baseHash = hash(path, base.content);
-  if (kit && hash(path, kit.content) === baseHash) {
-    return { file: null, mismatchedBase: false };
-  }
-  if (!project) {
-    if (!kit) {
-      return { file: null, mismatchedBase: false };
-    }
-    return undecided(path, "usunięty w projekcie, zmieniony w kicie");
-  }
-
-  const projectHash = hash(path, project);
+  const projectHash = contentHash(path, project);
   const recordedHash = input.recordedHashes[path];
   const recordedMatchesBase =
     recordedHash === undefined ||
@@ -128,13 +135,10 @@ async function decide(path: string, input: PlanInput): Promise<Decision> {
     projectHash === recordedHash && recordedHash !== baseHash;
 
   if (!kit) {
-    if (projectEqualsBase) {
-      return { file: planned(path, "usunięto"), mismatchedBase };
-    }
-    return {
-      ...undecided(path, "zmieniony w projekcie, usunięty w kicie"),
-      mismatchedBase,
-    };
+    const file = projectEqualsBase
+      ? planned(path, "usunięto")
+      : undecided(path, "zmieniony w projekcie, usunięty w kicie");
+    return { file, mismatchedBase };
   }
   if (projectEqualsBase) {
     return {
@@ -145,23 +149,33 @@ async function decide(path: string, input: PlanInput): Promise<Decision> {
       mismatchedBase,
     };
   }
-  if (projectHash === hash(path, kit.content)) {
-    return { file: null, mismatchedBase };
+  if (projectHash === contentHash(path, kit.content)) {
+    return UNCHANGED;
   }
-  return {
-    file: await mergeChanged(path, base.content, project, kit, input),
-    mismatchedBase,
-  };
+  const file = await mergeChanged(path, base.content, project, kit, input);
+  if (!file) {
+    return UNCHANGED;
+  }
+  return { file, mismatchedBase };
 }
 
 export async function planUpdate(input: PlanInput): Promise<UpdatePlan> {
-  const paths = [
-    ...new Set([...input.base.files.keys(), ...input.target.files.keys()]),
-  ].sort(compareCodePoint);
+  const decisions: [string, Decision][] = [];
+  for (const [path, base] of input.base.files) {
+    decisions.push([
+      path,
+      await decideExisting(path, base, input.target.files.get(path), input),
+    ]);
+  }
+  for (const [path, kit] of input.target.files) {
+    if (!input.base.files.has(path)) {
+      decisions.push([path, await decideAdded(path, kit, input)]);
+    }
+  }
+  decisions.sort(([a], [b]) => compareCodePoint(a, b));
   const files: PlannedFile[] = [];
   const mismatchedBase: string[] = [];
-  for (const path of paths) {
-    const decision = await decide(path, input);
+  for (const [path, decision] of decisions) {
     if (decision.file) {
       files.push(decision.file);
     }
