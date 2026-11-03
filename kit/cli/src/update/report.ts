@@ -18,6 +18,21 @@ function fileLine(file: PlannedFile): string {
   return `  ${file.action.padEnd(ACTION_WIDTH)} ${file.path}${reason}`;
 }
 
+function mismatchedBaseWarning(count: number, from: string): string {
+  const source = `od v${from} z tagu`;
+  if (count === 1) {
+    return `Uwaga: 1 plik różni się ${source}; potraktowano go jak zmieniony w projekcie`;
+  }
+  const lastDigit = count % 10;
+  const lastTwoDigits = count % 100;
+  const few =
+    lastDigit >= 2 &&
+    lastDigit <= 4 &&
+    (lastTwoDigits < 12 || lastTwoDigits > 14);
+  const files = few ? "pliki różnią się" : "plików różni się";
+  return `Uwaga: ${count} ${files} ${source}; potraktowano je jak zmienione w projekcie`;
+}
+
 export function planReport(input: {
   plan: UpdatePlan;
   from: string;
@@ -36,9 +51,7 @@ export function planReport(input: {
   );
   const warning =
     plan.mismatchedBase.length > 0
-      ? [
-          `Uwaga: ${plan.mismatchedBase.length} plików różni się od v${from} z tagu; potraktowano je jak zmienione w projekcie`,
-        ]
+      ? [mismatchedBaseWarning(plan.mismatchedBase.length, from)]
       : [];
   return [
     header,

@@ -345,7 +345,14 @@ export async function update(
     log("Cofnięcie całej aktualizacji: git restore . && git clean -fd");
     return { exitCode: 1 };
   }
-  await generate(projectDir);
+  try {
+    await generate(projectDir);
+  } catch (error) {
+    throw new Error(
+      `Zaktualizowano do wa-kit ${version}, ale wa generate się nie powiódł. Uruchom: npm run wa -- generate`,
+      { cause: error },
+    );
+  }
   successHints(base, target).forEach((line) => log(line));
   if (options.install) {
     try {

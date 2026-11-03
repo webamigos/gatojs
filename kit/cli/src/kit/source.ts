@@ -25,9 +25,10 @@ async function cloneKit(input: {
     await input.runner(
       "git",
       [
+        "-c",
+        "advice.detachedHead=false",
         "clone",
-        "--depth",
-        "1",
+        ...(isRemote(input.source) ? ["--depth", "1"] : []),
         "--branch",
         `v${input.version}`,
         "--quiet",
@@ -37,9 +38,10 @@ async function cloneKit(input: {
       ],
       input.tmpDir,
     );
-  } catch {
+  } catch (error) {
     throw new Error(
       `Nie udało się pobrać wa-kit v${input.version} z ${input.source}. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`,
+      { cause: error },
     );
   }
   return target;

@@ -409,6 +409,40 @@ describe("update: kit zmienił plik, projekt nie", () => {
     expect((await rawState(setup.dir)).kitVersion).toBe("0.2.0");
   });
 
+  it("błąd wa generate po zapisie rzuca błąd z przyczyną, nie cofa zmian i nie woła npm install", async () => {
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        const path = join(dir, ".env.example");
+        await writeFile(
+          path,
+          (await readFile(path, "utf8")).replace("# wa:modules:end\n", ""),
+        );
+      },
+    });
+    const brokenEnv = await read(setup.dir, ".env.example");
+
+    const failure = run(setup);
+    await expect(failure).rejects.toThrow(
+      "Zaktualizowano do wa-kit 0.2.0, ale wa generate się nie powiódł. Uruchom: npm run wa -- generate",
+    );
+    const error: unknown = await failure.catch((caught: unknown) => caught);
+    expect((error as Error).cause).toMatchObject({
+      message: ".env.example: uszkodzony region wa:modules",
+    });
+
+    expect(await read(setup.dir, AUTH_MODULE)).toBe(
+      'export default { key: "auth", version: "v0.2.0" };\n',
+    );
+    expect(await read(setup.dir, ".env.example")).toBe(brokenEnv);
+    const state = await rawState(setup.dir);
+    expect(state.kitVersion).toBe("0.2.0");
+    expect(state.modules.core?.files[AUTH_MODULE]).toBe(
+      sha256('export default { key: "auth", version: "v0.2.0" };\n'),
+    );
+    expect(runner).not.toHaveBeenCalled();
+  });
+
   it("po aktualizacji package-lock.json ma w .wa/kit.json znacznik managed", async () => {
     const setup = await prepare({ kit: changeAuthModule });
 
@@ -505,7 +539,7 @@ describe("update: scalanie", () => {
     await run(setup);
 
     expect(lines()).toContain(
-      "Uwaga: 1 plików różni się od v0.1.0 z tagu; potraktowano je jak zmienione w projekcie",
+      "Uwaga: 1 plik różni się od v0.1.0 z tagu; potraktowano go jak zmieniony w projekcie",
     );
     expect(lines()).toContain("  scalono        src/shared/config/project.ts");
   });

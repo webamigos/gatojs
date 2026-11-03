@@ -145,6 +145,8 @@ describe("resolveKitSource", () => {
     expect(runner).toHaveBeenCalledWith(
       "git",
       [
+        "-c",
+        "advice.detachedHead=false",
         "clone",
         "--depth",
         "1",
@@ -171,6 +173,8 @@ describe("resolveKitSource", () => {
     expect(runner).toHaveBeenCalledWith(
       "git",
       [
+        "-c",
+        "advice.detachedHead=false",
         "clone",
         "--depth",
         "1",
@@ -262,6 +266,8 @@ describe("resolveKitSource", () => {
       expect(runner).toHaveBeenCalledWith(
         "git",
         [
+          "-c",
+          "advice.detachedHead=false",
           "clone",
           "--depth",
           "1",
@@ -314,6 +320,23 @@ describe("resolveKitSource", () => {
     ).rejects.toThrow(
       "Nie udało się pobrać wa-kit v0.1.0 z https://example.com/org/wa-kit.git. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>",
     );
+  });
+
+  it("błąd klonowania zachowuje błąd runnera jako cause", async () => {
+    const failure = new Error("fatal: repository not found");
+    runner.mockRejectedValueOnce(failure);
+    const error: unknown = await resolveKitSource({
+      kitFlag: "https://example.com/org/wa-kit.git",
+      envSource: undefined,
+      state: baseState,
+      runner,
+      tmpDir,
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain(
+      "Nie udało się pobrać wa-kit v0.1.0 z https://example.com/org/wa-kit.git.",
+    );
+    expect((error as Error).cause).toBe(failure);
   });
 
   it("nieistniejące repo przez prawdziwy git kończy się podpowiedzią gh auth status i --kit", async () => {
@@ -440,6 +463,8 @@ describe("cloneKitVersion", () => {
     expect(runner).toHaveBeenCalledWith(
       "git",
       [
+        "-c",
+        "advice.detachedHead=false",
         "clone",
         "--depth",
         "1",
@@ -454,6 +479,49 @@ describe("cloneKitVersion", () => {
     );
   });
 
+  it("błąd klonu wersji zachowuje błąd runnera jako cause", async () => {
+    const failure = new Error("fatal: Remote branch v0.2.0 not found");
+    runner.mockRejectedValueOnce(failure);
+    const error: unknown = await cloneKitVersion({
+      source: "/sciezka/do/kitu",
+      version: "0.2.0",
+      runner,
+      tmpDir,
+      name: "nowy",
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain(
+      "Nie udało się pobrać wa-kit v0.2.0 z /sciezka/do/kitu.",
+    );
+    expect((error as Error).cause).toBe(failure);
+  });
+
+  it("źródło file:// jest klonowane płytko", async () => {
+    runner.mockRejectedValueOnce(new Error("stop"));
+    await expect(
+      cloneKitVersion({
+        source: "file:///tmp/wa-kit.git",
+        version: "0.2.0",
+        runner,
+        tmpDir,
+        name: "plik",
+      }),
+    ).rejects.toThrow("Nie udało się pobrać wa-kit v0.2.0");
+    expect(runner.mock.calls[0]?.[1]).toEqual([
+      "-c",
+      "advice.detachedHead=false",
+      "clone",
+      "--depth",
+      "1",
+      "--branch",
+      "v0.2.0",
+      "--quiet",
+      "--",
+      "file:///tmp/wa-kit.git",
+      join(tmpDir, "plik"),
+    ]);
+  });
+
   it("ścieżka lokalna też jest klonowana przez runner, a nie użyta wprost", async () => {
     runner.mockRejectedValueOnce(new Error("stop"));
     await expect(
@@ -466,9 +534,9 @@ describe("cloneKitVersion", () => {
       }),
     ).rejects.toThrow("Nie udało się pobrać wa-kit v0.1.0 z /sciezka/do/kitu.");
     expect(runner.mock.calls[0]?.[1]).toEqual([
+      "-c",
+      "advice.detachedHead=false",
       "clone",
-      "--depth",
-      "1",
       "--branch",
       "v0.1.0",
       "--quiet",

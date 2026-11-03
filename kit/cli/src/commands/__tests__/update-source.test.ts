@@ -111,9 +111,9 @@ describe("updateFromSource — bundel projektu", () => {
     const [clone, node] = runner.mock.calls;
     expect(clone?.[0]).toBe("git");
     expect(clone?.[1].slice(0, 8)).toEqual([
+      "-c",
+      "advice.detachedHead=false",
       "clone",
-      "--depth",
-      "1",
       "--branch",
       "v0.2.0",
       "--quiet",

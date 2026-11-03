@@ -20715,9 +20715,10 @@ async function cloneKit(input2) {
     await input2.runner(
       "git",
       [
+        "-c",
+        "advice.detachedHead=false",
         "clone",
-        "--depth",
-        "1",
+        ...isRemote(input2.source) ? ["--depth", "1"] : [],
         "--branch",
         `v${input2.version}`,
         "--quiet",
@@ -20727,9 +20728,10 @@ async function cloneKit(input2) {
       ],
       input2.tmpDir
     );
-  } catch {
+  } catch (error62) {
     throw new Error(
-      `Nie uda\u0142o si\u0119 pobra\u0107 wa-kit v${input2.version} z ${input2.source}. Sprawd\u017A dost\u0119p (gh auth status) albo podaj --kit <\u015Bcie\u017Cka>`
+      `Nie uda\u0142o si\u0119 pobra\u0107 wa-kit v${input2.version} z ${input2.source}. Sprawd\u017A dost\u0119p (gh auth status) albo podaj --kit <\u015Bcie\u017Cka>`,
+      { cause: error62 }
     );
   }
   return target;
@@ -21703,15 +21705,24 @@ function fileLine(file2) {
   const reason = file2.reason === null ? "" : ` (${file2.reason})`;
   return `  ${file2.action.padEnd(ACTION_WIDTH)} ${file2.path}${reason}`;
 }
+function mismatchedBaseWarning(count, from) {
+  const source = `od v${from} z tagu`;
+  if (count === 1) {
+    return `Uwaga: 1 plik r\xF3\u017Cni si\u0119 ${source}; potraktowano go jak zmieniony w projekcie`;
+  }
+  const lastDigit = count % 10;
+  const lastTwoDigits = count % 100;
+  const few = lastDigit >= 2 && lastDigit <= 4 && (lastTwoDigits < 12 || lastTwoDigits > 14);
+  const files = few ? "pliki r\xF3\u017Cni\u0105 si\u0119" : "plik\xF3w r\xF3\u017Cni si\u0119";
+  return `Uwaga: ${count} ${files} ${source}; potraktowano je jak zmienione w projekcie`;
+}
 function planReport(input2) {
   const { plan, from, to } = input2;
   const header = input2.dryRun ? `Plan aktualizacji wa-kit ${from} \u2192 ${to} (bez zmian w projekcie)` : `Aktualizacja wa-kit ${from} \u2192 ${to}`;
   const items = ACTION_ORDER.flatMap(
     (action) => plan.files.filter((file2) => file2.action === action).sort((a, b) => compareCodePoint(a.path, b.path)).map(fileLine)
   );
-  const warning = plan.mismatchedBase.length > 0 ? [
-    `Uwaga: ${plan.mismatchedBase.length} plik\xF3w r\xF3\u017Cni si\u0119 od v${from} z tagu; potraktowano je jak zmienione w projekcie`
-  ] : [];
+  const warning = plan.mismatchedBase.length > 0 ? [mismatchedBaseWarning(plan.mismatchedBase.length, from)] : [];
   return [
     header,
     ...items.length > 0 ? items : ["  bez zmian w plikach"],
@@ -22040,7 +22051,14 @@ async function update(options) {
     log("Cofni\u0119cie ca\u0142ej aktualizacji: git restore . && git clean -fd");
     return { exitCode: 1 };
   }
-  await generate(projectDir);
+  try {
+    await generate(projectDir);
+  } catch (error62) {
+    throw new Error(
+      `Zaktualizowano do wa-kit ${version2}, ale wa generate si\u0119 nie powi\xF3d\u0142. Uruchom: npm run wa -- generate`,
+      { cause: error62 }
+    );
+  }
   successHints(base, target).forEach((line) => log(line));
   if (options.install) {
     try {
