@@ -8,6 +8,7 @@ const mockEnv = vi.hoisted((): Record<string, unknown> => ({}));
 
 vi.mock("@/shared/lib/env", () => ({ env: mockEnv }));
 
+import { InvalidStorageKeyError } from "../local-storage";
 import { deleteObject, getObject, putObject } from "../storage";
 
 const bytes = (text: string) => new TextEncoder().encode(text);
@@ -72,4 +73,15 @@ describe("storage przy STORAGE_PROVIDER=local z env", () => {
       await rm(moved, { recursive: true, force: true });
     }
   });
+
+  it.each<[string, () => Promise<unknown>]>([
+    ["putObject", () => putObject("../poza.txt", bytes("x"), "text/plain")],
+    ["getObject", () => getObject("../poza.txt")],
+    ["deleteObject", () => deleteObject("../poza.txt")],
+  ])(
+    "%s odrzuca obietnicę błędem magazynu local dla klucza spoza katalogu, zamiast go połknąć",
+    async (_operation, call) => {
+      await expect(call()).rejects.toBeInstanceOf(InvalidStorageKeyError);
+    },
+  );
 });
