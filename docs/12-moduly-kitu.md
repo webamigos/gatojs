@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - które szwy generowane i które punkty wejścia rdzenia łączą moduł z aplikacją;
 - co dzieje się z kodem, który korzysta z punktu wejścia, gdy modułu w projekcie nie ma.
 
-Zweryfikowano z kodem: 2788536, 2026-11-04
+Zweryfikowano z kodem: 734391b, 2026-11-04
 
 Źródła:
 
@@ -38,6 +38,7 @@ Zweryfikowano z kodem: 2788536, 2026-11-04
 - `src/features/organizations/services/commands/enter-organization-command.ts`
 - pliki modułów, które czytają szwy: `src/features/audit-logs/` (`module.ts`, `audit-sink.ts`, `auth.ts`, `components/audit-trail.tsx`, `components/audit-log-view.tsx`, `services/audit-action-labels.ts`), `src/features/api-keys/` (`module.ts`, `services/api-scopes.ts`, `services/api-scope-labels.ts`, `components/api-keys-manager.tsx`, `contracts/api-key.schemas.ts`, `services/commands/api-key-commands.ts`), `src/features/uploads/` (`module.ts`, `services/upload-purposes.ts`, `components/file-upload.tsx`, `services/commands/create-upload.ts`, `services/commands/upload-commands.ts`)
 - `mutation-gate.json`
+- `docker/uploads.compose.yml`, `docker-compose.yml`, `Dockerfile`, `src/test/integration/setup-env.ts`, `e2e/env.ts`, `src/features/uploads/services/storage-env.ts` (provider storage modułu `uploads`)
 - `.github/workflows/kit.yml`
 - `AGENTS.md` („Moduły i pliki generowane”)
 - `src/proxy.ts`
@@ -90,7 +91,7 @@ Klucze API organizacji z zakresami: zewnętrzny system woła trasy projektu z na
 
 ### `uploads`
 
-Pliki organizacji w magazynie zgodnym z S3. Dodaje tabelę `uploads`, trasy `/api/uploads`, komponent `<FileUpload>`, zmienne `S3_*`, usługi `minio` i `minio-init` w `docker-compose.yml` i kroki MinIO w CI projektu. Szczegóły: [15-modul-uploads.md](15-modul-uploads.md).
+Pliki organizacji na dysku serwera albo w magazynie zgodnym z S3, zależnie od `STORAGE_PROVIDER` (domyślnie `local`, czyli dysk). Dodaje tabelę `uploads`, trasy `/api/uploads`, komponent `<FileUpload>`, zmienne `STORAGE_PROVIDER`, `STORAGE_LOCAL_PATH` i `S3_*`, usługi `minio` i `minio-init` z profilem Compose `s3` w `docker-compose.yml` i kroki MinIO w CI projektu, bo testy integracyjne modułu działają na S3. Szczegóły: [15-modul-uploads.md](15-modul-uploads.md).
 
 <a id="macierz-zaleznosci"></a>
 
@@ -143,7 +144,7 @@ Przy instalacji manifest jest kopiowany do `.wa/kit.json` projektu. Od tej chwil
 
 - `wa create --modules <lista>` zakłada projekt z rdzeniem i wybranymi modułami ([16](16-cli-wa.md#wa-create)).
 - `wa add <moduł>` kopiuje pliki modułu do istniejącego projektu, dopisuje jego zależności i uruchamia `wa generate`; jeśli którykolwiek plik modułu już istnieje, przerywa z `Pliki już istnieją, przerwano bez zmian:` i niczego nie kopiuje. `.env` uzupełniasz sam ([16](16-cli-wa.md#wa-add)).
-- `wa remove <moduł>` usuwa pliki modułu, jego zależności i wpis w `.wa/kit.json`, a potem uruchamia `wa generate`; bazy, magazynu S3, `.env` i kodu projektu nie dotyka ([16](16-cli-wa.md#wa-remove)).
+- `wa remove <moduł>` usuwa pliki modułu, jego zależności i wpis w `.wa/kit.json`, a potem uruchamia `wa generate`; bazy, magazynu plików (katalogu `STORAGE_LOCAL_PATH` albo bucketu), `.env` i kodu projektu nie dotyka ([16](16-cli-wa.md#wa-remove)).
 
 Po każdej z tych komend schemat bazy się zmienia, więc migrację tworzy i commituje projekt ([03b](03b-schemat-i-migracje.md#migracje-w-projekcie)).
 
@@ -165,12 +166,12 @@ Po każdej z tych komend schemat bazy się zmienia, więc migrację tworzy i com
 | `locales` w `src/i18n/locales.generated.ts` | pole `locales` w `.wa/kit.json` ([D33](decyzje.md#d33)) | `src/i18n/config.ts`. | Nie zależy od modułów. |
 | Region `wa:relations` w `prisma/schema/auth.prisma` i `prisma/schema/organizations.prisma` | `schemaRelations` manifestu | Prisma (relacje zwrotne `User` i `Organization`). | Pusty (sprawdzone). |
 | Region `wa:modules` w `.env.example` | `env` manifestu | Deweloper, który przepisuje zmienne do `.env`. | Pusty (sprawdzone). |
-| Region `wa:services` w `docker-compose.yml` | plik z `compose` manifestu | `docker compose up -d`. | Pusty (sprawdzone): bez MinIO. |
+| Region `wa:services` w `docker-compose.yml` | plik z `compose` manifestu | `docker compose up -d`; usługi z profilem, jak `minio` i `minio-init` modułu `uploads` z profilem `s3`, tylko `docker compose --profile <profil> up -d` (sprawdzone 2026-11-04 przez `docker compose config --services`). | Pusty (sprawdzone): bez MinIO. |
 | Region `wa:ci-integration` w `.github/workflows/ci.yml` | plik z `ciSteps` manifestu ([D45](decyzje.md#d45)) | Job testów integracyjnych w CI projektu. | Pusty (sprawdzone): CI nie startuje MinIO. |
 
 Plików generowanych i regionów nie edytuje się ręcznie; CI projektu sprawdza, że po `wa generate` nie ma diffu ([D04](decyzje.md#d04)). Rejestr importuje pliki feature, więc zmiana treści `module.ts` albo `env.ts` nie wymaga generatora; wymaga go dodanie albo usunięcie takiego pliku.
 
-Zmienna wymagana przez `env.ts` modułu należy do schematu całej aplikacji: jej brak albo zła wartość zatrzymuje start serwera całej aplikacji, nie tylko modułu ([07](07-i18n-mail-env.md#walidacja-env)). Dlatego po `wa add` modułu z wymaganą zmienną (`api-keys`, `uploads`) trzeba uzupełnić `.env` ([16](16-cli-wa.md#add-po)).
+Zmienna wymagana przez `env.ts` modułu należy do schematu całej aplikacji: jej brak albo zła wartość zatrzymuje start serwera całej aplikacji, nie tylko modułu ([07](07-i18n-mail-env.md#walidacja-env)). Dlatego po `wa add` modułu z wymaganą zmienną (`api-keys`) trzeba uzupełnić `.env` ([16](16-cli-wa.md#add-po)). `uploads` bez nowych zmiennych startuje w trybie deweloperskim z providerem `local`, ale w produkcji poza Railway wymaga `STORAGE_LOCAL_PATH` albo `STORAGE_PROVIDER=s3` ([15](15-modul-uploads.md#reguly-produkcyjne)).
 
 <a id="punkty-wejscia"></a>
 
@@ -254,7 +255,7 @@ Moduły kitu podlegają tym samym regułom co rdzeń ([AGENTS.md](../AGENTS.md),
 - **Izolacja organizacji.** Zapytania i komendy modułów pobierają kontekst przez `getOrgContext()` albo `requireModuleAccess()` i filtrują po `organizationId` jawnie ([D07](decyzje.md#d07)). Wyjątkiem są trasy z kluczem API: nie mają sesji, więc filtrują po `organizationId` z kontekstu klucza ([D43](decyzje.md#d43)).
 - **Tryb serwisowy.** Komendy modułów na danych organizacji mają sygnaturę `(input, confirmation?)` i wołają `assertServiceModeConfirmed` przed Prismą, a UI woła je przez `useServiceModeAction().run` ([D22](decyzje.md#d22)). Upload pliku idzie przez `fetch` do trasy `POST /api/uploads`, a nie przez komendę, więc `<FileUpload>` pobiera potwierdzenie przez `requestConfirmation()` i wysyła je w formularzu, a trasa sprawdza je tak jak komenda.
 - **Test architektury i mutacje.** Pliki modułów podlegają testowi `src/__tests__/server-entrypoints-guard.test.ts` ([D24](decyzje.md#d24)), a katalogi `src/features/<x>/services/` wszystkich trzech modułów i `src/shared/lib/audit.ts` są na liście `critical` w `mutation-gate.json` ([D26](decyzje.md#d26)).
-- **Moduł nie edytuje plików rdzenia.** Tak mówi reguła z `AGENTS.md` i `CLAUDE.md`, i tak działa projekt: `wa add` i `wa remove` zmieniają w plikach rdzenia tylko regiony `wa:*` i pliki generowane. Zmiany rdzenia zrobione w kicie dla modułów (wartości `API_KEY_PEPPER` i `S3_*` w `src/test/integration/setup-env.ts` i `e2e/env.ts`, katalogi modułów w `mutation-gate.json`, matcher w `src/proxy.ts`) projekt dostaje jednak razem z rdzeniem, także bez modułu ([16b](16b-rozwoj-kitu.md#nowy-modul-kitu), R12 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Matcher `/((?!api(?:/|$)|_next|_vercel|.*\\..*).*)` wyłącza z middleware next-intl tylko `/api` i ścieżki pod `/api/`, więc trasy projektu zaczynające się od `api`, na przykład `/api-keys` albo `/api-docs`, dostają obsługę języków jak inne strony.
+- **Moduł nie edytuje plików rdzenia.** Tak mówi reguła z `AGENTS.md` i `CLAUDE.md`, i tak działa projekt: `wa add` i `wa remove` zmieniają w plikach rdzenia tylko regiony `wa:*` i pliki generowane. Zmiany rdzenia zrobione w kicie dla modułów (wartości `API_KEY_PEPPER` w `src/test/integration/setup-env.ts` i `e2e/env.ts`, `STORAGE_PROVIDER=s3` z `S3_*` w `setup-env.ts`, `STORAGE_PROVIDER=local` z `STORAGE_LOCAL_PATH` w `e2e/env.ts`, katalog `/app/volumes/uploads` w `Dockerfile`, katalogi modułów w `mutation-gate.json`, matcher w `src/proxy.ts`) projekt dostaje jednak razem z rdzeniem, także bez modułu ([16b](16b-rozwoj-kitu.md#nowy-modul-kitu), R12 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Matcher `/((?!api(?:/|$)|_next|_vercel|.*\\..*).*)` wyłącza z middleware next-intl tylko `/api` i ścieżki pod `/api/`, więc trasy projektu zaczynające się od `api`, na przykład `/api-keys` albo `/api-docs`, dostają obsługę języków jak inne strony.
 
 <a id="wybor-modulow"></a>
 
@@ -266,7 +267,7 @@ Moduły są niezależne, więc wybierasz każdy osobno, według potrzeb klienta.
 | --- | --- | --- | --- |
 | `audit-logs` | Klient potrzebuje śladu zmian w danych organizacji (członkostwo, klucze, pliki, własne zdarzenia projektu). | Tabela `audit_logs` rośnie bez limitu: moduł nie ma retencji ([D41](decyzje.md#d41)). | Nikt nie będzie czytał dziennika; `trackAudit` w kodzie projektu nie wymaga modułu. |
 | `api-keys` | Zewnętrzny system (integracja, agent) ma wołać API projektu w imieniu organizacji. | Sekret `API_KEY_PEPPER` na każdym środowisku; jego zmiana unieważnia wszystkie klucze ([D43](decyzje.md#d43)). | API wołają tylko zalogowani użytkownicy aplikacji (wystarczy sesja). |
-| `uploads` | Projekt przyjmuje pliki od użytkowników (obrazy, załączniki). | Magazyn zgodny z S3 na produkcji, MinIO lokalnie i w CI, zmienne `S3_*`, zależności `@aws-sdk/client-s3`, `file-type` i `sharp` ([D44](decyzje.md#d44)). | Projekt nie przyjmuje plików albo trzyma je poza aplikacją. |
+| `uploads` | Projekt przyjmuje pliki od użytkowników (obrazy, załączniki). | Na produkcji trwały katalog przy jednej instancji (`local`) albo magazyn zgodny z S3 (`s3`); lokalnie pliki na dysku bez dodatkowej usługi, MinIO tylko z profilem `s3` i do testów integracyjnych, które w CI uruchamiają go własnymi krokami; zależności `@aws-sdk/client-s3`, `file-type` i `sharp` ([D44](decyzje.md#d44), [D49](decyzje.md#d49)). | Projekt nie przyjmuje plików albo trzyma je poza aplikacją. |
 
 Kombinacje, które CI kitu składa i sprawdza (`npm run verify`, testy integracyjne, a dla `core` i `all` także `docker build`), to macierz `combo` w `.github/workflows/kit.yml`: sam rdzeń, każdy moduł osobno i wszystkie trzy razem ([16b](16b-rozwoj-kitu.md#ci-kitu)). Pary modułów (na przykład `audit-logs` z `api-keys`) nie mają osobnej pozycji w macierzy.
 

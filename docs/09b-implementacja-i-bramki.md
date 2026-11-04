@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - gdzie znaleźć opis dziennika zdarzeń, plików i tras z kluczem API we własnej funkcji, gdy projekt ma moduły `audit-logs`, `uploads` albo `api-keys` ([dziennik](#dziennik-zdarzen), [pliki](#pliki-w-funkcji-projektu), [trasy API](#trasy-api));
 - co zacommitować i jak dodać kolejną funkcję do feature, który już jest w rejestrze.
 
-Zweryfikowano z kodem: 0b5c91d, 2026-10-29
+Zweryfikowano z kodem: 734391b, 2026-11-04 (sekcja [Pliki w funkcji projektu](#pliki-w-funkcji-projektu)); pozostałe sekcje: 0b5c91d, 2026-10-29
 
 Źródła:
 
@@ -389,7 +389,7 @@ Dotyczy projektu z modułem `audit-logs` ([13-modul-audit-logs.md](13-modul-audi
 
 ## Pliki w funkcji projektu
 
-Dotyczy projektu z modułem `uploads` ([15-modul-uploads.md](15-modul-uploads.md)). Funkcja, która przyjmuje pliki, deklaruje cel w `uploadPurposes` swojego `module.ts`, wstawia `<FileUpload>` do formularza, zapisuje w encji samo `id` pliku po sprawdzeniu, że należy do aktywnej organizacji, i sama decyduje, czy usunięcie encji usuwa plik. Przykłady z przebiegu na funkcji `deliveries`: [własny cel](15b-modul-uploads-uzycie.md#wlasny-cel), [formularz z `<FileUpload>`](15b-modul-uploads-uzycie.md#formularz), [zapis `id` pliku w encji](15b-modul-uploads-uzycie.md#zapis-id), [usuwanie pliku razem z encją](15b-modul-uploads-uzycie.md#usuwanie-z-encja). Kontrakt celu i komponentu opisuje [15-modul-uploads.md](15-modul-uploads.md#szwy), usuwanie pliku [`deleteUploadCommand`](15-modul-uploads.md#usuwanie), a lokalny magazyn [MinIO](15-modul-uploads.md#minio).
+Dotyczy projektu z modułem `uploads` ([15-modul-uploads.md](15-modul-uploads.md)). Funkcja, która przyjmuje pliki, deklaruje cel w `uploadPurposes` swojego `module.ts`, wstawia `<FileUpload>` do formularza, zapisuje w encji samo `id` pliku po sprawdzeniu, że należy do aktywnej organizacji, i sama decyduje, czy usunięcie encji usuwa plik. Przykłady z przebiegu na funkcji `deliveries`: [własny cel](15b-modul-uploads-uzycie.md#wlasny-cel), [formularz z `<FileUpload>`](15b-modul-uploads-uzycie.md#formularz), [zapis `id` pliku w encji](15b-modul-uploads-uzycie.md#zapis-id), [usuwanie pliku razem z encją](15b-modul-uploads-uzycie.md#usuwanie-z-encja). Kontrakt celu i komponentu opisuje [15-modul-uploads.md](15-modul-uploads.md#szwy), usuwanie pliku [`deleteUploadCommand`](15-modul-uploads.md#usuwanie), a magazyn plików, lokalnie katalog na dysku albo MinIO z profilem `s3`, [Provider storage](15-modul-uploads.md#provider).
 
 <a id="trasy-api"></a>
 

@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - co zmieniają flagi `MULTI_ORG`, `AUTH_PUBLIC_SIGNUP` i `ADMIN_IMPERSONATION`;
 - jak rozpoznać i naprawić typowe problemy, w tym błędy walidacji zmiennych środowiskowych.
 
-Zweryfikowano z kodem: 2788536, 2026-11-04
+Zweryfikowano z kodem: 734391b, 2026-11-04
 
 Źródła:
 
@@ -28,6 +28,7 @@ Zweryfikowano z kodem: 2788536, 2026-11-04
 - `scripts/lib/admin-create.ts`
 - `scripts/lib/__tests__/admin-create.test.ts`
 - `src/shared/lib/env.ts`
+- `src/features/uploads/services/storage-env.ts`, `src/test/integration/setup-env.ts` (magazyn plików modułu `uploads`)
 - `src/shared/lib/__tests__/env.test.ts`
 - `src/instrumentation.ts`
 - `src/shared/lib/mailer.ts`
@@ -193,7 +194,15 @@ Nazwy usług (`db` i `mail`) zwraca `docker compose config --services`. Używaj 
 
 ## MinIO (moduł `uploads`)
 
-Projekt z modułem `uploads` ([15](15-modul-uploads.md#minio)) ma w `docker-compose.yml` (w regionie `wa:services`) dwie dodatkowe usługi: `minio` (magazyn zgodny z S3) i `minio-init`, jednorazowy kontener, który tworzy bucket `<slug>-uploads` i kończy pracę. Uruchamia je ten sam `docker compose up -d` z kroku 4 [pierwszego uruchomienia](#pierwsze-uruchomienie); nic więcej nie trzeba robić, a `.env.example` ma już zmienne `S3_*` z wartościami lokalnymi (`S3_ENDPOINT=http://localhost:9000`, klucz i sekret `minioadmin`, bucket `<slug>-uploads`).
+Projekt z modułem `uploads` startuje bez MinIO. `.env.example` ma `STORAGE_PROVIDER=local` i `STORAGE_LOCAL_PATH=./volumes/uploads`, więc aplikacja zapisuje pliki w katalogu `volumes/uploads`, który jest w `.gitignore` ([15](15-modul-uploads.md#provider)). Krok 4 [pierwszego uruchomienia](#pierwsze-uruchomienie) wystarcza.
+
+`docker-compose.yml` takiego projektu ma w regionie `wa:services` dwie usługi z profilem Compose `s3`: `minio` (magazyn zgodny z S3) i `minio-init`, jednorazowy kontener, który tworzy bucket `<slug>-uploads` i kończy pracę ([15](15-modul-uploads.md#minio)). `docker compose up -d` ich nie uruchamia: `docker compose config --services` wypisuje `db` i `mail`, a dopiero `docker compose --profile s3 config --services` dodatkowo `minio` i `minio-init` (sprawdzone 2026-11-04). MinIO uruchamiasz, gdy chcesz pracować na S3: ustaw w `.env` `STORAGE_PROVIDER=s3`, a potem uruchom usługi z profilem (niesprawdzone: w repozytorium kitu port 9000 zajmował inny projekt, więc samego startu nie uruchamiano):
+
+```bash
+docker compose --profile s3 up -d
+```
+
+Zmienne `S3_*` w `.env.example` mają już wartości lokalnego MinIO (`S3_ENDPOINT=http://localhost:9000`, klucz i sekret `minioadmin`, bucket `<slug>-uploads`).
 
 | Usługa | Obraz | Port na komputerze (domyślny) | Zmienna portu | Do czego służy |
 | --- | --- | --- | --- | --- |
@@ -203,7 +212,7 @@ Projekt z modułem `uploads` ([15](15-modul-uploads.md#minio)) ma w `docker-comp
 - Obrazy `minio/minio` i `minio/mc` nie da się już pobrać, dlatego moduł używa obrazu Chainguard i `aws-cli`.
 - `minio` działa jako `user: "0:0"`, bo dane leżą w katalogu `volumes/minio` zamontowanym z hosta (ustawienie tylko dla rozwoju lokalnego). Katalog jest w `.gitignore`, więc dane przetrwają `docker compose down`.
 - Zajęty port zmieniasz tak jak port bazy ([Zmiana portów](#zmiana-portow)): `MINIO_PORT=9100` w `.env` i ten sam port w `S3_ENDPOINT=http://localhost:9100`. Compose czyta tylko `MINIO_PORT`, a aplikacja tylko `S3_ENDPOINT`, więc oba trzeba zmienić razem. Port konsoli zmienia `MINIO_CONSOLE_PORT`.
-- Testy integracyjne czytają adres z `INTEGRATION_S3_ENDPOINT` (domyślnie `http://localhost:9000`) i bucket z `INTEGRATION_S3_BUCKET` (domyślnie `<slug>-uploads`), na przykład `INTEGRATION_S3_ENDPOINT=http://localhost:9100 npm run test:integration`.
+- Testy integracyjne zawsze używają S3, także gdy aplikacja działa z `local`, bo `src/test/integration/setup-env.ts` ustawia im `STORAGE_PROVIDER=s3`. Adres czytają z `INTEGRATION_S3_ENDPOINT` (domyślnie `http://localhost:9000`) i bucket z `INTEGRATION_S3_BUCKET` (domyślnie `<slug>-uploads`), na przykład `INTEGRATION_S3_ENDPOINT=http://localhost:9100 npm run test:integration`.
 
 <a id="zmiana-portow"></a>
 

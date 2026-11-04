@@ -5,11 +5,11 @@ Po przeczytaniu będziesz wiedzieć:
 - jak założyć projekt one-linerem z GitHuba albo z lokalnego klonu kitu i dlaczego ostrzeżenie gita o tagu nie jest błędem;
 - w jakiej kolejności `wa create`, `wa add`, `wa remove` i `wa list` sprawdzają warunki, kiedy pobierają kit i z jakim kodem wyjścia się kończą;
 - co CLI cofa po błędzie, a czego nie cofa;
-- co zostaje w projekcie, w bazie i w magazynie S3 po `wa remove` i jaką migrację wtedy utworzyć;
+- co zostaje w projekcie, w bazie i w magazynie plików po `wa remove` i jaką migrację wtedy utworzyć;
 - jak CLI traktuje moduły projektu (`projectModules`);
 - co znaczy każdy komunikat CLI.
 
-Zweryfikowano z kodem: 2788536, 2026-11-04
+Zweryfikowano z kodem: 734391b, 2026-11-04
 
 Źródła:
 
@@ -37,6 +37,7 @@ Zweryfikowano z kodem: 2788536, 2026-11-04
 - `kit/README.md`
 - `src/shared/lib/env.ts`
 - `src/features/api-keys/env.ts`
+- `src/features/uploads/env.ts`, `src/features/uploads/services/storage-env.ts`, `docker/uploads.compose.yml`
 
 Ten plik opisuje CLI z perspektywy osoby, która zakłada projekt albo zmienia jego zestaw modułów. Komendę `wa generate` opisuje [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#wa-generate), a pracę nad samym kitem (manifesty, `wa kit sync`, bundel, wydanie) [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md). Jak moduł po skopiowaniu łączy się z aplikacją, wyjaśnia [12-moduly-kitu.md](12-moduly-kitu.md). Pojęcia moduł, feature i rejestr modułów są w [słowniku](README.md#slownik).
 
@@ -195,7 +196,7 @@ flowchart TD
 3. **Pytania** ([wyżej](#create-pytania)).
 4. **Moduły.** Do wybranych modułów CLI dodaje moduły z ich `requires` i zawsze `core` (`resolveModules` w `kit/cli/src/assemble/resolve-modules.ts`). Nieznana nazwa daje `Nieznany moduł: <nazwa>. Dostępne: <lista>`, zanim powstanie katalog (sprawdzone). W wersji `v0.1.0` moduły `audit-logs`, `api-keys` i `uploads` mają puste `requires`.
 5. **Składanie.** CLI sprawdza jeszcze raz, czy katalog jest pusty, tworzy go i kopiuje pliki wybranych modułów. Pomija pliki tylko dla kitu (`kitOnly` w `kit/kit.json`: `kit/**`, `docs/**`, `.superpowers/**`, `.claude/handoffs/**`, `.wa/kit.json`, workflowy kitu, `prisma/migrations/.gitignore`) i pliki generowane (`generatedFiles`), które odtwarza generator. Kopia ma te same bity uprawnień co plik w kicie. W plikach z `placeholderFiles` podmienia nazwy, a hash każdego pliku zapisuje w `.wa/kit.json` ([D31](decyzje.md#d31)). `package.json` dostaje slug jako `name`, wersję `0.1.0` i sumę zależności wybranych manifestów ([D30](decyzje.md#d30)). Na końcu CLI zapisuje `.wa/kit.json` i uruchamia `wa generate`.
-6. **`.env`.** Kopia `.env.example` z `BETTER_AUTH_SECRET` ustawionym na 32 losowe bajty w base64url (43 znaki) i z `ADMIN_EMAIL`, jeśli podano adres. Plik ma uprawnienia `0600` (sprawdzone). Zmienne modułów (`API_KEY_PEPPER`, `S3_*`) trafiają do `.env` z wartościami przykładowymi z regionu `wa:modules` (sprawdzone).
+6. **`.env`.** Kopia `.env.example` z `BETTER_AUTH_SECRET` ustawionym na 32 losowe bajty w base64url (43 znaki) i z `ADMIN_EMAIL`, jeśli podano adres. Plik ma uprawnienia `0600` (sprawdzone). Zmienne modułów (`API_KEY_PEPPER`, `STORAGE_PROVIDER`, `STORAGE_LOCAL_PATH`, `S3_*`) trafiają do `.env` z wartościami przykładowymi z regionu `wa:modules` (sprawdzone; `STORAGE_PROVIDER=local` i `STORAGE_LOCAL_PATH=./volumes/uploads` na projekcie z lokalnego klonu kitu 2026-11-04).
 7. **`git init`**, gdy nie podano `--no-git`.
 8. **`npm install`**, gdy nie podano `--no-install`. Lockfile jest skopiowany z kitu, a `npm install` dopasowuje go do `package.json` projektu. Z `--no-install` `package-lock.json` ma do pierwszej instalacji `"name": "wa-app"`, `"version": "0.0.0"` i zależności kitu (sprawdzone).
 9. **Pierwszy commit** `chore: initial commit from wa-kit v<wersja>`, z `--no-verify`, czyli bez hooków husky. Nieudany commit (na przykład brak `user.name` albo `user.email`) nie przerywa komendy: CLI wypisuje `Uwaga: nie utworzono commita (<powód>). Skonfiguruj git i zrób commit ręcznie.`
@@ -224,7 +225,7 @@ Projekt ma ten sam układ katalogów co kit ([D38](decyzje.md#d38)), z tymi ró�
 | `.wa/kit.json` | `kitVersion` i `kitRepo` kitu, nazwa i slug projektu, języki, wybrane moduły z wersją, manifestem i hashami plików, puste `projectModules`. `package.json` i `package-lock.json` mają w `files` rdzenia znacznik `managed` zamiast hasha. |
 | `package.json` | `name` równy slugowi, `version` `0.1.0`, zależności rdzenia i wybranych modułów: `uploads` dodaje `@aws-sdk/client-s3`, `file-type` i `sharp`, `audit-logs` dodaje `better-call` w `devDependencies`, `api-keys` nie dodaje nic. |
 | `src/i18n/locales.generated.ts` | Tylko wybrane języki ([D33](decyzje.md#d33)). |
-| Regiony `wa:*` | `wa:relations` w `auth.prisma` i `organizations.prisma` z relacjami modułów; `wa:modules` w `.env.example` z `API_KEY_PEPPER` (`api-keys`) i zmiennymi `S3_*` (`uploads`, bucket `<slug>-uploads`); `wa:services` w `docker-compose.yml` z usługami `minio` i `minio-init` (`uploads`); `wa:ci-integration` w `.github/workflows/ci.yml` z krokami „Start MinIO” i „Create MinIO bucket” (`uploads`). Bez modułów regiony są puste. |
+| Regiony `wa:*` | `wa:relations` w `auth.prisma` i `organizations.prisma` z relacjami modułów; `wa:modules` w `.env.example` z `API_KEY_PEPPER` (`api-keys`) oraz `STORAGE_PROVIDER`, `STORAGE_LOCAL_PATH` i zmiennymi `S3_*` (`uploads`, bucket `<slug>-uploads`); `wa:services` w `docker-compose.yml` z usługami `minio` i `minio-init` z profilem `s3` (`uploads`), których `docker compose up -d` nie uruchamia; `wa:ci-integration` w `.github/workflows/ci.yml` z krokami „Start MinIO” i „Create MinIO bucket” (`uploads`). Bez modułów regiony są puste. |
 | `.env` | Gotowy do startu, z losowym sekretem i wartościami przykładowymi zmiennych modułów. Wartość `API_KEY_PEPPER` z `.env.example` jest tylko dla dewelopmentu: przy `NODE_ENV=production` schemat `envSchema` w `src/features/api-keys/env.ts` ją odrzuca (`API_KEY_PEPPER: w produkcji nie może być wartością z .env.example`), więc na produkcji ustaw własną, co najmniej 32 znaki. |
 | `.wa/bin/wa.mjs` | Ten sam bundel co w kicie: należy do rdzenia, więc projekt uruchamia `wa generate`, `wa add` i `wa remove` bez budowania CLI. |
 
@@ -324,9 +325,9 @@ Zmienione pliki: nowe pliki modułu (`prisma/schema/api-keys.prisma`, `src/featu
 
 ### Po `wa add`
 
-1. **Uzupełnij `.env`.** `wa add` nie zmienia `.env`: nowe zmienne modułu trafiają tylko do regionu `wa:modules` w `.env.example` (sprawdzone: po `add api-keys` `.env` nie ma `API_KEY_PEPPER`). Moduł z wymaganą zmienną (`api-keys`, `uploads`) bez wpisu w `.env` zatrzymuje start serwera aplikacji: serwer wypisuje raport `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):` i kończy się kodem 1 ([01-uruchomienie.md](01-uruchomienie.md#bledy-env)). Skopiuj zmienne z regionu i ustaw własne wartości.
+1. **Uzupełnij `.env`.** `wa add` nie zmienia `.env`: nowe zmienne modułu trafiają tylko do regionu `wa:modules` w `.env.example` (sprawdzone: po `add api-keys` `.env` nie ma `API_KEY_PEPPER`). Moduł z wymaganą zmienną (`api-keys`) bez wpisu w `.env` zatrzymuje start serwera aplikacji: serwer wypisuje raport `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):` i kończy się kodem 1 ([01-uruchomienie.md](01-uruchomienie.md#bledy-env)). `uploads` bez wpisów startuje w trybie deweloperskim z providerem `local` i katalogiem `./volumes/uploads`, ale przy `NODE_ENV=production` (`npm start`, obraz Docker) raport ma linię `STORAGE_LOCAL_PATH: wymagana w produkcji przy STORAGE_PROVIDER=local: wskaż trwały katalog` ([15-modul-uploads.md](15-modul-uploads.md#reguly-produkcyjne)). Skopiuj zmienne z regionu i ustaw własne wartości.
 2. **Migracja:** `npx prisma migrate dev --name add-<moduł>` przy działającej bazie, potem commit migracji.
-3. **Usługi:** moduł z `compose` (`uploads`) dodaje usługi do `docker-compose.yml`; uruchom `docker compose up -d`.
+3. **Usługi:** moduł z `compose` dodaje usługi do `docker-compose.yml`. Usługi `uploads` (`minio`, `minio-init`) mają profil `s3`: uruchamiasz je przez `docker compose --profile s3 up -d` tylko przy `STORAGE_PROVIDER=s3`, a przy `local` niczego nie uruchamiasz ([15-modul-uploads.md](15-modul-uploads.md#minio)).
 4. Bez `npm install` w trakcie `add` (`--no-install`) zainstaluj zależności sam.
 
 <a id="add-zaleznosci"></a>
@@ -402,14 +403,14 @@ Zmienione pliki modułu api-keys (użyj --force):
 
 ### Co zostaje i jaką migrację utworzyć
 
-`wa remove` zmienia tylko pliki projektu. Nie dotyka bazy, magazynu S3 ani `.env`:
+`wa remove` zmienia tylko pliki projektu. Nie dotyka bazy, magazynu plików ani `.env`:
 
 | Co | Po `wa remove` | Co zrobić |
 | --- | --- | --- |
 | Tabele modułu w bazie (`audit_logs`, `api_keys`, `uploads`) i ich dane | Zostają, dopóki nie zastosujesz migracji. Schemat w `prisma/schema/` już ich nie opisuje, a aplikacja ich nie używa. | Jeśli dane są potrzebne, zrób kopię tabeli. Potem `npx prisma migrate dev --name remove-<moduł>`: migracja wygenerowana ze schematu bez pliku modułu usuwa tabelę modułu razem z danymi. Zacommituj ją ([03b](03b-schemat-i-migracje.md#migracje-w-projekcie)); na produkcji zastosuje ją `npx prisma migrate deploy` przy wdrożeniu ([10](10-wdrozenie.md)). |
-| Obiekty w magazynie S3 (`uploads`) | Zostają w buckecie. Usunięcie tabeli `uploads` nie usuwa obiektów, a po nim nie ma już listy kluczy. | Przed migracją wypisz klucze z tabeli `uploads` albo opróżnij bucket narzędziem dostawcy S3. |
+| Pliki w magazynie (`uploads`) | Zostają: przy `local` pliki w katalogu `STORAGE_LOCAL_PATH` (lokalnie `volumes/uploads`), przy `s3` obiekty w buckecie. Usunięcie tabeli `uploads` nie usuwa plików, a po nim nie ma już listy kluczy. | Przed migracją wypisz klucze z tabeli `uploads`. Potem usuń katalog albo opróżnij bucket narzędziem dostawcy S3. |
 | Dane lokalnego MinIO (`volumes/minio`) | Zostają na dysku; katalog jest w `.gitignore`. Usługi `minio` i `minio-init` znikają z `docker-compose.yml`, ale uruchomiony wcześniej kontener `minio` działa dalej jako osierocony. | `docker compose up -d --remove-orphans` zatrzymuje i usuwa kontenery usług, których nie ma już w `docker-compose.yml`. Potem usuń katalog ręcznie, jeśli dane nie są potrzebne. |
-| Zmienne modułu w `.env` (`API_KEY_PEPPER`, `S3_*`) | Zostają w `.env` (sprawdzone); znikają tylko z `.env.example`. Nie szkodzą. | Usuń je z `.env` i ze zmiennych środowiska produkcji. |
+| Zmienne modułu w `.env` (`API_KEY_PEPPER`, `STORAGE_*`, `S3_*`) | Zostają w `.env` (sprawdzone dla `API_KEY_PEPPER` i `S3_*`); znikają tylko z `.env.example`. Nie szkodzą. | Usuń je z `.env` i ze zmiennych środowiska produkcji. |
 | Zależności npm | Usunięte według reguły z [Co usuwa](#remove-co-robi), także te, których projekt używa we własnym kodzie, jeśli żaden manifest ich nie deklaruje. | Dopisz zależność, której używasz, do `package.json` i do manifestu modułu projektu, w tej samej sekcji co moduł kitu. |
 | Kod projektu, który importuje pliki modułu | Zostaje. `wa remove` nie szuka importów, więc build i typecheck przestaną przechodzić. | Usuń te importy albo przenieś potrzebny kod do projektu przed `remove`. |
 | `node_modules` | Z `--no-install` zawiera pakiety usuniętych zależności do następnego `npm install`. | `npm install`. |

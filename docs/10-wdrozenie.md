@@ -5,10 +5,11 @@ Po przeczytaniu będziesz wiedzieć:
 - jak powstaje obraz Docker aplikacji, co do niego trafia i dlaczego nie da się w nim uruchomić `admin:create`;
 - co ustawia `railway.toml`, czego Railway nie odczyta z tego pliku w nowej usłudze i co sprawdza healthcheck wdrożenia;
 - jak wdrożyć projekt na Railway krok po kroku, z migracjami i zmiennymi wymaganymi na produkcji;
+- gdzie na produkcji trzymać pliki modułu `uploads`: Railway Bucket, wolumen Railway albo wolumen na własnym serwerze;
 - jak założyć konta na produkcji przez `railway run` i jak przekazać aplikację klientowi, łącznie z odcięciem dostępu Web Amigos po okresie wsparcia;
 - co uruchamia każdy workflow CI i kiedy.
 
-Zweryfikowano z kodem: 3cb47ac, 2026-11-04
+Zweryfikowano z kodem: 734391b, 2026-11-04
 
 Źródła:
 
@@ -25,6 +26,7 @@ Zweryfikowano z kodem: 3cb47ac, 2026-11-04
 - `src/shared/lib/logger.ts`
 - `src/shared/lib/mailer.ts`
 - `src/instrumentation.ts`
+- `src/features/uploads/env.ts`, `src/features/uploads/services/storage-env.ts`, `src/features/uploads/services/local-storage.ts`, `kit/modules/uploads.json` (provider storage modułu `uploads`)
 - `src/proxy.ts`
 - `src/app/api/healthcheck/route.ts`
 - `scripts/admin-create.ts`
@@ -47,9 +49,10 @@ Zweryfikowano z kodem: 3cb47ac, 2026-11-04
 - `node_modules/better-auth/dist/plugins/admin/routes.mjs` (better-auth 1.7.13: `setRole`, `removeUser`, `impersonateUser`, `stopImpersonating`)
 - `node_modules/better-auth/dist/plugins/organization/routes/crud-members.mjs` (`leaveOrganization`, `listMembers`, `updateMemberRole`)
 - dokumentacja Railway, sprawdzona 2026-10-28: [Config as Code](https://docs.railway.com/reference/config-as-code), [Infrastructure as Code](https://docs.railway.com/infrastructure-as-code), [healthchecki](https://docs.railway.com/reference/healthchecks), [komenda przed wdrożeniem](https://docs.railway.com/guides/pre-deploy-command), [`railway run`](https://docs.railway.com/cli/run), [PostgreSQL](https://docs.railway.com/databases/postgresql), [zmienne](https://docs.railway.com/reference/variables), [wdrożenia z GitHub](https://docs.railway.com/guides/github-autodeploys)
+- dokumentacja Railway, sprawdzona 2026-11-04: [wolumeny](https://docs.railway.com/volumes/reference), [Storage Buckets](https://docs.railway.com/storage-buckets), [zmienne ustawiane przez Railway](https://docs.railway.com/variables/reference)
 - forum Railway: [odpowiedź Railway o nowych usługach](https://station.railway.com/questions/railway-toml-has-no-effect-what-replac-b623aa81) (o usługach od 2026-08-28; odpowiedź z 2026-09-14), [wątek o odrzuconym wdrożeniu](https://station.railway.com/questions/custom-dockerfile-path-is-ignored-railw-8477b5bc)
 
-Produkcja projektu to projekt na Railway (platforma hostingowa) z dwiema usługami: aplikacją uruchamianą z obrazu Docker i bazą PostgreSQL. Maile wysyła Resend, a logi przyjmuje zewnętrzny odbiornik OTLP (protokołu eksportu logów OpenTelemetry, [07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#otel)). Diagram usług jest w [02-architektura.md](02-architektura.md).
+Produkcja projektu to projekt na Railway (platforma hostingowa) z dwiema usługami: aplikacją uruchamianą z obrazu Docker i bazą PostgreSQL. Projekt z modułem `uploads` ma do tego Railway Bucket albo wolumen usługi aplikacji ([Pliki modułu `uploads`](#pliki-uploads)). Maile wysyła Resend, a logi przyjmuje zewnętrzny odbiornik OTLP (protokołu eksportu logów OpenTelemetry, [07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#otel)). Diagram usług jest w [02-architektura.md](02-architektura.md).
 
 Opis zachowania Railway pochodzi z jego dokumentacji (linki wyżej), a nie z kodu kitu, i nikt go nie sprawdzał wdrożeniem. Oznaczenie „(sprawdzone)” znaczy, że zachowanie potwierdziło uruchomienie kodu z repozytorium lokalnie: `npx prisma migrate deploy` na lokalnej bazie PostgreSQL, zbudowany serwer `.next/standalone/server.js` oraz wywołania endpointów better-auth przez `auth.handler` z ciasteczkiem sesji i nagłówkiem `Origin`, tak jak robi to przeglądarka.
 
@@ -77,7 +80,7 @@ flowchart TD
 | `base` | `FROM node:22-alpine` | Wspólna baza pozostałych etapów, Node 22 jak w `.nvmrc`. |
 | `deps` | Kopiuje `package.json` i `package-lock.json`, potem `npm ci --ignore-scripts`. | Instalacja dokładnie według lockfile. `--ignore-scripts` pomija `postinstall` (`prisma generate`) i `prepare` (husky). |
 | `builder` | Kopiuje `node_modules` z `deps` i cały kontekst budowania, uruchamia `npx prisma generate`, `mkdir -p public` i `npm run build` z `NEXT_TELEMETRY_DISABLED=1`. | Klient Prismy powstaje od nowa, bo `src/generated` nie trafia do kontekstu. Repozytorium nie ma katalogu `public/`, a etap `runner` go kopiuje, więc `mkdir` go zakłada. |
-| `runner` | Ustawia zmienne, zakłada użytkownika `nextjs` (uid 1001), kopiuje `public/`, `.next/standalone`, `.next/static`, `prisma/` i `prisma.config.ts`, instaluje Prisma CLI, przełącza się na `USER nextjs` i uruchamia `CMD ["node", "server.js"]`. | Obraz końcowy: serwer, pliki statyczne, schemat z migracjami i narzędzie do migracji. Proces nie działa jako `root`. |
+| `runner` | Ustawia zmienne, zakłada użytkownika `nextjs` (uid 1001), kopiuje `public/`, `.next/standalone`, `.next/static`, `prisma/` i `prisma.config.ts`, instaluje Prisma CLI, zakłada katalog `/app/volumes/uploads` należący do `nextjs:nodejs`, przełącza się na `USER nextjs` i uruchamia `CMD ["node", "server.js"]`. | Obraz końcowy: serwer, pliki statyczne, schemat z migracjami i narzędzie do migracji. Proces nie działa jako `root`, więc provider `local` modułu `uploads` potrzebuje katalogu z prawem zapisu dla `nextjs` ([Pliki modułu `uploads`](#pliki-uploads)). Katalog powstaje w każdym obrazie, także bez modułu. |
 
 `Dockerfile`
 
@@ -148,7 +151,7 @@ docs
 ```
 
 - `.env` i `.env.*` (poza `.env.example`) nie trafiają do kontekstu budowania, więc lokalne sekrety nie wejdą do obrazu. Zmienne produkcyjne pochodzą wyłącznie z Railway.
-- `node_modules`, `.next` i `src/generated` powstają w obrazie od nowa. Pozostałe wpisy to pliki, których serwer nie potrzebuje: historia git, dokumentacja, konfiguracja agentów, dane lokalnej bazy i testy e2e. Wzorzec `*.md` obejmuje tylko pliki Markdown w katalogu głównym, a `kit/` i `docs/` są wpisane osobno, bo to pliki tylko dla kitu.
+- `node_modules`, `.next` i `src/generated` powstają w obrazie od nowa. Pozostałe wpisy to pliki, których serwer nie potrzebuje: historia git, dokumentacja, konfiguracja agentów, dane lokalnej bazy, MinIO i lokalne pliki `uploads` z `volumes/` oraz testy e2e. Wzorzec `*.md` obejmuje tylko pliki Markdown w katalogu głównym, a `kit/` i `docs/` są wpisane osobno, bo to pliki tylko dla kitu.
 - `prisma/migrations/` nie jest wykluczony, więc migracje trafiają do obrazu razem z `prisma/`. Railway buduje jednak z repozytorium, czyli tylko z zacommitowanych plików. Migracje, które zostały zignorowane (jak w repozytorium kitu), nie dotrą do obrazu ([migracje](#migracje)).
 
 <a id="railway-toml"></a>
@@ -221,8 +224,10 @@ Zmienne ustawiasz w usłudze aplikacji na Railway. Schemat w `src/shared/lib/env
 | `EMAIL_FROM` | wymagana | Nadawca maili, na przykład `WA App <noreply@example.com>`, z domeny skonfigurowanej w Resend. | Błąd walidacji przy braku. |
 | `RESEND_API_KEY` | wymagana przy `NODE_ENV=production` | Klucz API Resend. | `RESEND_API_KEY: wymagana w produkcji`, także przy ustawionym `SMTP_URL`. |
 | `API_KEY_PEPPER` | wymagana, gdy zainstalowany jest moduł `api-keys` | Losowy napis, co najmniej 32 znaki, na przykład z `openssl rand -base64 32`. Nigdy wartość z `.env.example`. `wa create` zostawia wartość przykładową w `.env.example` i w `.env` (`writeEnvFile` w `kit/cli/src/commands/create.ts` kopiuje `.env.example` i podmienia tylko `BETTER_AUTH_SECRET` i `ADMIN_EMAIL`), więc ustaw własną przed pierwszym wdrożeniem. Zmiana wartości unieważnia wszystkie klucze API, więc wartość ma być stała dla środowiska ([konfiguracja peppera](14-modul-api-keys.md#pepper)). | Błąd walidacji dla całej aplikacji, nie tylko dla modułu: proces kończy się przy starcie, także przy wartości z `.env.example` na produkcji ([kiedy zobaczysz błąd](#blad-env)). |
-| `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET` | wymagane, gdy zainstalowany jest moduł `uploads` | Dane dostępowe do magazynu zgodnego z S3: Railway Bucket (zasób w projekcie Railway) albo Cloudflare R2. Wartości weź z panelu magazynu, a nie z `.env.example` (tam jest lokalny MinIO z hasłem `minioadmin`). Bucket musi istnieć przed pierwszym wdrożeniem: aplikacja go nie tworzy. Walidacja nie odrzuca wartości z `.env.example` ([zmienne S3](15-modul-uploads.md#zmienne-s3)). | Błąd walidacji dla całej aplikacji: proces kończy się przy starcie ([kiedy zobaczysz błąd](#blad-env)). |
-| `S3_REGION`, `S3_FORCE_PATH_STYLE` | opcjonalne | `S3_REGION` domyślnie `auto` (tak działa R2; dla dostawcy z regionami podaj jego nazwę). `S3_FORCE_PATH_STYLE=true` włącza adresowanie `endpoint/bucket/klucz` zamiast `bucket.endpoint`; ustaw je, gdy dostawca nie obsługuje adresów z nazwą bucketu w domenie. Brak daje `false`. | Zła wartość regionu albo stylu adresowania kończy się błędem przy pierwszym zapisie pliku (500 `storage_failed`), a nie przy starcie. |
+| `STORAGE_PROVIDER` | gdy zainstalowany jest moduł `uploads`; opcjonalna | `local` (domyślnie): pliki na dysku serwera; `s3`: magazyn zgodny z S3. Wybór opisuje [Pliki modułu `uploads`](#pliki-uploads). | Inna wartość: `STORAGE_PROVIDER: dozwolone wartości: local, s3` i koniec procesu przy starcie ([kiedy zobaczysz błąd](#blad-env)). |
+| `STORAGE_LOCAL_PATH` | przy `local` poza Railway wymagana | Bezwzględna ścieżka trwałego katalogu, na przykład wolumenu: w obrazie Docker `/app/volumes/uploads`. Na Railway z wolumenem jej nie ustawiasz, bo katalogiem jest `RAILWAY_VOLUME_MOUNT_PATH`; jeśli ją ustawisz, musi leżeć w wolumenie ([reguły](15-modul-uploads.md#reguly-produkcyjne)). | Brak poza Railway: `STORAGE_LOCAL_PATH: wymagana w produkcji przy STORAGE_PROVIDER=local: wskaż trwały katalog`; na Railway bez wolumenu: `STORAGE_PROVIDER: na Railway bez wolumenu pliki zginą przy redeployu: …`. W obu przypadkach proces kończy się przy starcie. |
+| `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET` | wymagane przy `STORAGE_PROVIDER=s3` | Dane dostępowe do magazynu zgodnego z S3: Railway Bucket (zasób w projekcie Railway, [niżej](#railway-bucket)) albo Cloudflare R2. Wartości weź z panelu magazynu, a nie z `.env.example` (tam jest lokalny MinIO z hasłem `minioadmin`). Bucket musi istnieć przed pierwszym wdrożeniem: aplikacja go nie tworzy. Walidacja nie odrzuca wartości z `.env.example` ([zmienne S3](15-modul-uploads.md#zmienne-s3)). Przy `local` te zmienne nie są sprawdzane. | Przy `s3` błąd walidacji dla całej aplikacji: proces kończy się przy starcie ([kiedy zobaczysz błąd](#blad-env)). |
+| `S3_REGION`, `S3_FORCE_PATH_STYLE` | opcjonalne przy `s3` | `S3_REGION` domyślnie `auto` (tak działa R2; dla dostawcy z regionami podaj jego nazwę). `S3_FORCE_PATH_STYLE=true` włącza adresowanie `endpoint/bucket/klucz` zamiast `bucket.endpoint`; ustaw je, gdy dostawca nie obsługuje adresów z nazwą bucketu w domenie. Brak daje `false`. | Zła wartość regionu albo stylu adresowania kończy się błędem przy pierwszym zapisie pliku (500 `storage_failed`), a nie przy starcie. |
 | `SMTP_URL` | nie ustawiaj | Brak. | Ustawiona wygrywa z Resend także na produkcji: maile idą przez SMTP ([D18](decyzje.md#d18)). |
 | `AUTH_PUBLIC_SIGNUP`, `MULTI_ORG`, `ADMIN_IMPERSONATION` | opcjonalne | `true` albo `false`; brak daje `false`. Do czasu założenia kont `AUTH_PUBLIC_SIGNUP=false` ([krok 7](#krok-konta)). | Każda inna wartość, na przykład `1` albo `yes`, to błąd walidacji ([D17](decyzje.md#d17)). Znaczenie flag: [D10](decyzje.md#d10), [D06](decyzje.md#d06), [D20](decyzje.md#d20). |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | schemat nie wymaga, ale ustaw | Adres bazowy odbiornika OTLP przez HTTP, bez `/v1/logs`. | Wpisy `logger` nigdzie nie trafiają ([logi](#logi)). |
@@ -233,12 +238,12 @@ Zmienne ustawiasz w usłudze aplikacji na Railway. Schemat w `src/shared/lib/env
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | nie ustawiaj | Brak. | Czyta je tylko `admin:create`. Ustawione w usłudze trafiłyby do każdego `railway run`. |
 | `LOG_LEVEL` | nie ustawiaj | Brak. | Niczego nie zmienia ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#log-level)). |
 
-Moduły i feature mogą dokładać własne zmienne: linie w regionie `# wa:modules:start` / `# wa:modules:end` w `.env.example` i schematy z `src/features/<x>/env.ts`, które walidacja łączy ze schematem rdzenia ([07-i18n-mail-env.md](07-i18n-mail-env.md#env-feature)). Z modułów kitu własne zmienne mają `api-keys` i `uploads`; pełne listy z regułami są w [14b-modul-api-keys-uzycie.md](14b-modul-api-keys-uzycie.md#referencja-env) i [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#referencja-env). Usługi `minio` i `minio-init` z regionu `wa:services` w `docker-compose.yml` służą tylko do pracy lokalnej ([15-modul-uploads.md](15-modul-uploads.md#minio)); obraz Docker ich nie zawiera, a na produkcji aplikacja łączy się z magazynem S3 pod `S3_ENDPOINT`.
+Moduły i feature mogą dokładać własne zmienne: linie w regionie `# wa:modules:start` / `# wa:modules:end` w `.env.example` i schematy z `src/features/<x>/env.ts`, które walidacja łączy ze schematem rdzenia ([07-i18n-mail-env.md](07-i18n-mail-env.md#env-feature)). Z modułów kitu własne zmienne mają `api-keys` i `uploads`; pełne listy z regułami są w [14b-modul-api-keys-uzycie.md](14b-modul-api-keys-uzycie.md#referencja-env) i [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#referencja-env). Usługi `minio` i `minio-init` z regionu `wa:services` w `docker-compose.yml` mają profil `s3` i służą tylko do pracy lokalnej ([15-modul-uploads.md](15-modul-uploads.md#minio)). Obraz Docker ich nie zawiera: na produkcji aplikacja zapisuje pliki w katalogu z `STORAGE_LOCAL_PATH` albo w magazynie S3 pod `S3_ENDPOINT` ([Pliki modułu `uploads`](#pliki-uploads)).
 
-<a id="blad-env"></a>**Kiedy zobaczysz błąd.** Błędne zmienne zatrzymują start. `register()` z `src/instrumentation.ts` sprawdza zmienne rdzenia i zainstalowanych modułów, zanim serwer obsłuży pierwsze żądanie, a przy błędzie wypisuje raport na stderr i kończy proces kodem 1 ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env), [D48](decyzje.md#d48)). Sprawdzone na zbudowanym serwerze uruchomionym bez zmiennych komendą `env -i PATH="$PATH" PORT=3998 node .next/standalone/server.js`: proces zakończył się sam w mniej niż sekundę, bez żadnego żądania, z kodem 1, a raport na stderr zaczynał się od linii:
+<a id="blad-env"></a>**Kiedy zobaczysz błąd.** Błędne zmienne zatrzymują start. `register()` z `src/instrumentation.ts` sprawdza zmienne rdzenia i zainstalowanych modułów, zanim serwer obsłuży pierwsze żądanie, a przy błędzie wypisuje raport na stderr i kończy proces kodem 1 ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env), [D48](decyzje.md#d48)). Sprawdzone na zbudowanym serwerze uruchomionym bez zmiennych komendą `env -i PATH="$PATH" PORT=3998 node .next/standalone/server.js`: proces zakończył się sam w mniej niż sekundę, bez żadnego żądania, z kodem 1, a raport na stderr zaczynał się od linii (sprawdzone 2026-11-04 na kodzie z modułami `api-keys` i `uploads`, pełny raport w [07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)):
 
 ```text
-Nieprawidłowe zmienne środowiskowe (9):
+Nieprawidłowe zmienne środowiskowe (6):
 - DATABASE_URL: Invalid input: expected string, received undefined
 - BETTER_AUTH_SECRET: Invalid input: expected string, received undefined
 ```
@@ -252,6 +257,64 @@ Healthcheck nowego wdrożenia nie przechodzi więc, wdrożenie jest nieudane, a 
 - Bez `OTEL_EXPORTER_OTLP_ENDPOINT` `logger` na produkcji nic nie zapisuje: ani na konsolę, ani do eksportu. W logach usługi widać wtedy tylko to, co wypisują Next.js i biblioteki, bez błędów komend z `handleCommandError` i bez nieudanych wysyłek maili ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#logger-cel), [D15](decyzje.md#d15)).
 - Eksport wysyła wpisy paczkami co 5 sekund. Przy `SIGTERM`, czyli przy zatrzymaniu kontenera w trakcie restartu albo nowego wdrożenia, Next.js kończy proces przez `process.exit(143)` bez opróżnienia kolejki OTel. Wpisy z ostatnich sekund przed redeployem mogą więc nie dotrzeć do odbiornika ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#otel)).
 
+<a id="pliki-uploads"></a>
+
+## Pliki modułu `uploads`
+
+Projekt z modułem `uploads` trzyma pliki tam, gdzie wskazuje `STORAGE_PROVIDER`: domyślnie w katalogu na dysku serwera (`local`), a przy `s3` w magazynie zgodnym z S3 ([15-modul-uploads.md](15-modul-uploads.md#provider)). Na produkcji wybierasz jedno z trzech miejsc:
+
+| Miejsce | Zmienne | Zalety | Ograniczenia |
+| --- | --- | --- | --- |
+| Railway Bucket | `STORAGE_PROVIDER=s3` i referencje do zmiennych bucketu ([niżej](#railway-bucket)) | Usługa aplikacji może mieć repliki, wdrożenie nie ma przerwy, którą Railway zapowiada dla usług z wolumenem, a proces nie musi działać jako root. | Według dokumentacji Railway bucket jest zawsze prywatny i nie ma automatycznych kopii zapasowych ani wersjonowania. |
+| Wolumen Railway | `STORAGE_PROVIDER` nieustawiona albo `local`, bez `STORAGE_LOCAL_PATH` ([niżej](#railway-wolumen)) | Prosty przy jednej instancji. Według dokumentacji Railway wolumeny mają kopie zapasowe ręczne i automatyczne. | Jeden wolumen na usługę, bez replik, krótka przerwa przy każdym redeployu i możliwy brak prawa zapisu dla użytkownika `nextjs`. |
+| Własny serwer klienta | `local` z `STORAGE_LOCAL_PATH` na trwałym wolumenie albo `s3` z dowolnym magazynem zgodnym z S3 ([niżej](#wlasny-serwer)) | Bez zależności od Railway. | Przy `local` jedna instancja, a kopie zapasowe katalogu robi administrator serwera. |
+
+**Zalecenie.** Na Railway wybierz domyślnie Railway Bucket: pozwala na repliki, nie ma przerwy przy redeployu i nie wymaga `RAILWAY_RUN_UID=0`. Wolumen wybierz dla prostego wdrożenia z jedną instancją. Na własnym serwerze klienta wybierz `local` na trwałym wolumenie albo S3.
+
+Część konfiguracji, które zgubiłyby pliki, zatrzymuje sprawdzenie przy starcie ([kiedy zobaczysz błąd](#blad-env)): provider `local` w produkcji na Railway wymaga wolumenu, a poza Railway jawnego `STORAGE_LOCAL_PATH` ([reguły produkcyjne](15-modul-uploads.md#reguly-produkcyjne)). Czy wskazany katalog przetrwa redeploy, kit nie sprawdza. Plików między providerami moduł nie przenosi, więc wybór na produkcji zrób przed pierwszym uploadem ([znane-ograniczenia.md](znane-ograniczenia.md#uploads-local)).
+
+<a id="railway-bucket"></a>
+
+### Railway Bucket
+
+1. Utwórz bucket w projekcie Railway i wybierz jego region; regionu nie zmienisz później. Prawdziwa nazwa bucketu to nazwa wyświetlana z krótkim hashem, na przykład `my-bucket-jdhhd8oe18xi` (dokumentacja Railway).
+2. W usłudze aplikacji ustaw zmienne z referencjami do zmiennych bucketu, gdzie `<bucket>` to nazwa bucketu w projekcie:
+
+   ```text
+   STORAGE_PROVIDER=s3
+   S3_BUCKET=${{<bucket>.BUCKET}}
+   S3_ENDPOINT=${{<bucket>.ENDPOINT}}
+   S3_REGION=${{<bucket>.REGION}}
+   S3_ACCESS_KEY_ID=${{<bucket>.ACCESS_KEY_ID}}
+   S3_SECRET_ACCESS_KEY=${{<bucket>.SECRET_ACCESS_KEY}}
+   ```
+
+3. `S3_FORCE_PATH_STYLE` zostaw nieustawione. Railway Bucket używa adresów z nazwą bucketu w domenie (virtual-hosted) pod endpointem `https://t3.storageapi.dev`. Według dokumentacji Railway adresów `endpoint/bucket` (`S3_FORCE_PATH_STYLE=true`) mogą wymagać tylko buckety utworzone przed tą zmianą.
+
+Bucket nie ma dostępu publicznego, ale aplikacji to nie przeszkadza: pliki zawsze idą przez `GET /api/uploads/<id>` ([15-modul-uploads.md](15-modul-uploads.md#get)). Tych zmiennych nie sprawdzono w kicie na prawdziwym projekcie Railway (niesprawdzone). Spec providera storage podaje, że projekt Ragen potwierdził na projekcie testowym upload i pobieranie z tymi referencjami.
+
+<a id="railway-wolumen"></a>
+
+### Wolumen Railway
+
+1. Podepnij wolumen do usługi aplikacji z punktem montowania `/app/volumes/uploads`. Obraz zakłada ten katalog dla użytkownika `nextjs` ([Obraz Docker](#obraz-docker)).
+2. Nie ustawiaj `STORAGE_PROVIDER` (albo ustaw `local`) ani `STORAGE_LOCAL_PATH`. Railway ustawia w usłudze z wolumenem `RAILWAY_VOLUME_MOUNT_PATH` na punkt montowania, a moduł bierze go jako katalog plików. `STORAGE_LOCAL_PATH` ustawiona poza wolumenem zatrzymuje start ([reguły](15-modul-uploads.md#reguly-produkcyjne)).
+3. Ustaw `RAILWAY_RUN_UID=0`. Według dokumentacji Railway obraz, który uruchamia proces jako użytkownik inny niż root (tu `nextjs`, UID 1001), ma problemy z prawami w podpiętym wolumenie, a ta zmienna uruchamia proces jako root. Prawa zapisu do wolumenu Railway bez niej i z nią są niesprawdzone.
+
+Według dokumentacji Railway usługa ma najwyżej jeden wolumen, usługa z wolumenem nie może mieć replik, a redeploy usługi z wolumenem ma krótką przerwę, także z healthcheckiem. Usługa Railway bez wolumenu z providerem `local` nie wystartuje: raport ma linię `STORAGE_PROVIDER: na Railway bez wolumenu pliki zginą przy redeployu: podepnij wolumen albo ustaw STORAGE_PROVIDER=s3` (komunikat sprawdzony 2026-11-04 ze zmiennymi Railway ustawionymi w powłoce; reakcja Railway na nieudany start niesprawdzona, [kiedy zobaczysz błąd](#blad-env)).
+
+<a id="wlasny-serwer"></a>
+
+### Własny serwer
+
+Obraz ustawia `NODE_ENV=production`, więc provider `local` poza Railway wymaga `STORAGE_LOCAL_PATH`. Podepnij trwały wolumen w katalogu, który obraz przygotowuje, i wskaż go w zmiennej, na przykład (pozostałe zmienne z [tabeli](#zmienne) pominięte):
+
+```bash
+docker run -v uploads:/app/volumes/uploads -e STORAGE_LOCAL_PATH=/app/volumes/uploads <obraz>
+```
+
+Nazwany wolumen Dockera podpięty w tym katalogu przejmuje jego właściciela, więc użytkownik `nextjs` może do niego pisać. Zapis do świeżego nazwanego wolumenu w `/app/volumes/uploads` działał, a nazwany wolumen podpięty w ścieżce, której obraz nie przygotowuje, dał `Permission denied` (sprawdzone 2026-11-04 komendą `touch` w kontenerze z obrazu kitu). Serwera aplikacji z wolumenem nie uruchamiano (niesprawdzone). Katalog hosta podpięty zamiast wolumenu, na przykład `-v /srv/uploads:/app/volumes/uploads`, musi dawać prawo zapisu użytkownikowi o UID 1001 (niesprawdzone). Kilka instancji aplikacji wymaga `STORAGE_PROVIDER=s3`.
+
 <a id="pierwsze-wdrozenie"></a>
 
 ## Pierwsze wdrożenie krok po kroku
@@ -262,7 +325,7 @@ Wymagania: repozytorium projektu na GitHub, konto Resend z kluczem API i domeną
 
 1. **Migracje w repozytorium.** Utwórz migrację, jeśli katalog jest pusty (`npx prisma migrate dev --name init`), i zacommituj cały katalog ([03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#migracje-w-projekcie)). Kit nie dostarcza migracji, bo schemat projektu zależy od wybranych modułów, i ignoruje ten katalog plikiem `prisma/migrations/.gitignore`, którego `wa create` nie kopiuje ([D13](decyzje.md#d13)). Wynik: `git ls-files prisma/migrations` wypisuje `prisma/migrations/migration_lock.toml` i co najmniej jeden plik `migration.sql`.
 2. **Projekt na Railway.** Utwórz projekt z usługą PostgreSQL i usługą aplikacji połączoną z repozytorium GitHub. Railway wdraża usługę po każdym pushu do gałęzi połączonej z nią w ustawieniach.
-3. **Domena i zmienne.** W ustawieniach sieci usługi aplikacji wygeneruj domenę albo podepnij własną. Potem ustaw zmienne z [tabeli](#zmienne), a `APP_URL` na adres tej domeny z `https://`. `AUTH_PUBLIC_SIGNUP` zostaw `false` (albo jej nie ustawiaj) do czasu założenia kont w kroku 7, bo inaczej obca osoba może zostać właścicielem organizacji klienta ([dlaczego](#krok-konta)). Docelowe flagi uzgodnione z klientem ustawisz przy przekazaniu ([krok 5](#przekazanie-start)).
+3. **Domena i zmienne.** W ustawieniach sieci usługi aplikacji wygeneruj domenę albo podepnij własną. Potem ustaw zmienne z [tabeli](#zmienne), a `APP_URL` na adres tej domeny z `https://`. W projekcie z modułem `uploads` przygotuj też miejsce na pliki: bucket albo wolumen ([Pliki modułu `uploads`](#pliki-uploads)). `AUTH_PUBLIC_SIGNUP` zostaw `false` (albo jej nie ustawiaj) do czasu założenia kont w kroku 7, bo inaczej obca osoba może zostać właścicielem organizacji klienta ([dlaczego](#krok-konta)). Docelowe flagi uzgodnione z klientem ustawisz przy przekazaniu ([krok 5](#przekazanie-start)).
 
    <a id="krok-ustawienia"></a>
 4. **Ustawienia wdrożenia.** Wpisz w ustawieniach usługi wartości z `railway.toml`, bo nowa usługa nie czyta tego pliku ([dlaczego](#config-as-code)): komenda przed wdrożeniem `npx prisma migrate deploy`, ścieżka healthchecku `/api/healthcheck` z limitem czasu (w pliku 10 sekund), restart przy błędzie z najwyżej 3 próbami. Komendę startu możesz zostawić pustą, bo obraz ma `CMD ["node", "server.js"]`.

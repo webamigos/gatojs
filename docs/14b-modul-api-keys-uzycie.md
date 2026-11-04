@@ -8,13 +8,14 @@ Po przeczytaniu będziesz wiedzieć:
 - jak przetestować trasę z kluczem (brak klucza, zły zakres, klucz innej organizacji) i jakie problemy pojawiają się najczęściej;
 - jakie zmienne, trasy, zakresy, akcje i komunikaty ma moduł.
 
-Zweryfikowano z kodem: 2788536, 2026-11-04
+Zweryfikowano z kodem: 734391b, 2026-11-04
 
 Źródła:
 
 - `src/features/api-keys/` (`module.ts`, `env.ts`, `services/authenticate-api-key.ts`, `services/api-scopes.ts`, `services/organization-api.ts`, `services/commands/api-key-commands.ts`, `components/api-keys-manager.tsx`, `i18n/`) z testami w `__tests__/`, w tym `__tests__/organization-route.integration.test.ts` i `services/__tests__/api-keys-isolation.integration.test.ts`
 - `src/app/api/v1/organization/route.ts`
 - `src/shared/lib/audit.ts`
+- `src/instrumentation.ts`, `src/shared/lib/env.ts` (sprawdzenie zmiennych przy starcie)
 - `src/test/integration/` (`setup-env.ts`, `database.ts`, `global-setup.ts`), `e2e/env.ts`
 - `src/__tests__/server-entrypoints-guard.test.ts`
 - `mutation-gate.json`

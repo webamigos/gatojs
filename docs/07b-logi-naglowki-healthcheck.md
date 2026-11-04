@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jakie nagłówki bezpieczeństwa dostaje każda odpowiedź;
 - co sprawdza `/api/healthcheck`, a czego nie.
 
-Zweryfikowano z kodem: 3cb47ac, 2026-11-04
+Zweryfikowano z kodem: 734391b, 2026-11-04
 
 Źródła:
 

@@ -2,7 +2,7 @@
 
 Ten plik wyjaśnia, dlaczego wa-kit jest zbudowany tak, a nie inaczej. Każdy wpis mówi, jaki problem rozwiązuje decyzja, co wybrano, co odrzucono, co z tego wynika przy pisaniu kodu i co pilnuje, żeby decyzja była przestrzegana. Jak dana część działa krok po kroku, opisują pliki `01`–`16b` (spis w [README.md](README.md)).
 
-Zweryfikowano z kodem: 2788536, 2026-11-04 (wpis D48 i odnośniki do niego w D15, D17 i D43); 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
+Zweryfikowano z kodem: 734391b, 2026-11-04 (wpis D49, poprawki w D44, D45 i D48); 2788536, 2026-11-04 (wpis D48 i odnośniki do niego w D15, D17 i D43); 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
 
 Rejestr obejmuje decyzje, które obowiązują w kodzie, i decyzje zastąpione, zostawione jako zapis historii. Funkcje zaplanowane, ale niezrobione (na przykład aktualizacja projektu do nowszej wersji kitu albo moduły `worker` i `legal`), pojawiają się wyłącznie jako kontekst albo konsekwencja.
 
@@ -44,7 +44,7 @@ Sposoby egzekwowania różnią się siłą:
 - `zastąpiona przez Dxx`: decyzja przestała obowiązywać. Wpis zostaje w pliku z nowym statusem i jednym zdaniem o tym, co się zmieniło, a decyzja, która go zastąpiła, ma własny numer i mówi, co zmieniła. Pozostała treść zastąpionego wpisu jest zapisem historii i nie opisuje kodu.
 - Gdy w decyzji zmieniły się tylko fakty (na przykład lista plików generowanych albo miejsc w kodzie), wpis poprawia się w miejscu, bez nowego numeru.
 - Numery `D01`, `D02`… są stałe i nie są używane ponownie. Inne pliki linkują do wpisu przez kotwicę, na przykład `[D07](decyzje.md#d07)`, więc zmiana numeru zepsułaby linki. Odnośnik, który opisuje bieżący stan kodu, wskazuje decyzję obowiązującą, a nie zastąpioną.
-- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D46 i D48: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), pozostałe obowiązują. Numer D47 należy do decyzji o `wa update` z osobnej gałęzi ([webamigos/wa-kit#14](https://github.com/webamigos/wa-kit/pull/14)).
+- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D46, D48 i D49: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), pozostałe obowiązują. Numer D47 należy do decyzji o `wa update` z osobnej gałęzi ([webamigos/wa-kit#14](https://github.com/webamigos/wa-kit/pull/14)).
 - Nową decyzję dopisuje się na końcu z następnym wolnym numerem, kotwicą `<a id="dNN"></a>` i wszystkimi polami.
 - Jeden plik wystarcza, dopóki decyzje dopisuje jedna gałąź naraz. Gdy zaczną to robić równolegle różne gałęzie, dwie mogą dopisać ten sam następny numer; wtedy warto rozważyć osobne pliki `docs/decyzje/NNNN-*.md`.
 
@@ -131,10 +131,11 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 | [D41](#d41) | Redakcja danych wrażliwych przed zapisem; bez retencji | Moduły kitu | obowiązuje |
 | [D42](#d42) | Zdarzenia organizacji łapane hookami better-auth | Moduły kitu | obowiązuje |
 | [D43](#d43) | Klucze API: HMAC z pepperem, zakresy, limit, bez `OrgContext` | Moduły kitu | obowiązuje |
-| [D44](#d44) | Uploads: S3, cele uploadu, widoczność i `Cache-Control`, cofnięcie obiektu | Moduły kitu | obowiązuje |
+| [D44](#d44) | Uploads: magazyn plików, cele uploadu, widoczność i `Cache-Control`, cofnięcie obiektu | Moduły kitu | obowiązuje |
 | [D45](#d45) | Region `wa:ci-integration` i pole `ciSteps`; pusty region bez markerów pomijany | CLI i składanie projektu | obowiązuje |
 | [D46](#d46) | Kit wydawany tagiem `v<version>`; projekt pobiera kit tylko w swojej wersji | Wydanie | obowiązuje |
 | [D48](#d48) | Walidacja `env` przy starcie procesu | Konfiguracja i usługi | obowiązuje |
+| [D49](#d49) | Uploads: provider storage `local` albo `s3`, domyślnie `local` | Moduły kitu | obowiązuje |
 
 <a id="d01"></a>
 
@@ -1464,7 +1465,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 <a id="d44"></a>
 
-## D44 · Uploads: magazyn S3, cele uploadu, widoczność `public`/`organization` z `Cache-Control`, cofnięcie obiektu przy błędzie zapisu rekordu
+## D44 · Uploads: magazyn plików, cele uploadu, widoczność `public`/`organization` z `Cache-Control`, cofnięcie obiektu przy błędzie zapisu rekordu
 
 **Status:** obowiązuje · **Data:** 2026-10-29 (`no-store` dla plików organizacji 2026-10-30) · **Kto zdecydował:** Jakub (spec planu 3, §7, „Ustalone”: cele, walidacja typu po zawartości, rekord, role, tryb serwisowy, pobieranie z `Cache-Control` zależnym od widoczności, MinIO lokalnie; 2026-10-30: `private, no-store` dla plików organizacji, commit `2e557c3`); autor specu planu 3 („Moje decyzje”: cofnięcie obiektu, usunięcie rekordu mimo błędu magazynu, brak wyjątku od `getOrgContext()`); poprawki z recenzji PR #8 (commity `0b5c91d`, `19d18d6`, `2e557c3`)
 
@@ -1472,7 +1473,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 **Decyzja.**
 
-- Pliki leżą w magazynie zgodnym z S3: lokalnie MinIO z fragmentu `docker/uploads.compose.yml` (region `wa:services`), na produkcji Railway Bucket albo R2. Zmienne modułu: `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE`.
+- Pliki leżą w magazynie, który wybiera `STORAGE_PROVIDER` ([D49](#d49)): domyślnie w katalogu na dysku serwera (`local`), a przy `s3` w magazynie zgodnym z S3 (lokalnie MinIO z profilu Compose `s3` we fragmencie `docker/uploads.compose.yml`, na produkcji Railway Bucket albo R2). Zmienne S3: `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE`. Do 2026-11-04 (`uploads` `0.1.0`) S3 był jedynym magazynem.
 - Cel uploadu deklaruje moduł w `uploadPurposes` ([D39](#d39)): dozwolone typy, limit rozmiaru, widoczność i opcjonalne zmniejszenie obrazu. Kit dostarcza cel `editor-image` (JPEG, PNG, WebP, do 5 MB, `public`, szerokość do 1200 px).
 - `POST /api/uploads` (`src/app/api/uploads/route.ts`) najpierw wymaga nagłówka `Content-Length` (inaczej 411) z rozmiarem nie większym niż największy limit celu plus 64 KB na narzut formularza (inaczej 413). Sesję i organizację trasa sprawdza po nagłówku `Content-Length`, a przed odczytem ciała. Limit konkretnego celu sprawdza się po odczycie pliku. Typ pliku ustala się z zawartości (`file-type`), nie z `file.type`, a rozszerzenie z typu. W trybie serwisowym trasa wymaga potwierdzenia jak komenda ([D22](#d22)). Klucz obiektu: `orgs/<organizationId>/<cel>/<uuid>.<rozszerzenie>`.
 - Gdy zapis rekordu `Upload` w bazie się nie uda, obiekt jest usuwany z magazynu (błąd sprzątania tylko w logu). Usunięcie pliku kasuje rekord także wtedy, gdy obiektu nie da się usunąć z magazynu.
@@ -1489,7 +1490,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 - Plik `public` jest dostępny dla każdego, kto zna adres, i zostaje w cache po stronie przeglądarki i pośredników do roku. Danych prywatnych nie wgrywa się do celu `public`.
 - Członek kilku organizacji widzi plik `organization` tylko po przełączeniu na jego organizację.
-- `wa remove uploads` i usunięcie rekordu z błędem magazynu zostawiają obiekty w buckecie; sprzątanie osieroconych obiektów ma przyjść z modułem `worker`.
+- `wa remove uploads` i usunięcie rekordu z błędem magazynu zostawiają obiekty w magazynie (pliki w katalogu `STORAGE_LOCAL_PATH` albo obiekty w buckecie); sprzątanie osieroconych obiektów ma przyjść z modułem `worker`.
 - SVG, HTML i XML nie mogą być celem uploadu ([D39](#d39)).
 
 **Jak egzekwowana.**
@@ -1522,7 +1523,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 - `e2e.yml` nie ma regionu: kroki modułów działają tylko w jobie `integration`.
 - `AGENTS.md` nie wymienia regionu ani pola `ciSteps` (rozbieżność R1).
 - Test własności sprawdza, że plik z `compose` należy do modułu, ale pliku z `ciSteps` nie sprawdza ([D38](#d38)).
-- Region działa tylko w CI. Lokalnie testy integracyjne korzystają z MinIO z `docker compose up -d` projektu: domyślne wartości w `src/test/integration/setup-env.ts` (`http://localhost:9000`, bucket `<slug>-uploads`) odpowiadają usługom `minio` i `minio-init`. `INTEGRATION_S3_ENDPOINT` i `INTEGRATION_S3_BUCKET` zmieniają adres i bucket, gdy MinIO działa gdzie indziej.
+- Region działa tylko w CI. Lokalnie testy integracyjne korzystają z MinIO projektu uruchomionego przez `docker compose --profile s3 up -d` ([D49](#d49)): domyślne wartości w `src/test/integration/setup-env.ts` (`http://localhost:9000`, bucket `<slug>-uploads`) odpowiadają usługom `minio` i `minio-init`, a `STORAGE_PROVIDER=s3` z tego pliku trzyma testy na S3 także w projekcie, którego aplikacja zapisuje pliki na dysku. `INTEGRATION_S3_ENDPOINT` i `INTEGRATION_S3_BUCKET` zmieniają adres i bucket, gdy MinIO działa gdzie indziej.
 
 **Jak egzekwowana.** Bramka CLI: `kit/cli/src/generate/__tests__/ci-steps.test.ts` (wcięcie, kolejność, „ci.yml bez markerów i bez ciSteps → sukces, ci.yml bajt w bajt bez zmian”, „ci.yml bez markerów, a moduł ma ciSteps → błąd brak regionu i żaden plik nie zmieniony”). Zgodność regionu z manifestami: job `verify` w `.github/workflows/ci.yml` ([D04](#d04)). Job `assemble` w `.github/workflows/kit.yml` uruchamia MinIO własnymi krokami dla kombinacji z `uploads`.
 
@@ -1566,8 +1567,8 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 - `register()` w `src/instrumentation.ts`, tylko w środowisku `nodejs` i przed konfiguracją eksportu logów, woła `verifyEnvOnStartup(process.env, processStartupIo)` z `src/shared/lib/env.ts`. Obiekt `processStartupIo` z tego samego pliku przekazuje raport do `console.error`, a kod wyjścia do `process.exit`, więc `src/instrumentation.ts` nie odwołuje się do `process.exit`. Funkcja sprawdza pełny schemat, czyli `coreEnvSchema` razem ze schematami modułów z `moduleEnvSchemas`, tym samym schematem, którego używa `parseEnv`.
 - Wszystkie problemy trafiają do jednego raportu (`formatEnvReport`): pierwsza linia `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):`, potem po jednej linii `- <nazwa>: <komunikat>` na problem. Nazwą jest ścieżka problemu z Zod połączona kropkami, a problem bez ścieżki ma nazwę `(env)` (`checkEnv`).
 - Raport idzie na `console.error`, a nie przez `logger`, a potem proces kończy się kodem 1. To wyjątek od [D15](#d15) tylko dla raportu startowego.
-- Przy `NEXT_PHASE` równym `phase-production-build` (`PHASE_PRODUCTION_BUILD` z `next/constants`) sprawdzenia nie ma, więc `next build` działa bez zmiennych.
-- Leniwe `env` zostaje i chroni import w `next build` oraz w testach bez pełnego środowiska ([D17](#d17)). `parseEnv` korzysta z `checkEnv` i rzuca ten sam jednoliniowy błąd co wcześniej.
+- `next build` działa bez zmiennych, bo nie wywołuje `register()` (sprawdzone w Next.js 16.4.3). Przy `NEXT_PHASE` równym `phase-production-build` (`PHASE_PRODUCTION_BUILD` z `next/constants`) `verifyEnvOnStartup` i tak niczego nie sprawdza: to zabezpieczenie na wypadek, gdyby build wywołał `register()`.
+- Leniwe `env` zostaje i chroni import w `next build` oraz w testach bez pełnego środowiska ([D17](#d17)). `parseEnv` korzysta z `checkEnv` i rzuca jednoliniowy błąd w tym samym formacie co wcześniej (`Nieprawidłowe zmienne środowiskowe: <nazwa>: <komunikat>; …`). Różni się tylko problem bez ścieżki: ma nazwę `(env)`, a wcześniej miał pusty napis.
 - Sprawdzenie nie ma flagi „już sprawdzone”: przy poprawnych zmiennych niczego nie wypisuje, a przy błędnych proces kończy się przy pierwszym wywołaniu, więc kolejne wywołanie `register()` raportu nie powtórzy.
 
 **Odrzucone alternatywy.**
@@ -1592,3 +1593,48 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 - Testy w `npm run verify`: `src/shared/lib/__tests__/env-startup.test.ts` (na przykład „błędne zmienne → kończy proces raz, kodem 1” i „faza next build → bez sprawdzenia, raportu i wyjścia”) oraz `src/__tests__/instrumentation.test.ts` („runtime nodejs z błędnym env i bez OTel → raport na console.error i process.exit(1)”).
 
 **Źródło.** [Spec providera storage](superpowers/specs/2026-11-04-uploads-storage-provider-design.md) §2, §4.2, §5 i §6; [plan](superpowers/plans/2026-11-04-uploads-storage-provider.md), Task 1; walidacja `env` w Ragenie (ADR-37, `packages/env/src/parse.ts`, `apps/web/src/instrumentation.ts`) w opisie specu.
+
+<a id="d49"></a>
+
+## D49 · Uploads: provider storage `local` albo `s3`, domyślnie `local`
+
+**Status:** obowiązuje · **Data:** 2026-11-04 · **Kto zdecydował:** Jakub (zmienna `STORAGE_PROVIDER` z wartościami `local` i `s3`, domyślnie `local`, i błąd przy starcie procesu zamiast przy pierwszym uploadzie: spec providera storage, §1, §2 i §4.1; spec Jakub zatwierdził 2026-11-04); autor specu providera storage („Moje decyzje”, zapisane „do sprawdzenia przy czytaniu”: nazwy `S3_*` bez zmian, `STORAGE_LOCAL_PATH` z domyślnym `RAILWAY_VOLUME_MOUNT_PATH` i `./volumes/uploads`, trzy reguły produkcyjne, podwójna ochrona przed path traversal, MinIO w profilu Compose `s3`, katalog `/app/volumes/uploads` w obrazie, zalecenie Railway Bucket na Railway); autor planu providera storage (pliki `local-storage.ts`, `s3-storage.ts` i `storage-env.ts`, treść komunikatów, zapis pliku bez pliku tymczasowego); wykonawca planu providera storage (notka o przejściu z `uploads` `0.1.0`, ruling R17 w ledgerze wykonania)
+
+**Kontekst.** Moduł `uploads` w wersji `0.1.0` zapisywał pliki wyłącznie w magazynie zgodnym z S3, więc nie działał bez bucketu: lokalnie potrzebny był MinIO w Dockerze, a na produkcji Railway Bucket albo R2. Na spotkaniu 2026-11-03 Patryk zwrócił uwagę, że będą wdrożenia bez S3, i wskazał jako wzór pakiet `storage` z Ragena, który ma provider lokalny i S3. Provider lokalny niesie ryzyko cichej utraty plików: na Railway bez wolumenu albo w kontenerze bez trwałego katalogu pliki znikają przy redeployu, a spec providera storage zapisuje to jako anty-cel.
+
+**Decyzja.**
+
+- `STORAGE_PROVIDER` wybiera magazyn: `local` albo `s3`. Wartość jest przycinana i zamieniana na małe litery, brak i pusta wartość dają `local`, a każda inna jest błędem walidacji. Provider `local` trzyma pliki w katalogu `STORAGE_LOCAL_PATH`, a gdy jej nie ma, w `RAILWAY_VOLUME_MOUNT_PATH`, a dalej w `./volumes/uploads` względem katalogu roboczego procesu. Zmienne `S3_*` zostają z dawnymi nazwami i regułami i obowiązują tylko przy `s3`.
+- Wybór i reguły liczy czysta funkcja `resolveStorageEnv` (`src/features/uploads/services/storage-env.ts`), a woła ją schemat `src/features/uploads/env.ts`. Konfiguracja magazynu jest więc częścią sprawdzenia `env` przy starcie ([D48](#d48)). Wynik (`StorageEnv` w `contracts/storage.types.ts`) mówi wprost, który provider wybrano.
+- Przy `NODE_ENV=production` i providerze `local` trzy reguły zatrzymują start: Railway (niepuste `RAILWAY_ENVIRONMENT_ID`) bez wolumenu, `STORAGE_LOCAL_PATH` poza wolumenem Railway i brak `STORAGE_LOCAL_PATH` poza Railway ([15-modul-uploads.md](15-modul-uploads.md#reguly-produkcyjne)).
+- `putObject`, `getObject` i `deleteObject` w `services/storage.ts` zachowują sygnatury i przekazują wywołania providerowi tworzonemu raz na proces: `local-storage.ts` albo `s3-storage.ts`, za wspólnym interfejsem `ObjectStorage`. Trasy i komendy modułu się nie zmieniły.
+- Provider `local` odrzuca klucz bezwzględny, z segmentem `..` albo z bajtem `\0` i sprawdza, że ścieżka po rozwiązaniu leży w katalogu magazynu. To obrona w głąb, bo klucze tworzy sam moduł.
+- Usługi `minio` i `minio-init` w `docker/uploads.compose.yml` mają profil Compose `s3`, więc `docker compose up -d` ich nie uruchamia. Testy integracyjne zostają na S3 (`STORAGE_PROVIDER=s3` w `src/test/integration/setup-env.ts`), a serwery e2e działają z `local` na katalogu tymczasowym (`e2e/env.ts`).
+- `Dockerfile` (rdzeń) zakłada katalog `/app/volumes/uploads` należący do `nextjs:nodejs`, bo `/app` należy do roota, a proces działa jako `nextjs`.
+- `@aws-sdk/client-s3` zostaje w zależnościach manifestu także dla projektów z `local`, bo warunkowa zależność komplikowałaby CLI.
+
+**Odrzucone alternatywy.**
+
+- S3 jako provider domyślny: świeży projekt ma działać bez konta w chmurze i bez dodatkowej usługi, z tym samym uzasadnieniem co ADR-27 Ragena (spec §1).
+- Nazwy zmiennych z Ragena (`S3_ENDPOINT_URL`, `S3_BUCKET_NAME`): nie dają nic, a zmiana dotknęłaby dokumentacji, CI i e2e (spec §2 i §4.1).
+- Ostrzeżenie w logach zamiast reguły dla `local` w produkcji poza Railway: według [D15](#d15) `logger` na produkcji bez `OTEL_EXPORTER_OTLP_ENDPOINT` nie pisze nigdzie, więc ostrzeżenie byłoby niewidoczne (spec §4.3).
+- Ogólny mechanizm „seamów” jak `STORAGE_SEAM` w Ragenie: przy jednym przełączniku byłby na wyrost (spec §2).
+
+**Konsekwencje.**
+
+- Projekt z `uploads` startuje lokalnie bez MinIO i bez zmiennych `S3_*`; pliki leżą w `volumes/uploads`, który jest w `.gitignore`.
+- Na produkcji `local` wymaga jednej instancji i trwałego katalogu: wolumenu na Railway albo wolumenu Dockera na własnym serwerze. Na Railway dokumentacja kitu zaleca Railway Bucket, bo pozwala na repliki, nie ma przerwy przy redeployu i nie wymaga `RAILWAY_RUN_UID=0` ([10-wdrozenie.md](10-wdrozenie.md#pliki-uploads)).
+- Moduł nie przenosi plików między providerami: po zmianie `STORAGE_PROVIDER` stare pliki zostają w poprzednim magazynie i dają 404 ([znane-ograniczenia.md](znane-ograniczenia.md#uploads-local)).
+- Projekt, który używał S3 na `uploads` `0.1.0`, po przejściu na `0.2.0` ustawia `STORAGE_PROVIDER=s3`, a lokalny MinIO uruchamia przez `docker compose --profile s3 up -d`. Bez tego serwer deweloperski po cichu przechodzi na `local`, a produkcja poza Railway nie wystartuje, bo zatrzyma ją reguła `STORAGE_LOCAL_PATH` ([15-modul-uploads.md](15-modul-uploads.md#aktualizacja)). Według Jakuba w chwili decyzji żaden projekt nie używał `uploads`, więc zmiana domyślnego providera nie ma migracji (spec §1).
+- Nazwy zmiennych magazynu są w trzech miejscach (pole `env` manifestu, `env.ts` i `storage-env.ts`), a nic ich nie porównuje ([15-modul-uploads.md](15-modul-uploads.md#lista-zmiennych)).
+- Ochrona ścieżek jest leksykalna, więc katalog magazynu ma należeć wyłącznie do aplikacji.
+
+**Jak egzekwowana.**
+
+- Guard w kodzie: reguły `resolveStorageEnv` zatrzymują start przez `register()` ([D48](#d48)), a `resolveObjectPath` sprawdza klucz przy każdej operacji providera `local`.
+- Testy w `npm run verify`: `src/features/uploads/services/__tests__/storage-env.test.ts` (na przykład „w produkcji pusty RAILWAY_ENVIRONMENT_ID znaczy poza Railway” i „nieznany STORAGE_PROVIDER daje jeden problem z listą dozwolonych wartości”), `local-storage.test.ts`, `path-inside.test.ts`, `create-object-storage.test.ts`, `storage-local-env.test.ts`, `storage.test.ts` i `src/features/uploads/__tests__/env.test.ts`.
+- Osobny workflow CI: job `integration` w `.github/workflows/ci.yml` uruchamia testy integracyjne modułu na MinIO.
+- Bramka mutacji: `src/features/uploads/services/` w `critical` ([D26](#d26)). `src/features/uploads/env.ts` nie jest we wzorcach `mutate` w `stryker.config.json`, dlatego reguły leżą w `services/`.
+- Profil Compose `s3` i katalog `/app/volumes/uploads` w obrazie: tylko konwencja. Job `assemble` buduje obraz (`docker build .`), ale nie sprawdza katalogu ani listy usług Compose.
+
+**Źródło.** [Spec providera storage](superpowers/specs/2026-11-04-uploads-storage-provider-design.md) §1–§6; [plan](superpowers/plans/2026-11-04-uploads-storage-provider.md), Task 2–6; commity `787fb39`, `c3b0a86`, `b435fda`, `cc7c13b`, `22bd604`, `a08b121` i `734391b`; pakiet `storage` i ADR-27 Ragena oraz dokumentacja Railway ([wolumeny](https://docs.railway.com/volumes/reference), [Storage Buckets](https://docs.railway.com/storage-buckets)) w opisie specu.
