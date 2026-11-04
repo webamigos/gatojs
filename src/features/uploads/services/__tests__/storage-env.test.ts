@@ -469,6 +469,16 @@ describe("resolveStorageEnv: reguły produkcyjne providera local", () => {
         },
       ],
     ],
+    [
+      "w produkcji na Railway przy jawnym STORAGE_PROVIDER=local ścieżka poza wolumenem też daje problem",
+      {
+        ...PRODUCTION_ON_RAILWAY,
+        STORAGE_PROVIDER: "local",
+        RAILWAY_VOLUME_MOUNT_PATH: "/data",
+        STORAGE_LOCAL_PATH: "/database",
+      },
+      [OUTSIDE_DATA_VOLUME],
+    ],
   ])("%s", (_scenario, source, issues) => {
     expect(resolveStorageEnv(source, CWD)).toEqual({ ok: false, issues });
   });
@@ -543,6 +553,24 @@ describe("resolveStorageEnv: reguły produkcyjne providera local", () => {
       },
       "/app/volumes/uploads",
     ],
+    [
+      "w produkcji na Railway przy jawnym STORAGE_PROVIDER=local bez STORAGE_LOCAL_PATH katalogiem jest wolumen",
+      {
+        ...PRODUCTION_ON_RAILWAY,
+        STORAGE_PROVIDER: "local",
+        RAILWAY_VOLUME_MOUNT_PATH: "/data",
+      },
+      "/data",
+    ],
+    [
+      "w produkcji poza Railway przy jawnym STORAGE_PROVIDER=local katalogiem jest STORAGE_LOCAL_PATH",
+      {
+        NODE_ENV: "production",
+        STORAGE_PROVIDER: "local",
+        STORAGE_LOCAL_PATH: "/srv/files",
+      },
+      "/srv/files",
+    ],
   ])("%s", (_scenario, source, expectedPath) => {
     expect(resolveStorageEnv(source, CWD)).toEqual({
       ok: true,
@@ -583,6 +611,41 @@ describe("resolveStorageEnv: reguły produkcyjne providera local", () => {
           CWD,
         ),
       ).toEqual({ ok: false, issues: [PATH_REQUIRED] });
+    },
+  );
+
+  test.prop([
+    localProvider,
+    fc.constantFrom<[Source, StorageEnvResult]>(
+      [
+        { ...PRODUCTION_ON_RAILWAY, RAILWAY_VOLUME_MOUNT_PATH: "/data" },
+        {
+          ok: true,
+          env: { STORAGE_PROVIDER: "local", STORAGE_LOCAL_PATH: "/data" },
+        },
+      ],
+      [
+        { NODE_ENV: "production", STORAGE_LOCAL_PATH: "/srv/files" },
+        {
+          ok: true,
+          env: { STORAGE_PROVIDER: "local", STORAGE_LOCAL_PATH: "/srv/files" },
+        },
+      ],
+      [
+        {
+          ...PRODUCTION_ON_RAILWAY,
+          RAILWAY_VOLUME_MOUNT_PATH: "/data",
+          STORAGE_LOCAL_PATH: "/database",
+        },
+        { ok: false, issues: [OUTSIDE_DATA_VOLUME] },
+      ],
+    ),
+  ])(
+    "w produkcji wolumen jako katalog, jawny STORAGE_LOCAL_PATH i reguła wolumenu działają tak samo przy STORAGE_PROVIDER nieustawionym, pustym i local w dowolnej pisowni",
+    (provider, [source, expected]) => {
+      expect(
+        resolveStorageEnv({ ...source, STORAGE_PROVIDER: provider }, CWD),
+      ).toEqual(expected);
     },
   );
 });
