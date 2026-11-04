@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - które szwy generowane i które punkty wejścia rdzenia łączą moduł z aplikacją;
 - co dzieje się z kodem, który korzysta z punktu wejścia, gdy modułu w projekcie nie ma.
 
-Zweryfikowano z kodem: 315c068, 2026-10-30
+Zweryfikowano z kodem: 2788536, 2026-11-04
 
 Źródła:
 
@@ -170,7 +170,7 @@ Po każdej z tych komend schemat bazy się zmienia, więc migrację tworzy i com
 
 Plików generowanych i regionów nie edytuje się ręcznie; CI projektu sprawdza, że po `wa generate` nie ma diffu ([D04](decyzje.md#d04)). Rejestr importuje pliki feature, więc zmiana treści `module.ts` albo `env.ts` nie wymaga generatora; wymaga go dodanie albo usunięcie takiego pliku.
 
-Zmienna wymagana przez `env.ts` modułu należy do schematu całej aplikacji: jej brak albo zła wartość psuje pierwszy odczyt `env` w każdej stronie i akcji, nie tylko w module ([07](07-i18n-mail-env.md)). Dlatego po `wa add` modułu z wymaganą zmienną (`api-keys`, `uploads`) trzeba uzupełnić `.env` ([16](16-cli-wa.md#add-po)).
+Zmienna wymagana przez `env.ts` modułu należy do schematu całej aplikacji: jej brak albo zła wartość zatrzymuje start serwera całej aplikacji, nie tylko modułu ([07](07-i18n-mail-env.md#walidacja-env)). Dlatego po `wa add` modułu z wymaganą zmienną (`api-keys`, `uploads`) trzeba uzupełnić `.env` ([16](16-cli-wa.md#add-po)).
 
 <a id="punkty-wejscia"></a>
 

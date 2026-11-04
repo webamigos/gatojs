@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jaki kontrakt ma cel uploadu (`uploadPurposes`), komponent `<FileUpload>` i komenda `deleteUploadCommand` oraz co się dzieje bez modułu;
 - skąd biorą się osierocone obiekty w buckecie i kiedy moduł cofa zapisany obiekt.
 
-Zweryfikowano z kodem: d3710d3, 2026-10-30
+Zweryfikowano z kodem: 2788536, 2026-11-04
 
 Źródła:
 
@@ -73,7 +73,7 @@ KIT_DIR=$(mktemp -d) && git clone --depth 1 --branch v0.1.0 https://github.com/w
 
 **Istniejący projekt.** `npm run wa -- add uploads` kopiuje pliki modułu, wypełnia regiony `wa:relations` (`uploads Upload[]` w `User` i w `Organization`), `wa:modules` w `.env.example`, `wa:services` w `docker-compose.yml` i `wa:ci-integration` w `ci.yml`, uruchamia `wa generate` i `npm install` ([16](16-cli-wa.md#wa-add)). Potem:
 
-1. Skopiuj zmienne `S3_*` z regionu `wa:modules` w `.env.example` do `.env`: `wa add` nie zmienia `.env`, a bez wymaganej zmiennej pierwszy odczyt `env` w całej aplikacji kończy się błędem `Nieprawidłowe zmienne środowiskowe: …` ([16](16-cli-wa.md#add-po)).
+1. Skopiuj zmienne `S3_*` z regionu `wa:modules` w `.env.example` do `.env`: `wa add` nie zmienia `.env`, a bez wymaganej zmiennej serwer aplikacji nie wystartuje: przy starcie wypisze raport `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):` z linią na każdą brakującą zmienną i zakończy się kodem 1 ([07](07-i18n-mail-env.md#walidacja-env), [16](16-cli-wa.md#add-po)).
 2. `docker compose up -d`, żeby uruchomić `minio` i utworzyć bucket.
 3. Utwórz migrację: `npx prisma migrate dev --name add-uploads` przy działającej bazie i zacommituj ją ([03b](03b-schemat-i-migracje.md#migracje-w-projekcie)). Prisma 7 nie generuje przy tym klienta; po `--no-install` uruchom `npm run db:generate`.
 
@@ -81,7 +81,7 @@ KIT_DIR=$(mktemp -d) && git clone --depth 1 --branch v0.1.0 https://github.com/w
 
 ### Zmienne S3
 
-Schemat `src/features/uploads/env.ts` należy do walidacji `env` całej aplikacji ([07](07-i18n-mail-env.md#walidacja-env)): brak wymaganej zmiennej albo zła wartość psuje pierwszy odczyt `env` w każdej stronie i akcji, nie tylko upload ([10](10-wdrozenie.md#blad-env)).
+Schemat `src/features/uploads/env.ts` należy do walidacji `env` całej aplikacji ([07](07-i18n-mail-env.md#walidacja-env)): brak wymaganej zmiennej albo zła wartość zatrzymuje start serwera całej aplikacji, nie tylko upload ([10](10-wdrozenie.md#blad-env)).
 
 | Zmienna | Reguła (`env.ts`) | Wartość lokalna z `wa create` |
 | --- | --- | --- |

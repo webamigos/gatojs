@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak przetestować funkcję z plikami na prawdziwym MinIO i jakie problemy pojawiają się najczęściej;
 - jakie zmienne, trasy, cele, akcje i komunikaty ma moduł.
 
-Zweryfikowano z kodem: d3710d3, 2026-10-30
+Zweryfikowano z kodem: 2788536, 2026-11-04
 
 Źródła:
 
@@ -331,7 +331,7 @@ async function uploadPhoto(width: number): Promise<{ id: string; key: string }> 
 
 | Objaw | Przyczyna | Co zrobić |
 | --- | --- | --- |
-| Każda strona zwraca 500; w logu `Nieprawidłowe zmienne środowiskowe: S3_…` | Brak wymaganej zmiennej `S3_*` albo `S3_FORCE_PATH_STYLE` inna niż `true`/`false`, na przykład po `wa add` bez uzupełnienia `.env`. | Uzupełnij zmienne ([Zmienne S3](15-modul-uploads.md#zmienne-s3)). |
+| Serwer nie startuje: wypisuje raport `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):` z liniami `- S3_…` i kończy się kodem 1 (sprawdzone 2026-11-04 na zbudowanym serwerze repozytorium kitu, [07](07-i18n-mail-env.md#walidacja-env)). | Brak wymaganej zmiennej `S3_*` albo `S3_FORCE_PATH_STYLE` inna niż `true`/`false`, na przykład po `wa add` bez uzupełnienia `.env`. | Uzupełnij zmienne ([Zmienne S3](15-modul-uploads.md#zmienne-s3)). |
 | Upload kończy się „Nie udało się przesłać pliku”; trasa zwraca 500 `storage_failed`, w logu `upload putObject failed` | Magazyn nieosiągalny, zły endpoint, klucze albo region, brak bucketu, `S3_FORCE_PATH_STYLE` nie pasuje do dostawcy. | Sprawdź MinIO (`docker compose up -d`, `minio-init`) albo dane magazynu produkcyjnego i bucket. |
 | Każdy upload zwraca 500, w logu `Duplicate upload purpose key: …` albo `… declares forbidden type …` | Dwa cele z tym samym kluczem albo zakazany typ w `mimeTypes` (sprawdzone dla duplikatu). | Popraw deklarację celu ([Kontrakt celu](15-modul-uploads.md#cel-uploadu)). |
 | 411 `length_required` | Klient wysyła ciało bez `Content-Length` (`Transfer-Encoding: chunked`, strumień) (sprawdzone). | Wysyłaj `FormData` z pliku, jak `<FileUpload>`. Przeglądarki w praktyce dodają wtedy `Content-Length`, ale Fetch Standard tego nie gwarantuje, a przebiegi tej dokumentacji sprawdzały trasę przez `curl`, nie przez przeglądarkę. Klient spoza przeglądarki musi ustawić nagłówek sam. |

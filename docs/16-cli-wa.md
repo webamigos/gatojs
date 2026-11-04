@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak CLI traktuje moduły projektu (`projectModules`);
 - co znaczy każdy komunikat CLI.
 
-Zweryfikowano z kodem: 6e6d49d, 2026-10-30
+Zweryfikowano z kodem: 2788536, 2026-11-04
 
 Źródła:
 
@@ -324,7 +324,7 @@ Zmienione pliki: nowe pliki modułu (`prisma/schema/api-keys.prisma`, `src/featu
 
 ### Po `wa add`
 
-1. **Uzupełnij `.env`.** `wa add` nie zmienia `.env`: nowe zmienne modułu trafiają tylko do regionu `wa:modules` w `.env.example` (sprawdzone: po `add api-keys` `.env` nie ma `API_KEY_PEPPER`). Moduł z wymaganą zmienną (`api-keys`, `uploads`) bez wpisu w `.env` kończy się przy pierwszym odczycie `env` błędem `Nieprawidłowe zmienne środowiskowe: …` ([01-uruchomienie.md](01-uruchomienie.md#bledy-env)). Skopiuj zmienne z regionu i ustaw własne wartości.
+1. **Uzupełnij `.env`.** `wa add` nie zmienia `.env`: nowe zmienne modułu trafiają tylko do regionu `wa:modules` w `.env.example` (sprawdzone: po `add api-keys` `.env` nie ma `API_KEY_PEPPER`). Moduł z wymaganą zmienną (`api-keys`, `uploads`) bez wpisu w `.env` zatrzymuje start serwera aplikacji: serwer wypisuje raport `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):` i kończy się kodem 1 ([01-uruchomienie.md](01-uruchomienie.md#bledy-env)). Skopiuj zmienne z regionu i ustaw własne wartości.
 2. **Migracja:** `npx prisma migrate dev --name add-<moduł>` przy działającej bazie, potem commit migracji.
 3. **Usługi:** moduł z `compose` (`uploads`) dodaje usługi do `docker-compose.yml`; uruchom `docker compose up -d`.
 4. Bez `npm install` w trakcie `add` (`--no-install`) zainstaluj zależności sam.

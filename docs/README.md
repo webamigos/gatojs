@@ -64,7 +64,7 @@ Kolejność to kolejność czytania dla nowej osoby. Podział na pliki z literą
 | [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md) | `uploads` we własnym kodzie: własny cel, formularz z `<FileUpload>`, zapis `id` pliku w encji, pokazanie i usuwanie pliku, bezpieczeństwo, testy z MinIO, typowe problemy i referencja. |
 | [16-cli-wa.md](16-cli-wa.md) | CLI `wa` w projekcie: `wa create` (one-liner z GitHuba i lokalny klon), źródło kitu, `wa add`, `wa remove`, `wa list`, cofanie i jego granice, moduły projektu, kody wyjścia i komunikaty. |
 | [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md) | Praca nad repozytorium kitu: pliki tylko dla kitu, manifesty, `wa kit sync`, własność plików i zależności, hashe, placeholdery, bundel CLI, bramka i mutacje CLI, CI kitu, wydanie z tagiem i dodanie nowego modułu. |
-| [decyzje.md](decyzje.md) | Rejestr decyzji D01–D46: dlaczego kit jest zbudowany tak, a nie inaczej, co pilnuje przestrzegania każdej decyzji i które decyzje zastąpiono nowszymi. |
+| [decyzje.md](decyzje.md) | Rejestr decyzji D01–D46 i D48: dlaczego kit jest zbudowany tak, a nie inaczej, co pilnuje przestrzegania każdej decyzji i które decyzje zastąpiono nowszymi. |
 | [znane-ograniczenia.md](znane-ograniczenia.md) | Znane luki kodu z ich skutkami, plikami i obejściami: dwie pozycje o wysokim priorytecie, luki CLI i modułów kitu oraz reszta pogrupowana tematycznie. |
 | README.md | Ten plik: indeks, ścieżki czytania, słownik i zakres dokumentacji. |
 

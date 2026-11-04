@@ -2,7 +2,7 @@
 
 Ten plik wyjaśnia, dlaczego wa-kit jest zbudowany tak, a nie inaczej. Każdy wpis mówi, jaki problem rozwiązuje decyzja, co wybrano, co odrzucono, co z tego wynika przy pisaniu kodu i co pilnuje, żeby decyzja była przestrzegana. Jak dana część działa krok po kroku, opisują pliki `01`–`16b` (spis w [README.md](README.md)).
 
-Zweryfikowano z kodem: d348a0b, 2026-11-04 (wpis D48 i odnośniki do niego w D15 i D17); 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
+Zweryfikowano z kodem: 2788536, 2026-11-04 (wpis D48 i odnośniki do niego w D15, D17 i D43); 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
 
 Rejestr obejmuje decyzje, które obowiązują w kodzie, i decyzje zastąpione, zostawione jako zapis historii. Funkcje zaplanowane, ale niezrobione (na przykład aktualizacja projektu do nowszej wersji kitu albo moduły `worker` i `legal`), pojawiają się wyłącznie jako kontekst albo konsekwencja.
 
@@ -1457,7 +1457,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 - Guard w kodzie: `authenticateApiKey` w każdej trasie z kluczem (to, że trasa go woła: tylko konwencja).
 - `src/features/api-keys/services/__tests__/authenticate-api-key.test.ts`, `api-key-secret.test.ts`, `api-keys-isolation.integration.test.ts` (dwie organizacje), `src/features/api-keys/services/commands/__tests__/api-key-commands.test.ts` („przy 10 aktywnych kluczach zwraca błąd limitu i nic nie zapisuje”).
-- Walidacja peppera: `envSchema` modułu przy pierwszym odczycie `env` ([D17](#d17)).
+- Walidacja peppera: `envSchema` modułu przy starcie serwera ([D48](#d48)) i przy pierwszym odczycie `env` ([D17](#d17)).
 - Bramka mutacji: `src/features/api-keys/services/` w `critical` ([D26](#d26)).
 
 **Źródło.** [Spec planu 3](superpowers/specs/2026-10-28-wa-kit-plan-3-modules-design.md) §6; [plan 3](superpowers/plans/2026-10-29-wa-kit-plan-3-modules.md), „Global Constraints” (prefiks klucza) i „Review Focus” pkt 3; commity `102b706`, `946e66d`, `a6cffb0`, `97067f4`, `d2cf343`.

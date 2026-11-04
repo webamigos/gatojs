@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - gdzie w kodzie siedzi przyczyna każdej pozycji i który plik dokumentacji opisuje ją szczegółowo;
 - czym ograniczenie różni się od decyzji z [rejestru decyzji](decyzje.md).
 
-Zweryfikowano z kodem: 75f7322, 2026-10-30 (sekcje [CLI i składanie projektu](#cli) i [Moduły kitu](#moduly-kitu)); pozostałe pozycje: d416599, 2026-10-28
+Zweryfikowano z kodem: 2788536, 2026-11-04 (skutki błędnego `env` w pozycjach [`wa add` nie uzupełnia `.env`](#add-env) i [`API_KEY_PEPPER`](#api-key-pepper)); 75f7322, 2026-10-30 (sekcje [CLI i składanie projektu](#cli) i [Moduły kitu](#moduly-kitu)); pozostałe pozycje: d416599, 2026-10-28
 
 Źródła:
 
@@ -112,7 +112,7 @@ Działanie komend opisuje [16-cli-wa.md](16-cli-wa.md), a pracę nad CLI i wydan
 
 ### `wa add` nie uzupełnia `.env`, a aplikacja bez zmiennej modułu nie wystartuje
 
-**Skutek.** Po `wa add api-keys` albo `wa add uploads` zmienne modułu (`API_KEY_PEPPER`, `S3_*`) trafiają tylko do regionu `wa:modules` w `.env.example`. `.env` się nie zmienia, więc przy pierwszym odczycie `env` aplikacja kończy się błędem `Nieprawidłowe zmienne środowiskowe: …`. Komunikat CLI o tym nie mówi: ostatnia linia to podpowiedź migracji. Symetrycznie `wa remove` zostawia zmienne modułu w `.env`.
+**Skutek.** Po `wa add api-keys` albo `wa add uploads` zmienne modułu (`API_KEY_PEPPER`, `S3_*`) trafiają tylko do regionu `wa:modules` w `.env.example`. `.env` się nie zmienia, więc serwer aplikacji nie wystartuje: przy starcie wypisze raport `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):` i zakończy się kodem 1 ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Komunikat CLI o tym nie mówi: ostatnia linia to podpowiedź migracji. Symetrycznie `wa remove` zostawia zmienne modułu w `.env`.
 
 **Gdzie.** `kit/cli/src/commands/add.ts` (`add` nie czyta ani nie zapisuje `.env`), `kit/cli/src/commands/create.ts` (`writeEnvFile` tworzy `.env` tylko przy `wa create`).
 
@@ -191,7 +191,7 @@ Moduły opisują pliki 13–15 (konfiguracja i szwy) oraz 13b–15b (użycie we 
 
 **Skutek.** Trzy powiązane zachowania modułu `api-keys`:
 
-- **`wa create` i `wa add` nie losują peppera.** `.env` dostaje wartość przykładową z `.env.example` (przy `wa add` żadnej, [wyżej](#add-env)). Przy `NODE_ENV=production` schemat modułu odrzuca tę wartość, a błąd schematu psuje walidację `env` całej aplikacji, nie tylko modułu: trasy `/api/v1/…` z kluczem zwracają 500 ([14-modul-api-keys.md](14-modul-api-keys.md#pepper)).
+- **`wa create` i `wa add` nie losują peppera.** `.env` dostaje wartość przykładową z `.env.example` (przy `wa add` żadnej, [wyżej](#add-env)). Przy `NODE_ENV=production` schemat modułu odrzuca tę wartość, a błąd schematu zatrzymuje start serwera całej aplikacji, nie tylko modułu ([14-modul-api-keys.md](14-modul-api-keys.md#pepper)).
 - **Zmiana peppera unieważnia wszystkie klucze.** Klucz jest zapisany jako HMAC-SHA256 z jednym pepperem. Po zmianie żaden zapisany klucz nie zostanie znaleziony (401 `{"error":"invalid"}`), a lista na `/api-keys` dalej pokazuje je jako aktywne.
 - **Nie ma rotacji.** Moduł zna jeden pepper; nie da się przyjmować kluczy ze starym i nowym pepperem w okresie przejściowym.
 

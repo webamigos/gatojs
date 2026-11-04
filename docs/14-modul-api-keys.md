@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jaki kontrakt ma `authenticateApiKey`, jakie kody odpowiedzi zwraca i dlaczego trasa z kluczem sama filtruje dane po organizacji;
 - jakie szwy i deklaracje ma moduł (`apiScopes`, zdarzenia dziennika, kanał `API`) i co się dzieje bez modułu.
 
-Zweryfikowano z kodem: 007d380, 2026-10-30
+Zweryfikowano z kodem: 2788536, 2026-11-04
 
 Źródła:
 
@@ -19,6 +19,7 @@ Zweryfikowano z kodem: 007d380, 2026-10-30
 - `src/app/[locale]/(app)/api-keys/page.tsx`
 - `src/shared/lib/modules/define-module.ts`, `src/shared/lib/audit.ts`, `src/shared/utils/error-handling.ts`
 - `src/test/integration/setup-env.ts`, `e2e/env.ts`, `.env.example`
+- `src/shared/lib/env.ts`, `src/instrumentation.ts`
 - `src/__tests__/server-entrypoints-guard.test.ts`
 - `mutation-gate.json`, `.github/workflows/kit.yml`
 - [spec planu 3](superpowers/specs/2026-10-28-wa-kit-plan-3-modules-design.md), §6
@@ -73,7 +74,7 @@ KIT_DIR=$(mktemp -d) && git clone --depth 1 --branch v0.1.0 https://github.com/w
 
 **Istniejący projekt.** `npm run wa -- add api-keys` kopiuje pliki modułu, wypełnia region `wa:relations` (`createdApiKeys ApiKey[]` w `User`, `apiKeys ApiKey[]` w `Organization`) i region `wa:modules` w `.env.example`, uruchamia `wa generate` i `npm install` ([16](16-cli-wa.md#wa-add)). Potem:
 
-1. Dopisz `API_KEY_PEPPER` do `.env`: `wa add` nie zmienia `.env`, a bez zmiennej pierwszy odczyt `env` w całej aplikacji kończy się błędem `Nieprawidłowe zmienne środowiskowe: API_KEY_PEPPER: …` ([16](16-cli-wa.md#add-po)).
+1. Dopisz `API_KEY_PEPPER` do `.env`: `wa add` nie zmienia `.env`, a bez zmiennej serwer aplikacji nie wystartuje. Przy starcie wypisze raport `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):` z linią `- API_KEY_PEPPER: …` i zakończy się kodem 1 ([07](07-i18n-mail-env.md#walidacja-env), [16](16-cli-wa.md#add-po)).
 2. Utwórz migrację: `npx prisma migrate dev --name add-api-keys` przy działającej bazie i zacommituj ją ([03b](03b-schemat-i-migracje.md#migracje-w-projekcie)). Prisma 7 nie generuje przy tym klienta; po `--no-install` uruchom `npm run db:generate`.
 
 **Testy i CI.** Testy integracyjne dostają pepper z `src/test/integration/setup-env.ts`, a serwery e2e z `e2e/env.ts`, więc CI projektu nie potrzebuje sekretu. CI kitu składa projekt z samym `api-keys` i ze wszystkimi modułami (macierz `combo` w `.github/workflows/kit.yml`, [16b](16b-rozwoj-kitu.md#ci-kitu)).
@@ -85,7 +86,7 @@ KIT_DIR=$(mktemp -d) && git clone --depth 1 --branch v0.1.0 https://github.com/w
 Klucz jest zapisany w bazie jako HMAC-SHA256 z sekretem `API_KEY_PEPPER`. Wyciek samej bazy nie wystarcza, żeby sprawdzić klucz bez peppera.
 
 - **Produkcja wymaga własnej wartości.** Schemat `src/features/api-keys/env.ts` odrzuca brak zmiennej, wartość krótszą niż 32 znaki, a przy `NODE_ENV=production` także wartość z `.env.example`. Ustaw losowy napis, na przykład z `openssl rand -base64 32`, w zmiennych usługi przed pierwszym wdrożeniem ([10](10-wdrozenie.md#zmienne)).
-- **Błąd peppera psuje całą aplikację, nie tylko moduł.** Schemat modułu należy do walidacji `env` całej aplikacji ([07](07-i18n-mail-env.md#walidacja-env)). Na zbudowanym serwerze z wartością przykładową każde żądanie z kluczem do tras `/api/v1/…` zwracało 500, a log serwera pokazał `Error: Nieprawidłowe zmienne środowiskowe: RESEND_API_KEY: wymagana w produkcji; API_KEY_PEPPER: w produkcji nie może być wartością z .env.example` (sprawdzone). Strony i akcje, które czytają `env`, kończą się tym samym błędem, bo pierwszy odczyt `env` woła `parseEnv`, a ten rzuca przy każdym błędzie schematu (wynika z kodu `src/shared/lib/env.ts`; strony w tym przebiegu nie były otwierane). Żądanie bez nagłówka `Authorization` dostało przy tym zwykłe 401 `missing`, bo `authenticateApiKey` kończy się przed odczytem `env`; nie traktuj go jako dowodu, że konfiguracja jest dobra ([10](10-wdrozenie.md#blad-env)).
+- **Błąd peppera zatrzymuje całą aplikację, nie tylko moduł.** Schemat modułu należy do walidacji `env` całej aplikacji, którą serwer wykonuje przy starcie ([07](07-i18n-mail-env.md#walidacja-env), [D48](decyzje.md#d48)). Zbudowany serwer z pepperem z `.env.example` przy `NODE_ENV=production` nie wystartował: wypisał raport `Nieprawidłowe zmienne środowiskowe (1):` z linią `- API_KEY_PEPPER: w produkcji nie może być wartością z .env.example` i zakończył się kodem 1, a pepper krótszy niż 32 znaki dał linię `- API_KEY_PEPPER: Too small: expected string to have >=32 characters` (sprawdzone 2026-11-04 na zbudowanym serwerze repozytorium kitu). Wdrożenie z takim pepperem nie przechodzi healthchecku (niesprawdzone na Railway, [10](10-wdrozenie.md#blad-env)).
 - **Zmiana peppera unieważnia wszystkie klucze.** HMAC tego samego klucza z innym pepperem jest inny, więc żaden zapisany klucz nie zostanie znaleziony. Po zmianie wartości klucz wystawiony wcześniej dostał 401 `{"error":"invalid"}` (sprawdzone). Klucze nie znikają z listy na `/api-keys` i mają status „Aktywny”, ale nie działają; organizacje muszą wystawić nowe klucze i usunąć stare. Pepper ma więc być stały dla środowiska i nie wolno go zgubić; inny pepper na stagingu i produkcji jest poprawny, bo klucze nie przechodzą między środowiskami.
 
 <a id="usuniecie"></a>
