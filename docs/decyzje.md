@@ -2,7 +2,7 @@
 
 Ten plik wyjaśnia, dlaczego wa-kit jest zbudowany tak, a nie inaczej. Każdy wpis mówi, jaki problem rozwiązuje decyzja, co wybrano, co odrzucono, co z tego wynika przy pisaniu kodu i co pilnuje, żeby decyzja była przestrzegana. Jak dana część działa krok po kroku, opisują pliki `01`–`16b` (spis w [README.md](README.md)).
 
-Zweryfikowano z kodem: 3cb47ac, 2026-11-04 (wpis D48 i odnośniki do niego w D15 i D17); 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
+Zweryfikowano z kodem: d348a0b, 2026-11-04 (wpis D48 i odnośniki do niego w D15 i D17); 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
 
 Rejestr obejmuje decyzje, które obowiązują w kodzie, i decyzje zastąpione, zostawione jako zapis historii. Funkcje zaplanowane, ale niezrobione (na przykład aktualizacja projektu do nowszej wersji kitu albo moduły `worker` i `legal`), pojawiają się wyłącznie jako kontekst albo konsekwencja.
 
@@ -1557,13 +1557,13 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 ## D48 · Walidacja `env` przy starcie procesu
 
-**Status:** obowiązuje · **Data:** 2026-11-04 · **Kto zdecydował:** Jakub (walidacja całego `env` przy starcie procesu tak jak w Ragenie, raport z linią na każdy problem, raport na konsoli: spec providera storage, §2 i §4.2); autor specu providera storage (wyjście z kodem 1, zapisane jako „moja interpretacja reguły Ragena, do sprawdzenia przy czytaniu”; spec Jakub zatwierdził 2026-11-04); autor planu providera storage (wariant bez rzucania `checkEnv`, nagłówek raportu z liczbą problemów, pominięcie fazy `next build` bez warunku)
+**Status:** obowiązuje · **Data:** 2026-11-04 · **Kto zdecydował:** Jakub (walidacja całego `env` przy starcie procesu tak jak w Ragenie, raport z linią na każdy problem, raport na konsoli: spec providera storage, §2 i §4.2); autor specu providera storage (wyjście z kodem 1, zapisane jako „moja interpretacja reguły Ragena, do sprawdzenia przy czytaniu”; spec Jakub zatwierdził 2026-11-04); autor planu providera storage (wariant bez rzucania `checkEnv`, nagłówek raportu z liczbą problemów, pominięcie fazy `next build` bez warunku); wykonawca planu providera storage (obiekt `processStartupIo` w `src/shared/lib/env.ts` zamiast obiektu `io` w `register()`)
 
 **Kontekst.** Walidacja `env` była wyłącznie leniwa: obiekt `env` sprawdzał zmienne przy pierwszym odczycie, a healthcheck czyta tylko bazę. Błędne zmienne nie zatrzymywały więc wdrożenia. Healthcheck odpowiadał 200, więc według dokumentacji Railway ruch przechodził na nową wersję, a aplikacja zwracała 500 dopiero przy pierwszym żądaniu, które czyta `env`, na przykład przy logowaniu. Spec providera storage wymaga, żeby brak wymaganej zmiennej albo konfiguracja, która zgubiłaby pliki, kończyła się błędem przy starcie procesu, a nie przy pierwszym uploadzie. Ragen sprawdza `env` przy starcie i zbiera wszystkie problemy naraz, bo pętla restartów, która odsłania jedną zmienną na raz, wydłuża konfigurację.
 
 **Decyzja.**
 
-- `register()` w `src/instrumentation.ts`, tylko w środowisku `nodejs` i przed konfiguracją eksportu logów, woła `verifyEnvOnStartup(process.env, …)` z `src/shared/lib/env.ts`. Funkcja sprawdza pełny schemat, czyli `coreEnvSchema` razem ze schematami modułów z `moduleEnvSchemas`, tym samym schematem, którego używa `parseEnv`.
+- `register()` w `src/instrumentation.ts`, tylko w środowisku `nodejs` i przed konfiguracją eksportu logów, woła `verifyEnvOnStartup(process.env, processStartupIo)` z `src/shared/lib/env.ts`. Obiekt `processStartupIo` z tego samego pliku przekazuje raport do `console.error`, a kod wyjścia do `process.exit`, więc `src/instrumentation.ts` nie odwołuje się do `process.exit`. Funkcja sprawdza pełny schemat, czyli `coreEnvSchema` razem ze schematami modułów z `moduleEnvSchemas`, tym samym schematem, którego używa `parseEnv`.
 - Wszystkie problemy trafiają do jednego raportu (`formatEnvReport`): pierwsza linia `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):`, potem po jednej linii `- <nazwa>: <komunikat>` na problem. Nazwą jest ścieżka problemu z Zod połączona kropkami, a problem bez ścieżki ma nazwę `(env)` (`checkEnv`).
 - Raport idzie na `console.error`, a nie przez `logger`, a potem proces kończy się kodem 1. To wyjątek od [D15](#d15) tylko dla raportu startowego.
 - Przy `NEXT_PHASE` równym `phase-production-build` (`PHASE_PRODUCTION_BUILD` z `next/constants`) sprawdzenia nie ma, więc `next build` działa bez zmiennych.
@@ -1585,7 +1585,6 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 - `npm run dev` z niepełnym `.env` kończy się raportem i kodem 1, zamiast startować i zgłaszać błąd przy pierwszym odczycie `env` (sprawdzone).
 - Brak wymaganej zmiennej w `e2e/env.ts` zatrzymuje serwery e2e przy starcie ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#nowy-modul-kitu)).
 - Skrypty (`npm run admin:create`) i testy nie wywołują `register()`. Ich zmienne sprawdza dopiero pierwszy odczyt `env`, a błąd ma postać jednoliniowego wyjątku z `parseEnv`.
-- `next build` wypisuje ostrzeżenie Turbopack o `process.exit` w `src/instrumentation.ts` dla środowiska Edge, a mimo to kończy się kodem 0 ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)).
 
 **Jak egzekwowana.**
 

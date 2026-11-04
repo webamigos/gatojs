@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak `src/shared/lib/env.ts` sprawdza zmienne środowiskowe przy starcie serwera i przy pierwszym odczycie `env` oraz które zmienne kod czyta z pominięciem tej walidacji;
 - które zmienne poza schematem czytają kod aplikacji, Next.js, Docker i testy.
 
-Zweryfikowano z kodem: 3cb47ac, 2026-11-04
+Zweryfikowano z kodem: d348a0b, 2026-11-04
 
 Źródła:
 
@@ -379,6 +379,7 @@ Testy e2e czytają maile przez API mailpit (`e2e/helpers.ts`, [08-testy.md](08-t
 - `formatEnvReport(issues)`: składa z problemów raport startowy, opisany niżej;
 - `parseEnv(source)`: woła `checkEnv` i zwraca wynik albo rzuca jeden błąd `Nieprawidłowe zmienne środowiskowe: <ZMIENNA>: <komunikat>; <ZMIENNA>: <komunikat>`;
 - `verifyEnvOnStartup(source, io)`: sprawdzenie przy starcie procesu, opisane niżej;
+- `processStartupIo`: obiekt `io` dla `verifyEnvOnStartup`, który przekazuje raport do `console.error`, a kod wyjścia do `process.exit`;
 - `env`: obiekt, który sprawdza `process.env` przy pierwszym odczycie dowolnego pola i zapamiętuje wynik do końca działania procesu.
 
 Serwer Next.js sprawdza zmienne przy starcie procesu, zanim obsłuży pierwsze żądanie ([D48](decyzje.md#d48)). Next.js wywołuje `register()` z `src/instrumentation.ts` przy starcie serwera (sprawdzone dla `next dev` i `server.js` z `output: "standalone"`). W Node.js (`NEXT_RUNTIME` równe `nodejs`), przed konfiguracją eksportu logów, `register()` woła:
@@ -386,14 +387,12 @@ Serwer Next.js sprawdza zmienne przy starcie procesu, zanim obsłuży pierwsze �
 `src/instrumentation.ts`
 
 ```ts
-  const { verifyEnvOnStartup } = await import("@/shared/lib/env");
-  verifyEnvOnStartup(process.env, {
-    error: (message) => console.error(message),
-    exit: (code) => process.exit(code),
-  });
+  const { verifyEnvOnStartup, processStartupIo } =
+    await import("@/shared/lib/env");
+  verifyEnvOnStartup(process.env, processStartupIo);
 ```
 
-Import dynamiczny trzyma Zod i rejestr modułów poza paczką dla środowiska Edge. Przy poprawnych zmiennych `verifyEnvOnStartup` niczego nie wypisuje. Przy błędzie wypisuje przez `console.error` raport ze wszystkimi problemami, a potem kończy proces kodem 1. Pierwsza linia raportu podaje liczbę problemów, a każda następna jeden problem w postaci `- <nazwa>: <komunikat>`. Zbudowany serwer uruchomiony bez żadnych zmiennych zakończył się sam w mniej niż sekundę, bez żadnego żądania, z kodem 1, a na stderr wypisał (sprawdzone):
+Import dynamiczny trzyma Zod i rejestr modułów poza paczką dla środowiska Edge, w której `register()` jest pustą funkcją (sprawdzone). Przy poprawnych zmiennych `verifyEnvOnStartup` niczego nie wypisuje. Przy błędzie wypisuje przez `console.error` raport ze wszystkimi problemami, a potem kończy proces kodem 1. Pierwsza linia raportu podaje liczbę problemów, a każda następna jeden problem w postaci `- <nazwa>: <komunikat>`. Zbudowany serwer uruchomiony bez żadnych zmiennych zakończył się sam w mniej niż sekundę, bez żadnego żądania, z kodem 1, a na stderr wypisał (sprawdzone):
 
 ```text
 Nieprawidłowe zmienne środowiskowe (9):
@@ -412,7 +411,7 @@ Nieprawidłowe zmienne środowiskowe (9):
 
 Sprawdzenia przy starcie nie ma w trzech sytuacjach:
 
-- **Faza `next build`.** Przy `NEXT_PHASE` równym `phase-production-build` (stała `PHASE_PRODUCTION_BUILD` z `next/constants`) `verifyEnvOnStartup` wraca bez sprawdzania, więc `npm run build` przechodzi bez pliku `.env` i bez zmiennych (sprawdzone). Next.js 16.4.3 ustawia tę wartość workerom `next build`, ale w tym projekcie żaden z nich nie wczytał `instrumentation.js` (sprawdzone), więc pominięcie jest zabezpieczeniem na wypadek, gdyby build wywołał `register()`. Przy budowaniu Turbopack wypisuje ostrzeżenie `A Node.js API is used (process.exit at line: 11) which is not supported in the Edge Runtime.` dla `src/instrumentation.ts`, bo sprawdza ten plik także dla środowiska Edge. Build kończy się mimo to kodem 0, a w paczce Edge `register()` jest pustą funkcją (sprawdzone).
+- **Faza `next build`.** Przy `NEXT_PHASE` równym `phase-production-build` (stała `PHASE_PRODUCTION_BUILD` z `next/constants`) `verifyEnvOnStartup` wraca bez sprawdzania, więc `npm run build` przechodzi bez pliku `.env` i bez zmiennych (sprawdzone). Next.js 16.4.3 ustawia tę wartość workerom `next build`, ale w tym projekcie żaden z nich nie wczytał `instrumentation.js` (sprawdzone), więc pominięcie jest zabezpieczeniem na wypadek, gdyby build wywołał `register()`.
 - **Środowisko Edge.** `register()` kończy się przed sprawdzeniem, gdy `NEXT_RUNTIME` nie jest równe `nodejs`.
 - **Procesy bez serwera Next.js.** Testy Vitest, `npm run admin:create` i inne skrypty nie wywołują `register()`, więc ich zmienne sprawdza dopiero pierwszy odczyt `env`.
 

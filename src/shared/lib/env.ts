@@ -122,6 +122,12 @@ export function verifyEnvOnStartup(
   }
 }
 
+// WHY: keeps process.exit out of instrumentation.ts, which Turbopack also compiles for Edge and warns about.
+export const processStartupIo = {
+  error: (message: string) => console.error(message),
+  exit: (code: number) => process.exit(code),
+};
+
 let cachedEnv: CoreEnv | undefined;
 
 // WHY: lazy, so importing env does not throw during `next build` or in tests without a full environment.
