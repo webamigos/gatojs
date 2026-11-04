@@ -95,6 +95,34 @@ describe("checkEnv: nazwa problemu zgłoszonego przez schemat modułu", () => {
       issues: [{ name: "S3.BUCKET", message: "zła para kluczy" }],
     });
   });
+
+  it("dwa problemy tej samej zmiennej zostają dwoma problemami", async () => {
+    const env = await importEnvWithModuleSchema(
+      z.object({}).superRefine((_, ctx) => {
+        ctx.addIssue({
+          code: "custom",
+          message: "za krótki",
+          path: ["DEMO_TOKEN"],
+        });
+        ctx.addIssue({
+          code: "custom",
+          message: "zły prefiks",
+          path: ["DEMO_TOKEN"],
+        });
+      }),
+    );
+
+    const result = env.checkEnv(validCore);
+
+    expect(result).toEqual({
+      ok: false,
+      issues: expect.arrayContaining([
+        { name: "DEMO_TOKEN", message: "za krótki" },
+        { name: "DEMO_TOKEN", message: "zły prefiks" },
+      ]),
+    });
+    expect(result).toHaveProperty("issues.length", 2);
+  });
 });
 
 describe("formatEnvReport", () => {
@@ -223,6 +251,36 @@ describe("verifyEnvOnStartup", () => {
 
     expect(io.exit).toHaveBeenCalledTimes(1);
     expect(io.exit).toHaveBeenCalledWith(1);
+  });
+
+  it("produkcja bez RESEND_API_KEY → raport z regułą produkcyjną i wyjście kodem 1", () => {
+    const io = createIo();
+
+    verifyEnvOnStartup({ ...validCore, NODE_ENV: "production" }, io);
+
+    expect(io.error.mock.calls).toEqual([
+      [
+        "Nieprawidłowe zmienne środowiskowe (1):\n- RESEND_API_KEY: wymagana w produkcji",
+      ],
+    ]);
+    expect(io.exit.mock.calls).toEqual([[1]]);
+  });
+
+  it("poprawna konfiguracja produkcyjna → nic nie wypisuje i nie kończy procesu", () => {
+    const io = createIo();
+
+    verifyEnvOnStartup(
+      {
+        ...validCore,
+        NODE_ENV: "production",
+        RESEND_API_KEY: "re_live",
+        BETTER_AUTH_SECRET: "p".repeat(48),
+      },
+      io,
+    );
+
+    expect(io.error).not.toHaveBeenCalled();
+    expect(io.exit).not.toHaveBeenCalled();
   });
 
   it("nie zapamiętuje wyniku: każde wywołanie sprawdza podane zmienne od nowa", () => {
