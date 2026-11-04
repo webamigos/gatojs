@@ -5,6 +5,12 @@ export async function register() {
     return;
   }
 
+  const { verifyEnvOnStartup } = await import("@/shared/lib/env");
+  verifyEnvOnStartup(process.env, {
+    error: (message) => console.error(message),
+    exit: (code) => process.exit(code),
+  });
+
   const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
   if (!endpoint) {
     return;

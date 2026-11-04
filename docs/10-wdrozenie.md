@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak założyć konta na produkcji przez `railway run` i jak przekazać aplikację klientowi, łącznie z odcięciem dostępu Web Amigos po okresie wsparcia;
 - co uruchamia każdy workflow CI i kiedy.
 
-Zweryfikowano z kodem: 1166d08, 2026-10-29
+Zweryfikowano z kodem: 3cb47ac, 2026-11-04
 
 Źródła:
 
@@ -179,7 +179,7 @@ restartPolicyMaxRetries = 3
 | `preDeployCommand` | Komenda między budowaniem a startem, w osobnym kontenerze, w sieci prywatnej projektu i ze zmiennymi usługi. Zmiany w systemie plików nie zostają. Kod wyjścia różny od 0 zatrzymuje wdrożenie bez ponawiania. | Migracje stosuje `npx prisma migrate deploy` z adresem `DATABASE_URL` (adres prywatny bazy działa, bo komenda jest w sieci projektu). Wyniki i błędy: [Pierwsze wdrożenie](#migracje-w-logu). |
 | `startCommand` | Komenda startu kontenera. | To samo co `CMD` w `Dockerfile`. |
 | `healthcheckPath`, `healthcheckTimeout` | Po starcie Railway odpytuje ścieżkę, aż dostanie odpowiedź 2xx, najwyżej przez podaną liczbę sekund (domyślnie 300). Bez 2xx wdrożenie jest nieudane, a ruch przełącza się na nową wersję dopiero po udanym healthchecku. Działa tylko przy wdrożeniu, a nie jako stały monitoring. | Nowa wersja ma 10 sekund na odpowiedź 200 z `/api/healthcheck`. Gdy host bazy nie odpowiada, samo połączenie czeka do 10 sekund (`connectionTimeoutMillis` w `src/shared/lib/prisma.ts`). |
-| `restartPolicyType`, `restartPolicyMaxRetries` | Restart kontenera, gdy proces zakończy się błędem, najwyżej 3 razy. | Błędne zmienne środowiskowe nie kończą procesu, bo walidacja działa przy pierwszym odczycie `env`, więc restart ich nie ujawni ([zmienne](#zmienne)). |
+| `restartPolicyType`, `restartPolicyMaxRetries` | Restart kontenera, gdy proces zakończy się błędem, najwyżej 3 razy. | Błędne zmienne środowiskowe kończą proces przy starcie kodem 1 ([kiedy zobaczysz błąd](#blad-env)). Restart ich nie naprawi, bo każdy kolejny start kończy się tym samym raportem. |
 
 <a id="config-as-code"></a>
 
@@ -199,9 +199,9 @@ Według wątku na forum Railway (niesprawdzone) wdrożenie usługi, która ma w 
 
 ### Co sprawdza healthcheck
 
-`/api/healthcheck` wykonuje na bazie `SELECT 1` i zwraca 200 albo 503 ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#healthcheck)). Udany healthcheck znaczy tylko, że proces działa i łączy się z bazą. Nie wykrywa:
+`/api/healthcheck` wykonuje na bazie `SELECT 1` i zwraca 200 albo 503 ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#healthcheck)). Udany healthcheck znaczy, że proces przeszedł sprawdzenie zmiennych przy starcie ([kiedy zobaczysz błąd](#blad-env)), działa i łączy się z bazą. Nie wykrywa:
 
-- błędnych albo brakujących zmiennych środowiskowych, bo handler nie odczytuje `env` ([przykład](#blad-env));
+- wartości zmiennych, które przechodzą walidację, ale nie działają, na przykład nieprawidłowego klucza Resend albo `APP_URL` z inną domeną, bo walidacja sprawdza tylko obecność i format;
 - braku tabel, bo `SELECT 1` działa na pustej bazie;
 - pętli przekierowań przy złej wartości `HOSTNAME` ([wyżej](#hostname)), bo ścieżki `/api` omijają proxy.
 
@@ -211,17 +211,17 @@ Dlatego po pierwszym wdrożeniu i po każdej zmianie zmiennych wykonaj ręczne s
 
 ## Zmienne produkcyjne
 
-Zmienne ustawiasz w usłudze aplikacji na Railway. Schemat w `src/shared/lib/env.ts` sprawdza je przy pierwszym odczycie `env`, a nie przy starcie, i zapamiętuje wynik do końca procesu ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Nowe wartości działają więc dopiero po ponownym wdrożeniu. Railway może trzymać zmiany zmiennych i ustawień jako oczekujące (staged), dopóki ich nie zatwierdzisz wdrożeniem (niesprawdzone). Pełny opis każdej zmiennej jest w [tabeli zmiennych](07-i18n-mail-env.md#referencja-env).
+Zmienne ustawiasz w usłudze aplikacji na Railway. Schemat w `src/shared/lib/env.ts` sprawdza je przy starcie procesu, a przy błędzie proces kończy się, zanim obsłuży pierwsze żądanie ([kiedy zobaczysz błąd](#blad-env)). Wynik pierwszego odczytu `env` proces zapamiętuje do końca działania ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Nowe wartości działają więc dopiero po ponownym wdrożeniu. Railway może trzymać zmiany zmiennych i ustawień jako oczekujące (staged), dopóki ich nie zatwierdzisz wdrożeniem (niesprawdzone). Pełny opis każdej zmiennej jest w [tabeli zmiennych](07-i18n-mail-env.md#referencja-env).
 
 | Zmienna | Na produkcji | Wartość | Skutek braku albo złej wartości |
 | --- | --- | --- | --- |
 | `DATABASE_URL` | wymagana | Zmienna referencyjna, czyli wartość wskazująca zmienną innej usługi w składni `${{USŁUGA.ZMIENNA}}`: `${{Postgres.DATABASE_URL}}`, gdzie `Postgres` to nazwa usługi bazy w projekcie. To adres w sieci prywatnej. | Komenda przed wdrożeniem i healthcheck się nie powiodą. |
-| `BETTER_AUTH_SECRET` | wymagana | Losowy napis, co najmniej 32 znaki bez spacji na brzegach, na przykład z `openssl rand -base64 32`. Inny niż w `.env.example` i niż lokalnie. | `Nieprawidłowe zmienne środowiskowe: BETTER_AUTH_SECRET: …` |
+| `BETTER_AUTH_SECRET` | wymagana | Losowy napis, co najmniej 32 znaki bez spacji na brzegach, na przykład z `openssl rand -base64 32`. Inny niż w `.env.example` i niż lokalnie. | Linia `- BETTER_AUTH_SECRET: …` w raporcie startowym i koniec procesu ([kiedy zobaczysz błąd](#blad-env)). |
 | `APP_URL` | wymagana | Pełny adres `https://`, pod którym użytkownicy otwierają aplikację. | better-auth odrzuca żądania z innego adresu, a linki w mailach prowadzą pod zły adres ([D16](decyzje.md#d16)). |
 | `EMAIL_FROM` | wymagana | Nadawca maili, na przykład `WA App <noreply@example.com>`, z domeny skonfigurowanej w Resend. | Błąd walidacji przy braku. |
 | `RESEND_API_KEY` | wymagana przy `NODE_ENV=production` | Klucz API Resend. | `RESEND_API_KEY: wymagana w produkcji`, także przy ustawionym `SMTP_URL`. |
-| `API_KEY_PEPPER` | wymagana, gdy zainstalowany jest moduł `api-keys` | Losowy napis, co najmniej 32 znaki, na przykład z `openssl rand -base64 32`. Nigdy wartość z `.env.example`. `wa create` zostawia wartość przykładową w `.env.example` i w `.env` (`writeEnvFile` w `kit/cli/src/commands/create.ts` kopiuje `.env.example` i podmienia tylko `BETTER_AUTH_SECRET` i `ADMIN_EMAIL`), więc ustaw własną przed pierwszym wdrożeniem. Zmiana wartości unieważnia wszystkie klucze API, więc wartość ma być stała dla środowiska ([konfiguracja peppera](14-modul-api-keys.md#pepper)). | Błąd walidacji dla całej aplikacji, nie tylko dla modułu: każda strona i akcja zwraca 500, a healthcheck dalej odpowiada 200 ([kiedy zobaczysz błąd](#blad-env)). |
-| `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET` | wymagane, gdy zainstalowany jest moduł `uploads` | Dane dostępowe do magazynu zgodnego z S3: Railway Bucket (zasób w projekcie Railway) albo Cloudflare R2. Wartości weź z panelu magazynu, a nie z `.env.example` (tam jest lokalny MinIO z hasłem `minioadmin`). Bucket musi istnieć przed pierwszym wdrożeniem: aplikacja go nie tworzy. Walidacja nie odrzuca wartości z `.env.example` ([zmienne S3](15-modul-uploads.md#zmienne-s3)). | Błąd walidacji dla całej aplikacji: każda strona i akcja zwraca 500, a healthcheck dalej odpowiada 200 ([kiedy zobaczysz błąd](#blad-env)). |
+| `API_KEY_PEPPER` | wymagana, gdy zainstalowany jest moduł `api-keys` | Losowy napis, co najmniej 32 znaki, na przykład z `openssl rand -base64 32`. Nigdy wartość z `.env.example`. `wa create` zostawia wartość przykładową w `.env.example` i w `.env` (`writeEnvFile` w `kit/cli/src/commands/create.ts` kopiuje `.env.example` i podmienia tylko `BETTER_AUTH_SECRET` i `ADMIN_EMAIL`), więc ustaw własną przed pierwszym wdrożeniem. Zmiana wartości unieważnia wszystkie klucze API, więc wartość ma być stała dla środowiska ([konfiguracja peppera](14-modul-api-keys.md#pepper)). | Błąd walidacji dla całej aplikacji, nie tylko dla modułu: proces kończy się przy starcie, także przy wartości z `.env.example` na produkcji ([kiedy zobaczysz błąd](#blad-env)). |
+| `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET` | wymagane, gdy zainstalowany jest moduł `uploads` | Dane dostępowe do magazynu zgodnego z S3: Railway Bucket (zasób w projekcie Railway) albo Cloudflare R2. Wartości weź z panelu magazynu, a nie z `.env.example` (tam jest lokalny MinIO z hasłem `minioadmin`). Bucket musi istnieć przed pierwszym wdrożeniem: aplikacja go nie tworzy. Walidacja nie odrzuca wartości z `.env.example` ([zmienne S3](15-modul-uploads.md#zmienne-s3)). | Błąd walidacji dla całej aplikacji: proces kończy się przy starcie ([kiedy zobaczysz błąd](#blad-env)). |
 | `S3_REGION`, `S3_FORCE_PATH_STYLE` | opcjonalne | `S3_REGION` domyślnie `auto` (tak działa R2; dla dostawcy z regionami podaj jego nazwę). `S3_FORCE_PATH_STYLE=true` włącza adresowanie `endpoint/bucket/klucz` zamiast `bucket.endpoint`; ustaw je, gdy dostawca nie obsługuje adresów z nazwą bucketu w domenie. Brak daje `false`. | Zła wartość regionu albo stylu adresowania kończy się błędem przy pierwszym zapisie pliku (500 `storage_failed`), a nie przy starcie. |
 | `SMTP_URL` | nie ustawiaj | Brak. | Ustawiona wygrywa z Resend także na produkcji: maile idą przez SMTP ([D18](decyzje.md#d18)). |
 | `AUTH_PUBLIC_SIGNUP`, `MULTI_ORG`, `ADMIN_IMPERSONATION` | opcjonalne | `true` albo `false`; brak daje `false`. Do czasu założenia kont `AUTH_PUBLIC_SIGNUP=false` ([krok 7](#krok-konta)). | Każda inna wartość, na przykład `1` albo `yes`, to błąd walidacji ([D17](decyzje.md#d17)). Znaczenie flag: [D10](decyzje.md#d10), [D06](decyzje.md#d06), [D20](decyzje.md#d20). |
@@ -235,13 +235,15 @@ Zmienne ustawiasz w usłudze aplikacji na Railway. Schemat w `src/shared/lib/env
 
 Moduły i feature mogą dokładać własne zmienne: linie w regionie `# wa:modules:start` / `# wa:modules:end` w `.env.example` i schematy z `src/features/<x>/env.ts`, które walidacja łączy ze schematem rdzenia ([07-i18n-mail-env.md](07-i18n-mail-env.md#env-feature)). Z modułów kitu własne zmienne mają `api-keys` i `uploads`; pełne listy z regułami są w [14b-modul-api-keys-uzycie.md](14b-modul-api-keys-uzycie.md#referencja-env) i [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#referencja-env). Usługi `minio` i `minio-init` z regionu `wa:services` w `docker-compose.yml` służą tylko do pracy lokalnej ([15-modul-uploads.md](15-modul-uploads.md#minio)); obraz Docker ich nie zawiera, a na produkcji aplikacja łączy się z magazynem S3 pod `S3_ENDPOINT`.
 
-<a id="blad-env"></a>**Kiedy zobaczysz błąd.** Błędne zmienne nie zatrzymują wdrożenia ([co sprawdza healthcheck](#healthcheck)), a proces działa dalej. Błąd pojawia się przy pierwszym żądaniu, które czyta `env`. Sprawdzone na zbudowanym serwerze z `NODE_ENV=production` bez `RESEND_API_KEY`: healthcheck i strona `/sign-in` odpowiadały 200, a dopiero logowanie zwróciło 500 i serwer wypisał na konsolę:
+<a id="blad-env"></a>**Kiedy zobaczysz błąd.** Błędne zmienne zatrzymują start. `register()` z `src/instrumentation.ts` sprawdza zmienne rdzenia i zainstalowanych modułów, zanim serwer obsłuży pierwsze żądanie, a przy błędzie wypisuje raport na stderr i kończy proces kodem 1 ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env), [D48](decyzje.md#d48)). Sprawdzone na zbudowanym serwerze uruchomionym bez zmiennych komendą `env -i PATH="$PATH" PORT=3998 node .next/standalone/server.js`: proces zakończył się sam w mniej niż sekundę, bez żadnego żądania, z kodem 1, a raport na stderr zaczynał się od linii:
 
 ```text
-⨯ Error: Nieprawidłowe zmienne środowiskowe: RESEND_API_KEY: wymagana w produkcji
+Nieprawidłowe zmienne środowiskowe (9):
+- DATABASE_URL: Invalid input: expected string, received undefined
+- BETTER_AUTH_SECRET: Invalid input: expected string, received undefined
 ```
 
-Ten wpis wypisuje Next.js, a nie `logger`, więc widać go w logach usługi na Railway także bez eksportu OTLP. Warunki produkcyjne Zod sprawdza dopiero po przejściu pozostałych reguł, więc po poprawieniu jednej zmiennej może pojawić się kolejny błąd ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)).
+Healthcheck nowego wdrożenia nie przechodzi więc, wdrożenie jest nieudane, a ruch zostaje przy poprzedniej wersji (niesprawdzone na Railway). Polityka restartu tego nie zmienia, bo każdy kolejny start kończy się tym samym raportem. Raport idzie przez `console.error`, a nie przez `logger`, więc trafia do logów usługi także bez eksportu OTLP (niesprawdzone na Railway). Raport wymienia wszystkie problemy naraz z jednym wyjątkiem: warunki produkcyjne schematu, na przykład `RESEND_API_KEY: wymagana w produkcji`, Zod sprawdza dopiero po przejściu podstawowych reguł tego samego schematu. Po poprawieniu zmiennych kolejny start może więc pokazać nowy raport ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)).
 
 <a id="logi"></a>
 
@@ -289,8 +291,8 @@ Wymagania: repozytorium projektu na GitHub, konto Resend z kluczem API i domeną
    Pierwszy i trzeci wiersz są sprawdzone na lokalnej bazie, drugi sprawdza test „MULTI_ORG=false bez organizacji → czytelny błąd i brak użytkownika” w `src/shared/lib/auth/__tests__/signup-endpoint.test.ts`. Dlatego do końca tego kroku obowiązuje `AUTH_PUBLIC_SIGNUP=false` z kroku 3.
 
    <a id="krok-sprawdzenie"></a>
-8. **Sprawdzenie ręczne.** Healthcheck nie wykrywa błędów konfiguracji ([dlaczego](#healthcheck)), więc pod adresem z `APP_URL`:
-   - zaloguj się kontem z kroku 7; błąd 500 i wpis `Nieprawidłowe zmienne środowiskowe: …` w logach usługi wskazują zmienną do poprawienia;
+8. **Sprawdzenie ręczne.** Healthcheck nie wykrywa zmiennych, które przechodzą walidację, ale nie działają ([dlaczego](#healthcheck)), więc pod adresem z `APP_URL`:
+   - zaloguj się kontem z kroku 7; zmienne o złym formacie albo brakujące zatrzymałyby już start ([kiedy zobaczysz błąd](#blad-env)), a logowanie sprawdza, czy `APP_URL` wskazuje adres, pod którym otwierasz aplikację ([D16](decyzje.md#d16));
    - otwórz polski adres bez prefiksu, na przykład `/sign-in`, i sprawdź, że strona się wyświetla, a nie przekierowuje w kółko ([dlaczego](#hostname));
    - wyślij reset hasła przez „Zapomniałeś hasła?” i sprawdź, czy mail dotarł, co potwierdza `RESEND_API_KEY` i `EMAIL_FROM`;
    - sprawdź eksport logów: logowanie, strony i reset hasła nie zapisują wpisów `logger`, więc wywołaj akcję, która to robi. Zalogowany kontem serwisowym, na stronie „Użytkownicy” kliknij „Zaloguj jako” przy koncie administratora klienta, zanim klient zacznie z niego korzystać, a potem „Wróć do własnego konta”. W odbiorniku OTLP, pod nazwą usługi z `OTEL_SERVICE_NAME` albo `wa-app`, pojawią się wpisy `[USERS] Impersonation started` i `[USERS] Impersonation stopped` (`impersonation-commands.ts`). „Wróć do własnego konta” usuwa sesję podszycia.

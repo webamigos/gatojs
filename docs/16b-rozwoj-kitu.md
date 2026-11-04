@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak wydać nową wersję kitu z tagiem;
 - jak dodać do kitu nowy moduł, krok po kroku, tak jak zrobił to plan 3.
 
-Zweryfikowano z kodem: 758b557, 2026-10-30
+Zweryfikowano z kodem: 3cb47ac, 2026-11-04
 
 Źródła:
 
@@ -31,6 +31,7 @@ Zweryfikowano z kodem: 758b557, 2026-10-30
 - `kit/cli/src/kit/__tests__/ownership.test.ts`
 - `kit/cli/src/__tests__/fixtures/project-module/`
 - `scripts/mutation-gate.ts`
+- `src/instrumentation.ts`, `e2e/env.ts`, `src/test/integration/setup-env.ts`
 - `.wa/kit.json`
 - `.github/workflows/kit.yml`
 - `.github/workflows/kit-mutation.yml`
@@ -104,7 +105,7 @@ Manifesty w wersji kitu `0.1.0`:
 
 | Moduł | `version` | `files` | Zależności npm | `env` | `compose` | `ciSteps` |
 | --- | --- | --- | --- | --- | --- | --- |
-| `core` | `0.4.0` | wszystkie pliki rdzenia, od `.claude/agents/test-reviewer.md` po `src/types/**`, w tym `.wa/bin/wa.mjs` | wszystkie zależności rdzenia | — | — | — |
+| `core` | `0.5.0` | wszystkie pliki rdzenia, od `.claude/agents/test-reviewer.md` po `src/types/**`, w tym `.wa/bin/wa.mjs` | wszystkie zależności rdzenia | — | — | — |
 | `audit-logs` | `0.1.0` | `prisma/schema/audit-logs.prisma`, `src/features/audit-logs/**`, `src/app/[locale]/(app)/audit-log/**` | `better-call` w `devDependencies` | — | — | — |
 | `api-keys` | `0.1.0` | `prisma/schema/api-keys.prisma`, `src/features/api-keys/**`, `src/app/api/v1/organization/**`, `src/app/[locale]/(app)/api-keys/**` | — | `API_KEY_PEPPER` | — | — |
 | `uploads` | `0.1.0` | `prisma/schema/uploads.prisma`, `src/features/uploads/**`, `src/app/api/uploads/**`, `docker/uploads.compose.yml`, `ci/uploads.integration-steps.yml` | `@aws-sdk/client-s3`, `file-type`, `sharp` | `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE` | `docker/uploads.compose.yml` | `ci/uploads.integration-steps.yml` |
@@ -447,7 +448,7 @@ Kroki opisują, co zrobił plan 3 ([plan](superpowers/plans/2026-10-29-wa-kit-pl
 3. **Manifest `kit/modules/<x>.json`** z `name` równym nazwie pliku, `version` (plan 3: `0.1.0`), `description`, `files`, `requires`, zależnościami npm, `env`, `schemaRelations`, a w razie potrzeby `compose` i `ciSteps` ([Manifesty](#manifesty)). Każdy nowy katalog modułu dostał własny wzorzec w `files` w tym samym commicie, w którym powstał: `audit-logs` dostał `src/app/[locale]/(app)/audit-log/**` razem ze stroną (`1863fb0`), `api-keys` trasę API i stronę w dwóch osobnych commitach (`a6cffb0`, `8a320d2`). Plik usług Dockera i plik kroków CI leżą w `docker/<x>.compose.yml` i `ci/<x>.integration-steps.yml` i należą do `files` modułu ([wyżej](#pliki-uslug-i-ci)). Przykład zmiennej z nazwą projektu zapisz z `{{projectSlug}}` (`76b5956`).
 4. **Zależności npm.** Dopisz je przez npm 11 do `package.json` kitu (z `package-lock.json`) i do manifestu, w tej samej sekcji i wersji (`c6c26c4`, `7438ea8`). Dotyczy to też zależności używanych tylko w testach modułu: `audit-logs` deklaruje `better-call` w `devDependencies` (`8818bba`).
 5. **Placeholdery.** Plik modułu z nazwą projektu albo bazy dopisz do `placeholderFiles` w `kit/kit.json` (`c6c26c4`: `docker/uploads.compose.yml`, `ci/uploads.integration-steps.yml`). Testów nie dopisuj (`76b5956` je wycofał).
-6. **Zmienne w testach aplikacji referencyjnej.** Kit uruchamia testy e2e i integracyjne z modułem, więc zmienna wymagana przez schemat `env.ts` modułu musi mieć wartość w plikach rdzenia `e2e/env.ts` i `src/test/integration/setup-env.ts`. Plan 3 dopisał tam `API_KEY_PEPPER` i `S3_*` w commitach `102b706` (z podbiciem `core` do `0.3.0`) oraz `c6c26c4`, `2199cea`, `76b5956` (bez podbicia).
+6. **Zmienne w testach aplikacji referencyjnej.** Kit uruchamia testy e2e i integracyjne z modułem, więc zmienna wymagana przez schemat `env.ts` modułu musi mieć wartość w plikach rdzenia `e2e/env.ts` i `src/test/integration/setup-env.ts`. Plan 3 dopisał tam `API_KEY_PEPPER` i `S3_*` w commitach `102b706` (z podbiciem `core` do `0.3.0`) oraz `c6c26c4`, `2199cea`, `76b5956` (bez podbicia). Brak wymaganej zmiennej w `e2e/env.ts` zatrzymuje serwery e2e przy starcie: `register()` wypisuje raport problemów i kończy proces kodem 1, zanim Playwright doczeka się odpowiedzi serwera ([D48](decyzje.md#d48), [10-wdrozenie.md](10-wdrozenie.md#blad-env)). Testy integracyjne nie uruchamiają serwera Next.js, więc brak zmiennej w `setup-env.ts` wychodzi dopiero przy pierwszym odczycie `env` w teście.
 7. **Testy i konfiguracja rdzenia, które dotyka moduł.** Plan 3 zmienił jeszcze trzy pliki rdzenia, każdy w commicie modułu, bez podbicia `core`:
    - `src/shared/lib/__tests__/env.test.ts` dostał `vi.mock("@/modules.generated", () => ({ moduleEnvSchemas: [] }));` (`102b706`). Test rdzenia sprawdza schemat zmiennych rdzenia; bez atrapy wymagana zmienna modułu (`API_KEY_PEPPER`) psułaby jego przypadki.
    - `stryker.integration.config.json`: wzorzec `mutate` `src/features/organizations/services/**/*.ts` zamieniony na `src/features/*/services/**/*.ts`, żeby przebieg integracyjny mutował też usługi modułów (`04ce5d3`).

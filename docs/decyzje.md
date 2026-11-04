@@ -2,7 +2,7 @@
 
 Ten plik wyjaśnia, dlaczego wa-kit jest zbudowany tak, a nie inaczej. Każdy wpis mówi, jaki problem rozwiązuje decyzja, co wybrano, co odrzucono, co z tego wynika przy pisaniu kodu i co pilnuje, żeby decyzja była przestrzegana. Jak dana część działa krok po kroku, opisują pliki `01`–`16b` (spis w [README.md](README.md)).
 
-Zweryfikowano z kodem: 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
+Zweryfikowano z kodem: 3cb47ac, 2026-11-04 (wpis D48 i odnośniki do niego w D15 i D17); 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
 
 Rejestr obejmuje decyzje, które obowiązują w kodzie, i decyzje zastąpione, zostawione jako zapis historii. Funkcje zaplanowane, ale niezrobione (na przykład aktualizacja projektu do nowszej wersji kitu albo moduły `worker` i `legal`), pojawiają się wyłącznie jako kontekst albo konsekwencja.
 
@@ -44,7 +44,7 @@ Sposoby egzekwowania różnią się siłą:
 - `zastąpiona przez Dxx`: decyzja przestała obowiązywać. Wpis zostaje w pliku z nowym statusem i jednym zdaniem o tym, co się zmieniło, a decyzja, która go zastąpiła, ma własny numer i mówi, co zmieniła. Pozostała treść zastąpionego wpisu jest zapisem historii i nie opisuje kodu.
 - Gdy w decyzji zmieniły się tylko fakty (na przykład lista plików generowanych albo miejsc w kodzie), wpis poprawia się w miejscu, bez nowego numeru.
 - Numery `D01`, `D02`… są stałe i nie są używane ponownie. Inne pliki linkują do wpisu przez kotwicę, na przykład `[D07](decyzje.md#d07)`, więc zmiana numeru zepsułaby linki. Odnośnik, który opisuje bieżący stan kodu, wskazuje decyzję obowiązującą, a nie zastąpioną.
-- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D46 bez luk: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), pozostałe obowiązują.
+- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D46 i D48: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), pozostałe obowiązują. Numer D47 należy do decyzji o `wa update` z osobnej gałęzi ([webamigos/wa-kit#14](https://github.com/webamigos/wa-kit/pull/14)).
 - Nową decyzję dopisuje się na końcu z następnym wolnym numerem, kotwicą `<a id="dNN"></a>` i wszystkimi polami.
 - Jeden plik wystarcza, dopóki decyzje dopisuje jedna gałąź naraz. Gdy zaczną to robić równolegle różne gałęzie, dwie mogą dopisać ten sam następny numer; wtedy warto rozważyć osobne pliki `docs/decyzje/NNNN-*.md`.
 
@@ -134,6 +134,7 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 | [D44](#d44) | Uploads: S3, cele uploadu, widoczność i `Cache-Control`, cofnięcie obiektu | Moduły kitu | obowiązuje |
 | [D45](#d45) | Region `wa:ci-integration` i pole `ciSteps`; pusty region bez markerów pomijany | CLI i składanie projektu | obowiązuje |
 | [D46](#d46) | Kit wydawany tagiem `v<version>`; projekt pobiera kit tylko w swojej wersji | Wydanie | obowiązuje |
+| [D48](#d48) | Walidacja `env` przy starcie procesu | Konfiguracja i usługi | obowiązuje |
 
 <a id="d01"></a>
 
@@ -585,6 +586,7 @@ Strona `/sign-up` przy wyłączonej rejestracji i bez `invitationId` przekierowu
 **Konsekwencje.**
 
 - Na produkcji bez `OTEL_EXPORTER_OTLP_ENDPOINT` wpisy z `logger` nie trafiają ani na konsolę, ani do eksportu, więc nie widać ich w logach usługi. Ustaw endpoint na produkcji ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#logger-cel), [10-wdrozenie.md](10-wdrozenie.md)).
+- Raport walidacji zmiennych przy starcie procesu idzie przez `console.error`, a nie przez `logger`, bo bez eksportu wpis by zniknął. Wyjątek obejmuje tylko ten raport ([D48](#d48)).
 - `LOG_LEVEL` jest walidowana w `src/shared/lib/env.ts`, ale logger jej nie czyta i nie filtruje po poziomie ([znane-ograniczenia.md](znane-ograniczenia.md)).
 - Mutation testing nie obejmuje `logger.ts` (wykluczenie w `stryker.config.json`, [D26](#d26)).
 
@@ -635,16 +637,16 @@ Do tego better-auth oczekuje sekretu o długości co najmniej 32 znaków (ruling
 - `APP_URL` musi być pełnym adresem `http` albo `https`;
 - przy `NODE_ENV=production` wymagany jest `RESEND_API_KEY`, a sekret nie może być wartością z `.env.example`.
 
-Problemy trafiają do jednego komunikatu `Nieprawidłowe zmienne środowiskowe: …`, w dwóch etapach: dwa warunki produkcyjne Zod sprawdza dopiero wtedy, gdy wszystkie pola przejdą podstawowe sprawdzenie, więc błąd produkcyjny może pojawić się dopiero po poprawieniu pozostałych ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Schemat działa przy pierwszym odczycie `env`, a nie przy imporcie, żeby sam import nie przerywał `next build` ani testów bez pełnego środowiska.
+Problemy trafiają do jednego komunikatu `Nieprawidłowe zmienne środowiskowe: …`, w dwóch etapach: dwa warunki produkcyjne Zod sprawdza dopiero wtedy, gdy wszystkie pola przejdą podstawowe sprawdzenie, więc błąd produkcyjny może pojawić się dopiero po poprawieniu pozostałych ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Schemat działa przy pierwszym odczycie `env`, a nie przy imporcie, żeby sam import nie przerywał `next build` ani testów bez pełnego środowiska. Serwer Next.js sprawdza ten sam schemat także przy starcie procesu ([D48](#d48)).
 
 **Odrzucone alternatywy.** Wcześniejsza, łagodna walidacja: każda wartość flagi inna niż `true` dawała `false`, a `APP_URL` mógł być dowolnym niepustym napisem (stan sprzed `494224e`).
 
 **Konsekwencje.**
 
-- `npm run build` nie sprawdza zmiennych. Błąd pojawia się przy pierwszym odczycie: w terminalu serwera przy logowaniu albo od razu w `npm run admin:create`. Tabela komunikatów: [01-uruchomienie.md](01-uruchomienie.md#bledy-env).
+- `npm run build` nie sprawdza zmiennych. Serwer Next.js kończy się przy starcie z raportem wszystkich problemów ([D48](#d48)), a `npm run admin:create` zgłasza błąd przy pierwszym odczycie `env`. Tabela komunikatów: [01-uruchomienie.md](01-uruchomienie.md#bledy-env).
 - Schematy z plików `env.ts` feature (`moduleEnvSchemas` z rejestru) są łączone ze schematem rdzenia.
 
-**Jak egzekwowana.** Guard w kodzie: `parseEnv` przy pierwszym odczycie `env`. Testy: `src/shared/lib/__tests__/env.test.ts` (flagi, sekret, adres, produkcja, `.env.example` jako `.env`).
+**Jak egzekwowana.** Guard w kodzie: `verifyEnvOnStartup` przy starcie serwera ([D48](#d48)) i `parseEnv` przy pierwszym odczycie `env`. Testy: `src/shared/lib/__tests__/env.test.ts` (flagi, sekret, adres, produkcja, `.env.example` jako `.env`).
 
 **Źródło.** Commit `494224e`; ruling R18 w [handoffie planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md); audyt testów planu 1 (znaleziska P1–P3).
 
@@ -1550,3 +1552,44 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 **Jak egzekwowana.** Wersja źródła: guard w kodzie (`resolveKitSource`) i testy `kit/cli/src/kit/__tests__/source.test.ts` (na przykład „tag w klonie wynika z wersji projektu”, „lokalny kit w wersji 0.1.0 przy projekcie 9.9.9 kończy się błędem z obiema wersjami”). Ustawienie tagu przy wydaniu: tylko konwencja.
 
 **Źródło.** [kit/CLAUDE.md](../kit/CLAUDE.md), „Składanie i wydanie”; `kit/cli/src/kit/source.ts`; [plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), decyzja D2.
+
+<a id="d48"></a>
+
+## D48 · Walidacja `env` przy starcie procesu
+
+**Status:** obowiązuje · **Data:** 2026-11-04 · **Kto zdecydował:** Jakub (walidacja całego `env` przy starcie procesu tak jak w Ragenie, raport z linią na każdy problem, raport na konsoli: spec providera storage, §2 i §4.2); autor specu providera storage (wyjście z kodem 1, zapisane jako „moja interpretacja reguły Ragena, do sprawdzenia przy czytaniu”; spec Jakub zatwierdził 2026-11-04); autor planu providera storage (wariant bez rzucania `checkEnv`, nagłówek raportu z liczbą problemów, pominięcie fazy `next build` bez warunku)
+
+**Kontekst.** Walidacja `env` była wyłącznie leniwa: obiekt `env` sprawdzał zmienne przy pierwszym odczycie, a healthcheck czyta tylko bazę. Błędne zmienne nie zatrzymywały więc wdrożenia. Healthcheck odpowiadał 200, więc według dokumentacji Railway ruch przechodził na nową wersję, a aplikacja zwracała 500 dopiero przy pierwszym żądaniu, które czyta `env`, na przykład przy logowaniu. Spec providera storage wymaga, żeby brak wymaganej zmiennej albo konfiguracja, która zgubiłaby pliki, kończyła się błędem przy starcie procesu, a nie przy pierwszym uploadzie. Ragen sprawdza `env` przy starcie i zbiera wszystkie problemy naraz, bo pętla restartów, która odsłania jedną zmienną na raz, wydłuża konfigurację.
+
+**Decyzja.**
+
+- `register()` w `src/instrumentation.ts`, tylko w środowisku `nodejs` i przed konfiguracją eksportu logów, woła `verifyEnvOnStartup(process.env, …)` z `src/shared/lib/env.ts`. Funkcja sprawdza pełny schemat, czyli `coreEnvSchema` razem ze schematami modułów z `moduleEnvSchemas`, tym samym schematem, którego używa `parseEnv`.
+- Wszystkie problemy trafiają do jednego raportu (`formatEnvReport`): pierwsza linia `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):`, potem po jednej linii `- <nazwa>: <komunikat>` na problem. Nazwą jest ścieżka problemu z Zod połączona kropkami, a problem bez ścieżki ma nazwę `(env)` (`checkEnv`).
+- Raport idzie na `console.error`, a nie przez `logger`, a potem proces kończy się kodem 1. To wyjątek od [D15](#d15) tylko dla raportu startowego.
+- Przy `NEXT_PHASE` równym `phase-production-build` (`PHASE_PRODUCTION_BUILD` z `next/constants`) sprawdzenia nie ma, więc `next build` działa bez zmiennych.
+- Leniwe `env` zostaje i chroni import w `next build` oraz w testach bez pełnego środowiska ([D17](#d17)). `parseEnv` korzysta z `checkEnv` i rzuca ten sam jednoliniowy błąd co wcześniej.
+- Sprawdzenie nie ma flagi „już sprawdzone”: przy poprawnych zmiennych niczego nie wypisuje, a przy błędnych proces kończy się przy pierwszym wywołaniu, więc kolejne wywołanie `register()` raportu nie powtórzy.
+
+**Odrzucone alternatywy.**
+
+- Walidacja tylko leniwa, przy pierwszym odczycie `env`, czyli stan sprzed tej decyzji: błędne zmienne przechodziły healthcheck, a aplikacja zwracała 500 dopiero przy pierwszym żądaniu, które czyta `env` (spec §4.2).
+- Proces, który żyje dalej mimo błędnych zmiennych, jak `apps/web` w Ragenie. Ragen zostawia go przy życiu, bo serwuje stronę konfiguracji z listą zmiennych do poprawienia. Kit nie ma takiej strony (nie-cel specu), więc jest w sytuacji `apps/api` i workera Ragena, które kończą pracę (`parseEnvOrExit`).
+- Raport przez `logger`: na produkcji bez `OTEL_EXPORTER_OTLP_ENDPOINT` wpis by zniknął ([D15](#d15)). Ragen z tego samego powodu używa przy starcie konsoli.
+- Sprawdzenie przy starcie, które łapie wyjątek z `parseEnv` i przerabia jego tekst na raport. Spec zostawił wybór wykonawcy (§5), a plan wybrał wariant bez rzucania (`checkEnv`), taki jak w Ragenie.
+
+**Konsekwencje.**
+
+- Każda reguła `env` rdzenia i modułów zatrzymuje start, także reguła produkcyjna `API_KEY_PEPPER` z `api-keys`: wartość z `.env.example` przy `NODE_ENV=production` kończy proces kodem 1 (sprawdzone na zbudowanym serwerze). To zamierzone (spec §4.2).
+- Nowe wdrożenie z błędnymi zmiennymi nie przechodzi healthchecku, a Railway zostawia ruch przy poprzedniej wersji (niesprawdzone na Railway). Restart kontenera niczego nie zmienia, bo każdy start kończy się tym samym raportem ([10-wdrozenie.md](10-wdrozenie.md#blad-env)).
+- Warunki produkcyjne schematu Zod sprawdza dopiero po przejściu podstawowych reguł tego samego schematu, więc po poprawieniu zmiennych kolejny start może pokazać nowy raport ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)).
+- `npm run dev` z niepełnym `.env` kończy się raportem i kodem 1, zamiast startować i zgłaszać błąd przy pierwszym odczycie `env` (sprawdzone).
+- Brak wymaganej zmiennej w `e2e/env.ts` zatrzymuje serwery e2e przy starcie ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#nowy-modul-kitu)).
+- Skrypty (`npm run admin:create`) i testy nie wywołują `register()`. Ich zmienne sprawdza dopiero pierwszy odczyt `env`, a błąd ma postać jednoliniowego wyjątku z `parseEnv`.
+- `next build` wypisuje ostrzeżenie Turbopack o `process.exit` w `src/instrumentation.ts` dla środowiska Edge, a mimo to kończy się kodem 0 ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)).
+
+**Jak egzekwowana.**
+
+- Guard w kodzie: `register()` w `src/instrumentation.ts` przy każdym starcie serwera Next.js.
+- Testy w `npm run verify`: `src/shared/lib/__tests__/env-startup.test.ts` (na przykład „błędne zmienne → kończy proces raz, kodem 1” i „faza next build → bez sprawdzenia, raportu i wyjścia”) oraz `src/__tests__/instrumentation.test.ts` („runtime nodejs z błędnym env i bez OTel → raport na console.error i process.exit(1)”).
+
+**Źródło.** [Spec providera storage](superpowers/specs/2026-11-04-uploads-storage-provider-design.md) §2, §4.2, §5 i §6; [plan](superpowers/plans/2026-11-04-uploads-storage-provider.md), Task 1; walidacja `env` w Ragenie (ADR-37, `packages/env/src/parse.ts`, `apps/web/src/instrumentation.ts`) w opisie specu.
