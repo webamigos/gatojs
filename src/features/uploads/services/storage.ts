@@ -6,12 +6,10 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { env, type CoreEnv } from "@/shared/lib/env";
+import type { StoredObject } from "../contracts/storage.types";
 import type { UploadsEnv } from "../env";
 
-export interface StoredObject {
-  body: Uint8Array;
-  contentType: string | undefined;
-}
+export type { StoredObject } from "../contracts/storage.types";
 
 function uploadsEnv(): CoreEnv & UploadsEnv {
   return env as CoreEnv & UploadsEnv;

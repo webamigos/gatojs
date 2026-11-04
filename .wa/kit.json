@@ -246,10 +246,10 @@
       "files": {}
     },
     "uploads": {
-      "version": "0.1.0",
+      "version": "0.2.0",
       "manifest": {
         "name": "uploads",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "description": "Pliki organizacji w magazynie S3 (MinIO lokalnie)",
         "requires": [],
         "files": [
