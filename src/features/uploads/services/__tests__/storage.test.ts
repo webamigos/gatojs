@@ -14,6 +14,7 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
 });
 vi.mock("@/shared/lib/env", () => ({
   env: {
+    STORAGE_PROVIDER: "s3",
     S3_ENDPOINT: "http://localhost:9100",
     S3_REGION: "auto",
     S3_ACCESS_KEY_ID: "key",
@@ -70,5 +71,14 @@ describe("getObject", () => {
     mockSend.mockRejectedValue(notAnError);
 
     await expect(getObject("a/b.png")).rejects.toBe(notAnError);
+  });
+
+  it("zwraca pusty body i contentType odpowiedzi, a nie null, gdy odpowiedź S3 nie ma Body", async () => {
+    mockSend.mockResolvedValue({ ContentType: "text/plain" });
+
+    await expect(getObject("a/b.png")).resolves.toEqual({
+      body: new Uint8Array(),
+      contentType: "text/plain",
+    });
   });
 });
