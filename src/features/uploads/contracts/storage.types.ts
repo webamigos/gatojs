@@ -8,3 +8,20 @@ export interface ObjectStorage {
   get(key: string): Promise<StoredObject | null>;
   delete(key: string): Promise<void>;
 }
+
+export interface LocalStorageEnv {
+  STORAGE_PROVIDER: "local";
+  STORAGE_LOCAL_PATH: string;
+}
+
+export interface S3StorageEnv {
+  STORAGE_PROVIDER: "s3";
+  S3_ENDPOINT: string;
+  S3_REGION: string;
+  S3_ACCESS_KEY_ID: string;
+  S3_SECRET_ACCESS_KEY: string;
+  S3_BUCKET: string;
+  S3_FORCE_PATH_STYLE: boolean;
+}
+
+export type StorageEnv = LocalStorageEnv | S3StorageEnv;
