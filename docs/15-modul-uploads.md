@@ -341,7 +341,7 @@ Na zbudowanym serwerze (sprawdzone przez `curl`): żądanie z `Transfer-Encoding
 
 <a id="cofniecie"></a>
 
-**Cofnięcie obiektu przy błędzie rekordu.** Obiekt trafia do magazynu przed rekordem. Gdy zapis rekordu się nie uda, `createUpload` loguje `upload record create failed`, usuwa obiekt pod tym samym kluczem i zwraca 500 `storage_failed`; zdarzenie `upload.created` nie powstaje. Gdy usunięcie obiektu też się nie uda, błąd trafia tylko do logu jako `upload rollback failed` z polami `err` i `key`, odpowiedź jest ta sama, a obiekt zostaje w buckecie bez rekordu. Gdy nie uda się zapis obiektu, log ma `upload putObject failed`, a rekord nie powstaje. Te przypadki sprawdzają testy jednostkowe z atrapami Prismy i magazynu („usuwa obiekt z tym samym kluczem i zwraca 500, gdy zapis rekordu pada”, „zwraca 500 i loguje upload rollback failed…”); przebieg ich nie odtwarzał.
+**Cofnięcie obiektu przy błędzie rekordu.** Obiekt trafia do magazynu przed rekordem. Gdy zapis rekordu się nie uda, `createUpload` loguje `upload record create failed`, usuwa obiekt pod tym samym kluczem i zwraca 500 `storage_failed`; zdarzenie `upload.created` nie powstaje. Gdy usunięcie obiektu też się nie uda, błąd trafia tylko do logu jako `upload rollback failed` z polami `err` i `key`, odpowiedź jest ta sama, a obiekt zostaje w magazynie bez rekordu. Gdy nie uda się zapis obiektu, log ma `upload putObject failed`, a rekord nie powstaje. Te przypadki sprawdzają testy jednostkowe z atrapami Prismy i magazynu („usuwa obiekt z tym samym kluczem i zwraca 500, gdy zapis rekordu pada”, „zwraca 500 i loguje upload rollback failed…”); przebieg ich nie odtwarzał.
 
 <a id="get"></a>
 

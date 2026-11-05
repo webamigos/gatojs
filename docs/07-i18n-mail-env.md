@@ -479,7 +479,7 @@ Poza serwerem Next.js, który sprawdza zmienne przy starcie, walidacja chroni ty
 | Zmienna | Kto czyta wprost | Skutek |
 | --- | --- | --- |
 | `DATABASE_URL` | `src/shared/lib/prisma.ts`, `prisma.config.ts` | Prisma łączy się bez walidacji pozostałych zmiennych. `env.DATABASE_URL` nie czyta żaden plik. |
-| `NODE_ENV`, `OTEL_EXPORTER_OTLP_ENDPOINT` | `src/shared/lib/logger.ts` (przy imporcie), `src/instrumentation.ts` | Logger działa niezależnie od wyniku walidacji. `register()` konfiguruje eksport dopiero po udanym sprawdzeniu przy starcie. |
+| `NODE_ENV`, `OTEL_EXPORTER_OTLP_ENDPOINT` | `src/shared/lib/logger.ts` (przy imporcie), `src/instrumentation.ts` | Logger czyta te zmienne wprost z `process.env`, bez walidacji. Start serwera i tak zależy od `verifyEnvOnStartup`: przy błędnym `env` `register()` kończy proces, zanim skonfiguruje eksport, więc serwer z błędnym `env` nie działa dalej. |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | `scripts/admin-create.ts` (`values.password ?? process.env.ADMIN_PASSWORD`) | Pusta wartość `ADMIN_PASSWORD` działa jak brak: skrypt generuje hasło ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)). |
 
 Skutek przy wdrożeniu: `/api/healthcheck` nie odczytuje `env`, ale przy błędnych zmiennych nie odpowiada wcale, bo proces kończy się przy starcie ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#healthcheck), [10-wdrozenie.md](10-wdrozenie.md#blad-env)).

@@ -303,7 +303,7 @@ Uwaga dla recenzenta: po pierwszym warunku `resolveObjectPath` część „poza 
 | `{ STORAGE_PROVIDER: "s3", ...S3_OK, NODE_ENV: "production", RAILWAY_ENVIRONMENT_ID: "e1" }` | `s3` bez problemów |
 | `{ NODE_ENV: "production" }` | problem „Produkcja poza Railway bez ścieżki” |
 | `{ NODE_ENV: "production", STORAGE_LOCAL_PATH: "/app/volumes/uploads" }` | `local`, `/app/volumes/uploads` |
-| `{ NODE_ENV: "production", STORAGE_LOCAL_PATH: "./volumes/uploads" }` | `local`, `/app/volumes/uploads` |
+| `{ NODE_ENV: "production", STORAGE_LOCAL_PATH: "./volumes/uploads" }` | problem `STORAGE_LOCAL_PATH` „w produkcji poza Railway musi być ścieżką bezwzględną: wskaż trwały katalog” (zmienione po recenzji całej gałęzi, rozstrzygnięcie R19; pierwotnie: `local`, `/app/volumes/uploads`) |
 | `{ NODE_ENV: "production", RAILWAY_ENVIRONMENT_ID: "e1" }` | tylko problem „Railway bez wolumenu” |
 | `{ NODE_ENV: "production", RAILWAY_ENVIRONMENT_ID: "e1", RAILWAY_VOLUME_MOUNT_PATH: "  " }` | tylko problem „Railway bez wolumenu” |
 | `{ NODE_ENV: "production", RAILWAY_ENVIRONMENT_ID: "e1", RAILWAY_VOLUME_MOUNT_PATH: "/data" }` | `local`, `/data` |
