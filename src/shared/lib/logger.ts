@@ -16,7 +16,11 @@ function toAttrs(
       continue;
     }
     if (value instanceof Error) {
-      result[`${key}.type`] = value.constructor.name || "Error";
+      // WHY: production bundles minify class names, but a name set in the constructor survives.
+      result[`${key}.type`] =
+        value.name && value.name !== "Error"
+          ? value.name
+          : value.constructor.name || "Error";
       result[`${key}.message`] = value.message;
       if (value.stack) {
         result[`${key}.stacktrace`] = value.stack;
