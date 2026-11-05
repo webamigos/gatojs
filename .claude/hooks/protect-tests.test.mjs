@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -143,4 +143,15 @@ test("the CLI allows a worktree test edit when only the enclosing main checkout 
       filePath: join(worktree, "src/__tests__/a.test.ts"),
     });
     assert.equal(result.status, 0);
+  }));
+
+test("the CLI blocks a new test file reached through a directory symlink into a worktree that is in the implement phase", () =>
+  withCheckouts(({ main, worktree }) => {
+    enterImplementPhase(worktree);
+    mkdirSync(join(worktree, "src"));
+    const link = join(main, "..", "src-link");
+    symlinkSync(join(worktree, "src"), link, "dir");
+    const blocked = runHook({ sessionDir: main, cwd: main, filePath: join(link, "__tests__/a.test.ts") });
+    assert.equal(blocked.status, 2);
+    assert.match(blocked.stderr.toString(), /tylko do odczytu/);
   }));
