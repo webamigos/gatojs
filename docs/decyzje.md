@@ -925,7 +925,7 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 
 ## D26 · Mutation testing i bramka plików krytycznych
 
-**Status:** obowiązuje · **Data:** 2026-10-27 · **Kto zdecydował:** nie zapisano; Stryker wprowadza commit `c9d7b25`, bramkę commit `54efbcf`; wpisy wyjątków zatwierdza człowiek (`AGENTS.md`)
+**Status:** obowiązuje · **Data:** 2026-10-27 (stały seed testów właściwości pod Strykerem od 2026-11-05) · **Kto zdecydował:** nie zapisano; Stryker wprowadza commit `c9d7b25`, bramkę commit `54efbcf`; wpisy wyjątków zatwierdza człowiek (`AGENTS.md`); stały seed: sesja agenta (commity `988a2a4` i `fdf7dbe`), do zatwierdzenia w pull requeście
 
 **Kontekst.** Pokrycie kodu testami nie mówi, czy testy wykryją błąd. Mutation testing wstrzykuje do kodu drobne błędy (mutanty) i sprawdza, czy któryś test je zauważy. Autor testów nie może tego wyniku zinterpretować na swoją korzyść: mutant ginie albo nie. Audyt testów planu 1 (na commicie `50a4d9e`) dał wynik mutacji (mutation score) 71,75%, a najpoważniejsze luki, na przykład brak testu sprawdzenia roli admina w `getAdminUserOrNull`, wykrył tylko on. Po audycie dopisano testy zabijające wskazane mutanty (commit `bb935e6`), a przy wprowadzeniu Strykera do repozytorium wynik bazowy wynosił 77% (commit `c9d7b25`). Próg dla całego kodu przepuszcza jednak pojedyncze luki w plikach, w których każda luka jest błędem bezpieczeństwa.
 
@@ -935,19 +935,23 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 - Bramka plików krytycznych (`npm run test:mutation:gate`, konfiguracja w `mutation-gate.json`): w plikach z prefiksami z listy `critical` (auth, organizacje, użytkownicy, sama bramka) każdy niezabity mutant, czyli ze statusem `Survived` albo `NoCoverage`, musi mieć wpis w `allowed` z uzasadnieniem. Wpis z pustym uzasadnieniem też zatrzymuje bramkę. Wpisy dopisuje człowiek; agent je tylko proponuje.
 - Mutation testing nie jest częścią `npm run verify`. Działa w osobnym workflow, a przebieg unitowy pada poniżej `thresholds.break` (75%).
 - Logikę bramki (statusy, łączenie raportów, dopasowanie wpisów, nieaktualne wpisy) zawiera `scripts/lib/mutation-gate.ts`. `AGENTS.md` („Testy, które próbują złamać kod”) podaje regułę łączenia raportów, nieaktualnych wpisów i zakaz obniżania progu, a [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#bramka) opisuje pracę z bramką.
+- Testy właściwości (`test.prop`) mają w procesach Strykera stały seed, a w zwykłych przebiegach losowy ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#seed)). Stryker wybiera testy mutanta po nazwach z przebiegu suchego, a `@fast-check/vitest` dopisuje seed do nazwy testu, więc z losowym seedem testy właściwości nie uruchamiały się dla mutantów. Seed ustawiają `vitest.setup.ts` i `kit/cli/vitest.setup.ts`, tylko gdy istnieje zmienna `STRYKER_MUTATOR_WORKER`, którą Stryker ustawia w każdym swoim procesie.
 
 **Odrzucone alternatywy.**
 
 - Stryker w `npm run verify` (research: pełny przebieg to wielokrotność czasu `npm test`; zalecenie „dodać, ale nie do verify”).
 - Start bez progu (`thresholds.break: null`) i późniejszy próg około 60 (propozycja researchu). Wybrano 75 przy wyniku bazowym 77.
 - Wyłączanie mutacji komentarzem `// Stryker disable` (research: koliduje z regułą bez komentarzy, [D23](#d23), bo hook by go zablokował).
+- Stały seed testów właściwości we wszystkich przebiegach: `npm test` przestałby sprawdzać nowe wejścia przy każdym uruchomieniu.
+- Osobna konfiguracja Vitest dla Strykera (opcja `vitest.configFile` w konfiguracji Strykera) z plikiem ustawień, który zawsze ustawia seed: dodatkowe pliki konfiguracji w aplikacji, w konfiguracji integracyjnej i w CLI.
+- Seed losowany raz na przebieg Strykera: musiałby trafić do wszystkich procesów jednego przebiegu, a między przebiegami zmieniałby nazwy testów, więc tryb przyrostowy nie użyłby starych wyników, a wynik mutacji i bramka nie byłyby powtarzalne.
 
 **Konsekwencje.**
 
 - Pełny przebieg unitowy trwa około 12 minut (audyt planu 1, 8 rdzeni). Nigdy nie uruchamiaj dwóch przebiegów naraz: dwa przebiegi `stryker.config.json` nadpisują sobie `reports/mutation/` i `reports/stryker-incremental.json`; przebieg integracyjny dzieli bazę `_test` z innym przebiegiem integracyjnym i z `npm run test:integration`, więc test, któremu drugi proces wyczyścił tabele, daje fałszywie zabitego mutanta; przy braku procesora testy przekraczają limit czasu, a status `Timeout` liczy się jako wykryty. Katalog `.stryker-tmp/` konfliktu nie powoduje, bo każdy przebieg tworzy w nim własny podkatalog `sandbox-*` i usuwa tylko swój ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#jeden-stryker)). Sam przebieg integracyjny ma znany problem: mimo `concurrency: 1` po sprawdzeniu typów działają w nim dwa procesy testów na wspólnej bazie `_test` ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#concurrency)).
 - `npm run test:mutation:task` przy istniejącym pliku przyrostowym (`reports/stryker-incremental.json`) raportuje i ocenia progiem `break` cały projekt: wyniki pozostałych plików bierze z tego pliku. Wynik pliku zadania trzeba czytać z jego wiersza w raporcie ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#task)).
 - Nowy plik w katalogu z listy `critical` jest objęty bramką od razu, bo bramka porównuje prefiksy ścieżek.
-- Testy właściwości (`test.prop`) mają w procesach Strykera stały seed, a w zwykłych przebiegach losowy ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#seed)). Stryker wybiera testy mutanta po nazwach z przebiegu suchego, a `@fast-check/vitest` dopisuje seed do nazwy testu, więc z losowym seedem testy właściwości nie uruchamiały się dla mutantów. Seed ustawiają `vitest.setup.ts` i `kit/cli/vitest.setup.ts`, tylko gdy istnieje zmienna `STRYKER_MUTATOR_WORKER`. Stały seed we wszystkich przebiegach odebrałby `npm test` sprawdzanie nowych wejść przy każdym uruchomieniu, a osobna konfiguracja Vitest dla Strykera wymagałaby dodatkowych plików konfiguracji w aplikacji i w CLI.
+- W procesach Strykera test właściwości sprawdza w każdym przebiegu te same wejścia: mutant, którego nie wykrywają, przeżyje w każdym przebiegu, a zabije go dopiero test przykładowy albo lepsza właściwość. Przebieg integracyjny (`vitest.integration.config.ts`) nie ładuje `vitest.setup.ts` i nie ma stałego seeda; testy integracyjne nie używają `test.prop`.
 
 **Jak egzekwowana.**
 
@@ -958,7 +962,7 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 - Stały seed testów właściwości pod Strykerem: `src/__tests__/vitest-setup.test.ts` w `npm test` i `kit/cli/src/__tests__/vitest-setup.test.ts` w bramce CLI.
 - To, że wpisy w `allowed` dodaje człowiek: tylko konwencja (agent `test-reviewer` nie ma narzędzi `Edit` ani `Write`, ale ma `Bash`).
 
-**Źródło.** Commity `c9d7b25` i `54efbcf`; [AGENTS.md](../AGENTS.md), „Testy, które próbują złamać kod”; [CLAUDE.md](../CLAUDE.md), „Testy”; research i audyt testów planu 1.
+**Źródło.** Commity `c9d7b25` i `54efbcf`; stały seed: commity `988a2a4` i `fdf7dbe`; [AGENTS.md](../AGENTS.md), „Testy, które próbują złamać kod”; [CLAUDE.md](../CLAUDE.md), „Testy”; research i audyt testów planu 1.
 
 <a id="d27"></a>
 
