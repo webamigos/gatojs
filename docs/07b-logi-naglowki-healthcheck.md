@@ -3,6 +3,7 @@
 Po przeczytaniu będziesz wiedzieć:
 
 - dokąd trafiają wpisy `logger` zależnie od `NODE_ENV` i `OTEL_EXPORTER_OTLP_ENDPOINT` i dlaczego na produkcji trzeba ustawić endpoint;
+- skąd `logger` bierze typ błędu w atrybucie `<klucz>.type` i kiedy na produkcji jest w nim zminifikowana nazwa klasy;
 - jak `src/instrumentation.ts` eksportuje logi protokołem OTLP i czego ten eksport nie obejmuje;
 - dlaczego `LOG_LEVEL` niczego nie zmienia;
 - jakie nagłówki bezpieczeństwa dostaje każda odpowiedź;
@@ -12,7 +13,7 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 
 Źródła:
 
-- logi: `src/shared/lib/logger.ts`, `src/instrumentation.ts`, `src/shared/config/project.ts`, `src/shared/lib/env.ts`, `.env.example`, `e2e/env.ts`, `src/shared/utils/error-handling.ts`, `src/shared/lib/mailer.ts`, `src/features/users/services/commands/invite-user-command.ts`, `src/features/users/services/commands/impersonation-commands.ts`, `src/features/organizations/services/queries/default-organization-query.ts`, `src/app/[locale]/accept-invitation/[id]/page.tsx`;
+- logi: `src/shared/lib/logger.ts`, `src/shared/lib/__tests__/logger.test.ts`, `src/instrumentation.ts`, `src/shared/config/project.ts`, `src/shared/lib/env.ts`, `.env.example`, `e2e/env.ts`, `src/shared/utils/error-handling.ts`, `src/shared/lib/auth/org-context.ts`, `src/shared/lib/auth/service-mode.ts`, `src/shared/lib/mailer.ts`, `src/features/users/services/commands/invite-user-command.ts`, `src/features/users/services/commands/impersonation-commands.ts`, `src/features/organizations/services/queries/default-organization-query.ts`, `src/app/[locale]/accept-invitation/[id]/page.tsx`, `src/features/api-keys/services/commands/api-key-commands.ts`, `src/features/uploads/services/commands/upload-commands.ts`;
 - nagłówki i healthcheck: `src/shared/lib/security-headers.ts`, `next.config.ts`, `src/proxy.ts`, `src/app/api/healthcheck/route.ts`, `src/app/api/healthcheck/__tests__/route.test.ts`, `src/shared/lib/prisma.ts`, `railway.toml`, `Dockerfile`;
 - biblioteki (wersje w `package-lock.json`): `node_modules/@opentelemetry/api-logs/build/src/api/logs.js` (0.218.0), `node_modules/@opentelemetry/sdk-logs/build/src/export/BatchLogRecordProcessorBase.js` (0.218.0), `node_modules/@opentelemetry/otlp-exporter-base/build/src/configuration/otlp-node-http-env-configuration.js` (0.218.0), `node_modules/next/dist/server/lib/start-server.js` (Next.js 16.3.8, `cleanup`), `node_modules/next/dist/server/route-modules/app-route/helpers/auto-implement-methods.js`.
 
@@ -56,6 +57,33 @@ Ostatni wiersz wynika z budowy OTel: `logger` oddaje wpis do API logów, a gdy n
 **Na produkcji ustaw `OTEL_EXPORTER_OTLP_ENDPOINT`.** Bez niego nie zobaczysz w logach usługi żadnego wpisu aplikacji, w tym błędów komend z `handleCommandError` i nieudanych wysyłek maili. Na konsolę trafia wtedy tylko to, co Next.js i biblioteki wypisują same, z pominięciem `logger`.
 
 Na konsoli wpis ma postać `[<POZIOM>] <komunikat>` i obiekt atrybutów bez zmian. Do eksportu atrybuty przechodzą przez `toAttrs`: błąd daje trzy atrybuty `<klucz>.type`, `<klucz>.message` i `<klucz>.stacktrace`, data napis ISO, obiekt napis JSON, a `null` i `undefined` są pomijane. Komunikaty rdzenia są po angielsku i zaczynają się od prefiksu obszaru (`[MAILER]`, `[USERS]`, `[AUTH]`, `[ORG]`). Wyjątkiem jest `handleCommandError`: zapisuje polski komunikat domyślny komendy bez prefiksu, na przykład `Nie udało się zaprosić użytkownika`. Pełna lista: [Referencja](#referencja-logi).
+
+<a id="logger-typ-bledu"></a>
+
+### Typ błędu w `<klucz>.type`
+
+`toAttrs` bierze typ błędu z `name`, gdy jest niepuste i różne od `"Error"`. W przeciwnym razie bierze nazwę konstruktora, czyli klasy błędu, a gdy i ona jest pusta (klasa anonimowa), wpisuje `"Error"`:
+
+`src/shared/lib/logger.ts`
+
+```ts
+      result[`${key}.type`] =
+        value.name && value.name !== "Error"
+          ? value.name
+          : value.constructor.name || "Error";
+```
+
+`name` stoi na pierwszym miejscu z powodu budowania produkcyjnego. `npm run build` minifikuje kod serwera: zastępuje nazwy klas krótkimi nazwami, a napisy zostawia. Napis przypisany do `this.name` w konstruktorze zostaje więc w kodzie, a nazwa klasy, która nie ustawia `name`, znika: w plikach `.js` w `.next/server` nie ma napisu `DomainError` (sprawdzone na wyniku `npm run build`). W jednym z plików `.next/server/chunks/` klasa `NoOrganizationError` ma na przykład postać:
+
+```js
+class d extends Error{constructor(){super("Użytkownik nie należy do aktywnej organizacji"),this.name="NoOrganizationError"}}
+```
+
+`d` to przykład z jednego budowania, a nie stała nazwa: w dwóch innych plikach tego samego budowania ta klasa nazywa się `m`. Gdy klasa nie ustawia `name`, jak `DomainError`, błąd ma `name` odziedziczone po `Error`, czyli `"Error"`, i `toAttrs` bierze nazwę konstruktora, na produkcji zminifikowaną. Własna klasa błędu ma więc na produkcji w `<klucz>.type` swoją nazwę tylko wtedy, gdy wpisuje ją do `name`, tak jak `NoOrganizationError` w konstruktorze.
+
+W rdzeniu `name` ustawiają `NoOrganizationError` (`src/shared/lib/auth/org-context.ts`) i `ServiceModeConfirmationError` (`src/shared/lib/auth/service-mode.ts`), a `DomainError` (`src/shared/utils/error-handling.ts`) nie. Wpis `warn` z `handleCommandError` dla błędu rzuconego wprost jako `DomainError` ma więc na produkcji w `err.type` zminifikowaną nazwę klasy. Rdzeń rzuca `DomainError` tylko jako `ServiceModeConfirmationError`; wprost rzucają go komendy modułów `api-keys` i `uploads`.
+
+Regułę sprawdzają testy w `src/shared/lib/__tests__/logger.test.ts`, w tym przypadek klasy zminifikowanej do `d` z `name` ustawionym w konstruktorze.
 
 <a id="otel"></a>
 
