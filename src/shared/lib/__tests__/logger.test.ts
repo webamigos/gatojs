@@ -52,13 +52,13 @@ describe("logger.error — atrybuty err.* wpisu OpenTelemetry", () => {
   });
 
   it('klasa bez własnego name (dziedziczy "Error") → err.type to nazwa klasy', async () => {
-    class DomainError extends Error {}
+    class ResourceNotFoundError extends Error {}
 
     const attributes = await logErrorAttributes(
-      new DomainError("Nie znaleziono zasobu"),
+      new ResourceNotFoundError("Nie znaleziono zasobu"),
     );
 
-    expect(attributes["err.type"]).toBe("DomainError");
+    expect(attributes["err.type"]).toBe("ResourceNotFoundError");
   });
 
   it('zwykły Error → err.type "Error"', async () => {
