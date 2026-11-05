@@ -588,7 +588,7 @@ Strona `/sign-up` przy wyłączonej rejestracji i bez `invitationId` przekierowu
 - `LOG_LEVEL` jest walidowana w `src/shared/lib/env.ts`, ale logger jej nie czyta i nie filtruje po poziomie ([znane-ograniczenia.md](znane-ograniczenia.md)).
 - Mutation testing nie obejmuje `logger.ts` (wykluczenie w `stryker.config.json`, [D26](#d26)).
 
-**Jak egzekwowana.** Tylko konwencja. Nie ma reguły lintera przeciw `console.log` ani testów loggera.
+**Jak egzekwowana.** Nie ma reguły lintera przeciw `console.log`, więc to, że kod loguje przez `logger`, jest tylko konwencją. Testy loggera (`src/shared/lib/__tests__/logger.test.ts`) sprawdzają tylko atrybuty błędu (`err.type`, `err.message` i `err.stacktrace`) we wpisie z `logger.error`, który trafia do eksportera OpenTelemetry.
 
 **Źródło.** Ruling R15 w [handoffie planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md); [design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §3.
 
