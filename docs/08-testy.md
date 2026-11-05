@@ -26,6 +26,7 @@ Zweryfikowano z kodem: 25adbb8, 2026-10-28
 - `playwright.config.ts`
 - `e2e/`
 - `kit/cli/vitest.config.ts`
+- `kit/cli/vitest.setup.ts`
 - `turbo.json`
 - `.claude/hooks/block-comments.test.mjs`
 - `.claude/hooks/protect-tests.test.mjs`
@@ -60,7 +61,7 @@ Każdy rodzaj testu zastępuje inną część systemu, więc każdy łapie inne 
 `npm test` uruchamia Vitest z `vitest.config.ts`. Najważniejsze ustawienia:
 
 - **Środowisko `jsdom`** dla wszystkich plików, żeby testy komponentów mogły renderować React. Plik, który potrzebuje czystego Node, zaczyna się od dyrektywy `// @vitest-environment node` (tak robi test architektury).
-- **`vitest.setup.ts`** dodaje matchery Testing Library dla DOM (na przykład `toBeInTheDocument`) i wczytuje `.env.local` oraz `.env` przez dotenv. Testy widzą więc `DATABASE_URL` z `.env`, ale z bazą się nie łączą, bo Prisma jest w nich zastąpiona.
+- **`vitest.setup.ts`** dodaje matchery Testing Library dla DOM (na przykład `toBeInTheDocument`) i wczytuje `.env.local` oraz `.env` przez dotenv. Testy widzą więc `DATABASE_URL` z `.env`, ale z bazą się nie łączą, bo Prisma jest w nich zastąpiona. W procesach Strykera (ze zmienną `STRYKER_MUTATOR_WORKER`) ustawia też stały seed testów właściwości ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#seed)).
 - **Pliki:** `src/**/*.test.ts`, `src/**/*.test.tsx`, `scripts/**/*.test.ts` i `e2e/**/*.test.ts`. Pominięte są `*.integration.test.ts`, `packages/**` (CLI ma własną konfigurację), `kit/**`, `docs/**`, `.superpowers/**` i `.stryker-tmp/**` (kopie projektu robione przez Strykera).
 - **`globals: true`** udostępnia `describe`, `it` i `expect` bez importu, a **`clearMocks: true`** czyści historię wywołań mocków przed każdym testem.
 - **Alias `server-only`** wskazuje pusty plik `empty.js` z pakietu `server-only`, więc pliki serwerowe z `import "server-only"` dają się zaimportować w teście.
@@ -177,7 +178,7 @@ Prisma 7.10.1 sprawdza przy `db push --force-reset` i `migrate reset`, czy uruch
 
 ## Testy CLI i hooków
 
-**CLI** (`kit/cli`, tylko w repozytorium kitu) ma własną konfigurację `kit/cli/vitest.config.ts`: środowisko `node`, pliki `src/**/*.test.ts`. Testy generatora, manifestu i komend kopiują pliki do katalogu tymczasowego systemu (`mkdtemp`), więc nie zmieniają plików repozytorium. Wyjątek to test własności plików, który czyta prawdziwe repozytorium kitu ([D38](decyzje.md#d38)). Uruchomisz je komendą `npm test --prefix kit/cli`. Bramka CLI `npm run verify --prefix kit/cli` uruchamia po kolei lint (`eslint .` z `kit/cli/eslint.config.mjs`), typecheck, testy i build bundla; ta sama bramka działa w jobie `cli` workflowu `kit.yml`. CLI ma też własną konfigurację Strykera i bramkę mutacji (`kit/cli/stryker.config.json`, `kit/cli/mutation-gate.json`, komendy `npm run test:mutation:task --prefix kit/cli -- <pliki>` i `npm run test:mutation:gate --prefix kit/cli`); pełny przebieg uruchamia ręcznie `kit-mutation.yml`. Szczegóły: [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli). Główny `npm test` pomija `kit/**`.
+**CLI** (`kit/cli`, tylko w repozytorium kitu) ma własną konfigurację `kit/cli/vitest.config.ts`: środowisko `node`, pliki `src/**/*.test.ts` i plik ustawień `kit/cli/vitest.setup.ts`, który w procesach Strykera ustawia stały seed testów właściwości, tak jak `vitest.setup.ts` aplikacji ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#seed)). Testy generatora, manifestu i komend kopiują pliki do katalogu tymczasowego systemu (`mkdtemp`), więc nie zmieniają plików repozytorium. Wyjątek to test własności plików, który czyta prawdziwe repozytorium kitu ([D38](decyzje.md#d38)). Uruchomisz je komendą `npm test --prefix kit/cli`. Bramka CLI `npm run verify --prefix kit/cli` uruchamia po kolei lint (`eslint .` z `kit/cli/eslint.config.mjs`), typecheck, testy i build bundla; ta sama bramka działa w jobie `cli` workflowu `kit.yml`. CLI ma też własną konfigurację Strykera i bramkę mutacji (`kit/cli/stryker.config.json`, `kit/cli/mutation-gate.json`, komendy `npm run test:mutation:task --prefix kit/cli -- <pliki>` i `npm run test:mutation:gate --prefix kit/cli`); pełny przebieg uruchamia ręcznie `kit-mutation.yml`. Szczegóły: [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli). Główny `npm test` pomija `kit/**`.
 
 **Hooki Claude Code** testuje `npm run test:hooks`, czyli wbudowany runner Node (`node --test`) na `.claude/hooks/block-comments.test.mjs` i `.claude/hooks/protect-tests.test.mjs`. Testy wywołują funkcje hooka, a w części przypadków uruchamiają skrypt jako osobny proces z wejściem JSON, tak jak robi to Claude Code, i sprawdzają kod wyjścia. Co robią hooki: [D23](decyzje.md#d23) (komentarze) i [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza) (testy tylko do odczytu).
 
@@ -492,7 +493,7 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 | Plik | Co ustawia |
 | --- | --- |
 | `vitest.config.ts` | Testy jednostkowe: `jsdom`, `vitest.setup.ts`, pliki i wykluczenia, aliasy `@` i `server-only`, `globals`, `clearMocks`. |
-| `vitest.setup.ts` | Matchery `@testing-library/jest-dom`, wczytanie `.env.local` i `.env`. |
+| `vitest.setup.ts` | Matchery `@testing-library/jest-dom`, wczytanie `.env.local` i `.env`, stały seed testów właściwości w procesach Strykera. |
 | `vitest.integration.config.ts` | Testy integracyjne: `node`, `globalSetup`, `setupFiles`, `fileParallelism: false`, limity czasu. |
 | `src/test/integration/global-setup.ts` | Sprawdzenie nazwy, założenie bazy, `prisma db push`. |
 | `src/test/integration/setup-env.ts` | Zmienne środowiskowe testów integracyjnych. |
@@ -505,7 +506,8 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 | `e2e/global-setup.ts` | Reset bazy e2e, `admin:create`, czyszczenie mailpit. |
 | `e2e/database-guard.ts` | `assertE2eDatabase`. |
 | `e2e/helpers.ts` | `LABELS`, logowanie, rejestracja, ustawienie hasła, API mailpit. |
-| `kit/cli/vitest.config.ts` | Testy CLI: `node`, `src/**/*.test.ts`. |
+| `kit/cli/vitest.config.ts` | Testy CLI: `node`, `src/**/*.test.ts`, plik ustawień `kit/cli/vitest.setup.ts`. |
+| `kit/cli/vitest.setup.ts` | Stały seed testów właściwości CLI w procesach Strykera. |
 | `kit/cli/eslint.config.mjs`, `kit/cli/stryker.config.json`, `kit/cli/mutation-gate.json` | Lint, Stryker i bramka mutacji CLI ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli)). |
 | `turbo.json` | Zadania `build`, `lint`, `test` i `typecheck` w workspace `packages/*`, który jest pusty; każde po `^build`. |
 | `stryker.config.json`, `stryker.integration.config.json`, `mutation-gate.json` | Mutation testing i bramka mutacji: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#referencja). |
