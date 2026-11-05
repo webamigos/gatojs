@@ -115,7 +115,7 @@ flowchart TD
 
 ## Faza implementacji i hook `protect-tests`
 
-Hook `.claude/hooks/protect-tests.mjs` jest zarejestrowany w `.claude/settings.json` jako `PreToolUse` dla narzędzi pasujących do `Edit|Write`, obok hooka komentarzy ([D23](decyzje.md#d23)). Przed każdą edycją pliku Claude Code przekazuje mu ścieżkę pliku. Hook czyta plik `.superpowers/phase` z katalogu projektu (`CLAUDE_PROJECT_DIR`, a bez niego katalog roboczy sesji) i blokuje edycję, gdy zawartość pliku po obcięciu białych znaków na brzegach ma wartość dokładnie `implement`, a ścieżka pasuje do wzorca:
+Hook `.claude/hooks/protect-tests.mjs` jest zarejestrowany w `.claude/settings.json` jako `PreToolUse` dla narzędzi pasujących do `Edit|Write`, obok hooka komentarzy ([D23](decyzje.md#d23)). Przed każdą edycją pliku Claude Code przekazuje mu ścieżkę pliku. Hook czyta plik `.superpowers/phase` z dwóch miejsc: z kopii roboczej, w której leży edytowany plik, i z katalogu projektu sesji ([Faza w worktree](#faza-worktree)). Blokuje edycję, gdy w którymkolwiek z nich zawartość pliku po obcięciu białych znaków na brzegach ma wartość dokładnie `implement`, a ścieżka pasuje do wzorca:
 
 `.claude/hooks/protect-tests.mjs`
 
@@ -132,7 +132,7 @@ Zablokowane: faza implementacji (.superpowers/phase = implement), testy są tylk
 Jeśli test jest błędny albo sprzeczny ze specyfikacją, zatrzymaj się i zgłoś to w raporcie zamiast go zmieniać.
 ```
 
-Fazę włącza i wyłącza orkiestrator w katalogu głównym repozytorium:
+Fazę włącza i wyłącza orkiestrator w katalogu głównym kopii roboczej, w której pracuje implementer, czyli w katalogu worktree, gdy zadanie ma własny worktree:
 
 ```bash
 mkdir -p .superpowers && printf 'implement\n' > .superpowers/phase
@@ -140,6 +140,25 @@ rm .superpowers/phase
 ```
 
 Hook czyta plik przy każdej edycji, więc zmiana działa od razu, bez restartu sesji.
+
+<a id="faza-worktree"></a>
+
+### Faza w worktree
+
+`$CLAUDE_PROJECT_DIR` wskazuje katalog projektu sesji, a nie katalog, w którym agent akurat pracuje ([Hooki Claude Code](11-praca-z-kitem.md#hooki)). W sesji uruchomionej w głównej kopii zmienna zostaje przy głównej kopii także po przejściu agenta do worktree. W sesji, którą aplikacja Claude uruchamia we własnym worktree w `.claude/worktrees/`, od początku wskazuje główną kopię. Gdyby hook czytał plik fazy tylko z `$CLAUDE_PROJECT_DIR`, orkiestrator, który zapisał fazę w worktree zadania, nie zablokowałby implementera. Dlatego hook czyta plik fazy z dwóch katalogów:
+
+- z katalogu głównego kopii roboczej edytowanego pliku, czyli z najbliższego katalogu nad plikiem, który zawiera wpis `.git` (w głównej kopii to katalog `.git/`, w worktree plik `.git`);
+- z katalogu projektu sesji (`$CLAUDE_PROJECT_DIR`, a bez tej zmiennej z katalogu roboczego sesji).
+
+| Gdzie leży plik fazy | Gdzie hook blokuje edycję testów |
+| --- | --- |
+| W worktree zadania. | W tym worktree, w każdej sesji. |
+| W głównej kopii. | W każdej kopii roboczej edytowanej w sesji, której `$CLAUDE_PROJECT_DIR` wskazuje główną kopię. Tak jest w sesji uruchomionej w głównej kopii i w każdej sesji aplikacji Claude dla tego repozytorium, także działającej w `.claude/worktrees/`. |
+| W głównej kopii, a sesja wystartowała w katalogu worktree poza aplikacją Claude, na przykład poleceniem `claude` w tym katalogu. | Tylko w głównej kopii. Hook nie szuka pliku fazy powyżej katalogu z `.git`, a `$CLAUDE_PROJECT_DIR` tej sesji wskazuje worktree. |
+
+Zapisuj plik fazy w kopii roboczej implementera, a nie w głównej kopii. Wtedy blokada obejmuje tylko jego zadanie, a `test-writer` innego zadania może w tym czasie pisać testy w innym worktree. Plik w głównej kopii zablokowałby edycję testów we wszystkich sesjach aplikacji Claude dla tego repozytorium. Przypadki z tabeli sprawdzają testy w `.claude/hooks/protect-tests.test.mjs`.
+
+Skrypt hooka Claude Code uruchamia z katalogu projektu sesji (`$CLAUDE_PROJECT_DIR/.claude/hooks/protect-tests.mjs`). Sesja uruchomiona w głównej kopii i każda sesja aplikacji Claude w `.claude/worktrees/` używają więc wersji hooka z głównej kopii, a nie z gałęzi swojego worktree. Zmiana hooka zaczyna w nich działać dopiero wtedy, gdy główna kopia ma jego nową wersję, na przykład po scaleniu do `main` i `git pull` w głównej kopii.
 
 ### Czego hook nie blokuje
 
@@ -149,7 +168,7 @@ Hook czyta plik przy każdej edycji, więc zmiana działa od razu, bez restartu 
 | Pomocniki testów poza `__tests__/`: `src/test/fake-prisma.ts`, `src/test/integration/`. | Implementer może zmienić `resetDatabase` albo zachowanie Prismy w pamięci. | Tylko przegląd diffu. |
 | Konfiguracja testów i mutacji: `vitest.config.ts`, `vitest.integration.config.ts`, `playwright.config.ts`, `stryker.config.json`, `stryker.integration.config.json`, `mutation-gate.json`, a także sam hook i `.claude/settings.json`. | Implementer może na przykład zawęzić `mutate` albo dopisać wpis do `allowed`. | Tylko przegląd diffu. |
 | Inne narzędzia niż Claude Code (Codex, Cursor, edytor człowieka). | Hook działa tylko w sesji Claude Code. | Przegląd diffu. |
-| Inna kopia robocza, worktree. | Hook czyta `.superpowers/phase` z katalogu, w którym wystartowała sesja Claude Code (`$CLAUDE_PROJECT_DIR`), także gdy agent pracuje w worktree. Plik w głównej kopii blokuje więc też edycję testów w worktree, do którego agent przeszedł w trakcie sesji, a plik zapisany w worktree działa tylko w sesji uruchomionej w tym worktree. `.superpowers/` jest w `.gitignore`, więc inne kopie robocze pliku nie dostają. | — |
+| Plik fazy poza kopią roboczą edytowanego pliku i poza katalogiem projektu sesji, na przykład w worktree innego zadania. | Hook nie widzi takiego pliku i przepuszcza edycję testów ([Faza w worktree](#faza-worktree)). `.superpowers/` jest w `.gitignore`, więc nowy worktree nie dostaje pliku fazy z głównej kopii. | `test-reviewer`: punkt checklisty o zmianach w plikach testowych. |
 
 `test-reviewer` najłatwiej sprawdzi, czy implementer nie zmienił testów, gdy testy mają własny commit sprzed implementacji. Wystarczy wtedy porównać pliki testów, ich pomocników i bramki od tego commitu, na przykład:
 
