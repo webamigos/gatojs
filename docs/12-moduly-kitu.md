@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - które szwy generowane i które punkty wejścia rdzenia łączą moduł z aplikacją;
 - co dzieje się z kodem, który korzysta z punktu wejścia, gdy modułu w projekcie nie ma.
 
-Zweryfikowano z kodem: 734391b, 2026-11-04
+Zweryfikowano z kodem: 6c05f1f, 2026-11-05
 
 Źródła:
 
@@ -171,7 +171,7 @@ Po każdej z tych komend schemat bazy się zmienia, więc migrację tworzy i com
 
 Plików generowanych i regionów nie edytuje się ręcznie; CI projektu sprawdza, że po `wa generate` nie ma diffu ([D04](decyzje.md#d04)). Rejestr importuje pliki feature, więc zmiana treści `module.ts` albo `env.ts` nie wymaga generatora; wymaga go dodanie albo usunięcie takiego pliku.
 
-Zmienna wymagana przez `env.ts` modułu należy do schematu całej aplikacji: jej brak albo zła wartość zatrzymuje start serwera całej aplikacji, nie tylko modułu ([07](07-i18n-mail-env.md#walidacja-env)). Dlatego po `wa add` modułu z wymaganą zmienną (`api-keys`) trzeba uzupełnić `.env` ([16](16-cli-wa.md#add-po)). `uploads` bez nowych zmiennych startuje w trybie deweloperskim z providerem `local`, ale w produkcji poza Railway wymaga `STORAGE_LOCAL_PATH` albo `STORAGE_PROVIDER=s3` ([15](15-modul-uploads.md#reguly-produkcyjne)).
+Zmienna wymagana przez `env.ts` modułu należy do schematu całej aplikacji: jej brak albo zła wartość zatrzymuje start serwera całej aplikacji, nie tylko modułu ([07](07-i18n-mail-env.md#walidacja-env)). Dlatego po `wa add` modułu z wymaganą zmienną (`api-keys`) trzeba uzupełnić `.env` ([16](16-cli-wa.md#add-po)). `uploads` `0.2.0` (z lokalnego klonu kitu, na `core` `0.5.0`, [15](15-modul-uploads.md#wersja-core)) bez nowych zmiennych startuje w trybie deweloperskim z providerem `local`, ale w produkcji poza Railway wymaga `STORAGE_LOCAL_PATH` ze ścieżką bezwzględną albo `STORAGE_PROVIDER=s3` ([15](15-modul-uploads.md#reguly-produkcyjne)).
 
 <a id="punkty-wejscia"></a>
 

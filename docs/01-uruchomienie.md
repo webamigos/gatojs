@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - co zmieniają flagi `MULTI_ORG`, `AUTH_PUBLIC_SIGNUP` i `ADMIN_IMPERSONATION`;
 - jak rozpoznać i naprawić typowe problemy, w tym błędy walidacji zmiennych środowiskowych.
 
-Zweryfikowano z kodem: 734391b, 2026-11-04
+Zweryfikowano z kodem: 6c05f1f, 2026-11-05
 
 Źródła:
 
@@ -194,7 +194,7 @@ Nazwy usług (`db` i `mail`) zwraca `docker compose config --services`. Używaj 
 
 ## MinIO (moduł `uploads`)
 
-Projekt z modułem `uploads` startuje bez MinIO. `.env.example` ma `STORAGE_PROVIDER=local` i `STORAGE_LOCAL_PATH=./volumes/uploads`, więc aplikacja zapisuje pliki w katalogu `volumes/uploads`, który jest w `.gitignore` ([15](15-modul-uploads.md#provider)). Krok 4 [pierwszego uruchomienia](#pierwsze-uruchomienie) wystarcza.
+Projekt z modułem `uploads` startuje bez MinIO. `.env.example` ma `STORAGE_PROVIDER=local` i `STORAGE_LOCAL_PATH=./volumes/uploads`, więc aplikacja zapisuje pliki w katalogu `volumes/uploads`, który jest w `.gitignore` ([15](15-modul-uploads.md#provider)). Krok 4 [pierwszego uruchomienia](#pierwsze-uruchomienie) wystarcza. Ta ścieżka działa w `npm run dev`. W `npm start`, czyli w zbudowanej aplikacji w trybie produkcyjnym, zatrzymuje start, bo poza Railway `STORAGE_LOCAL_PATH` musi być wtedy ścieżką bezwzględną (sprawdzone 2026-11-05 na `next start`, [15](15-modul-uploads.md#reguly-produkcyjne)).
 
 `docker-compose.yml` takiego projektu ma w regionie `wa:services` dwie usługi z profilem Compose `s3`: `minio` (magazyn zgodny z S3) i `minio-init`, jednorazowy kontener, który tworzy bucket `<slug>-uploads` i kończy pracę ([15](15-modul-uploads.md#minio)). `docker compose up -d` ich nie uruchamia: `docker compose config --services` wypisuje `db` i `mail`, a dopiero `docker compose --profile s3 config --services` dodatkowo `minio` i `minio-init` (sprawdzone 2026-11-04). MinIO uruchamiasz, gdy chcesz pracować na S3: ustaw w `.env` `STORAGE_PROVIDER=s3`, a potem uruchom usługi z profilem (niesprawdzone: w repozytorium kitu port 9000 zajmował inny projekt, więc samego startu nie uruchamiano):
 

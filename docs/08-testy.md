@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - czego potrzebują testy e2e i co robią przed pierwszym testem;
 - które testy działają w `npm run verify`, a które tylko w osobnych jobach CI.
 
-Zweryfikowano z kodem: 734391b, 2026-11-04 (magazyn plików modułu `uploads` w testach integracyjnych i e2e, [uruchomienie e2e przez agenta AI](#e2e-agent)); pozostałe sekcje: 25adbb8, 2026-10-28
+Zweryfikowano z kodem: 6c05f1f, 2026-11-05 (magazyn plików modułu `uploads` w testach integracyjnych i e2e, [uruchomienie e2e przez agenta AI](#e2e-agent)); pozostałe sekcje: 25adbb8, 2026-10-28
 
 Źródła:
 
@@ -141,7 +141,7 @@ Testy e2e sprawdzają w przeglądarce przepływy, w których biorą udział wszy
 | `core-auth` | `e2e/core-auth.spec.ts` | `E2E_CORE_PORT`, domyślnie 3000 | `false` | `false` | Admin zaprasza użytkownika, ten ustawia hasło z maila i loguje się, a `/users` daje mu 404. Rejestracja bez zaproszenia dostaje 403. Reset hasła przez `/forgot-password`. |
 | `multi-org` | `e2e/multi-org.spec.ts` | `E2E_MULTI_ORG_PORT`, domyślnie 3001 | `true` | `true` | Każda rejestracja tworzy własną organizację, widać `OrgSwitcher`, a druga osoba nie widzi członków pierwszej. |
 
-Serwery dostają zmienne z `appEnv` w `e2e/env.ts`: adres bazy e2e, `APP_URL` z własnym portem, `SMTP_URL` mailpit, `LOG_LEVEL: "warn"`, `RESEND_API_KEY: "re_e2e_unused"`, `API_KEY_PEPPER`, `STORAGE_PROVIDER: "local"` i `STORAGE_LOCAL_PATH` z `E2E_UPLOADS_DIR` albo `<katalog tymczasowy systemu>/wa-app-e2e-uploads` (w projekcie z nazwą projektu zamiast `wa-app`, bo `e2e/env.ts` jest w `placeholderFiles` kitu). Pepper i zmienne magazynu są tam po to, żeby przeszła walidacja `env` w projekcie z `api-keys` albo `uploads`: serwer standalone działa w trybie produkcyjnym, w którym provider `local` wymaga jawnego katalogu ([15-modul-uploads.md](15-modul-uploads.md#reguly-produkcyjne)). Testy e2e kitu nie wysyłają plików, a `e2e.yml` nie uruchamia MinIO ([15-modul-uploads.md](15-modul-uploads.md#ci)). Serwer standalone działa w trybie produkcyjnym, w którym walidacja zmiennych wymaga `RESEND_API_KEY`, a `SMTP_URL` i tak ma pierwszeństwo, więc ten klucz nigdy nie jest używany ([07-i18n-mail-env.md](07-i18n-mail-env.md)).
+Serwery dostają zmienne z `appEnv` w `e2e/env.ts`: adres bazy e2e, `APP_URL` z własnym portem, `SMTP_URL` mailpit, `LOG_LEVEL: "warn"`, `RESEND_API_KEY: "re_e2e_unused"`, `API_KEY_PEPPER`, `STORAGE_PROVIDER: "local"` i `STORAGE_LOCAL_PATH` z `E2E_UPLOADS_DIR` albo `<katalog tymczasowy systemu>/wa-app-e2e-uploads` (w projekcie z nazwą projektu zamiast `wa-app`, bo `e2e/env.ts` jest w `placeholderFiles` kitu). Pepper i zmienne magazynu są tam po to, żeby przeszła walidacja `env` w projekcie z `api-keys` albo `uploads`: serwer standalone działa w trybie produkcyjnym, w którym provider `local` wymaga jawnego katalogu ze ścieżką bezwzględną ([15-modul-uploads.md](15-modul-uploads.md#reguly-produkcyjne)). Testy e2e kitu nie wysyłają plików, a `e2e.yml` nie uruchamia MinIO ([15-modul-uploads.md](15-modul-uploads.md#ci)). Serwer standalone działa w trybie produkcyjnym, w którym walidacja zmiennych wymaga `RESEND_API_KEY`, a `SMTP_URL` i tak ma pierwszeństwo, więc ten klucz nigdy nie jest używany ([07-i18n-mail-env.md](07-i18n-mail-env.md)).
 
 Testy działają po kolei: `workers: 1`, `fullyParallel: false`, a pliki mają `test.describe.configure({ mode: "serial" })`. Testy w pliku zależą od siebie, na przykład trzeci test w `core-auth.spec.ts` loguje się kontem zaproszonym w pierwszym. Nieudany test nie jest powtarzany (`retries: 0`), a ślad Playwright zostaje tylko dla nieudanych (`trace: "retain-on-failure"`). Przeglądarka to Chromium z ustawieniami `Desktop Chrome` i językiem `pl`.
 
@@ -520,7 +520,7 @@ Wszystkie czytane są tylko ze zmiennych powłoki. Ani Vitest w konfiguracji int
 | --- | --- | --- | --- |
 | `INTEGRATION_DATABASE_URL` | `src/test/integration/database-url.ts` | `postgresql://postgres:postgres@localhost:5432/wa_app_test` | Nazwa bazy musi kończyć się na `_test`. |
 | `INTEGRATION_S3_ENDPOINT`, `INTEGRATION_S3_BUCKET` | `src/test/integration/setup-env.ts`, `storage.integration.test.ts` | `http://localhost:9000`, `<slug>-uploads` | Adres MinIO i bucket testów integracyjnych. |
-| `E2E_UPLOADS_DIR` | `e2e/env.ts` | `<katalog tymczasowy systemu>/wa-app-e2e-uploads` | `STORAGE_LOCAL_PATH` serwerów e2e; `globalSetup` go nie czyści. |
+| `E2E_UPLOADS_DIR` | `e2e/env.ts` | `<katalog tymczasowy systemu>/wa-app-e2e-uploads` | `STORAGE_LOCAL_PATH` serwerów e2e; `globalSetup` go nie czyści. Musi być ścieżką bezwzględną: serwery e2e działają w trybie produkcyjnym poza Railway, więc ścieżka względna zatrzymuje ich start ([15-modul-uploads.md](15-modul-uploads.md#reguly-produkcyjne)). |
 | `DATABASE_URL` | `e2e/env.ts` | `postgresql://postgres:postgres@localhost:${dbPort}/wa_app_e2e` | Nazwa bazy musi kończyć się na `_e2e`. W testach integracyjnych `setup-env.ts` nadpisuje ją adresem testowym. |
 | `DB_PORT` | `e2e/env.ts` | `5432` | Tylko do domyślnego adresu bazy e2e. |
 | `MAILPIT_UI_PORT`, `MAILPIT_URL` | `e2e/env.ts` | `8025`, `http://localhost:${mailpitUiPort}` | API mailpit dla `getLastMail` i `clearMailbox`. |
