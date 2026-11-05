@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { fc, test } from "@fast-check/vitest";
 import { z } from "zod";
 import { envSchema } from "../env";
@@ -282,6 +282,26 @@ describe("envSchema uploads: kształt wyniku", () => {
 
     expect(withNodeEnv.parse({})).toStrictEqual({
       NODE_ENV: "development",
+      STORAGE_PROVIDER: "local",
+      STORAGE_LOCAL_PATH: `${process.cwd()}/volumes/uploads`,
+    });
+  });
+});
+
+describe("envSchema uploads: zgodność z rejestrem env rdzenia", () => {
+  it("wynik envSchema jest przypisywalny do Record<string, unknown>, czego rdzeń wymaga od schematu env modułu", () => {
+    expectTypeOf<z.output<typeof envSchema>>().toExtend<
+      Record<string, unknown>
+    >();
+  });
+
+  it("rejestr z samym envSchema przechodzi rzutowanie z src/shared/lib/env.ts i parsuje pusty env do local", () => {
+    const moduleEnvSchemas = [envSchema];
+    const moduleSchemas = moduleEnvSchemas as readonly z.ZodType<
+      Record<string, unknown>
+    >[];
+
+    expect(moduleSchemas[0]?.parse({})).toStrictEqual({
       STORAGE_PROVIDER: "local",
       STORAGE_LOCAL_PATH: `${process.cwd()}/volumes/uploads`,
     });
