@@ -324,16 +324,16 @@ Plik jest krytyczny, gdy jego ścieżka od katalogu głównego repozytorium zacz
     {
       "file": "src/shared/lib/auth/org-context.ts",
       "mutator": "StringLiteral",
-      "original": "\"NoOrganizationError\"",
+      "original": "\"Użytkownik nie należy do aktywnej organizacji\"",
       "replacement": "\"\"",
       "reason": "tylko komunikat: NoOrganizationError rozpoznajemy przez instanceof, nie przez name/message"
     },
 ```
 
-Mutant zamienia nazwę błędu na pusty napis. Kod rozpoznaje ten błąd przez `instanceof`, więc żaden test nie może tego mutanta zabić bez sprawdzania samego tekstu. `AGENTS.md` dopuszcza trzy rodzaje uzasadnień, a każdy ma przykład w pliku:
+Mutant zamienia komunikat błędu `NoOrganizationError` na pusty napis. Kod kitu rozpoznaje ten błąd przez `instanceof`, a jego komunikat czyta tylko `logger`: wpis `error` z `handleCommandError` ma go w `err.message`. Użytkownik dostaje wtedy domyślny komunikat komendy, bo `NoOrganizationError` nie dziedziczy po `DomainError` ([03-dane-i-organizacje.md](03-dane-i-organizacje.md#no-organization-error)). Żaden test nie może więc zabić tego mutanta bez sprawdzania samego tekstu. `AGENTS.md` dopuszcza trzy rodzaje uzasadnień, a każdy ma przykład w pliku:
 
 - **mutant równoważny**: zachowanie się nie zmienia, na przykład `{ id: true }` → `{}` w `select`, gdy wynik jest sprawdzany tylko na obecność;
-- **tylko komunikat albo log**: tekst bez kontraktu, jak w przykładzie wyżej;
+- **tylko komunikat albo log**: tekst bez kontraktu, jak komunikat `NoOrganizationError` w przykładzie wyżej;
 - **świadoma stała konfiguracyjna**: na przykład `60 * 5` (czas cookie cache sesji) w `src/shared/lib/auth/index.ts`.
 
 Wpisy dopisuje i zatwierdza człowiek w pull requeście. Agent, także `test-reviewer`, tylko je proponuje w raporcie.
