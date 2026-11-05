@@ -150,7 +150,7 @@ test("the CLI blocks a new test file reached through a directory symlink into a 
     enterImplementPhase(worktree);
     mkdirSync(join(worktree, "src"));
     const link = join(main, "..", "src-link");
-    symlinkSync(join(worktree, "src"), link, "dir");
+    symlinkSync(join(worktree, "src"), link, "junction");
     const blocked = runHook({ sessionDir: main, cwd: main, filePath: join(link, "__tests__/a.test.ts") });
     assert.equal(blocked.status, 2);
     assert.match(blocked.stderr.toString(), /tylko do odczytu/);
