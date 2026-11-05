@@ -437,18 +437,15 @@ Gdy kod różni się od zdania w `AGENTS.md`, dokumentacja opisuje kod. Poniższ
 
 ### Hook `protect-tests` chroni mniej, niż mówi `AGENTS.md`
 
-**Skutek.** Dwie luki w blokadzie testów w fazie `implement`:
+**Skutek.** W fazie `implement` hook blokuje `__tests__/`, `e2e/` i pliki `*.test.*` oraz `*.spec.*` (rozszerzenia JS i TS). Nie obejmuje `src/test/` (`fake-prisma.ts`, `resetDatabase`, `setup-env.ts`), `vitest*.config.ts`, `vitest.setup.ts`, `playwright.config.ts`, `stryker*.json`, `mutation-gate.json`, samego hooka ani `.claude/settings.json`. Implementer w tej fazie może więc narzędziem `Edit` zmienić zachowanie Prismy w pamięci, zawęzić `mutate` albo dopisać wpis do `allowed` w bramce.
 
-- **Zakres ścieżek.** Hook blokuje `__tests__/`, `e2e/` i pliki `*.test.*` oraz `*.spec.*` (rozszerzenia JS i TS). Nie obejmuje `src/test/` (`fake-prisma.ts`, `resetDatabase`, `setup-env.ts`), `vitest*.config.ts`, `vitest.setup.ts`, `playwright.config.ts`, `stryker*.json`, `mutation-gate.json`, samego hooka ani `.claude/settings.json`. Implementer w tej fazie może więc narzędziem `Edit` zmienić zachowanie Prismy w pamięci, zawęzić `mutate` albo dopisać wpis do `allowed` w bramce.
-- **Katalog fazy.** Hook czyta `.superpowers/phase` z `CLAUDE_PROJECT_DIR`, czyli z katalogu, w którym wystartowała sesja, a nie z worktree, w którym pracuje agent. Plik fazy zapisany w worktree zadania nie blokuje implementera, a plik w głównej kopii blokuje edycję testów we wszystkich worktree tej sesji, także dla `test-writer`. Z tego samego powodu uruchamiana jest wersja hooków z głównej kopii.
+**Gdzie.** `.claude/hooks/protect-tests.mjs` (stała `TEST_PATH`).
 
-**Gdzie.** `.claude/hooks/protect-tests.mjs` (stałe `TEST_PATH` i `projectDir`).
+**Obejście.** Diff plików spoza blokady sprawdź poleceniem z sekcji [Czego hook nie blokuje](08b-testy-adwersarialne.md#czego-hook-nie-blokuje). Wpisy do `allowed` i tak zatwierdza człowiek w PR.
 
-**Obejście.** Zapisz plik fazy w katalogu, w którym wystartowała sesja. Usuń go po implementacji. Diff plików spoza blokady sprawdź poleceniem z sekcji [Czego hook nie blokuje](08b-testy-adwersarialne.md#czego-hook-nie-blokuje). Wpisy do `allowed` i tak zatwierdza człowiek w PR.
+**Kierunek zmiany.** Rozszerzyć wzorzec o wymienione ścieżki i pokryć zmianę testem w `.claude/hooks/protect-tests.test.mjs`. Albo dopisać kontrolę diffu tych plików do checklisty `.claude/agents/test-reviewer.md`.
 
-**Kierunek zmiany.** Rozszerzyć wzorzec o wymienione ścieżki, czytać fazę z katalogu z `input.cwd`, a każdą zmianę pokryć testem w `.claude/hooks/protect-tests.test.mjs`. Albo dopisać kontrolę diffu tych plików do checklisty `.claude/agents/test-reviewer.md`.
-
-**Sprawdzono.** Uruchomiono hook z `CLAUDE_PROJECT_DIR` głównej kopii: plik fazy tylko w worktree daje kod 0, tylko w głównej kopii kod 2. Opis: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza), [11-praca-z-kitem.md](11-praca-z-kitem.md#faza).
+**Sprawdzono.** Uruchomiono `isTestPath` z hooka na wymienionych ścieżkach: żadna nie jest rozpoznana jako test. Opis: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza), [11-praca-z-kitem.md](11-praca-z-kitem.md#faza).
 
 <a id="testy-male"></a>
 

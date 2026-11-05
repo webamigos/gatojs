@@ -913,7 +913,7 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 
 **Konsekwencje.**
 
-- Blokada działa, gdy orkiestrator (agent, który prowadzi zadanie i uruchamia subagentów) zapisze `implement` do `.superpowers/phase`. Plik jest w `.gitignore`, więc blokada obejmuje tylko kopię roboczą, w której go ustawiono.
+- Blokada działa, gdy orkiestrator (agent, który prowadzi zadanie i uruchamia subagentów) zapisze `implement` do `.superpowers/phase`. Plik jest w `.gitignore`, więc blokada obejmuje kopię roboczą, w której go ustawiono, a gdy jest to katalog projektu sesji Claude Code (`$CLAUDE_PROJECT_DIR`), także pozostałe kopie robocze edytowane w tej sesji ([Faza w worktree](08b-testy-adwersarialne.md#faza-worktree)).
 - Hook nie łapie zapisu przez powłokę (na przykład heredoc w Bash).
 
 **Jak egzekwowana.**
