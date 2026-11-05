@@ -147,7 +147,7 @@ Hook czyta plik przy każdej edycji, więc zmiana działa od razu, bez restartu 
 
 `$CLAUDE_PROJECT_DIR` wskazuje katalog projektu sesji, a nie katalog, w którym agent akurat pracuje ([Hooki Claude Code](11-praca-z-kitem.md#hooki)). W sesji uruchomionej w głównej kopii zmienna zostaje przy głównej kopii także po przejściu agenta do worktree. W sesji, którą aplikacja Claude uruchamia we własnym worktree w `.claude/worktrees/`, od początku wskazuje główną kopię. Gdyby hook czytał plik fazy tylko z `$CLAUDE_PROJECT_DIR`, orkiestrator, który zapisał fazę w worktree zadania, nie zablokowałby implementera. Dlatego hook czyta plik fazy z dwóch katalogów:
 
-- z katalogu głównego kopii roboczej edytowanego pliku, czyli z najbliższego katalogu nad plikiem, który zawiera wpis `.git` (w głównej kopii to katalog `.git/`, w worktree plik `.git`);
+- z katalogu głównego kopii roboczej edytowanego pliku, czyli z najbliższego katalogu nad plikiem, który zawiera wpis `.git` (w głównej kopii to katalog `.git/`, w worktree plik `.git`). Hook szuka go od fizycznej ścieżki katalogu pliku, po rozwinięciu dowiązań symbolicznych, więc ścieżka, która prowadzi do worktree przez dowiązanie, też trafia na jego plik fazy;
 - z katalogu projektu sesji (`$CLAUDE_PROJECT_DIR`, a bez tej zmiennej z katalogu roboczego sesji).
 
 | Gdzie leży plik fazy | Gdzie hook blokuje edycję testów |

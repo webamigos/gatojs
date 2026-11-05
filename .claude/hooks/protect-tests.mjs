@@ -22,15 +22,20 @@ export function isBlocked({ tool_input }, phase) {
   return phase === IMPLEMENT_PHASE && isTestPath(tool_input?.file_path ?? "");
 }
 
-function workingCopyOf(path) {
-  let dir = resolve(path);
-  while (!existsSync(join(dir, ".git"))) {
+function findUp(path, matches) {
+  let dir = path;
+  while (!matches(dir)) {
     if (dir === dirname(dir)) {
       return null;
     }
     dir = dirname(dir);
   }
   return dir;
+}
+
+function workingCopyOf(path) {
+  const existingDir = findUp(dirname(resolve(path)), existsSync);
+  return existingDir && findUp(realpathSync(existingDir), (dir) => existsSync(join(dir, ".git")));
 }
 
 const isEntrypoint = process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
