@@ -16,7 +16,7 @@ function toAttrs(
       continue;
     }
     if (value instanceof Error) {
-      // WHY: production bundles minify class names, but a name set in the constructor survives.
+      // WHY: production bundles minify class names; only a string literal assigned to name survives.
       result[`${key}.type`] =
         value.name && value.name !== "Error"
           ? value.name
