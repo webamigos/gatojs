@@ -54,6 +54,12 @@ const PATH_REQUIRED = {
     "wymagana w produkcji przy STORAGE_PROVIDER=local: wskaż trwały katalog",
 };
 
+const PATH_NOT_ABSOLUTE = {
+  name: "STORAGE_LOCAL_PATH",
+  message:
+    "w produkcji poza Railway musi być ścieżką bezwzględną: wskaż trwały katalog",
+};
+
 const ANY_ZOD_MESSAGE = expect.stringMatching(/\S/);
 
 const whitespace = fc.string({
@@ -100,6 +106,24 @@ const notProduction = fc.option(
     .filter((value) => value !== "production"),
   { nil: undefined },
 );
+
+const relativeLocalPath = fc
+  .tuple(
+    whitespace,
+    fc.oneof(
+      fc.constantFrom(
+        "./x",
+        "./volumes/uploads",
+        "data/u",
+        "../uploads",
+        ".",
+        "~/uploads",
+      ),
+      fc.stringMatching(/^[a-z0-9._~-]+(\/[a-z0-9._~-]+)*$/),
+    ),
+    whitespace,
+  )
+  .map(([before, core, after]) => `${before}${core}${after}`);
 
 function envOf(result: StorageEnvResult): StorageEnv {
   if (!result.ok) {
@@ -414,6 +438,44 @@ describe("resolveStorageEnv: reguły produkcyjne providera local", () => {
       [PATH_REQUIRED],
     ],
     [
+      "w produkcji poza Railway względny STORAGE_LOCAL_PATH daje problem „musi być ścieżką bezwzględną”",
+      { NODE_ENV: "production", STORAGE_LOCAL_PATH: "./volumes/uploads" },
+      [PATH_NOT_ABSOLUTE],
+    ],
+    [
+      "w produkcji poza Railway STORAGE_LOCAL_PATH bez ./ na początku też jest względny i daje problem",
+      { NODE_ENV: "production", STORAGE_LOCAL_PATH: "data/u" },
+      [PATH_NOT_ABSOLUTE],
+    ],
+    [
+      "w produkcji pusty RAILWAY_ENVIRONMENT_ID znaczy poza Railway, więc względny STORAGE_LOCAL_PATH daje problem",
+      {
+        NODE_ENV: "production",
+        STORAGE_LOCAL_PATH: "./x",
+        RAILWAY_ENVIRONMENT_ID: "",
+      },
+      [PATH_NOT_ABSOLUTE],
+    ],
+    [
+      "w produkcji poza Railway przy jawnym STORAGE_PROVIDER=local względny STORAGE_LOCAL_PATH daje problem",
+      {
+        NODE_ENV: "production",
+        STORAGE_PROVIDER: "local",
+        STORAGE_LOCAL_PATH: "./x",
+        RAILWAY_ENVIRONMENT_ID: "",
+      },
+      [PATH_NOT_ABSOLUTE],
+    ],
+    [
+      "w produkcji sam RAILWAY_VOLUME_MOUNT_PATH bez RAILWAY_ENVIRONMENT_ID nie zwalnia z bezwzględnego STORAGE_LOCAL_PATH",
+      {
+        NODE_ENV: "production",
+        RAILWAY_VOLUME_MOUNT_PATH: "/data",
+        STORAGE_LOCAL_PATH: "data",
+      },
+      [PATH_NOT_ABSOLUTE],
+    ],
+    [
       "w produkcji na Railway bez wolumenu jedynym problemem jest brak wolumenu",
       { ...PRODUCTION_ON_RAILWAY },
       [RAILWAY_WITHOUT_VOLUME],
@@ -490,9 +552,9 @@ describe("resolveStorageEnv: reguły produkcyjne providera local", () => {
       "/app/volumes/uploads",
     ],
     [
-      "w produkcji poza Railway jawny względny STORAGE_LOCAL_PATH przechodzi i rozwiązuje od cwd",
-      { NODE_ENV: "production", STORAGE_LOCAL_PATH: "./volumes/uploads" },
-      "/app/volumes/uploads",
+      "w produkcji poza Railway STORAGE_LOCAL_PATH bezwzględny po trim() przechodzi",
+      { NODE_ENV: "production", STORAGE_LOCAL_PATH: " /srv/files " },
+      "/srv/files",
     ],
     [
       "w produkcji poza Railway reguła wolumenu nie działa",
@@ -611,6 +673,24 @@ describe("resolveStorageEnv: reguły produkcyjne providera local", () => {
           CWD,
         ),
       ).toEqual({ ok: false, issues: [PATH_REQUIRED] });
+    },
+  );
+
+  test.prop([localProvider, blankOrMissing, relativeLocalPath, anyText])(
+    "w produkcji poza Railway względny STORAGE_LOCAL_PATH daje tylko problem „musi być ścieżką bezwzględną”, przy każdej pisowni local i każdym RAILWAY_VOLUME_MOUNT_PATH",
+    (provider, railwayId, explicit, volume) => {
+      expect(
+        resolveStorageEnv(
+          {
+            NODE_ENV: "production",
+            STORAGE_PROVIDER: provider,
+            RAILWAY_ENVIRONMENT_ID: railwayId,
+            STORAGE_LOCAL_PATH: explicit,
+            RAILWAY_VOLUME_MOUNT_PATH: volume,
+          },
+          CWD,
+        ),
+      ).toEqual({ ok: false, issues: [PATH_NOT_ABSOLUTE] });
     },
   );
 
@@ -795,6 +875,15 @@ describe("resolveStorageEnv: provider s3", () => {
     [
       "w produkcji poza Railway s3 nie wymaga STORAGE_LOCAL_PATH",
       { STORAGE_PROVIDER: "s3", ...S3_OK, NODE_ENV: "production" },
+    ],
+    [
+      "w produkcji poza Railway s3 nie sprawdza, czy STORAGE_LOCAL_PATH jest bezwzględny",
+      {
+        STORAGE_PROVIDER: "s3",
+        ...S3_OK,
+        NODE_ENV: "production",
+        STORAGE_LOCAL_PATH: "./x",
+      },
     ],
     [
       "w produkcji na Railway s3 nie sprawdza STORAGE_LOCAL_PATH względem wolumenu",

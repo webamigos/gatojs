@@ -80,6 +80,12 @@ function resolveLocalEnv(source: EnvSource, cwd: string): StorageEnvResult {
         "wymagana w produkcji przy STORAGE_PROVIDER=local: wskaż trwały katalog",
       );
     }
+    if (!onRailway && explicit && !path.isAbsolute(explicit)) {
+      return invalid(
+        "STORAGE_LOCAL_PATH",
+        "w produkcji poza Railway musi być ścieżką bezwzględną: wskaż trwały katalog",
+      );
+    }
   }
   return {
     ok: true,
