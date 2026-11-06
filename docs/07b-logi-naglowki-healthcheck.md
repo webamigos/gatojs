@@ -9,11 +9,11 @@ Po przeczytaniu będziesz wiedzieć:
 - jakie nagłówki bezpieczeństwa dostaje każda odpowiedź;
 - co sprawdza `/api/healthcheck`, a czego nie.
 
-Zweryfikowano z kodem: b3c4fc1, 2026-11-05 (sekcja [Typ błędu w `<klucz>.type`](#logger-typ-bledu)); pozostałe sekcje: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: b3c4fc1, 2026-11-05 (sekcja [Typ błędu w `<klucz>.type`](#logger-typ-bledu)); pozostałe sekcje: 734391b, 2026-11-04
 
 Źródła:
 
-- logi: `src/shared/lib/logger.ts`, `src/shared/lib/__tests__/logger.test.ts`, `src/instrumentation.ts`, `src/shared/config/project.ts`, `src/shared/lib/env.ts`, `.env.example`, `e2e/env.ts`, `src/shared/utils/error-handling.ts`, `src/shared/utils/__tests__/error-handling.test.ts`, `src/shared/lib/auth/org-context.ts`, `src/shared/lib/auth/service-mode.ts`, `src/shared/lib/mailer.ts`, `src/features/users/services/commands/invite-user-command.ts`, `src/features/users/services/commands/impersonation-commands.ts`, `src/features/organizations/services/queries/default-organization-query.ts`, `src/app/[locale]/accept-invitation/[id]/page.tsx`, `src/features/api-keys/services/commands/api-key-commands.ts`, `src/features/uploads/services/commands/upload-commands.ts`, `src/features/uploads/services/commands/create-upload.ts`, `src/features/uploads/services/storage.ts`;
+- logi: `src/shared/lib/logger.ts`, `src/shared/lib/__tests__/logger.test.ts`, `src/instrumentation.ts`, `src/__tests__/instrumentation.test.ts`, `src/shared/config/project.ts`, `src/shared/lib/env.ts`, `.env.example`, `e2e/env.ts`, `src/shared/utils/error-handling.ts`, `src/shared/utils/__tests__/error-handling.test.ts`, `src/shared/lib/auth/org-context.ts`, `src/shared/lib/auth/service-mode.ts`, `src/shared/lib/mailer.ts`, `src/features/users/services/commands/invite-user-command.ts`, `src/features/users/services/commands/impersonation-commands.ts`, `src/features/organizations/services/queries/default-organization-query.ts`, `src/app/[locale]/accept-invitation/[id]/page.tsx`, `src/features/api-keys/services/commands/api-key-commands.ts`, `src/features/uploads/services/commands/upload-commands.ts`, `src/features/uploads/services/commands/create-upload.ts`, `src/features/uploads/services/s3-storage.ts`;
 - nagłówki i healthcheck: `src/shared/lib/security-headers.ts`, `next.config.ts`, `src/proxy.ts`, `src/app/api/healthcheck/route.ts`, `src/app/api/healthcheck/__tests__/route.test.ts`, `src/shared/lib/prisma.ts`, `railway.toml`, `Dockerfile`;
 - biblioteki (wersje w `package-lock.json`): `node_modules/@opentelemetry/api-logs/build/src/api/logs.js` (0.218.0), `node_modules/@opentelemetry/sdk-logs/build/src/export/BatchLogRecordProcessorBase.js` (0.218.0), `node_modules/@opentelemetry/otlp-exporter-base/build/src/configuration/otlp-node-http-env-configuration.js` (0.218.0), `node_modules/next/dist/server/lib/start-server.js` (Next.js 16.3.8, `cleanup`), `node_modules/next/dist/server/route-modules/app-route/helpers/auto-implement-methods.js`, `node_modules/@aws-sdk/client-s3/dist-cjs/index.js` (3.1159.0, `S3ServiceException`), `node_modules/@aws-sdk/core/dist-cjs/submodules/protocols/index.js` (3.978.7, `loadRestXmlErrorCode`, `getErrorSchemaOrThrowBaseException`), `node_modules/@smithy/core/dist-cjs/submodules/client/index.js` (3.37.0, `ServiceException`).
 
@@ -56,6 +56,8 @@ Ostatni wiersz wynika z budowy OTel: `logger` oddaje wpis do API logów, a gdy n
 
 **Na produkcji ustaw `OTEL_EXPORTER_OTLP_ENDPOINT`.** Bez niego nie zobaczysz w logach usługi żadnego wpisu aplikacji, w tym błędów komend z `handleCommandError` i nieudanych wysyłek maili. Na konsolę trafia wtedy tylko to, co Next.js i biblioteki wypisują same, z pominięciem `logger`.
 
+Wyjątkiem od tej reguły jest raport startowy walidacji zmiennych środowiskowych. `register()` wypisuje go przez `console.error` niezależnie od `NODE_ENV` i endpointu, bo powstaje przed konfiguracją eksportu, a proces kończy się zaraz po nim ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Wyjątek od [D15](decyzje.md#d15) obejmuje tylko ten raport ([D48](decyzje.md#d48)); wpisy kodu aplikacji w czasie działania serwera idą przez `logger`.
+
 Na konsoli wpis ma postać `[<POZIOM>] <komunikat>` i obiekt atrybutów bez zmian. Do eksportu atrybuty przechodzą przez `toAttrs`: błąd daje trzy atrybuty `<klucz>.type`, `<klucz>.message` i `<klucz>.stacktrace`, data napis ISO, obiekt napis JSON, a `null` i `undefined` są pomijane. Komunikaty rdzenia są po angielsku i zaczynają się od prefiksu obszaru (`[MAILER]`, `[USERS]`, `[AUTH]`, `[ORG]`). Wyjątkiem jest `handleCommandError`: zapisuje polski komunikat domyślny komendy bez prefiksu, na przykład `Nie udało się zaprosić użytkownika`. Pełna lista: [Referencja](#referencja-logi).
 
 <a id="logger-typ-bledu"></a>
@@ -95,7 +97,7 @@ Regułę sprawdzają testy w `src/shared/lib/__tests__/logger.test.ts`, w tym pr
 
 ### Eksport OTLP
 
-Next.js wywołuje `register()` z `src/instrumentation.ts` raz przy starcie serwera, osobno dla każdego środowiska uruchomieniowego. Funkcja działa tylko w Node.js (`NEXT_RUNTIME` równe `nodejs`) i tylko przy ustawionym endpoincie:
+Next.js wywołuje `register()` z `src/instrumentation.ts` raz przy starcie serwera, osobno dla każdego środowiska uruchomieniowego. Funkcja działa tylko w Node.js (`NEXT_RUNTIME` równe `nodejs`). Najpierw sprawdza zmienne środowiskowe i przy błędzie kończy proces kodem 1 ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)), a eksport logów konfiguruje tylko przy ustawionym endpoincie:
 
 `src/instrumentation.ts`
 
@@ -173,7 +175,7 @@ export async function GET() {
 - Railway używa tego adresu jako healthchecku wdrożenia (`healthcheckPath = "/api/healthcheck"` w `railway.toml` albo w ustawieniach usługi, bo nowa usługa nie czyta `railway.toml`, [10-wdrozenie.md](10-wdrozenie.md#config-as-code)).
 - `dynamic = "force-dynamic"` każe Next.js wykonywać handler przy każdym żądaniu, a nie raz przy budowaniu.
 - Endpoint jest publiczny: `matcher` proxy pomija ścieżkę `/api` i ścieżki pod `/api/` ([02-architektura.md](02-architektura.md#proxy)), a handler nie sprawdza sesji. Odpowiedź nie zawiera danych.
-- Sprawdza tylko bazę. Serwer uruchomiony wyłącznie z `NODE_ENV=production` i `DATABASE_URL` odpowiadał `{"status":"ok","db":"ok"}`, chociaż brakowało `BETTER_AUTH_SECRET`, `APP_URL`, `EMAIL_FROM` i `RESEND_API_KEY` (sprawdzone). Powód: handler nie odczytuje `env`, a Prisma bierze adres bazy wprost z `process.env` ([07-i18n-mail-env.md](07-i18n-mail-env.md#odczyt-z-pominieciem-env)). Healthcheck nie wykryje też pętli przekierowań przy `HOSTNAME=127.0.0.1` ([07-i18n-mail-env.md](07-i18n-mail-env.md#referencja-env-poza-schematem)), bo jego ścieżka omija proxy.
+- Sprawdza tylko bazę: handler nie odczytuje `env`, a Prisma bierze adres bazy wprost z `process.env` ([07-i18n-mail-env.md](07-i18n-mail-env.md#odczyt-z-pominieciem-env)). Błędnych zmiennych handler nie wykrywa, ale serwer z błędnymi zmiennymi nie dochodzi do obsługi żądań: kończy się przy starcie kodem 1, więc healthcheck nie dostaje żadnej odpowiedzi (sprawdzone na zbudowanym serwerze bez zmiennych, [07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Ten sam serwer z poprawnymi zmiennymi i działającą bazą odpowiadał `{"status":"ok","db":"ok"}` (sprawdzone). Healthcheck nie wykryje też pętli przekierowań przy `HOSTNAME=127.0.0.1` ([07-i18n-mail-env.md](07-i18n-mail-env.md#referencja-env-poza-schematem)), bo jego ścieżka omija proxy.
 - Błąd bazy nie trafia do logu: `catch` zwraca 503 bez wpisu, więc przyczynę trzeba ustalić poza endpointem, na przykład w logach bazy.
 - Gdy port bazy jest zamknięty, 503 przychodzi od razu (sprawdzone). Gdy host bazy nie odpowiada, pula `pg` czeka na połączenie najwyżej 10 sekund (`connectionTimeoutMillis: 10_000` w `src/shared/lib/prisma.ts`).
 

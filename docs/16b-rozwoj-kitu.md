@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak wydać nową wersję kitu z tagiem;
 - jak dodać do kitu nowy moduł, krok po kroku, tak jak zrobił to plan 3.
 
-Zweryfikowano z kodem: 758b557, 2026-10-30
+Zweryfikowano z kodem: 734391b, 2026-11-04
 
 Źródła:
 
@@ -32,6 +32,7 @@ Zweryfikowano z kodem: 758b557, 2026-10-30
 - `kit/cli/src/kit/__tests__/ownership.test.ts`
 - `kit/cli/src/__tests__/fixtures/project-module/`
 - `scripts/mutation-gate.ts`
+- `src/instrumentation.ts`, `e2e/env.ts`, `src/test/integration/setup-env.ts`, `Dockerfile`, `docker/uploads.compose.yml`
 - `.wa/kit.json`
 - `.github/workflows/kit.yml`
 - `.github/workflows/kit-mutation.yml`
@@ -101,14 +102,14 @@ W drugą stronę reguła nie działa: workflowy rdzenia (`ci.yml`, `e2e.yml`, `m
 
 Każdy moduł kitu ma plik `kit/modules/<nazwa>.json`. Pole `name` musi być równe nazwie pliku, inaczej odczyt manifestów kończy się błędem `kit/modules/<plik>: name "<name>" nie zgadza się z nazwą pliku` (`readKitManifests` w `kit/cli/src/kit/kit-config.ts`). Manifesty są czytane w kolejności: `core`, potem pozostałe alfabetycznie (`compareModuleNames`). Schemat (`moduleManifestSchema` w `kit/cli/src/manifest/schema.ts`) jest ten sam co w `.wa/kit.json` projektu; pełną listę pól z typami i wartościami domyślnymi podaje [02b](02b-rejestr-i-generator.md#referencja-manifest).
 
-Manifesty w wersji kitu `0.1.0`:
+Manifesty w repozytorium kitu (`version` w `kit/kit.json`: `0.1.0`). Tag `v0.1.0` ma starsze wersje dwóch z nich: `core` `0.4.0` i `uploads` `0.1.0`, bo `core` `0.5.0` ([D48](decyzje.md#d48)) i `uploads` `0.2.0` ([D49](decyzje.md#d49)) przyszły po tagu, a wersja kitu się nie zmieniła:
 
 | Moduł | `version` | `files` | Zależności npm | `env` | `compose` | `ciSteps` |
 | --- | --- | --- | --- | --- | --- | --- |
-| `core` | `0.4.0` | wszystkie pliki rdzenia, od `.claude/agents/test-reviewer.md` po `src/types/**`, w tym `.wa/bin/wa.mjs` | wszystkie zależności rdzenia | — | — | — |
+| `core` | `0.5.0` | wszystkie pliki rdzenia, od `.claude/agents/test-reviewer.md` po `src/types/**`, w tym `.wa/bin/wa.mjs` | wszystkie zależności rdzenia | — | — | — |
 | `audit-logs` | `0.1.0` | `prisma/schema/audit-logs.prisma`, `src/features/audit-logs/**`, `src/app/[locale]/(app)/audit-log/**` | `better-call` w `devDependencies` | — | — | — |
 | `api-keys` | `0.1.0` | `prisma/schema/api-keys.prisma`, `src/features/api-keys/**`, `src/app/api/v1/organization/**`, `src/app/[locale]/(app)/api-keys/**` | — | `API_KEY_PEPPER` | — | — |
-| `uploads` | `0.1.0` | `prisma/schema/uploads.prisma`, `src/features/uploads/**`, `src/app/api/uploads/**`, `docker/uploads.compose.yml`, `ci/uploads.integration-steps.yml` | `@aws-sdk/client-s3`, `file-type`, `sharp` | `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE` | `docker/uploads.compose.yml` | `ci/uploads.integration-steps.yml` |
+| `uploads` | `0.2.0` | `prisma/schema/uploads.prisma`, `src/features/uploads/**`, `src/app/api/uploads/**`, `docker/uploads.compose.yml`, `ci/uploads.integration-steps.yml` | `@aws-sdk/client-s3`, `file-type`, `sharp` | `STORAGE_PROVIDER`, `STORAGE_LOCAL_PATH`, `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE`, wszystkie z `required: false` | `docker/uploads.compose.yml` | `ci/uploads.integration-steps.yml` |
 
 Żaden z modułów nie ma `requires`. Co każdy moduł robi, opisuje [12-moduly-kitu.md](12-moduly-kitu.md).
 
@@ -145,7 +146,22 @@ Job `assemble` w CI składa projekt z checkoutu commita, więc tam obie listy si
 
 Pola `compose` i `ciSteps` wskazują pliki, które generator czyta z katalogu projektu (`composeBody` i `ciStepsBody` w `kit/cli/src/generate/targets.ts`). Plik musi więc trafić do projektu razem z modułem, czyli należeć do `files` tego samego modułu. Moduł `uploads` trzyma je w katalogach `docker/` i `ci/` z nazwą modułu w nazwie pliku:
 
-- `docker/uploads.compose.yml`: definicje usług (`minio`, `minio-init`) bez klucza `services:`, bo generator wcina treść o dwie spacje i wstawia ją pod `services:` w regionie `wa:services` w `docker-compose.yml`;
+- `docker/uploads.compose.yml`: definicje usług (`minio`, `minio-init`) bez klucza `services:`, bo generator wcina treść o dwie spacje i wstawia ją pod `services:` w regionie `wa:services` w `docker-compose.yml`. Obie usługi mają `profiles: ["s3"]` zaraz pod `image:`, więc `docker compose up -d` ich nie uruchamia, a `docker compose --profile s3 up -d` je uruchamia ([15](15-modul-uploads.md#minio)). Profil trafia do `docker-compose.yml` razem z resztą fragmentu:
+
+  `docker/uploads.compose.yml`
+
+  ```yaml
+  minio:
+    image: cgr.dev/chainguard/minio:latest@sha256:3b6e40c30ecd5cea627e382ff0b82ca841f58c52294578787043ee80c8ef7c82
+    profiles: ["s3"]
+    restart: always
+  # …
+  minio-init:
+    image: amazon/aws-cli:2.39.2
+    profiles: ["s3"]
+  # …
+  ```
+
 - `ci/uploads.integration-steps.yml`: lista kroków joba (`- name: …`), którą generator wcina o sześć spacji i wstawia w regionie `wa:ci-integration` joba `integration` w `.github/workflows/ci.yml`; fragmenty kilku modułów oddziela pusta linia.
 
 Test własności sprawdza tylko plik z `compose` (`composeOutsideModule`); pliku z `ciSteps` nie sprawdza (R6 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Na kopii kitu `ciSteps` modułu `uploads` przestawione na plik dopisany do `kitOnly` przeszło test własności, a `create --modules uploads` skończyło się błędem `ENOENT: no such file or directory, open '<projekt>/ci/other.yml'` i usunięciem katalogu projektu (sprawdzone). Plik kroków CI zawsze dopisuj do `files` modułu, którego dotyczy.
@@ -449,7 +465,7 @@ Kroki opisują, co zrobił plan 3 ([plan](superpowers/plans/2026-10-29-wa-kit-pl
 3. **Manifest `kit/modules/<x>.json`** z `name` równym nazwie pliku, `version` (plan 3: `0.1.0`), `description`, `files`, `requires`, zależnościami npm, `env`, `schemaRelations`, a w razie potrzeby `compose` i `ciSteps` ([Manifesty](#manifesty)). Każdy nowy katalog modułu dostał własny wzorzec w `files` w tym samym commicie, w którym powstał: `audit-logs` dostał `src/app/[locale]/(app)/audit-log/**` razem ze stroną (`1863fb0`), `api-keys` trasę API i stronę w dwóch osobnych commitach (`a6cffb0`, `8a320d2`). Plik usług Dockera i plik kroków CI leżą w `docker/<x>.compose.yml` i `ci/<x>.integration-steps.yml` i należą do `files` modułu ([wyżej](#pliki-uslug-i-ci)). Przykład zmiennej z nazwą projektu zapisz z `{{projectSlug}}` (`76b5956`).
 4. **Zależności npm.** Dopisz je przez npm 11 do `package.json` kitu (z `package-lock.json`) i do manifestu, w tej samej sekcji i wersji (`c6c26c4`, `7438ea8`). Dotyczy to też zależności używanych tylko w testach modułu: `audit-logs` deklaruje `better-call` w `devDependencies` (`8818bba`).
 5. **Placeholdery.** Plik modułu z nazwą projektu albo bazy dopisz do `placeholderFiles` w `kit/kit.json` (`c6c26c4`: `docker/uploads.compose.yml`, `ci/uploads.integration-steps.yml`). Testów nie dopisuj (`76b5956` je wycofał).
-6. **Zmienne w testach aplikacji referencyjnej.** Kit uruchamia testy e2e i integracyjne z modułem, więc zmienna wymagana przez schemat `env.ts` modułu musi mieć wartość w plikach rdzenia `e2e/env.ts` i `src/test/integration/setup-env.ts`. Plan 3 dopisał tam `API_KEY_PEPPER` i `S3_*` w commitach `102b706` (z podbiciem `core` do `0.3.0`) oraz `c6c26c4`, `2199cea`, `76b5956` (bez podbicia).
+6. **Zmienne w testach aplikacji referencyjnej.** Kit uruchamia testy e2e i integracyjne z modułem, więc zmienna wymagana przez schemat `env.ts` modułu musi mieć wartość w plikach rdzenia `e2e/env.ts` i `src/test/integration/setup-env.ts`. Plan 3 dopisał tam `API_KEY_PEPPER` i `S3_*` w commitach `102b706` (z podbiciem `core` do `0.3.0`) oraz `c6c26c4`, `2199cea`, `76b5956` (bez podbicia). Plan providera storage zamienił w `e2e/env.ts` zmienne `S3_*` na `STORAGE_PROVIDER=local` i `STORAGE_LOCAL_PATH`, a w `setup-env.ts` dopisał `STORAGE_PROVIDER=s3` (`22bd604`, osobny commit rdzenia; `core` podbito do `0.5.0` raz, w `d348a0b`). Brak wymaganej zmiennej w `e2e/env.ts` zatrzymuje serwery e2e przy starcie: `register()` wypisuje raport problemów i kończy proces kodem 1, zanim Playwright doczeka się odpowiedzi serwera ([D48](decyzje.md#d48), [10-wdrozenie.md](10-wdrozenie.md#blad-env)). Sprawdzone 2026-11-04 z `BETTER_AUTH_SECRET=short` w powłoce: Playwright wypisał raport serwera z prefiksem `[WebServer]`, potem `Error: Process from config.webServer was not able to start. Exit code: 1`, i nie doszedł do `globalSetup`. Testy integracyjne nie uruchamiają serwera Next.js, więc brak zmiennej w `setup-env.ts` wychodzi dopiero przy pierwszym odczycie `env` w teście.
 7. **Testy i konfiguracja rdzenia, które dotyka moduł.** Plan 3 zmienił jeszcze trzy pliki rdzenia, każdy w commicie modułu, bez podbicia `core`:
    - `src/shared/lib/__tests__/env.test.ts` dostał `vi.mock("@/modules.generated", () => ({ moduleEnvSchemas: [] }));` (`102b706`). Test rdzenia sprawdza schemat zmiennych rdzenia; bez atrapy wymagana zmienna modułu (`API_KEY_PEPPER`) psułaby jego przypadki.
    - `stryker.integration.config.json`: wzorzec `mutate` `src/features/organizations/services/**/*.ts` zamieniony na `src/features/*/services/**/*.ts`, żeby przebieg integracyjny mutował też usługi modułów (`04ce5d3`).
@@ -461,7 +477,7 @@ Kroki opisują, co zrobił plan 3 ([plan](superpowers/plans/2026-10-29-wa-kit-pl
 12. **Dokumentacja.** Wiersz modułu w tabeli `kit/README.md`, opis w `docs/12-moduly-kitu.md` i decyzje w [decyzje.md](decyzje.md#statusy-i-numeracja) (`615bda3`, `b1a3a28`, `474aaee`).
 13. **Bramki i wydanie.** `npm run verify`, `npm run verify --prefix kit/cli`, pull request, a po scaleniu wydanie ([wyżej](#wydanie)).
 
-**Co z tego trafia do projektu.** Zmiany z kroków 6, 7 i 10 leżą w plikach `core`, więc dostaje je każdy projekt, także ten z samym rdzeniem. Projekt bez modułów ma w `mutation-gate.json` katalogi `critical` modułów, których nie ma, i wpisy `allowed` dla plików `api-keys`, a w `e2e/env.ts` i `src/test/integration/setup-env.ts` wartości `API_KEY_PEPPER` i `S3_*`. To nieszkodliwe: `checkMutationGate` (`scripts/lib/mutation-gate.ts`) przegląda tylko pliki obecne w raporcie Strykera, a wpis `allowed` uznaje za nieaktualny tylko wtedy, gdy jego plik jest w raporcie (`entry.file in report.files`), a zmienne bez schematu modułu nie są czytane. Job `assemble` składa i weryfikuje projekt `core` z tymi plikami w CI.
+**Co z tego trafia do projektu.** Zmiany z kroków 6, 7 i 10 leżą w plikach `core`, więc dostaje je każdy projekt, także ten z samym rdzeniem. Projekt bez modułów ma w `mutation-gate.json` katalogi `critical` modułów, których nie ma, i wpisy `allowed` dla plików `api-keys`, w `e2e/env.ts` wartości `API_KEY_PEPPER`, `STORAGE_PROVIDER` i `STORAGE_LOCAL_PATH`, w `src/test/integration/setup-env.ts` wartości `API_KEY_PEPPER`, `STORAGE_PROVIDER` i `S3_*`, a obraz z `Dockerfile` pusty katalog `/app/volumes/uploads`. To nieszkodliwe: `checkMutationGate` (`scripts/lib/mutation-gate.ts`) przegląda tylko pliki obecne w raporcie Strykera, a wpis `allowed` uznaje za nieaktualny tylko wtedy, gdy jego plik jest w raporcie (`entry.file in report.files`), a zmienne bez schematu modułu nie są czytane. Job `assemble` składa i weryfikuje projekt `core` z tymi plikami w CI.
 
 Testy rdzenia, które porównują rejestr z literałem, filtrują go do modułów rdzenia (`src/test/core-modules.ts`), więc nowy moduł ich nie psuje ([D37](decyzje.md#d37)). Spójność całego rejestru, z nowym modułem, sprawdza `src/shared/lib/modules/__tests__/registry-consistency.test.ts`.
 

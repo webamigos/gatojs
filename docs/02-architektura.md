@@ -7,7 +7,7 @@ Po przeczytaniu będziesz wiedzieć:
 - gdzie w repozytorium leży każdy rodzaj kodu i z czego składa się feature;
 - jak żądanie przechodzi od przeglądarki do bazy i w których miejscach kod sprawdza sesję, uprawnienia i tryb serwisowy.
 
-Zweryfikowano z kodem: 8d97b78, 2026-10-30
+Zweryfikowano z kodem: 734391b, 2026-11-04 (punkt „Usługi modułów” w [Usługach i połączeniach](#uslugi)); pozostałe sekcje: 8d97b78, 2026-10-30
 
 Źródła:
 
@@ -33,6 +33,7 @@ Zweryfikowano z kodem: 8d97b78, 2026-10-30
 - `src/shared/utils/error-handling.ts`
 - `src/instrumentation.ts`
 - `src/features/*/module.ts`
+- `src/features/uploads/services/storage-env.ts`
 - `src/features/users/components/invite-user-dialog.tsx`
 - `src/features/users/components/users-manager.tsx`
 - `src/features/users/services/commands/`
@@ -133,7 +134,7 @@ flowchart LR
 - **Aplikacja → poczta.** `src/shared/lib/mailer.ts` wysyła przez SMTP, gdy ustawiono `SMTP_URL` (lokalnie wskazuje mailpit). W przeciwnym razie wysyła przez API Resend, gdy ustawiono `RESEND_API_KEY`, a bez obu tylko zapisuje wpis w logu. Na produkcji walidacja zmiennych wymaga `RESEND_API_KEY` ([D18](decyzje.md#d18), [07-i18n-mail-env.md](07-i18n-mail-env.md)).
 - **Aplikacja → odbiornik logów.** Gdy ustawiono `OTEL_EXPORTER_OTLP_ENDPOINT`, funkcja `register()` z `src/instrumentation.ts`, którą Next.js wywołuje przy starcie serwera, włącza wysyłkę logów protokołem OTLP przez HTTP pod `<endpoint>/v1/logs`. Działa tak samo lokalnie i na produkcji. Bez endpointu na produkcji wpisy z `logger` nigdzie nie trafiają ([D15](decyzje.md#d15)).
 - **Railway.** Buduje obraz z `Dockerfile` (Next.js z `output: "standalone"` w `next.config.ts`), przed każdym wdrożeniem uruchamia `npx prisma migrate deploy`, a jako healthcheck ma ustawione `/api/healthcheck` (`railway.toml` albo ustawienia usługi, bo nowa usługa nie czyta `railway.toml`, [10-wdrozenie.md](10-wdrozenie.md#config-as-code)). Wdrożenie opisuje [10-wdrozenie.md](10-wdrozenie.md).
-- **Usługi modułów.** Moduł `uploads` łączy aplikację z magazynem S3 (zmienne `S3_*`). Lokalnie jest nim MinIO: usługi `minio` i `minio-init` trafiają do `docker-compose.yml` przez region `wa:services` z pliku `docker/uploads.compose.yml` ([15-modul-uploads.md](15-modul-uploads.md)). Moduły dokładają też własne trasy API: `uploads` trasy `/api/uploads` i `/api/uploads/[id]`, a `api-keys` trasę `/api/v1/organization` dla żądań z kluczem API ([14-modul-api-keys.md](14-modul-api-keys.md)).
+- **Usługi modułów.** Moduł `uploads` zapisuje pliki według `STORAGE_PROVIDER`: domyślnie w katalogu na dysku serwera (`local`, lokalnie `volumes/uploads`), a przy `s3` w magazynie zgodnym z S3 (zmienne `S3_*`). Na Railway jest to wolumen usługi aplikacji albo Railway Bucket ([10-wdrozenie.md](10-wdrozenie.md#pliki-uploads)). Lokalnym magazynem S3 jest MinIO: usługi `minio` i `minio-init` z profilem Compose `s3` trafiają do `docker-compose.yml` przez region `wa:services` z pliku `docker/uploads.compose.yml`, a uruchamia je dopiero `docker compose --profile s3 up -d` ([15-modul-uploads.md](15-modul-uploads.md#provider)). Moduły dokładają też własne trasy API: `uploads` trasy `/api/uploads` i `/api/uploads/[id]`, a `api-keys` trasę `/api/v1/organization` dla żądań z kluczem API ([14-modul-api-keys.md](14-modul-api-keys.md)).
 
 <a id="mapa-repozytorium"></a>
 

@@ -8,13 +8,14 @@ Po przeczytaniu będziesz wiedzieć:
 - jak przetestować trasę z kluczem (brak klucza, zły zakres, klucz innej organizacji) i jakie problemy pojawiają się najczęściej;
 - jakie zmienne, trasy, zakresy, akcje i komunikaty ma moduł.
 
-Zweryfikowano z kodem: 007d380, 2026-10-30
+Zweryfikowano z kodem: 734391b, 2026-11-04
 
 Źródła:
 
 - `src/features/api-keys/` (`module.ts`, `env.ts`, `services/authenticate-api-key.ts`, `services/api-scopes.ts`, `services/organization-api.ts`, `services/commands/api-key-commands.ts`, `components/api-keys-manager.tsx`, `i18n/`) z testami w `__tests__/`, w tym `__tests__/organization-route.integration.test.ts` i `services/__tests__/api-keys-isolation.integration.test.ts`
 - `src/app/api/v1/organization/route.ts`
 - `src/shared/lib/audit.ts`
+- `src/instrumentation.ts`, `src/shared/lib/env.ts` (sprawdzenie zmiennych przy starcie)
 - `src/test/integration/` (`setup-env.ts`, `database.ts`, `global-setup.ts`), `e2e/env.ts`
 - `src/__tests__/server-entrypoints-guard.test.ts`
 - `mutation-gate.json`
@@ -282,7 +283,7 @@ describe("GET /api/v1/deliveries", () => {
 
 | Objaw | Przyczyna | Co zrobić |
 | --- | --- | --- |
-| Żądanie z kluczem do `/api/v1/…` zwraca 500; w logu `Nieprawidłowe zmienne środowiskowe: API_KEY_PEPPER: …` (sprawdzone). Strony i akcje, które czytają `env`, kończą się tym samym błędem (z kodu). Żądanie bez nagłówka `Authorization` dostaje zwykłe 401 `missing`. | Brak peppera, mniej niż 32 znaki albo wartość z `.env.example` przy `NODE_ENV=production` (sprawdzone). | Ustaw własny pepper i wdroż ponownie ([Konfiguracja peppera](14-modul-api-keys.md#pepper)). 401 `missing` bez nagłówka nie dowodzi, że konfiguracja jest dobra. |
+| Serwer nie startuje: wypisuje raport `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):` z linią `- API_KEY_PEPPER: …` i kończy się kodem 1 (sprawdzone 2026-11-04 na zbudowanym serwerze repozytorium kitu). | Brak peppera, mniej niż 32 znaki albo wartość z `.env.example` przy `NODE_ENV=production` (sprawdzone). | Ustaw własny pepper i wdroż ponownie ([Konfiguracja peppera](14-modul-api-keys.md#pepper)). |
 | Wszystkie klucze dostają 401 `invalid`, choć na liście są „Aktywne” | Zmienił się `API_KEY_PEPPER` (sprawdzone) albo środowisko ma inny pepper niż to, na którym klucze utworzono. | Przywróć poprzednią wartość albo wystaw nowe klucze i usuń stare. |
 | 401 `missing` mimo podanego klucza | Nagłówek nie zaczyna się dokładnie od `Bearer ` (na przykład `bearer`, tabulator, sam klucz). | `Authorization: Bearer <klucz>`. |
 | 401 `invalid` dla właśnie skopiowanego klucza | Klucz skopiowany niecały, w cudzysłowie albo z dwiema spacjami po `Bearer` lub spacją wewnątrz; klucz usunięty. Spacje na końcu nagłówka nie szkodzą, bo usuwa je `Headers`. | Skopiuj klucz ponownie; zgubionego nie odzyskasz, wystaw nowy. |
@@ -340,6 +341,6 @@ Pola deklaracji modułu w `module.ts`: [Definicja modułu](14-modul-api-keys.md#
 | `Nie udało się utworzyć klucza`, `Nie udało się unieważnić klucza`, `Nie udało się usunąć klucza` | `/api-keys`, toast; log `error` | Błąd walidacji albo bazy. |
 | `Nie udało się skopiować klucza` | `/api-keys`, toast przy dialogu klucza | Przeglądarka odmówiła zapisu do schowka; skopiuj klucz ręcznie z okna. |
 | `Nie udało się zaktualizować lastUsedAt klucza API` (log `warn`, pola `apiKeyId`, `error`) | log serwera | Zapis `lastUsedAt` się nie powiódł; uwierzytelnienie przeszło. |
-| `Nieprawidłowe zmienne środowiskowe: API_KEY_PEPPER: w produkcji nie może być wartością z .env.example` | log serwera, 500 | Wartość przykładowa w produkcji. |
-| `Nieprawidłowe zmienne środowiskowe: API_KEY_PEPPER: Too small: expected string to have >=32 characters` | log serwera, 500 | Pepper krótszy niż 32 znaki (sprawdzone przez `parseEnv`). |
+| `- API_KEY_PEPPER: w produkcji nie może być wartością z .env.example` | raport `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):` na stderr serwera przy starcie, proces kończy się kodem 1; w `npm run admin:create` ten sam komunikat w błędzie `Nieprawidłowe zmienne środowiskowe: …` (z kodu) | Wartość przykładowa w produkcji. |
+| `- API_KEY_PEPPER: Too small: expected string to have >=32 characters` | jak wyżej | Pepper krótszy niż 32 znaki (sprawdzone przez `parseEnv` i 2026-11-04 na zbudowanym serwerze repozytorium kitu). |
 | `Moduł api-keys jest wymagany przez: <lista>` | `wa remove` | Moduł projektu wymaga `api-keys`. |
