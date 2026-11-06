@@ -261,7 +261,9 @@ Błędy zamienia na wynik `handleCommandError`:
 `src/shared/utils/error-handling.ts`
 
 ```ts
-export class DomainError extends Error {}
+export class DomainError extends Error {
+  name = "DomainError";
+}
 // …
 export function handleCommandError(
   error: unknown,
@@ -299,7 +301,7 @@ Odmowa dostępu przez `requireModuleAccess` jest bezpieczna, bo komenda kończy 
 
 Mimo to wołaj `requireModuleAccess` wewnątrz `try` i nie dodawaj `unstable_rethrow`, chociaż dokumentacja Next.js dołączona do paczki tak radzi (`node_modules/next/dist/docs/01-app/03-api-reference/04-functions/redirect.md` i `node_modules/next/dist/docs/01-app/03-api-reference/04-functions/not-found.md`). W kicie dałoby to gorszy wynik. `notFound()`, które wyjdzie z akcji, nie pokaże strony 404: obsługa akcji w Next.js (`isHTTPAccessFallbackError` w `node_modules/next/dist/server/app-render/action-handler.js`) ustawia status 404 i odsyła odrzucony wynik, więc `await run(…)` w `onSubmit` rzuca wyjątek. `handleSubmit` z react-hook-form rzuca go dalej, a nasłuch na nieobsłużone błędy w routerze Next.js (`handleUnhandledRedirect` w `node_modules/next/dist/client/components/app-router.js`) obsługuje tylko przekierowania. Użytkownik nie dostaje wtedy żadnego komunikatu (wniosek z kodu Next.js i react-hook-form, żaden test tego nie sprawdza). Przekierowania działają tak samo w `try` i poza nim, bo `handleCommandError` je przepuszcza. Przy poprawnym kluczu odmowę dostaje zresztą tylko żądanie wysłane z pominięciem strony albo karta otwarta przed zmianą roli lub aktywnej organizacji, bo bez dostępu strona z formularzem się nie otworzy. `requireModuleAccess` czyta aktywną organizację i rolę z bazy, więc karta, w której aktywną organizację przełączono w innej karcie na organizację z niższą rolą, też dostanie odmowę. Przy błędnym kluczu w komendzie, innym niż klucz strony, odmowę dostaje każdy, także admin globalny, bo `requireModuleAccess` nie znajdzie definicji modułu. Gdyby komunikat albo poziom logu dla odmowy miały być inne, zmienia się je w `handleCommandError`, wspólnie dla wszystkich komend, a nie w komendzie.
 
-Przewidziany błąd biznesowy, taki jak zajęty adres, zwracaj przez `return`, tak jak `inviteUserCommand`. `throw new DomainError("…")` przydaje się w funkcji pomocniczej, z której trudno zwrócić wynik, tak jak `assertServiceModeConfirmed` rzuca `ServiceModeConfirmationError`.
+Przewidziany błąd biznesowy, taki jak zajęty adres, zwracaj przez `return`, tak jak `inviteUserCommand`. `throw new DomainError("…")` przydaje się w funkcji pomocniczej, z której trudno zwrócić wynik, tak jak `assertServiceModeConfirmed` rzuca `ServiceModeConfirmationError`. Własna klasa błędu ma w logach produkcyjnych w `err.type` swoją nazwę tylko wtedy, gdy wpisuje ją napisem do `name`, tak jak `ServiceModeConfirmationError`. Klasa, która dziedziczy bezpośrednio po `DomainError` i nie ustawia `name`, ma w `err.type` napis `DomainError`, tak samo jak błąd rzucony wprost jako `DomainError`, także w `npm run dev` ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#logger-typ-bledu)).
 
 Komunikaty komend rdzenia są zapisane w kodzie po polsku, a komunikaty walidacji to domyślne komunikaty Zod po angielsku (na przykład „Invalid email address”), bo schematy rdzenia nie mają własnych komunikatów. Komponenty pokazują `result.error` bez tłumaczenia, więc w wersji `en` użytkownik widzi polskie komunikaty komend. Komunikat walidacji z serwera widać rzadko, bo formularz sprawdza ten sam schemat przed wysłaniem i pokazuje własne, przetłumaczone teksty ([Formularz](#formularz)).
 
