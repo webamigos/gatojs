@@ -179,9 +179,9 @@ Test napisany przez autora kodu, po kodzie, odtwarza jego założenia i przechod
 - **Tester ≠ implementer.** Testy zadania pisze subagent `test-writer` (`.claude/agents/test-writer.md`)
   z planu i sygnatur, przed implementacją; widać ich czerwony przebieg.
 - **Testy są tylko do odczytu dla implementera.** Przed jego uruchomieniem orkiestrator zapisuje
-  `implement` do `.superpowers/phase`, a hook `.claude/hooks/protect-tests.mjs` blokuje edycję
-  `__tests__/`, `*.test.*`, `*.spec.*` i `e2e/`. Po implementacji orkiestrator usuwa plik.
-  Błędny test implementer zgłasza, zamiast go poprawiać.
+  `implement` do `.superpowers/phase` w kopii roboczej implementera (w jego worktree, nie w głównej kopii),
+  a hook `.claude/hooks/protect-tests.mjs` blokuje edycję `__tests__/`, `*.test.*`, `*.spec.*` i `e2e/`.
+  Po implementacji orkiestrator usuwa plik. Błędny test implementer zgłasza, zamiast go poprawiać.
 - **Wartość oczekiwana to literał** albo wartość ze specyfikacji. Nie liczymy jej kodem produkcyjnym,
   kopią jego algorytmu, pętlą ani helperem.
 - **Granice mają testy negatywne:** niepoprawne wejście, brak sesji, cudza organizacja, za niska rola,
