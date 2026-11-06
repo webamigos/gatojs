@@ -3,22 +3,23 @@
 Po przeczytaniu będziesz wiedzieć:
 
 - dokąd trafiają wpisy `logger` zależnie od `NODE_ENV` i `OTEL_EXPORTER_OTLP_ENDPOINT` i dlaczego na produkcji trzeba ustawić endpoint;
+- skąd `logger` bierze typ błędu w atrybucie `<klucz>.type` i kiedy na produkcji jest w nim zminifikowana nazwa klasy;
 - jak `src/instrumentation.ts` eksportuje logi protokołem OTLP i czego ten eksport nie obejmuje;
 - dlaczego `LOG_LEVEL` niczego nie zmienia;
 - jakie nagłówki bezpieczeństwa dostaje każda odpowiedź;
 - co sprawdza `/api/healthcheck`, a czego nie.
 
-Zweryfikowano z kodem: 734391b, 2026-11-04
+Zweryfikowano z kodem: b3c4fc1, 2026-11-05 (sekcja [Typ błędu w `<klucz>.type`](#logger-typ-bledu)); pozostałe sekcje: 734391b, 2026-11-04
 
 Źródła:
 
-- logi: `src/shared/lib/logger.ts`, `src/instrumentation.ts`, `src/__tests__/instrumentation.test.ts`, `src/shared/config/project.ts`, `src/shared/lib/env.ts`, `.env.example`, `e2e/env.ts`, `src/shared/utils/error-handling.ts`, `src/shared/lib/mailer.ts`, `src/features/users/services/commands/invite-user-command.ts`, `src/features/users/services/commands/impersonation-commands.ts`, `src/features/organizations/services/queries/default-organization-query.ts`, `src/app/[locale]/accept-invitation/[id]/page.tsx`;
+- logi: `src/shared/lib/logger.ts`, `src/shared/lib/__tests__/logger.test.ts`, `src/instrumentation.ts`, `src/__tests__/instrumentation.test.ts`, `src/shared/config/project.ts`, `src/shared/lib/env.ts`, `.env.example`, `e2e/env.ts`, `src/shared/utils/error-handling.ts`, `src/shared/utils/__tests__/error-handling.test.ts`, `src/shared/lib/auth/org-context.ts`, `src/shared/lib/auth/service-mode.ts`, `src/shared/lib/mailer.ts`, `src/features/users/services/commands/invite-user-command.ts`, `src/features/users/services/commands/impersonation-commands.ts`, `src/features/organizations/services/queries/default-organization-query.ts`, `src/app/[locale]/accept-invitation/[id]/page.tsx`, `src/features/api-keys/services/commands/api-key-commands.ts`, `src/features/uploads/services/commands/upload-commands.ts`, `src/features/uploads/services/commands/create-upload.ts`, `src/features/uploads/services/s3-storage.ts`;
 - nagłówki i healthcheck: `src/shared/lib/security-headers.ts`, `next.config.ts`, `src/proxy.ts`, `src/app/api/healthcheck/route.ts`, `src/app/api/healthcheck/__tests__/route.test.ts`, `src/shared/lib/prisma.ts`, `railway.toml`, `Dockerfile`;
-- biblioteki (wersje w `package-lock.json`): `node_modules/@opentelemetry/api-logs/build/src/api/logs.js` (0.218.0), `node_modules/@opentelemetry/sdk-logs/build/src/export/BatchLogRecordProcessorBase.js` (0.218.0), `node_modules/@opentelemetry/otlp-exporter-base/build/src/configuration/otlp-node-http-env-configuration.js` (0.218.0), `node_modules/next/dist/server/lib/start-server.js` (Next.js 16.3.8, `cleanup`), `node_modules/next/dist/server/route-modules/app-route/helpers/auto-implement-methods.js`.
+- biblioteki (wersje w `package-lock.json`): `node_modules/@opentelemetry/api-logs/build/src/api/logs.js` (0.218.0), `node_modules/@opentelemetry/sdk-logs/build/src/export/BatchLogRecordProcessorBase.js` (0.218.0), `node_modules/@opentelemetry/otlp-exporter-base/build/src/configuration/otlp-node-http-env-configuration.js` (0.218.0), `node_modules/next/dist/server/lib/start-server.js` (Next.js 16.3.8, `cleanup`), `node_modules/next/dist/server/route-modules/app-route/helpers/auto-implement-methods.js`, `node_modules/@aws-sdk/client-s3/dist-cjs/index.js` (3.1159.0, `S3ServiceException`), `node_modules/@aws-sdk/core/dist-cjs/submodules/protocols/index.js` (3.978.7, `loadRestXmlErrorCode`, `getErrorSchemaOrThrowBaseException`), `node_modules/@smithy/core/dist-cjs/submodules/client/index.js` (3.37.0, `ServiceException`).
 
 Rozdział opisuje to, co widać przy wdrożeniu i diagnozie: logi aplikacji, nagłówki bezpieczeństwa i healthcheck. Zmienne środowiskowe opisuje [07-i18n-mail-env.md](07-i18n-mail-env.md#referencja): `OTEL_EXPORTER_OTLP_ENDPOINT` i `LOG_LEVEL` są w [tabeli zmiennych ze schematu](07-i18n-mail-env.md#referencja-env), a `OTEL_SERVICE_NAME`, `GIT_COMMIT_SHA` i `OTEL_EXPORTER_OTLP_HEADERS` w [tabeli zmiennych spoza schematu](07-i18n-mail-env.md#referencja-env-poza-schematem). Wdrożenie na Railway [10-wdrozenie.md](10-wdrozenie.md).
 
-Oznaczenie „(sprawdzone)” znaczy, że zachowanie potwierdziło uruchomienie kodu z repozytorium na lokalnych portach: `logger` i `register()` z lokalnym odbiornikiem HTTP albo zbudowany serwer (`.next/standalone/server.js`).
+Oznaczenie „(sprawdzone)” znaczy, że zachowanie potwierdziło uruchomienie kodu z repozytorium na lokalnych portach: `logger` i `register()` z lokalnym odbiornikiem HTTP albo zbudowany serwer (`.next/standalone/server.js`). Oznaczenie „(sprawdzone; wynik `npm run build`)” znaczy, że zachowanie potwierdziło sprawdzenie zbudowanego kodu: plików, które `npm run build` zapisuje w `.next/server`.
 
 <a id="logger"></a>
 
@@ -58,6 +59,39 @@ Ostatni wiersz wynika z budowy OTel: `logger` oddaje wpis do API logów, a gdy n
 Wyjątkiem od tej reguły jest raport startowy walidacji zmiennych środowiskowych. `register()` wypisuje go przez `console.error` niezależnie od `NODE_ENV` i endpointu, bo powstaje przed konfiguracją eksportu, a proces kończy się zaraz po nim ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Wyjątek od [D15](decyzje.md#d15) obejmuje tylko ten raport ([D48](decyzje.md#d48)); wpisy kodu aplikacji w czasie działania serwera idą przez `logger`.
 
 Na konsoli wpis ma postać `[<POZIOM>] <komunikat>` i obiekt atrybutów bez zmian. Do eksportu atrybuty przechodzą przez `toAttrs`: błąd daje trzy atrybuty `<klucz>.type`, `<klucz>.message` i `<klucz>.stacktrace`, data napis ISO, obiekt napis JSON, a `null` i `undefined` są pomijane. Komunikaty rdzenia są po angielsku i zaczynają się od prefiksu obszaru (`[MAILER]`, `[USERS]`, `[AUTH]`, `[ORG]`). Wyjątkiem jest `handleCommandError`: zapisuje polski komunikat domyślny komendy bez prefiksu, na przykład `Nie udało się zaprosić użytkownika`. Pełna lista: [Referencja](#referencja-logi).
+
+<a id="logger-typ-bledu"></a>
+
+### Typ błędu w `<klucz>.type`
+
+`toAttrs` bierze typ błędu z `name`, gdy jest niepuste i różne od `"Error"`. W przeciwnym razie bierze nazwę konstruktora, czyli klasy błędu, a gdy i ona jest pusta (klasa anonimowa), wpisuje `"Error"`:
+
+`src/shared/lib/logger.ts`
+
+```ts
+      result[`${key}.type`] =
+        value.name && value.name !== "Error"
+          ? value.name
+          : value.constructor.name || "Error";
+```
+
+`name` stoi na pierwszym miejscu z powodu minifikacji w buildzie produkcyjnym. `npm run build` minifikuje kod serwera: zastępuje nazwy klas krótkimi nazwami, a napisy zostawia. Napis wpisany do `name` zostaje więc w kodzie, a nazwa klasy znika: w plikach `.js` w `.next/server` napisy `NoOrganizationError` i `DomainError` występują tylko jako wartości wpisane do `name` (sprawdzone; wynik `npm run build`). W jednym z plików `.next/server/chunks/` klasa `NoOrganizationError` ma na przykład postać:
+
+```js
+class d extends Error{constructor(){super("Użytkownik nie należy do aktywnej organizacji"),this.name="NoOrganizationError"}}
+```
+
+`d` to przykład z jednego buildu, a nie stała nazwa: w dwóch innych plikach tego samego buildu ta klasa nazywa się `m`. Minifikację przetrwa tylko napis wpisany do `name` wprost w kodzie: przypisanie `this.name = this.constructor.name` albo `this.name = new.target.name` daje w buildzie produkcyjnym tę samą skróconą nazwę co klasa.
+
+Klasa, która nie ustawia `name`, dostaje je od najbliższej klasy nadrzędnej, która je ustawia. Klasa dziedzicząca bezpośrednio po `Error` bez własnego `name` ma więc `name` równe `"Error"`, a `toAttrs` bierze wtedy nazwę konstruktora, na produkcji zminifikowaną. Podklasa `TypeError` ma za to w `<klucz>.type` `"TypeError"`, a podklasa klasy, która wpisuje do `name` napis, ma ten sam napis, w obu przypadkach także w `npm run dev`. Gdy klasa nadrzędna przypisuje `this.name = this.constructor.name` albo `this.name = new.target.name`, podklasa ma w `name` swoją nazwę, na produkcji zminifikowaną. Własna klasa błędu ma więc na produkcji w `<klucz>.type` swoją nazwę tylko wtedy, gdy sama wpisuje ją napisem do `name`, tak jak `NoOrganizationError` w konstruktorze albo `DomainError` w polu klasy.
+
+W rdzeniu `name` ustawiają `NoOrganizationError` (`src/shared/lib/auth/org-context.ts`) i `ServiceModeConfirmationError` (`src/shared/lib/auth/service-mode.ts`) w konstruktorze oraz `DomainError` (`src/shared/utils/error-handling.ts`) w polu klasy `name = "DomainError"`. Napis z pola klasy też przetrwa minifikację: w buildzie `DomainError` ma na przykład postać `class c extends Error{name="DomainError"}` (sprawdzone; wynik `npm run build`). Wpis `warn` z `handleCommandError` dla błędu rzuconego wprost jako `DomainError` ma więc w `err.type` napis `DomainError`, także na produkcji. Rdzeń rzuca `DomainError` tylko jako `ServiceModeConfirmationError`; wprost rzucają go komendy modułów `api-keys` i `uploads`.
+
+Klasa, która dziedziczy bezpośrednio po `DomainError` i nie ustawia `name`, dostaje `name` od `DomainError`, więc ma w `err.type` napis `DomainError` zamiast swojej nazwy, także w `npm run dev`. Moduł, który chce odróżniać swoje błędy w logach, ustawia w podklasie własny `name`, tak jak `ServiceModeConfirmationError`.
+
+Błąd z biblioteki albo z Node.js, który ma w `name` niepusty napis inny niż `"Error"`, ma w `<klucz>.type` ten napis także wtedy, gdy różni się on od nazwy klasy: przerwane żądanie `fetch` daje błąd klasy `DOMException` z `name` równym `AbortError` albo `TimeoutError`. Błąd zwrócony przez S3, który moduł `uploads` zapisuje pod kluczem `err`, ma w `name` kod błędu z odpowiedzi S3, na przykład `SignatureDoesNotMatch`, także gdy jego klasą jest ogólne `S3ServiceException`, a gdy odpowiedź nie ma kodu, `NotFound` przy statusie 404 i `Unknown` przy innym statusie.
+
+Regułę sprawdzają testy w `src/shared/lib/__tests__/logger.test.ts`, w tym przypadek klasy zminifikowanej do `d` z `name` ustawionym w konstruktorze. `name` klasy `DomainError` i jej podklasy bez własnego `name` oraz `err.type` we wpisie `warn` z `handleCommandError` sprawdzają testy w `src/shared/utils/__tests__/error-handling.test.ts`.
 
 <a id="otel"></a>
 

@@ -1,7 +1,9 @@
 import { logger } from "@/shared/lib/logger";
 import { OperationResult } from "@/shared/types/common";
 
-export class DomainError extends Error {}
+export class DomainError extends Error {
+  name = "DomainError";
+}
 
 function isNextRedirect(error: unknown): boolean {
   return (

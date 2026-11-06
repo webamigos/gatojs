@@ -23,6 +23,7 @@ Zweryfikowano z kodem: 734391b, 2026-11-04
 - `kit/cli/stryker.config.json`
 - `kit/cli/mutation-gate.json`
 - `kit/cli/vitest.config.ts`
+- `kit/cli/vitest.setup.ts`
 - `kit/cli/src/commands/kit-sync.ts`
 - `kit/cli/src/kit/` (`kit-config.ts`, `files.ts`, `ownership.ts`, `source.ts`)
 - `kit/cli/src/assemble/` (`hash.ts`, `placeholders.ts`, `package-json.ts`, `copy.ts`)
@@ -342,7 +343,7 @@ CLI ma osobny `package.json` i `package-lock.json` w `kit/cli`. Zależności ins
 | `npm run verify --prefix kit/cli` | Bramka CLI: lint → typecheck → testy → build bundla (skrypt `verify` w `kit/cli/package.json`). |
 | `npm run lint --prefix kit/cli` | ESLint z `kit/cli/eslint.config.mjs`: zalecane reguły JS i `typescript-eslint` oraz `curly` (wyłączone w `__tests__/`) i `no-nested-ternary`; pomija `src/__tests__/fixtures/**`, `reports/**` i `.stryker-tmp/**`. |
 | `npm run typecheck --prefix kit/cli` | `tsc --noEmit` z `kit/cli/tsconfig.json` (bez fikstur). |
-| `npm test --prefix kit/cli` | Vitest w środowisku `node`, pliki `src/**/*.test.ts` (`kit/cli/vitest.config.ts`). Testy kopiują fikstury do katalogu tymczasowego ([08](08-testy.md#cli-hooki)); wyjątkiem jest test własności na repozytorium kitu. |
+| `npm test --prefix kit/cli` | Vitest w środowisku `node`, pliki `src/**/*.test.ts` (`kit/cli/vitest.config.ts`), plik ustawień `kit/cli/vitest.setup.ts` ze stałym seedem testów właściwości w procesach Strykera ([08b](08b-testy-adwersarialne.md#seed)). Testy kopiują fikstury do katalogu tymczasowego ([08](08-testy.md#cli-hooki)); wyjątkiem jest test własności na repozytorium kitu. |
 | `npm run build --prefix kit/cli` | Typecheck i bundel ([wyżej](#bundel)). |
 | `npm run test:mutation:task --prefix kit/cli -- <pliki>` | Stryker tylko na podanych plikach, każda jako ścieżka względem `kit/cli`, zaczynająca się od `src/`. |
 | `npm run test:mutation --prefix kit/cli` | Pełny przebieg Strykera: przyrostowy (`reports/stryker-incremental.json`), próg `break` 75%. |
@@ -356,6 +357,7 @@ Mutacje działają jak w aplikacji ([08b](08b-testy-adwersarialne.md#bramka)): t
 - Bramka CLI uruchamia skrypt aplikacji `scripts/mutation-gate.ts` (`tsx ../../scripts/mutation-gate.ts`) w katalogu `kit/cli`, więc czyta `kit/cli/mutation-gate.json` i raport z `kit/cli/reports/mutation/`. Bez raportu kończy się komunikatem `Brak raportu mutacji. Uruchom najpierw npm run test:mutation.`
 - Krytyczne są całe katalogi `kit/cli/src/generate/`, `kit/cli/src/manifest/`, `kit/cli/src/assemble/`, `kit/cli/src/commands/` i `kit/cli/src/kit/` (w `kit/cli/mutation-gate.json` zapisane względem `kit/cli`). Wpisy `allowed` dopisuje człowiek ([D26](decyzje.md#d26)).
 - Nie uruchamiaj dwóch przebiegów Strykera naraz, także jednego w aplikacji i jednego w `kit/cli` ([08b](08b-testy-adwersarialne.md#jeden-stryker)).
+- Stały seed testów właściwości w procesach Strykera ustawia osobny plik `kit/cli/vitest.setup.ts`, a nie `vitest.setup.ts` aplikacji ([08b](08b-testy-adwersarialne.md#seed)).
 
 Zmiana w repozytorium kitu przechodzi przed pull requestem obie bramki: `npm run verify` (aplikacja) i `npm run verify --prefix kit/cli` (CLI).
 
