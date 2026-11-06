@@ -5,7 +5,7 @@ Po przeczytaniu będziesz wiedzieć:
 - dlaczego testy zadania pisze inny agent niż kod i co z tego wynika dla Twojej pracy;
 - jak przebiega zadanie: `test-writer`, faza implementacji z hookiem `protect-tests`, `test-reviewer`;
 - jakie zasady muszą spełniać testy i jak wyglądają w kodzie kitu;
-- jak działa Stryker, co znaczy wynik mutacji i jak uruchomić go na plikach zadania;
+- jak działa Stryker, co znaczy wynik mutacji, jak uruchomić go na plikach zadania i dlaczego testy właściwości mają pod nim stały seed;
 - jak działa bramka plików krytycznych, kto dopisuje wyjątki do `mutation-gate.json` i co zrobić, gdy bramka jest czerwona;
 - dlaczego naraz może działać tylko jeden Stryker.
 
@@ -20,6 +20,11 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 - `.claude/settings.json`
 - `stryker.config.json`
 - `stryker.integration.config.json`
+- `vitest.setup.ts`
+- `src/__tests__/vitest-setup.test.ts`
+- `kit/cli/vitest.config.ts`
+- `kit/cli/vitest.setup.ts`
+- `kit/cli/src/__tests__/vitest-setup.test.ts`
 - `mutation-gate.json`
 - `scripts/mutation-gate.ts`
 - `scripts/lib/mutation-gate.ts`
@@ -190,7 +195,7 @@ Pełna lista jest w [AGENTS.md](../AGENTS.md#testy-które-próbują-złamać-kod
 | Każda pozycja z „Mutacji do zabicia” ma test, który pada przy tej mutacji. | Mutacje z planu to błędy, które autor planu uznał za najgroźniejsze. | Test „owner organizacji A podaje id B ręcznie → odmowa, sesja bez zmian” zabija mutację „brak sprawdzenia członkostwa”. |
 | Każda granica (akcja serwerowa, query, parser) ma testy negatywne: niepoprawne wejście Zod, brak sesji, cudza organizacja, za niska rola, awaria zależności, podwójne wywołanie. | Autor kodu testuje zwykle tylko szczęśliwą ścieżkę. Te klasy błędów leżą poza nią. | Bloki „tryb serwisowy” i „poza trybem serwisowym” w `src/features/users/services/commands/__tests__/invite-user-command.test.ts`, test „dwa równoległe dołączenia tego samego użytkownika → jedno członkostwo” w teście izolacji. |
 | Mockuje się tylko wejście i wyjście: Prismę w testach jednostkowych, mail, sieć, `auth.api`. Nie mockuje się pliku z regułą bezpieczeństwa, którą test sprawdza, i nie sprawdza się samego mocka. | Mock pliku z regułą wyłącza ją z testu. Tak powstała luka w `getAdminUserOrNull` opisana w [Dlaczego](#dlaczego). | `src/shared/lib/auth/__tests__/helpers.test.ts` podstawia tylko wejścia: nagłówki, język, `redirect` i `auth.api.getSession`. |
-| Czysta funkcja z niezmiennikiem (parser, serializacja, normalizacja, slug) dostaje test właściwości `test.prop` z `@fast-check/vitest`. | Wejścia losuje biblioteka (domyślnie 100 na test), więc test sprawdza też przypadki, o których autor nie pomyślał. | Slug organizacji poniżej. |
+| Czysta funkcja z niezmiennikiem (parser, serializacja, normalizacja, slug) dostaje test właściwości `test.prop` z `@fast-check/vitest`. | Wejścia losuje biblioteka (domyślnie 100 na test), więc test sprawdza też przypadki, o których autor nie pomyślał. Pod Strykerem losuje je ze stałego seeda ([Testy właściwości pod Strykerem](#seed)). | Slug organizacji poniżej. |
 | Poprawka błędu ma test, który bez poprawki nie przechodzi. | Dowodzi, że test w ogóle widzi ten błąd. | `test-reviewer` sprawdza to, cofając poprawkę. |
 | Nazwa testu opisuje zachowanie z punktu widzenia kontraktu, po polsku. | Czerwony test od razu mówi, które zachowanie się zepsuło. | „zaproszenie wygasa dokładnie 48 godzin po utworzeniu”. |
 
@@ -310,6 +315,44 @@ Stryker wypisuje na końcu na przykład `Final mutation score of 83.02 is greate
 - **Raporty** trafiają do `reports/`, który jest w `.gitignore`. Unitowe: `reports/mutation/mutation.html` i `reports/mutation/mutation.json` (domyślne ścieżki Strykera). Integracyjne: `reports/mutation-integration/mutation.html` i `reports/mutation-integration/mutation.json`.
 - **Katalog roboczy**: każdy przebieg kopiuje projekt do własnego podkatalogu `.stryker-tmp/sandbox-<losowe znaki>`, z pominięciem plików, które Stryker pomija zawsze (między innymi `node_modules`, `.git`, `.next`, katalog roboczy `.stryker-tmp`, plik przyrostowy i pliki raportów HTML i JSON), oraz `ignorePatterns` z konfiguracji, które w obu konfiguracjach wykluczają cały katalog `reports`. Po udanym przebiegu usuwa swój podkatalog, a po przerwanym albo nieudanym go zostawia. Stare podkatalogi możesz usunąć, gdy nie działa żaden Stryker. `npm test` pomija `.stryker-tmp/**`, więc kopie testów z tego katalogu się nie uruchamiają.
 - **Wyłączenie pliku z mutacji** zapisuje się wzorcem z `!` w `mutate`, a nie komentarzem `// Stryker disable`, bo hook komentarzy by go zablokował ([D23](decyzje.md#d23)).
+
+<a id="seed"></a>
+
+### Testy właściwości pod Strykerem
+
+W procesach Strykera testy właściwości (`test.prop`) losują wejścia ze stałego seeda, a w zwykłych przebiegach z nowego przy każdym uruchomieniu. Stały seed jest potrzebny, bo Stryker wybiera testy dla mutanta po nazwach. W przebiegu suchym, czyli przebiegu testów bez mutantów, zapisuje pełną nazwę każdego testu i to, kod których mutantów test wykonał. Dla mutanta uruchamia potem tylko testy o nazwach, które go objęły (filtr `testNamePattern` w `node_modules/@stryker-mutator/vitest-runner/dist/src/vitest-test-runner.js`). `@fast-check/vitest` dopisuje do nazwy testu właściwości seed, na przykład `… (with seed=-480522100)`, a gdy seed nie jest ustawiony, losuje go przy każdym ładowaniu pliku testów (`node_modules/@fast-check/vitest/lib/vitest-fast-check.js`). Bez stałego seeda test w procesie z mutantem ma więc inną nazwę niż w przebiegu suchym i filtr go pomija (sprawdzone). Mutant, którego wykrywa tylko test właściwości, dostaje wtedy `Survived`, a w pliku krytycznym bramka każe go zabić nowym testem albo opisać wpisem w `mutation-gate.json`, choć test, który go wykrywa, istnieje. Bez stałego seeda testy właściwości uruchamiają się tylko dla mutantów statycznych, czyli zmian w kodzie wykonywanym przy ładowaniu modułu, bo dla nich Stryker uruchamia wszystkie testy bez filtra nazw.
+
+Seed ustawia `vitest.setup.ts`, tylko gdy istnieje zmienna `STRYKER_MUTATOR_WORKER`. Stryker ustawia ją na numer procesu w każdym procesie, w którym uruchamia testy albo sprawdza typy (`child-process-proxy.js` w `node_modules/@stryker-mutator/core`), a procesy Vitest dziedziczą ją po procesie Strykera:
+
+`vitest.setup.ts`
+
+```ts
+// …
+// WHY: @fast-check/vitest puts the seed in each property test's name and Stryker picks a mutant's tests by
+// the names from its dry run, so a seed drawn anew in every Stryker process would keep property tests from running.
+if (process.env.STRYKER_MUTATOR_WORKER !== undefined) {
+  fc.configureGlobal({ seed: 42 });
+}
+```
+
+Przykład z lokalnych przebiegów `npm run test:mutation:task` z 2026-11-05 na plikach z testami właściwości, bez stałego seeda i z nim (sprawdzone):
+
+- Z opcją `--disableBail` Stryker wykonuje wszystkie testy, które obejmują mutanta, i zapisuje każdy test, który padł. Na pięciu plikach (`service-mode.ts`, `organization-slug.ts`, `upload.schemas.ts`, `content-disposition.ts`, `api-key-secret.ts`) testy właściwości zabiły bez stałego seeda 2 mutanty, oba statyczne, a ze stałym seedem 56. Bez stałego seeda każdy z 71 mutantów objętych testem właściwości miał wykonanych dokładnie o tyle testów mniej, ile testów właściwości go obejmowało.
+- W zwykłym przebiegu (bez `--disableBail`) na dziesięciu plikach z testami właściwości wynik mutacji się nie zmienił (95,02%). Stryker kończy przebieg mutanta na pierwszym teście, który padnie, a w tych plikach testy przykładowe stoją przed testami właściwości i zabijają te same mutanty. 9 mutantów objętych testem właściwości przeżyło w obu przebiegach, ale ze stałym seedem z wykonanym testem właściwości: właściwości nie sprawdzają tych zachowań albo mutant jest równoważny. Na przykład w `organization-slug.ts` zamiana `/^-+|-+$/g` na `/^-|-+$/g` nic nie zmienia, bo wcześniejsze `.replace(/[^a-z0-9]+/g, "-")` nie zostawia dwóch myślników obok siebie.
+
+Które mutanty zabija test właściwości, pokaże więc dopiero przebieg z `--disableBail`, na przykład `npm run test:mutation:task -- src/a.ts --disableBail`. Trwa dłużej, bo dla każdego mutanta wykonuje wszystkie testy, które go obejmują.
+
+Co z tego wynika:
+
+- `npm test` i CI losują seed przy każdym uruchomieniu, więc każdy przebieg sprawdza nowe wejścia. Seed jest w nazwie testu, a gdy właściwość nie przejdzie, fast-check wypisuje parametry do powtórzenia kontrprzykładu, na przykład `{ seed: 42, path: "6:1:0", endOnFailure: true }`. Podaj je w drugim argumencie `test.prop`.
+- W procesach Strykera każdy test właściwości sprawdza w każdym przebiegu te same wejścia. Mutant, którego te wejścia nie wykrywają, przeżyje w każdym przebiegu i ponowne uruchomienie tego nie zmieni. Zabije go test przykładowy albo właściwość z lepiej dobranym generatorem wejść lub większym `numRuns`.
+- Wejścia z procesów Strykera odtworzysz bez Strykera: `STRYKER_MUTATOR_WORKER=0 npx vitest run <plik testu>`. Przydaje się to, gdy test właściwości pada w przebiegu suchym Strykera, a w `npm test` przechodzi.
+- `fc.configureGlobal` zastępuje całą konfigurację globalną fast-check. Wywołanie bez `seed` w pliku testów usuwa stały seed dla tego pliku, więc jego testy właściwości znowu nie biorą udziału w przebiegach mutantów. Ustawienie dla jednego testu podawaj w drugim argumencie `test.prop`, jak `{ numRuns: 300 }` w `src/features/uploads/services/__tests__/content-disposition.test.ts`.
+- Nazwy testów właściwości są stałe także między przebiegami Strykera. Plik przyrostowy rozpoznaje test po pliku, pozycji i nazwie (`IncrementalDiffer` w `node_modules/@stryker-mutator/core`). Z losowym seedem każdy przebieg uznawałby testy właściwości za nowe i od nowa sprawdzał mutanty, które obejmują; ze stałym seedem tryb przyrostowy może użyć ich wyników z poprzedniego przebiegu.
+- `vitest.integration.config.ts` nie ładuje `vitest.setup.ts`, więc przebieg integracyjny nie ma stałego seeda. Testy integracyjne nie używają `test.prop`; test właściwości dopisany do testów integracyjnych potrzebowałby tego samego ustawienia w `src/test/integration/setup-env.ts`.
+- CLI kitu ma to samo ustawienie w `kit/cli/vitest.setup.ts` (`setupFiles` w `kit/cli/vitest.config.ts`), bo jego Stryker wybiera testy tak samo ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli)).
+
+Ustawienie sprawdzają `src/__tests__/vitest-setup.test.ts` i `kit/cli/src/__tests__/vitest-setup.test.ts`: plik ustawień jest wpisany w `setupFiles`, przy ustawionej zmiennej seed wynosi 42 dla każdego numeru procesu i przy każdym ładowaniu pliku, także przy innej dacie systemowej, a bez zmiennej seed nie jest ustawiony.
 
 <a id="bramka"></a>
 
@@ -478,7 +521,7 @@ Katalog `.stryker-tmp/` sam w sobie nie jest problemem: każdy przebieg ma w nim
 | Ustawienie | `stryker.config.json` | `stryker.integration.config.json` |
 | --- | --- | --- |
 | Komendy | `npm run test:mutation`, `npm run test:mutation:task` | `npm run test:mutation:integration` |
-| Testy | domyślna konfiguracja Vitest (`vitest.config.ts`) | `vitest.integration.config.ts`, baza `_test` |
+| Testy | domyślna konfiguracja Vitest (`vitest.config.ts`) z plikiem ustawień `vitest.setup.ts`, który ustawia stały seed testów właściwości ([Testy właściwości pod Strykerem](#seed)) | `vitest.integration.config.ts`, baza `_test`; bez `vitest.setup.ts`, więc bez stałego seeda |
 | `mutate` | `src/shared/lib/**/*.ts`, `src/shared/utils/**/*.ts`, `src/features/**/services/**/*.ts`, `src/features/**/contracts/**/*.ts`, `src/i18n/**/*.ts`, `src/app/api/**/*.ts`, `scripts/lib/**/*.ts`; bez `**/__tests__/**`, `src/shared/lib/prisma.ts`, `src/shared/lib/logger.ts` | `src/features/*/services/**/*.ts`, `src/shared/lib/auth/org-context.ts`, `src/shared/lib/auth/require-module-access.ts`; bez `**/__tests__/**` |
 | `concurrency` | domyślna Strykera (logiczne procesory minus jeden przy więcej niż czterech; po sprawdzeniu typów tyle procesów testów) | `1` (1 proces sprawdzania typów i 1 proces testów, po sprawdzeniu typów 2 procesy testów) |
 | `incrementalFile` | `reports/stryker-incremental.json` | `reports/stryker-integration-incremental.json` |
@@ -500,6 +543,8 @@ Katalog `.stryker-tmp/` sam w sobie nie jest problemem: każdy przebieg ma w nim
 | `.claude/settings.json` | Rejestracja hooków `PreToolUse` dla narzędzi `Edit` i `Write`. |
 | `.superpowers/phase` | Plik fazy, lokalny, poza git. |
 | `stryker.config.json`, `stryker.integration.config.json` | Konfiguracje Strykera. |
+| `vitest.setup.ts`, `kit/cli/vitest.setup.ts` | Stały seed testów właściwości w procesach Strykera ([Testy właściwości pod Strykerem](#seed)). |
+| `src/__tests__/vitest-setup.test.ts`, `kit/cli/src/__tests__/vitest-setup.test.ts` | Testy tego seeda (w `npm test` i `npm test --prefix kit/cli`). |
 | `mutation-gate.json` | Pliki krytyczne i wpisy wyjątków. |
 | `scripts/mutation-gate.ts` | Wejście bramki: czyta raporty i konfigurację, wypisuje wynik. |
 | `scripts/lib/mutation-gate.ts` | Logika bramki: `mergeReports`, `checkMutationGate`, `mutantOriginal`. |
