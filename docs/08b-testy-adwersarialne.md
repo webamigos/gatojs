@@ -386,16 +386,16 @@ Plik jest krytyczny, gdy jego ścieżka od katalogu głównego repozytorium zacz
     {
       "file": "src/shared/lib/auth/org-context.ts",
       "mutator": "StringLiteral",
-      "original": "\"NoOrganizationError\"",
+      "original": "\"Użytkownik nie należy do aktywnej organizacji\"",
       "replacement": "\"\"",
       "reason": "tylko komunikat: NoOrganizationError rozpoznajemy przez instanceof, nie przez name/message"
     },
 ```
 
-Mutant zamienia nazwę błędu na pusty napis. Kod rozpoznaje ten błąd przez `instanceof`, więc żaden test nie może tego mutanta zabić bez sprawdzania samego tekstu. `AGENTS.md` dopuszcza trzy rodzaje uzasadnień, a każdy ma przykład w pliku:
+Mutant zamienia komunikat błędu `NoOrganizationError` na pusty napis. Kod kitu rozpoznaje ten błąd przez `instanceof`, a jego komunikat czyta tylko `logger`: wpis `error` z `handleCommandError` ma go w `err.message`. Użytkownik dostaje wtedy domyślny komunikat komendy, bo `NoOrganizationError` nie dziedziczy po `DomainError` ([03-dane-i-organizacje.md](03-dane-i-organizacje.md#no-organization-error)). Żaden test nie może więc zabić tego mutanta bez sprawdzania samego tekstu. `AGENTS.md` dopuszcza trzy rodzaje uzasadnień, a każdy ma przykład w pliku:
 
 - **mutant równoważny**: zachowanie się nie zmienia, na przykład `{ id: true }` → `{}` w `select`, gdy wynik jest sprawdzany tylko na obecność;
-- **tylko komunikat albo log**: tekst bez kontraktu, jak w przykładzie wyżej;
+- **tylko komunikat albo log**: tekst bez kontraktu, jak komunikat `NoOrganizationError` w przykładzie wyżej;
 - **świadoma stała konfiguracyjna**: na przykład `60 * 5` (czas cookie cache sesji) w `src/shared/lib/auth/index.ts`.
 
 Wpisy dopisuje i zatwierdza człowiek w pull requeście. Agent, także `test-reviewer`, tylko je proponuje w raporcie.
@@ -462,7 +462,7 @@ Dopisz test, który zabija mutanta, albo dodaj wpis do mutation-gate.json z uzas
 2. **Brak uzasadnienia.** Uzupełnij `reason` we wskazanym wpisie.
 3. **Nieaktualny wpis.** Mutant jest zabity albo kod się zmienił. Człowiek usuwa wpis albo poprawia `original` w pull requeście.
 
-[AGENTS.md](../AGENTS.md#testy-które-próbują-złamać-kod) zabrania obniżania `thresholds.break`, żeby przepuścić zmianę. Wyjątki od mutacji ustawia się w `mutate`, ale wykluczenie służy plikom bez logiki do testowania, jak `src/shared/lib/prisma.ts` i `src/shared/lib/logger.ts`. Plik krytyczny wykluczony z `mutate` przestaje być mutowany. Przy istniejącym pliku przyrostowym (lokalnie i w CI z cache) Stryker przenosi do raportu stare wyniki tego pliku dla kodu, który się nie zmienił (`IncrementalDiffer` w `node_modules/@stryker-mutator/core`), więc bramka widzi zamrożony stan. Bez pliku przyrostowego plik znika z raportu, a bramka pomija go razem z jego wpisami w `allowed`, bez komunikatu o nieaktualnym wpisie (`checkMutationGate` bierze pod uwagę tylko pliki obecne w raporcie). W obu przypadkach nowy kod tego pliku nie ma żadnej kontroli mutacjami.
+[AGENTS.md](../AGENTS.md#testy-które-próbują-złamać-kod) zabrania obniżania `thresholds.break`, żeby przepuścić zmianę. Wyjątki od mutacji ustawia się w `mutate`, ale wykluczenie służy plikom bez logiki do testowania, jak `src/shared/lib/prisma.ts`. Wykluczony jest też `src/shared/lib/logger.ts`, chociaż jego reguła typu błędu ma testy ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#logger-typ-bledu)): pełny przebieg (`npm run test:mutation`) jej nie mutuje, a jej mutanty pokazuje dopiero przebieg zadania z tym plikiem, `npm run test:mutation:task -- src/shared/lib/logger.ts`. Plik krytyczny wykluczony z `mutate` przestaje być mutowany. Przy istniejącym pliku przyrostowym (lokalnie i w CI z cache) Stryker przenosi do raportu stare wyniki tego pliku dla kodu, który się nie zmienił (`IncrementalDiffer` w `node_modules/@stryker-mutator/core`), więc bramka widzi zamrożony stan. Bez pliku przyrostowego plik znika z raportu, a bramka pomija go razem z jego wpisami w `allowed`, bez komunikatu o nieaktualnym wpisie (`checkMutationGate` bierze pod uwagę tylko pliki obecne w raporcie). W obu przypadkach nowy kod tego pliku nie ma żadnej kontroli mutacjami.
 
 <a id="praktyka"></a>
 
