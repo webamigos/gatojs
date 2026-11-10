@@ -256,7 +256,7 @@ const REMOTE_PREFIXES = ["https://", "ssh://", "file://", "git@"];
 
 - **Źródło zdalne** (zaczyna się jednym z tych prefiksów) CLI klonuje poleceniem `git -c advice.detachedHead=false clone --depth 1 --branch v<kitVersion> --quiet` do katalogu tymczasowego (`wa-add-…` albo `wa-list-…` w katalogu tymczasowym systemu), który znika po komendzie, także po błędzie. Nad wynikiem widać jedną linię gita: ostrzeżenie o tagu z adnotacją, takie jak przy [one-linerze](#one-liner) (`warning: refs/tags/v<kitVersion> <sha> is not a commit!`). Porady o odłączonym HEAD nie ma, bo wyłącza ją `-c advice.detachedHead=false`. Nieudany klon daje `Nie udało się pobrać wa-kit v<wersja> z <adres>. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`, a nad nim wyjście gita, na przykład `fatal: repository '…' not found` (sprawdzone).
 - **Ścieżka lokalna** musi wskazywać katalog z `kit/kit.json` (inaczej `Brak kit/kit.json w <ścieżka> — to nie jest repozytorium wa-kit`), a `version` z tego pliku musi być równa `kitVersion` projektu (inaczej `Kit w <ścieżka> ma wersję <x>, projekt używa <y>`).
-- **Odrzucane źródła:** wartość zaczynająca się od `-` (żeby nie stała się opcją gita) i wartość z `://` albo `::` spoza listy prefiksów, na przykład `ext::sh`. Komunikat: `Nieprawidłowe źródło wa-kit: <źródło>` (sprawdzone dla `--kit=-x` i `--kit ext::sh`). Dotyczy tylko `add` i `list`: `create` nie korzysta z `resolveKitSource`, tylko z `--kit` jako ścieżki.
+- **Odrzucane źródła:** wartość zaczynająca się od `-` (żeby nie stała się opcją gita) i wartość z `://` albo `::` spoza listy prefiksów, na przykład `ext::sh`. Komunikat: `Nieprawidłowe źródło wa-kit: <źródło>` (sprawdzone dla `--kit=-x` i `--kit ext::sh`). Dotyczy `add`, `list` i `update` (`update` sprawdza źródło przez `kitSourceLocation`, tak jak `add` i `list` przez `resolveKitSource`): `create` nie korzysta z żadnej z tych funkcji, tylko z `--kit` jako ścieżki.
 - **Pusty `WA_KIT_SOURCE`** (`WA_KIT_SOURCE=`) jest ścieżką lokalną: wskazuje katalog bieżący, czyli zwykle projekt, który nie ma `kit/kit.json` (sprawdzone).
 
 Wymóg równej wersji wynika z modelu kitu: projekt dostaje kod jednej wersji kitu. Moduł z nowszego kitu skopiowałby pliki, które zakładają nowszy rdzeń. Na nowszą wersję przenosi projekt [`wa update`](#wa-update), a dopiero potem `wa add` dodaje moduły tej wersji.
@@ -526,7 +526,7 @@ Wszystkie kontrole i całe scalanie idą w pamięci, przed pierwszym zapisem.
 1. **Opcje i wersja.** Brak wersji: `Podaj wersję kitu`; zły format, na przykład `v0.3.0`: `Nieprawidłowa wersja: v0.3.0; podaj na przykład 0.2.0` (sprawdzone).
 2. **`.wa/kit.json`** jak w `add`.
 3. **Wersja docelowa.** Równa `kitVersion`: linia `Projekt ma już wa-kit <wersja>` i kod 0, także na brudnym drzewie i bez sieci (sprawdzone). Niższa: `Projekt ma wa-kit <x>, nowszą niż <wersja>; wa update nie obniża wersji` (sprawdzone).
-4. **Czyste drzewo git** (bez `--dry-run`): `git status --porcelain` musi być pusty; pliki ignorowane się nie liczą, nieśledzone tak. Brudne drzewo: `Niezacommitowane zmiany w projekcie; zrób commit albo stash przed wa update` (sprawdzone). Katalog poza repozytorium git: `<katalog> nie jest repozytorium git; wa update wymaga gita, żeby dało się cofnąć zmiany`.
+4. **Czyste drzewo git** (bez `--dry-run`): `git status --porcelain` musi być pusty; pliki ignorowane się nie liczą, nieśledzone tak. Brudne drzewo: `Niezacommitowane zmiany w projekcie; zrób commit albo stash przed wa update` (sprawdzone). Katalog poza repozytorium git: `<katalog> nie jest repozytorium git; wa update wymaga gita, żeby dało się cofnąć zmiany`. Brak polecenia `git` w `PATH`: `Nie znaleziono polecenia git; zainstaluj git, żeby uruchomić wa update`.
 5. **Źródło kitu:** `Nieprawidłowe źródło wa-kit: <źródło>` jak w `add`.
 6. **Bundel z klonu** (one-liner): wersja jego kitu równa `<wersja>` ([wyżej](#update-pierwsza)).
 7. **Pobranie wersji docelowej i bazowej:** `git -c advice.detachedHead=false clone --depth 1 --branch v<wersja> --quiet` (dla ścieżki lokalnej bez `--depth 1`) do katalogu tymczasowego `wa-update-…`, który znika po komendzie, także po błędzie. Brak tagu: `Nie udało się pobrać wa-kit v<wersja> z <źródło>. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`, a nad nim linia gita (sprawdzone; przy polskich ustawieniach `fatal: Nie znaleziono zdalnej gałęzi v0.4.0 w repozytorium origin`). Tag z inną `version` w `kit/kit.json`: `Kit w <klon> ma wersję <x>, oczekiwano <wersja>`. Bundel projektu klonuje tu wersję docelową i przekazuje pracę ([wyżej](#update-delegacja)); proces potomny powtarza kroki 2–5 i klonuje wersję bazową `v<kitVersion>`.
@@ -721,7 +721,7 @@ Puste i brakujące wartości (sprawdzone):
 | --- | --- |
 | `--kit=`, `--kit ""` | `Opcja --kit wymaga wartości`; pusta wartość jest błędem tylko dla `--kit` i `--from-kit` (`optionalValue`). |
 | `--kit` na końcu, `--title --yes`, `--kit -x` | `Opcja <opcja> wymaga wartości`: po opcji nie ma wartości albo stoi inna opcja lub wartość zaczynająca się od `-`. |
-| `--kit=-x` | Wartość przyjęta. W `add` i `list` potem `Nieprawidłowe źródło wa-kit: -x`; w `create` ścieżka `-x` nie ma `kit/kit.json`, więc `Uruchom create z klonu wa-kit albo podaj --kit <ścieżka>` (sprawdzone). |
+| `--kit=-x` | Wartość przyjęta. W `add`, `list` i `update` potem `Nieprawidłowe źródło wa-kit: -x`; w `create` ścieżka `-x` nie ma `kit/kit.json`, więc `Uruchom create z klonu wa-kit albo podaj --kit <ścieżka>` (sprawdzone). |
 | `--modules=` | Sam rdzeń. |
 | `--locales=` | `--locales: dozwolone pl,en; pl jest wymagany`. |
 | `--title=` | Pusta nazwa wyświetlana. |
@@ -795,6 +795,7 @@ Każdy komunikat z tej tabeli trafia na stderr i kończy komendę kodem 1. Komun
 | `update` | zły format wersji | `Nieprawidłowa wersja: <wartość>; podaj na przykład 0.2.0` (sprawdzone) |
 | `update` | wersja niższa niż `kitVersion` | `Projekt ma wa-kit <x>, nowszą niż <wersja>; wa update nie obniża wersji` (sprawdzone) |
 | `update` | projekt poza repozytorium git (bez `--dry-run`) | `<katalog> nie jest repozytorium git; wa update wymaga gita, żeby dało się cofnąć zmiany` |
+| `update` | brak polecenia `git` w `PATH` (bez `--dry-run`) | `Nie znaleziono polecenia git; zainstaluj git, żeby uruchomić wa update` |
 | `update` | niezacommitowane albo nieśledzone pliki (bez `--dry-run`) | `Niezacommitowane zmiany w projekcie; zrób commit albo stash przed wa update` (sprawdzone) |
 | `update` | one-liner z klonem innej wersji niż `<wersja>` | `Bundel pochodzi z wa-kit <x>, a aktualizacja prowadzi do <wersja>` |
 | `update` | tag kitu ma w `kit/kit.json` inną wersję niż w nazwie | `Kit w <klon> ma wersję <x>, oczekiwano <wersja>` |

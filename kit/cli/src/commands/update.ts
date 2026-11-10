@@ -79,6 +79,12 @@ export async function assertCleanTree(projectDir: string): Promise<void> {
       },
     ));
   } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(
+        "Nie znaleziono polecenia git; zainstaluj git, żeby uruchomić wa update",
+        { cause: error },
+      );
+    }
     throw new Error(
       `${projectDir} nie jest repozytorium git; wa update wymaga gita, żeby dało się cofnąć zmiany`,
       { cause: error },

@@ -252,6 +252,24 @@ describe("assertCleanTree", () => {
       cause: expect.any(Error),
     });
   });
+
+  it("brak polecenia git w systemie daje błąd o instalacji gita, nie o repozytorium", async () => {
+    const dir = await gitProject();
+    const emptyBin = await makeTempDir("wa-kit-nopath-");
+    const originalPath = process.env.PATH;
+    process.env.PATH = emptyBin;
+    try {
+      const failure = assertCleanTree(dir);
+      await expect(failure).rejects.toThrow(
+        "Nie znaleziono polecenia git; zainstaluj git, żeby uruchomić wa update",
+      );
+      await expect(failure).rejects.toMatchObject({
+        cause: expect.objectContaining({ code: "ENOENT" }),
+      });
+    } finally {
+      process.env.PATH = originalPath;
+    }
+  });
 });
 
 describe("update: kit zmienił plik, projekt nie", () => {

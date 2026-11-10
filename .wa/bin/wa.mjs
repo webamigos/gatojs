@@ -21836,6 +21836,12 @@ async function assertCleanTree(projectDir) {
       }
     ));
   } catch (error62) {
+    if (error62.code === "ENOENT") {
+      throw new Error(
+        "Nie znaleziono polecenia git; zainstaluj git, \u017Ceby uruchomi\u0107 wa update",
+        { cause: error62 }
+      );
+    }
     throw new Error(
       `${projectDir} nie jest repozytorium git; wa update wymaga gita, \u017Ceby da\u0142o si\u0119 cofn\u0105\u0107 zmiany`,
       { cause: error62 }
