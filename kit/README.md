@@ -21,7 +21,7 @@ Opisy modułów: [docs/12-moduly-kitu.md](../docs/12-moduly-kitu.md). Manifesty 
 | `core` | Rdzeń: logowanie, organizacje, użytkownicy, konto, dashboard. Zawsze zainstalowany. |
 | `audit-logs` | Dziennik zdarzeń organizacji: model `AuditLog`, strona `/audit-log`, komponent `<AuditTrail>`, zdarzenia członkostwa. Moduł nie ma retencji (usuwania starych wpisów): dziennik rośnie bez limitu. |
 | `api-keys` | Klucze API organizacji: model `ApiKey`, strona `/api-keys` dla ról `owner` i `admin`, uwierzytelnianie tras `authenticateApiKey`, zakresy deklarowane przez moduły (`apiScopes`), przykładowa trasa `GET /api/v1/organization`. Wymaga zmiennej `API_KEY_PEPPER` (min. 32 znaki); `wa create` jej nie losuje, więc na produkcji ustaw własną. |
-| `uploads` | Pliki organizacji w magazynie S3: model `Upload`, trasy `POST /api/uploads` i `GET /api/uploads/<id>`, komponent `<FileUpload>`, cele uploadu deklarowane przez moduły (`uploadPurposes`), skalowanie obrazów. Lokalnie MinIO z `docker-compose.yml`; wymaga zmiennych `S3_*` ([docs/10-wdrozenie.md](../docs/10-wdrozenie.md#zmienne)). |
+| `uploads` | Pliki organizacji na dysku albo w magazynie S3: model `Upload`, trasy `POST /api/uploads` i `GET /api/uploads/<id>`, komponent `<FileUpload>`, cele uploadu deklarowane przez moduły (`uploadPurposes`), skalowanie obrazów. `STORAGE_PROVIDER` wybiera `local` (domyślnie, katalog `STORAGE_LOCAL_PATH`) albo `s3` (zmienne `S3_*`). Lokalnie nie wymaga dodatkowej usługi; MinIO z `docker-compose.yml` startuje tylko z `--profile s3`. W produkcji `local` wymaga trwałego katalogu i jednej instancji ([docs/10-wdrozenie.md](../docs/10-wdrozenie.md#pliki-uploads)). |
 
 ## `wa create <katalog> [opcje]`
 
@@ -58,7 +58,7 @@ Pierwszą aktualizację projektu z `v0.1.0` (jego bundel nie zna `update`) uruch
 KIT_DIR=$(mktemp -d) && git clone --depth 1 --branch v<wersja> https://github.com/webamigos/wa-kit.git "$KIT_DIR" && node "$KIT_DIR/.wa/bin/wa.mjs" update <wersja>
 ```
 
-Po `add`, `remove` i `update` może się zmienić schemat bazy; migrację trzeba utworzyć i zacommitować. `add` nie zmienia `.env`: nowe zmienne modułu (na przykład `API_KEY_PEPPER`, `S3_*`) trafiają tylko do regionu `wa:modules` w `.env.example`, więc skopiuj je do `.env` sam. `remove` zostawia zmienne modułu w `.env`.
+Po `add`, `remove` i `update` może się zmienić schemat bazy; migrację trzeba utworzyć i zacommitować. `add` nie zmienia `.env`: nowe zmienne modułu (na przykład `API_KEY_PEPPER`, `STORAGE_PROVIDER`, `S3_*`) trafiają tylko do regionu `wa:modules` w `.env.example`, więc skopiuj je do `.env` sam. `remove` zostawia zmienne modułu w `.env`.
 
 ### Bezpieczeństwo `wa remove`
 

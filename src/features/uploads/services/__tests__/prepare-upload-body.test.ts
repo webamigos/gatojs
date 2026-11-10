@@ -22,11 +22,15 @@ async function makePng(width: number, height = 40) {
 
 const PNG = { mimeType: "image/png", extension: "png" };
 
-const editorImage: ModuleUploadPurpose = {
+const editorImageWithoutResize: ModuleUploadPurpose = {
   key: "editor-image",
   mimeTypes: ["image/jpeg", "image/png", "image/webp"],
   maxBytes: 5 * 1024 * 1024,
   visibility: "public",
+};
+
+const editorImage: ModuleUploadPurpose = {
+  ...editorImageWithoutResize,
   resizeImage: { maxWidth: 1200 },
 };
 
@@ -68,8 +72,7 @@ describe("prepareUploadBody", () => {
         .webp()
         .toBuffer(),
     );
-    const { resizeImage: _omitted, ...withoutResize } = editorImage;
-    const result = await prepareUploadBody(original, withoutResize, {
+    const result = await prepareUploadBody(original, editorImageWithoutResize, {
       mimeType: "image/webp",
       extension: "webp",
     });

@@ -66,6 +66,7 @@ W aplikacji jest jedna instancja better-auth: `auth` z `src/shared/lib/auth/inde
 | `hooks.before` | jedna funkcja z trzema gałęziami | [Hook `before`](#hook-before). |
 | `databaseHooks.user.create.after` | `applySignupMembership` | Członkostwo nowego konta po rejestracji. |
 | `databaseHooks.session.create.before` | `getDefaultActiveOrganizationId` | Aktywna organizacja nowej sesji ([03-dane-i-organizacje.md](03-dane-i-organizacje.md#aktywna-organizacja)). |
+| `databaseHooks.session.create.after` | `trackServiceModeEntry` | Wpis `organization.entered`, gdy superadmin bez członkostwa dostaje organizację w nowej sesji ([04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md#wejscie-do-organizacji)). |
 | `session.cookieCache` | `enabled: true`, `maxAge: 60 * 5` | Cookie cache przez 5 minut. |
 | plugin `admin` | `defaultRole` `user`, `adminRoles` `admin` i `superadmin`, role z `createAdminRoles` | Rola globalna i uprawnienia endpointów `/admin/*` ([Referencja](#referencja-uprawnienia)). |
 | plugin `organization` | `allowUserToCreateOrganization` zwraca `MULTI_ORG`, `sendInvitationEmail` | Tworzenie organizacji tylko przy `MULTI_ORG=true`. Mail z linkiem `<APP_URL>/accept-invitation/<id>`. |
@@ -134,7 +135,7 @@ Pozostałe endpointy hook przepuszcza bez zmian. Dalej obowiązują reguły same
 
 1. Strona `/sign-in` (`SignInForm`) sprawdza format adresu i niepuste hasło, a potem woła `authClient.signIn.email`.
 2. better-auth sprawdza hasło. Plugin `admin` odrzuca konto zablokowane (`banned`), chyba że minął termin z `banExpires`.
-3. Nowa sesja dostaje aktywną organizację z hooka `session.create.before`: organizację najstarszego członkostwa, a superadmin bez członkostw najstarszą organizację w bazie ([03-dane-i-organizacje.md](03-dane-i-organizacje.md#aktywna-organizacja), [04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md#wejscie-do-organizacji)).
+3. Nowa sesja dostaje aktywną organizację z hooka `session.create.before`: organizację najstarszego członkostwa, a superadmin bez członkostw najstarszą organizację w bazie ([03-dane-i-organizacje.md](03-dane-i-organizacje.md#aktywna-organizacja), [04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md#wejscie-do-organizacji)). Po zapisaniu sesji hook `session.create.after` zapisuje w dzienniku zdarzeń `organization.entered`, gdy superadmin wszedł tak w tryb serwisowy.
 4. Formularz przenosi zawsze na `/dashboard`. Nie ma parametru powrotu na stronę, z której przyszedł użytkownik. Layout `(app)` przekierowuje stamtąd na `/no-organization`, gdy konto nie ma organizacji.
 
 Przy złych danych i przy zablokowanym koncie formularz pokazuje „Nie udało się zalogować”, a przy błędzie sieci „Wystąpił błąd połączenia. Spróbuj ponownie.”. Strona logowania linkuje tylko do „Zapomniałeś hasła?”, bez linku do rejestracji.
@@ -211,8 +212,9 @@ Kit zaprasza na dwa sposoby: przyciskiem „Zaproś użytkownika” i formularze
 4. Sprawdzenie, że konta z tym adresem nie ma.
 5. Zaproszenie w aktywnej organizacji, ważne 48 godzin.
 6. `auth.api.signUpEmail` z losowym hasłem, `invitationId` i nagłówkami żądania admina. Rejestracja przechodzi przez tę samą bramkę co formularz, więc nowe konto dołącza do organizacji z rolą z zaproszenia, a zaproszenie dostaje `accepted`. Gdy rejestracja się nie uda, komenda usuwa zaproszenie i zwraca „Nie udało się zaprosić użytkownika”.
-7. Adres konta zostaje oznaczony jako potwierdzony.
-8. `createWelcomeSetPasswordUrl` zapisuje token i buduje link, a mailer wysyła mail powitalny. Błąd maila nie cofa zaproszenia: komenda zwraca sukces z ostrzeżeniem `mail-failed`, a interfejs pokazuje „Zaproszenie utworzone, ale nie udało się wysłać maila z linkiem do ustawienia hasła. Poproś użytkownika o reset hasła.”.
+7. `trackAudit` ze zdarzeniem `member.invited` (`entityId` = id zaproszenia, `newData: { email, role }`, autor i `serviceMode` z `auditActor(context)`). Komenda nie przechodzi przez endpoint `/organization/invite-member`, więc plugin `audit-logs` tego zaproszenia nie widzi. Wpis ma czas późniejszy niż `invitation.accepted` z rejestracji ([13-modul-audit-logs.md](13-modul-audit-logs.md#zdarzenia)).
+8. Adres konta zostaje oznaczony jako potwierdzony.
+9. `createWelcomeSetPasswordUrl` zapisuje token i buduje link, a mailer wysyła mail powitalny. Błąd maila nie cofa zaproszenia: komenda zwraca sukces z ostrzeżeniem `mail-failed`, a interfejs pokazuje „Zaproszenie utworzone, ale nie udało się wysłać maila z linkiem do ustawienia hasła. Poproś użytkownika o reset hasła.”.
 
 Po sukcesie interfejs pokazuje „Zaproszenie wysłane. Użytkownik dostał mail z linkiem do ustawienia hasła.”. Cały przebieg, od zaproszenia do zalogowania nowym hasłem, sprawdza e2e „admin zaprasza Jana, Jan ustawia hasło i loguje się” w `e2e/core-auth.spec.ts`.
 

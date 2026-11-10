@@ -5,20 +5,21 @@ Po przeczytaniu będziesz wiedzieć:
 - jak zadeklarować własny cel uploadu, wstawić `<FileUpload>` do formularza i zapisać `id` pliku w encji z kontrolą organizacji;
 - jak pokazać plik i usunąć go razem z encją;
 - jakie zasady bezpieczeństwa i izolacji organizacji obowiązują przy plikach;
-- jak przetestować funkcję z plikami na prawdziwym MinIO i jakie problemy pojawiają się najczęściej;
+- jak przetestować funkcję z plikami: jednostkowo bez MinIO, a w testach integracyjnych na prawdziwym MinIO, i jakie problemy pojawiają się najczęściej, w tym błędy konfiguracji magazynu przy starcie;
 - jakie zmienne, trasy, cele, akcje i komunikaty ma moduł.
 
-Zweryfikowano z kodem: d3710d3, 2026-10-30
+Zweryfikowano z kodem: 6c05f1f, 2026-11-05
 
 Źródła:
 
-- `src/features/uploads/` (`module.ts`, `env.ts`, `components/file-upload.tsx`, `services/`, `contracts/`, `i18n/`) z testami w `__tests__/`, w tym `services/__tests__/storage.integration.test.ts`, `services/__tests__/read-upload.integration.test.ts` i `services/__tests__/uploads-isolation.integration.test.ts`
+- `src/features/uploads/` (`module.ts`, `env.ts`, `components/file-upload.tsx`, `services/`, `contracts/`, `i18n/`) z testami w `__tests__/`, w tym `services/__tests__/local-storage.test.ts`, `services/__tests__/storage-local-env.test.ts`, `services/__tests__/create-object-storage.test.ts`, `services/__tests__/storage-env.test.ts`, `services/__tests__/storage.integration.test.ts`, `services/__tests__/read-upload.integration.test.ts` i `services/__tests__/uploads-isolation.integration.test.ts`
 - `src/app/api/uploads/route.ts`, `src/app/api/uploads/[id]/route.ts`
 - `src/shared/lib/modules/define-module.ts`, `src/shared/components/service-mode/use-service-mode-action.tsx`
-- `src/test/integration/` (`setup-env.ts`, `database.ts`, `global-setup.ts`), `vitest.integration.config.ts`, `e2e/env.ts`
+- `src/instrumentation.ts`, `src/shared/lib/env.ts` (sprawdzenie zmiennych przy starcie)
+- `src/test/integration/` (`setup-env.ts`, `database.ts`, `global-setup.ts`), `vitest.integration.config.ts`, `e2e/env.ts`, `e2e/global-setup.ts`, `docker/uploads.compose.yml`
 - `mutation-gate.json`
 
-Ten plik jest drugą częścią opisu modułu `uploads`. Co moduł robi, jak go zainstalować, skonfigurować i usunąć, co dodaje do aplikacji i jakie ma punkty wejścia, opisuje [15-modul-uploads.md](15-modul-uploads.md). „(sprawdzone)” i „przykład z przebiegu” znaczą to samo co tam: przebieg z 2026-10-30 na projekcie `upload-demo` założonym z tagu `v0.1.0` z modułem `uploads` i z funkcją projektu `deliveries`, zakończony zielonym `npm run verify` i `npm run test:integration` ([opis przebiegu](15-modul-uploads.md#przebieg)).
+Ten plik jest drugą częścią opisu modułu `uploads`. Co moduł robi, jak go zainstalować, skonfigurować i usunąć, co dodaje do aplikacji i jakie ma punkty wejścia, opisuje [15-modul-uploads.md](15-modul-uploads.md). „(sprawdzone)” i „przykład z przebiegu” znaczą to samo co tam: przebieg z 2026-10-30 na projekcie `upload-demo` założonym z tagu `v0.1.0` z modułem `uploads` i z funkcją projektu `deliveries`, zakończony zielonym `npm run verify` i `npm run test:integration` ([opis przebiegu](15-modul-uploads.md#przebieg)). Przebieg dotyczył `uploads` `0.1.0` na S3. „(sprawdzone 2026-11-04)” oznacza sprawdzenie `uploads` `0.2.0` z providerem storage na zbudowanym serwerze albo w testach repozytorium kitu, a „(sprawdzone 2026-11-05)” takie samo sprawdzenie reguły ścieżki bezwzględnej.
 
 <a id="uzycie"></a>
 
@@ -115,7 +116,7 @@ export function ReceiveDeliveryForm() {
       </div>
 ```
 
-- `<FileUpload>` zapisuje plik od razu po wyborze, a formularz trzyma tylko `id` z `onUploaded`. Plik wgrany i niezapisany w dostawie zostaje w buckecie ([Osierocone obiekty](15-modul-uploads.md#osierocone)).
+- `<FileUpload>` zapisuje plik od razu po wyborze, a formularz trzyma tylko `id` z `onUploaded`. Plik wgrany i niezapisany w dostawie zostaje w magazynie ([Osierocone obiekty](15-modul-uploads.md#osierocone)).
 - Zmiana `key` po zapisie montuje komponent od nowa, żeby zniknął podgląd poprzedniego zdjęcia.
 - Komponent sam prosi o potwierdzenie trybu serwisowego przy wysyłce pliku, a zapis formularza idzie przez `serviceModeAction.run`, więc formularz nie dokłada własnego dialogu poza `{serviceModeAction.dialog}`.
 - `accept` tylko podpowiada oknu wyboru pliku; serwer sprawdza typ z bajtów.
@@ -243,7 +244,9 @@ Deklaracja `uploadPurposes` buduje się i nie przeszkadza w projekcie bez `uploa
 - **Limit rozmiaru przed odczytem ciała.** Za duże `Content-Length` i brak sesji kończą żądanie przed wczytaniem pliku; brak `Content-Length` daje 411 ([Zapis](15-modul-uploads.md#post)).
 - **Tryb serwisowy** obowiązuje upload (potwierdzenie w formularzu) i `deleteUploadCommand` ([Potwierdzenie](15-modul-uploads.md#request-confirmation)).
 - **Usuwanie** z filtrem `organizationId` i regułą autora; plik innej organizacji daje ten sam błąd co nieistniejący ([Usuwanie](15-modul-uploads.md#usuwanie)).
-- **Osierocone obiekty** zostają w buckecie i nikt ich nie sprząta ([Osierocone obiekty](15-modul-uploads.md#osierocone)).
+- **Osierocone obiekty** zostają w magazynie i nikt ich nie sprząta ([Osierocone obiekty](15-modul-uploads.md#osierocone)).
+- **Klucz nie wyjdzie poza katalog `local`.** Provider `local` odrzuca klucz bezwzględny, z segmentem `..` albo z bajtem `\0` i sprawdza, że ścieżka po rozwiązaniu leży w katalogu magazynu. Sprawdzenie nie rozwiązuje dowiązań symbolicznych, więc katalog z `STORAGE_LOCAL_PATH` ma należeć wyłącznie do aplikacji ([Ochrona przed wyjściem poza katalog](15-modul-uploads.md#path-traversal)).
+- **Konfiguracja, która zgubiłaby pliki, zatrzymuje start.** Na produkcji provider `local` bez trwałego katalogu kończy start raportem ([Reguły produkcyjne](15-modul-uploads.md#reguly-produkcyjne)).
 - **Sekrety S3** nie mają reguły przeciw wartościom przykładowym; ustaw własne na produkcji ([Zmienne S3](15-modul-uploads.md#zmienne-s3)).
 - Katalog `src/features/uploads/services/` jest na liście `critical` bramki mutacji (`mutation-gate.json`, [D26](decyzje.md#d26)).
 
@@ -251,7 +254,9 @@ Deklaracja `uploadPurposes` buduje się i nie przeszkadza w projekcie bez `uploa
 
 ## Testowanie własnego kodu z modułem
 
-**MinIO w testach integracyjnych.** `src/test/integration/setup-env.ts` ustawia zmienne S3 dla testów integracyjnych: endpoint z `INTEGRATION_S3_ENDPOINT` (domyślnie `http://localhost:9000`), bucket z `INTEGRATION_S3_BUCKET` (domyślnie `<slug>-uploads`), klucze `minioadmin` i `S3_FORCE_PATH_STYLE=true`. Wartości `S3_*` z `.env` testów nie dotyczą. Lokalnie wartości domyślne pasują do MinIO z `docker-compose.yml` projektu (port 9000, bucket `<slug>-uploads` tworzony przez `minio-init`); przebieg nie uruchamiał Compose. MinIO na innym porcie wskazujesz zmienną środowiskową.
+**Testy jednostkowe bez MinIO.** Testy modułu w `npm test` nie łączą się z żadnym magazynem. Provider `local` sprawdzają na katalogu tymczasowym z `mkdtemp` (`local-storage.test.ts`, `storage-local-env.test.ts`), a provider `s3` z atrapą klienta `S3Client` (`create-object-storage.test.ts`, `storage.test.ts`). Test jednostkowy własnej funkcji, który ma zapisać prawdziwy plik, może zrobić to samo co `storage-local-env.test.ts`: podmienić `@/shared/lib/env` obiektem z `STORAGE_PROVIDER: "local"` i `STORAGE_LOCAL_PATH` wskazującym katalog tymczasowy, a potem wołać prawdziwe `putObject` i `getObject`.
+
+**MinIO w testach integracyjnych.** `src/test/integration/setup-env.ts` ustawia testom integracyjnym `STORAGE_PROVIDER=s3` i zmienne S3: endpoint z `INTEGRATION_S3_ENDPOINT` (domyślnie `http://localhost:9000`), bucket z `INTEGRATION_S3_BUCKET` (domyślnie `<slug>-uploads`), klucze `minioadmin` i `S3_FORCE_PATH_STYLE=true`. Wartości z `.env`, także `STORAGE_PROVIDER=local`, testów integracyjnych nie dotyczą, więc te testy zawsze potrzebują MinIO. Lokalnie wartości domyślne pasują do MinIO z `docker-compose.yml` projektu, uruchomionego przez `docker compose --profile s3 up -d` (port 9000, bucket `<slug>-uploads` tworzony przez `minio-init`); samego startu usług nie uruchamiano (niesprawdzone, [MinIO lokalnie](15-modul-uploads.md#minio)). MinIO na innym porcie wskazujesz zmienną środowiskową.
 
 Uruchomienie z MinIO na porcie 9100:
 
@@ -259,7 +264,7 @@ Uruchomienie z MinIO na porcie 9100:
 INTEGRATION_S3_ENDPOINT=http://localhost:9100 npm run test:integration
 ```
 
-Tak uruchomiono testy w przebiegu: `Test Files  5 passed (5)`, `Tests  74 passed (74)`, w tym trzy pliki integracyjne modułu (sprawdzone). Bucket musi istnieć przed testami; testy go nie tworzą. Test `storage.integration.test.ts` nie usuwa swoich obiektów: po przebiegu w buckecie zostały obiekty `orgs/o1/test/…` i `orgs/o2/test/…` (sprawdzone), więc nie wskazuj testom bucketu z danymi, które przeglądasz.
+Tak uruchomiono testy w przebiegu: `Test Files  5 passed (5)`, `Tests  74 passed (74)`, w tym trzy pliki integracyjne modułu (sprawdzone). W repozytorium kitu ta sama komenda z bazą z `INTEGRATION_DATABASE_URL` i `INTEGRATION_S3_BUCKET=wa-app-uploads` dała `Test Files  10 passed (10)` i `Tests  181 passed (181)` (sprawdzone 2026-11-04). Bucket musi istnieć przed testami; testy go nie tworzą. Test `storage.integration.test.ts` nie usuwa swoich obiektów: po przebiegu w buckecie zostały obiekty `orgs/o1/test/…` i `orgs/o2/test/…` (sprawdzone), więc nie wskazuj testom bucketu z danymi, które przeglądasz.
 
 **Test integracyjny funkcji.** Test woła `createUpload` z prawdziwym plikiem PNG (zrobionym przez `sharp` w teście), komendy funkcji i `readUploadForDownload`, na prawdziwej bazie i MinIO. Mockuje tylko I/O frameworka (`next/headers`, `next/cache`, `next-intl/server`, `next/navigation`, `@/i18n/routing`) i sesję przez `vi.spyOn(auth.api, "getSession")`.
 
@@ -323,7 +328,7 @@ async function uploadPhoto(width: number): Promise<{ id: string; key: string }> 
 - Projekt potrzebuje własnej bazy z nazwą kończącą się na `_test`: `globalSetup` uruchamia `prisma db push` ze schematem projektu, które usuwa puste tabele spoza schematu, a odmawia, gdy dopasowanie skasowałoby dane ([08](08-testy.md#baza-integracja)). W przebiegu baza `upload_demo_runs_test` z `INTEGRATION_DATABASE_URL`.
 - Bez `audit-logs` test nie potrzebuje mocka `trackAudit`: wywołanie nic nie zapisuje. Testy kitu mockują `trackAudit`, żeby sprawdzić treść zdarzenia.
 - Test jednostkowy komponentu z `<FileUpload>` podmienia `fetch` (`vi.stubGlobal`) i renderuje go w `NextIntlClientProvider` i `ServiceModeProvider`, bo komponent woła `useServiceModeAction`; tak robi `file-upload.test.tsx`.
-- E2E nie wysyła plików i nie ma MinIO w `e2e.yml` ([CI projektu](15-modul-uploads.md#ci)); upload w e2e wymaga własnego kroku z MinIO.
+- E2E kitu nie wysyła plików, a `e2e.yml` nie uruchamia MinIO ([CI projektu](15-modul-uploads.md#ci)). Serwery e2e działają z `STORAGE_PROVIDER=local` i katalogiem z `E2E_UPLOADS_DIR` (domyślnie `<katalog tymczasowy systemu>/wa-app-e2e-uploads`; własna wartość musi być ścieżką bezwzględną, [Referencja](#referencja-env)), więc test e2e z uploadem nie potrzebuje MinIO. `globalSetup` czyści bazę i skrzynkę mailpit, ale nie ten katalog, więc pliki z poprzednich przebiegów w nim zostają (wniosek z kodu `e2e/env.ts` i `e2e/global-setup.ts`; kit nie ma testu e2e z uploadem).
 
 <a id="problemy"></a>
 
@@ -331,19 +336,26 @@ async function uploadPhoto(width: number): Promise<{ id: string; key: string }> 
 
 | Objaw | Przyczyna | Co zrobić |
 | --- | --- | --- |
-| Każda strona zwraca 500; w logu `Nieprawidłowe zmienne środowiskowe: S3_…` | Brak wymaganej zmiennej `S3_*` albo `S3_FORCE_PATH_STYLE` inna niż `true`/`false`, na przykład po `wa add` bez uzupełnienia `.env`. | Uzupełnij zmienne ([Zmienne S3](15-modul-uploads.md#zmienne-s3)). |
-| Upload kończy się „Nie udało się przesłać pliku”; trasa zwraca 500 `storage_failed`, w logu `upload putObject failed` | Magazyn nieosiągalny, zły endpoint, klucze albo region, brak bucketu, `S3_FORCE_PATH_STYLE` nie pasuje do dostawcy. | Sprawdź MinIO (`docker compose up -d`, `minio-init`) albo dane magazynu produkcyjnego i bucket. |
+| Serwer nie startuje: raport `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):` z linią `- STORAGE_LOCAL_PATH: wymagana w produkcji przy STORAGE_PROVIDER=local: wskaż trwały katalog` i kod 1 (sprawdzone 2026-11-04 na zbudowanym serwerze, [07](07-i18n-mail-env.md#walidacja-env)). | `NODE_ENV=production` (`npm start`, obraz Docker, `node .next/standalone/server.js`), provider `local` poza Railway i brak `STORAGE_LOCAL_PATH`, na przykład po `wa add uploads` bez uzupełnienia `.env` albo po przejściu z `uploads` `0.1.0` bez `STORAGE_PROVIDER=s3`. | Ustaw `STORAGE_LOCAL_PATH` na trwały katalog albo `STORAGE_PROVIDER=s3` ze zmiennymi `S3_*` ([Reguły produkcyjne](15-modul-uploads.md#reguly-produkcyjne), [aktualizacja z 0.1.0](15-modul-uploads.md#aktualizacja)). |
+| Serwer nie startuje: raport z linią `- STORAGE_LOCAL_PATH: w produkcji poza Railway musi być ścieżką bezwzględną: wskaż trwały katalog` i kod 1 (sprawdzone 2026-11-05 na zbudowanym serwerze i na `next start`). | `NODE_ENV=production` poza Railway, provider `local` i względny `STORAGE_LOCAL_PATH`, na przykład `./volumes/uploads` z `.env` po `wa create`: `npm start` na własnym komputerze, `node .next/standalone/server.js`, obraz Docker z `-e STORAGE_LOCAL_PATH=./volumes/uploads` albo serwery e2e ze względnym `E2E_UPLOADS_DIR`. | Wpisz ścieżkę bezwzględną trwałego katalogu, w obrazie Docker `/app/volumes/uploads` ([10](10-wdrozenie.md#wlasny-serwer)). Do pracy lokalnej wystarcza `npm run dev`, w którym `./volumes/uploads` działa ([Reguły produkcyjne](15-modul-uploads.md#reguly-produkcyjne)). |
+| Serwer na Railway nie startuje: `- STORAGE_PROVIDER: na Railway bez wolumenu pliki zginą przy redeployu: podepnij wolumen albo ustaw STORAGE_PROVIDER=s3` (komunikat sprawdzony 2026-11-04 ze zmiennymi Railway ustawionymi w powłoce). | Usługa Railway bez wolumenu i bez `STORAGE_PROVIDER=s3`. | Podepnij wolumen albo przejdź na Railway Bucket ([10](10-wdrozenie.md#pliki-uploads)). |
+| Serwer na Railway nie startuje: `- STORAGE_LOCAL_PATH: musi leżeć wewnątrz wolumenu Railway (<ścieżka>)` (sprawdzone 2026-11-04 jak wyżej). | `STORAGE_LOCAL_PATH` wskazuje katalog poza wolumenem, także taki, którego ścieżka tylko zaczyna się tym samym tekstem (`/database` przy wolumenie `/data`). | Usuń `STORAGE_LOCAL_PATH`, a katalogiem zostanie wolumen, albo wskaż katalog w wolumenie. |
+| Serwer nie startuje: `- STORAGE_PROVIDER: dozwolone wartości: local, s3` (sprawdzone 2026-11-04). | Literówka albo nazwa dostawcy zamiast providera, na przykład `minio` albo `r2`. | Wpisz `local` albo `s3`; MinIO, Cloudflare R2 i Railway Bucket to `s3`. |
+| Serwer nie startuje: linie `- S3_ENDPOINT: …`, `- S3_ACCESS_KEY_ID: …`, `- S3_SECRET_ACCESS_KEY: …`, `- S3_BUCKET: …` albo `- S3_FORCE_PATH_STYLE: Invalid option: expected one of "true"\|"false"` (sprawdzone 2026-11-04). | `STORAGE_PROVIDER=s3` bez wymaganej zmiennej `S3_*` albo `S3_FORCE_PATH_STYLE` inna niż `true`/`false`. | Uzupełnij zmienne ([Zmienne S3](15-modul-uploads.md#zmienne-s3)). |
+| Upload kończy się „Nie udało się przesłać pliku”; trasa zwraca 500 `storage_failed`, a wpis `upload putObject failed` widać tylko w odbiorniku OTLP, a bez niego na konsoli `npm run dev`: na produkcji bez `OTEL_EXPORTER_OTLP_ENDPOINT` `logger` nie zapisuje go nigdzie ([D15](decyzje.md#d15)) | Przy `local`: proces nie ma prawa zapisu do katalogu, na przykład wolumen Dockera podpięty w ścieżce, której obraz nie przygotowuje (sprawdzone: zapis do takiego wolumenu jako użytkownik `nextjs` kończy się `Permission denied`), albo wolumen Railway bez `RAILWAY_RUN_UID=0` (niesprawdzone). Przy `s3`: magazyn nieosiągalny, zły endpoint, klucze albo region, brak bucketu, `S3_FORCE_PATH_STYLE` nie pasuje do dostawcy. | Przy `local` podepnij wolumen pod `/app/volumes/uploads` albo daj prawo zapisu użytkownikowi o UID 1001 ([10](10-wdrozenie.md#pliki-uploads)). Przy `s3` sprawdź MinIO (`docker compose --profile s3 up -d`, `minio-init`) albo dane magazynu produkcyjnego i bucket. |
+| Pliki znikają po `npm run build` | `STORAGE_LOCAL_PATH` wskazuje katalog wewnątrz `.next/standalone`, a `next build` usuwa ten katalog razem z plikami (sprawdzone 2026-11-04: plik w `.next/standalone/volumes/uploads` zniknął po `npm run build`). Względny `./volumes/uploads` przy `node .next/standalone/server.js` wskazywałby właśnie ten katalog, ale w produkcji poza Railway zatrzymuje start (wiersz o ścieżce bezwzględnej wyżej), więc zostaje tylko ścieżka bezwzględna wskazująca ten katalog. | Wskaż trwały katalog poza `.next` ([znane-ograniczenia.md](znane-ograniczenia.md#uploads-local)). |
+| Po zmianie `STORAGE_PROVIDER` starsze pliki dają 404 | Pliki zostały w poprzednim magazynie; moduł ich nie przenosi. | Wróć do poprzedniego providera albo przenieś pliki sam: oba providery używają tego samego klucza (`orgs/<organizationId>/<cel>/<id>.<rozszerzenie>`), który przy `local` jest ścieżką względem `STORAGE_LOCAL_PATH` (wniosek z kodu). |
 | Każdy upload zwraca 500, w logu `Duplicate upload purpose key: …` albo `… declares forbidden type …` | Dwa cele z tym samym kluczem albo zakazany typ w `mimeTypes` (sprawdzone dla duplikatu). | Popraw deklarację celu ([Kontrakt celu](15-modul-uploads.md#cel-uploadu)). |
 | 411 `length_required` | Klient wysyła ciało bez `Content-Length` (`Transfer-Encoding: chunked`, strumień) (sprawdzone). | Wysyłaj `FormData` z pliku, jak `<FileUpload>`. Przeglądarki w praktyce dodają wtedy `Content-Length`, ale Fetch Standard tego nie gwarantuje, a przebiegi tej dokumentacji sprawdzały trasę przez `curl`, nie przez przeglądarkę. Klient spoza przeglądarki musi ustawić nagłówek sam. |
 | 413 dla pliku, który według systemu operacyjnego ma mniej niż limit | Limit celu jest w bajtach: `5 * 1024 * 1024` to 5 242 880 B (5 MiB), a menedżer plików może pokazywać megabajty dziesiętne albo zaokrąglać; albo plik idzie do innego celu niż zamierzony. | Sprawdź rozmiar pliku w bajtach, `maxBytes` i `purpose`. |
 | 415 dla pliku CSV, TXT albo JSON | Formaty tekstowe nie mają sygnatury i `file-type` ich nie wykrywa. | Moduł ich nie przyjmuje; zmiana wymaga zmiany kodu modułu. |
 | 415 dla obrazu z dobrym rozszerzeniem | Treść pliku jest innego typu (na przykład SVG albo HTML z rozszerzeniem `.png`) (sprawdzone). | Wgraj prawdziwy obraz. |
 | 400 `unknown_purpose` | Cel nie jest zadeklarowany albo `module.ts` funkcji nie ma w rejestrze (sprawdzone dla nieznanego klucza). | Dodaj cel; dla nowego `module.ts` uruchom `npm run wa -- generate`. |
-| Plik `organization` daje 404 zalogowanemu użytkownikowi | Aktywna jest inna organizacja niż organizacja pliku, użytkownik nie jest już członkiem albo obiekt zniknął z bucketu. | Przełącz organizację; dla danych potrzebnych szerzej zaprojektuj cel `public` świadomie. |
+| Plik `organization` daje 404 zalogowanemu użytkownikowi | Aktywna jest inna organizacja niż organizacja pliku, użytkownik nie jest już członkiem albo obiektu nie ma w magazynie. | Przełącz organizację; dla danych potrzebnych szerzej zaprojektuj cel `public` świadomie. |
 | Wgrany plik ma `mimeType` `image/jpeg`, a nazwa kończy się na `.png` | Cel z `resizeImage` zapisuje każdy obraz jako JPEG; `fileName` zostaje od klienta (sprawdzone). | To zamierzone; typ podaje `mimeType`. |
 | „Brak uprawnień do usunięcia pliku” | `member` usuwa plik wgrany przez kogoś innego. | Usuwa autor, owner albo admin ([Usuwanie](15-modul-uploads.md#usuwanie)). |
-| Bucket rośnie, choć użytkownicy usuwają dane | Osierocone obiekty ([lista sytuacji](15-modul-uploads.md#osierocone)). | Wołaj `deleteUploadCommand` przy usuwaniu encji; sprzątaj bucket porównaniem z kolumną `key`. |
-| Testy integracyjne modułu padają z błędem połączenia albo błędem S3 | Pod `localhost:9000` nie ma MinIO projektu (inny kontener na tym porcie) albo nie ma bucketu `<slug>-uploads`. | Ustaw `INTEGRATION_S3_ENDPOINT` i `INTEGRATION_S3_BUCKET` na swój MinIO i utwórz bucket. |
+| Magazyn rośnie, choć użytkownicy usuwają dane | Osierocone obiekty ([lista sytuacji](15-modul-uploads.md#osierocone)). | Wołaj `deleteUploadCommand` przy usuwaniu encji; sprzątaj magazyn porównaniem kluczy z kolumną `key`. |
+| Testy integracyjne modułu padają z błędem połączenia albo błędem S3 | Pod `localhost:9000` nie ma MinIO projektu (nie uruchomiono `docker compose --profile s3 up -d` albo port zajmuje inny kontener) albo nie ma bucketu `<slug>-uploads`. Testy integracyjne działają na S3 także wtedy, gdy aplikacja używa `local`. | Uruchom MinIO z profilem `s3` albo ustaw `INTEGRATION_S3_ENDPOINT` i `INTEGRATION_S3_BUCKET` na swój MinIO i utwórz bucket. |
 | `TS2307: Cannot find module '@/features/uploads/…'` | Kod importuje plik modułu w projekcie bez modułu albo po `wa remove`. | `npm run wa -- add uploads` albo usuń import. |
 | `wa remove uploads` kończy się `Moduł uploads jest wymagany przez: <moduł>` | Moduł projektu ma `uploads` w `requires` (sprawdzone). | Usuń z niego kod plików i wpis w `requires` albo zostaw moduł. |
 
@@ -359,14 +371,18 @@ Pola deklaracji modułu w `module.ts`: [Definicja modułu](15-modul-uploads.md#d
 
 | Zmienna | Wymagana | Reguła | Wartość w kicie |
 | --- | --- | --- | --- |
-| `S3_ENDPOINT` | tak | adres URL | `.env.example` i `.env` z `wa create`: `http://localhost:9000`; testy integracyjne: `INTEGRATION_S3_ENDPOINT` albo `http://localhost:9000`; e2e: `S3_ENDPOINT` albo `http://localhost:9000` |
+| `STORAGE_PROVIDER` | nie | `local` albo `s3` po przycięciu i zamianie na małe litery; pusta wartość albo brak to `local` ([Provider storage](15-modul-uploads.md#provider)) | `.env.example` i `.env` z `wa create`: `local`; testy integracyjne: `s3`; e2e: `local` |
+| `STORAGE_LOCAL_PATH` | w produkcji przy `local` poza Railway | tylko przy `local`: katalog magazynu; pusta wartość to brak; ścieżka względna liczy się od katalogu roboczego procesu; w produkcji poza Railway musi być ścieżką bezwzględną; na Railway z wolumenem musi leżeć w wolumenie | `./volumes/uploads`; e2e: `E2E_UPLOADS_DIR` albo `<katalog tymczasowy systemu>/wa-app-e2e-uploads` (w projekcie z nazwą projektu) |
+| `RAILWAY_ENVIRONMENT_ID`, `RAILWAY_VOLUME_MOUNT_PATH` | nie; ustawia je Railway | tylko przy `local`: reguły produkcyjne i katalog domyślny ([Reguły produkcyjne](15-modul-uploads.md#reguly-produkcyjne)) | brak |
+| `S3_ENDPOINT` | przy `s3` | adres URL | `.env.example` i `.env` z `wa create`: `http://localhost:9000`; testy integracyjne: `INTEGRATION_S3_ENDPOINT` albo `http://localhost:9000` |
 | `S3_REGION` | nie | niepusta, domyślnie `auto` | `auto` |
-| `S3_ACCESS_KEY_ID` | tak | niepusta | `minioadmin` |
-| `S3_SECRET_ACCESS_KEY` | tak | niepusta | `minioadmin` |
-| `S3_BUCKET` | tak | niepusta | `<slug>-uploads`; testy integracyjne: `INTEGRATION_S3_BUCKET` albo `<slug>-uploads` |
+| `S3_ACCESS_KEY_ID` | przy `s3` | niepusta | `minioadmin` |
+| `S3_SECRET_ACCESS_KEY` | przy `s3` | niepusta | `minioadmin` |
+| `S3_BUCKET` | przy `s3` | niepusta | `<slug>-uploads`; testy integracyjne: `INTEGRATION_S3_BUCKET` albo `<slug>-uploads` |
 | `S3_FORCE_PATH_STYLE` | nie | `true` albo `false`, brak to `false` | `true` |
-| `MINIO_PORT`, `MINIO_CONSOLE_PORT` | nie | czyta tylko Docker Compose | `9000`, `9001` |
+| `MINIO_PORT`, `MINIO_CONSOLE_PORT` | nie | czyta tylko Docker Compose, w usługach z profilem `s3` | `9000`, `9001` |
 | `INTEGRATION_S3_ENDPOINT`, `INTEGRATION_S3_BUCKET` | nie | czyta tylko `setup-env.ts` testów integracyjnych | brak (wartości domyślne jak wyżej) |
+| `E2E_UPLOADS_DIR` | nie | czyta tylko `e2e/env.ts`: katalog plików serwerów e2e; musi być ścieżką bezwzględną, bo serwery e2e działają w trybie produkcyjnym poza Railway | brak (wartość domyślna jak w wierszu `STORAGE_LOCAL_PATH`) |
 
 <a id="referencja-trasy"></a>
 
@@ -402,9 +418,15 @@ Typy zakazane w każdym celu: `image/svg+xml`, `text/html`, `application/xhtml+x
 | `Nie udało się usunąć pliku` | wynik `deleteUploadCommand` | Nieprawidłowe `id`, plik innej organizacji, plik nieistniejący albo błąd bazy. |
 | `Brak uprawnień do usunięcia pliku` | wynik `deleteUploadCommand` | `member` usuwa cudzy plik. |
 | `upload putObject failed` (log `error`, pole `err`) | log serwera | Zapis obiektu się nie powiódł; odpowiedź 500. |
+| `Nieprawidłowy klucz obiektu` | komunikat wyjątku `InvalidStorageKeyError` providera `local`, przy zapisie w polu `err` wpisu `upload putObject failed` | Klucz bezwzględny, z segmentem `..`, z bajtem `\0` albo wskazujący sam katalog magazynu; klucze tworzone przez moduł takie nie są ([Ochrona przed wyjściem poza katalog](15-modul-uploads.md#path-traversal)). |
 | `upload record create failed` (log `error`, pole `err`) | log serwera | Zapis rekordu się nie powiódł; obiekt jest cofany. |
 | `upload rollback failed` (log `error`, pola `err`, `key`) | log serwera | Cofnięcie obiektu się nie powiodło; obiekt jest osierocony. |
 | `upload deleteObject failed` (log `error`, pola `err`, `key`) | log serwera | Usunięcie obiektu się nie powiodło; rekord usunięty, obiekt osierocony. |
 | `Duplicate upload purpose key: <key>` | log serwera, 500 | Powtórzony klucz celu. |
 | `Upload purpose <key> declares forbidden type <typ>` | log serwera, 500 | Zakazany typ w celu. |
 | `Moduł uploads jest wymagany przez: <lista>` | `wa remove` | Moduł projektu wymaga `uploads`. |
+| `STORAGE_LOCAL_PATH: wymagana w produkcji przy STORAGE_PROVIDER=local: wskaż trwały katalog` | linia `- …` raportu startowego (stderr), po niej koniec procesu kodem 1 | Produkcja z `local` poza Railway bez katalogu ([Reguły produkcyjne](15-modul-uploads.md#reguly-produkcyjne)). |
+| `STORAGE_LOCAL_PATH: w produkcji poza Railway musi być ścieżką bezwzględną: wskaż trwały katalog` | raport startowy | Produkcja z `local` poza Railway ze względnym `STORAGE_LOCAL_PATH`, na przykład `./volumes/uploads`. |
+| `STORAGE_PROVIDER: na Railway bez wolumenu pliki zginą przy redeployu: podepnij wolumen albo ustaw STORAGE_PROVIDER=s3` | raport startowy | Usługa Railway bez wolumenu przy `local`. |
+| `STORAGE_LOCAL_PATH: musi leżeć wewnątrz wolumenu Railway (<ścieżka>)` | raport startowy | `STORAGE_LOCAL_PATH` poza wolumenem Railway. |
+| `STORAGE_PROVIDER: dozwolone wartości: local, s3` | raport startowy | Wartość inna niż `local` i `s3`. |

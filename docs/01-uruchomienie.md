@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - co zmieniają flagi `MULTI_ORG`, `AUTH_PUBLIC_SIGNUP` i `ADMIN_IMPERSONATION`;
 - jak rozpoznać i naprawić typowe problemy, w tym błędy walidacji zmiennych środowiskowych.
 
-Zweryfikowano z kodem: 1166d08, 2026-10-29
+Zweryfikowano z kodem: 6c05f1f, 2026-11-05
 
 Źródła:
 
@@ -28,7 +28,9 @@ Zweryfikowano z kodem: 1166d08, 2026-10-29
 - `scripts/lib/admin-create.ts`
 - `scripts/lib/__tests__/admin-create.test.ts`
 - `src/shared/lib/env.ts`
+- `src/features/uploads/services/storage-env.ts`, `src/test/integration/setup-env.ts` (magazyn plików modułu `uploads`)
 - `src/shared/lib/__tests__/env.test.ts`
+- `src/instrumentation.ts`
 - `src/shared/lib/mailer.ts`
 - `src/shared/config/project.ts`
 - `src/shared/lib/auth/index.ts`
@@ -192,7 +194,15 @@ Nazwy usług (`db` i `mail`) zwraca `docker compose config --services`. Używaj 
 
 ## MinIO (moduł `uploads`)
 
-Projekt z modułem `uploads` ([15](15-modul-uploads.md#minio)) ma w `docker-compose.yml` (w regionie `wa:services`) dwie dodatkowe usługi: `minio` (magazyn zgodny z S3) i `minio-init`, jednorazowy kontener, który tworzy bucket `<slug>-uploads` i kończy pracę. Uruchamia je ten sam `docker compose up -d` z kroku 4 [pierwszego uruchomienia](#pierwsze-uruchomienie); nic więcej nie trzeba robić, a `.env.example` ma już zmienne `S3_*` z wartościami lokalnymi (`S3_ENDPOINT=http://localhost:9000`, klucz i sekret `minioadmin`, bucket `<slug>-uploads`).
+Projekt z modułem `uploads` startuje bez MinIO. `.env.example` ma `STORAGE_PROVIDER=local` i `STORAGE_LOCAL_PATH=./volumes/uploads`, więc aplikacja zapisuje pliki w katalogu `volumes/uploads`, który jest w `.gitignore` ([15](15-modul-uploads.md#provider)). Krok 4 [pierwszego uruchomienia](#pierwsze-uruchomienie) wystarcza. Ta ścieżka działa w `npm run dev`. W `npm start`, czyli w zbudowanej aplikacji w trybie produkcyjnym, zatrzymuje start, bo poza Railway `STORAGE_LOCAL_PATH` musi być wtedy ścieżką bezwzględną (sprawdzone 2026-11-05 na `next start`, [15](15-modul-uploads.md#reguly-produkcyjne)).
+
+`docker-compose.yml` takiego projektu ma w regionie `wa:services` dwie usługi z profilem Compose `s3`: `minio` (magazyn zgodny z S3) i `minio-init`, jednorazowy kontener, który tworzy bucket `<slug>-uploads` i kończy pracę ([15](15-modul-uploads.md#minio)). `docker compose up -d` ich nie uruchamia: `docker compose config --services` wypisuje `db` i `mail`, a dopiero `docker compose --profile s3 config --services` dodatkowo `minio` i `minio-init` (sprawdzone 2026-11-04). MinIO uruchamiasz, gdy chcesz pracować na S3: ustaw w `.env` `STORAGE_PROVIDER=s3`, a potem uruchom usługi z profilem (niesprawdzone: w repozytorium kitu port 9000 zajmował inny projekt, więc samego startu nie uruchamiano):
+
+```bash
+docker compose --profile s3 up -d
+```
+
+Zmienne `S3_*` w `.env.example` mają już wartości lokalnego MinIO (`S3_ENDPOINT=http://localhost:9000`, klucz i sekret `minioadmin`, bucket `<slug>-uploads`).
 
 | Usługa | Obraz | Port na komputerze (domyślny) | Zmienna portu | Do czego służy |
 | --- | --- | --- | --- | --- |
@@ -202,7 +212,7 @@ Projekt z modułem `uploads` ([15](15-modul-uploads.md#minio)) ma w `docker-comp
 - Obrazy `minio/minio` i `minio/mc` nie da się już pobrać, dlatego moduł używa obrazu Chainguard i `aws-cli`.
 - `minio` działa jako `user: "0:0"`, bo dane leżą w katalogu `volumes/minio` zamontowanym z hosta (ustawienie tylko dla rozwoju lokalnego). Katalog jest w `.gitignore`, więc dane przetrwają `docker compose down`.
 - Zajęty port zmieniasz tak jak port bazy ([Zmiana portów](#zmiana-portow)): `MINIO_PORT=9100` w `.env` i ten sam port w `S3_ENDPOINT=http://localhost:9100`. Compose czyta tylko `MINIO_PORT`, a aplikacja tylko `S3_ENDPOINT`, więc oba trzeba zmienić razem. Port konsoli zmienia `MINIO_CONSOLE_PORT`.
-- Testy integracyjne czytają adres z `INTEGRATION_S3_ENDPOINT` (domyślnie `http://localhost:9000`) i bucket z `INTEGRATION_S3_BUCKET` (domyślnie `<slug>-uploads`), na przykład `INTEGRATION_S3_ENDPOINT=http://localhost:9100 npm run test:integration`.
+- Testy integracyjne zawsze używają S3, także gdy aplikacja działa z `local`, bo `src/test/integration/setup-env.ts` ustawia im `STORAGE_PROVIDER=s3`. Adres czytają z `INTEGRATION_S3_ENDPOINT` (domyślnie `http://localhost:9000`) i bucket z `INTEGRATION_S3_BUCKET` (domyślnie `<slug>-uploads`), na przykład `INTEGRATION_S3_ENDPOINT=http://localhost:9100 npm run test:integration`.
 
 <a id="zmiana-portow"></a>
 
@@ -270,10 +280,10 @@ Do pracy lokalnej nie musisz niczego zmieniać. Pusta linia `ADMIN_PASSWORD=` oz
 
 Pełną listę zmiennych i reguły ich parsowania opisuje [07-i18n-mail-env.md](07-i18n-mail-env.md).
 
-Zmienne sprawdza funkcja `parseEnv` z `src/shared/lib/env.ts` przy pierwszym odczycie, a nie przy starcie serwera. Dzięki temu sam import `env` nie przerywa `next build` ani testów, które nie mają pełnego środowiska. Skutki:
+Zmienne sprawdza schemat z `src/shared/lib/env.ts`. Serwer Next.js (`npm run dev` albo zbudowana aplikacja) sprawdza je przy starcie, a obiekt `env` jeszcze raz przy pierwszym odczycie. Sam import `env` niczego nie sprawdza, więc nie przerywa `next build` ani testów, które nie mają pełnego środowiska ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Skutki:
 
 - `npm run build` nie sprawdza zmiennych.
-- Strona `/sign-in` otwiera się także przy błędnym `.env`. Błąd pojawia się w terminalu serwera dopiero przy logowaniu, przy wejściu na `/dashboard` albo `/sign-up`, a w `npm run admin:create` od razu.
+- `npm run dev` z błędnym `.env` nie startuje: wypisuje raport ze wszystkimi problemami i kończy się kodem 1 (sprawdzone 2026-11-04 w repozytorium kitu, [Komunikat `Nieprawidłowe zmienne środowiskowe`](#bledy-env)). `npm run admin:create` zgłasza błąd przy pierwszym odczycie `env`.
 - Wynik sprawdzenia jest zapamiętany do końca działania procesu, więc po zmianie `.env` zrestartuj `npm run dev`.
 
 <a id="admin-create"></a>
@@ -372,11 +382,11 @@ Problemy są ułożone w kolejności kroków [pierwszego uruchomienia](#pierwsze
 
 <a id="bledy-env"></a>
 
-### Komunikat `Nieprawidłowe zmienne środowiskowe: …`
+### Komunikat `Nieprawidłowe zmienne środowiskowe`
 
-- **Objaw:** błąd z tym początkiem w terminalu serwera albo w `npm run admin:create`. Po dwukropku jest lista problemów w postaci `<ZMIENNA>: <komunikat>`, rozdzielona średnikami. W `admin:create` błąd ma postać stosu wyjątku, a komunikat jest w linii `Error: Nieprawidłowe zmienne środowiskowe: …`.
+- **Objaw:** `npm run dev` albo zbudowany serwer kończy pracę zaraz po starcie, a w terminalu jest raport, który zaczyna się od `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):`, z jedną linią `- <ZMIENNA>: <komunikat>` na problem. Linia `✓ Ready` przed raportem nie znaczy, że serwer działa. `npm run admin:create` kończy się stosem wyjątku z linią `Error: Nieprawidłowe zmienne środowiskowe: …`, w której problemy w postaci `<ZMIENNA>: <komunikat>` są rozdzielone średnikami.
 - **Przyczyna:** brak albo zła wartość zmiennej w `.env`. Komunikaty po angielsku pochodzą z biblioteki zod 4, polskie dodaje `src/shared/lib/env.ts`.
-- **Rozwiązanie:** znajdź komunikat w tabeli, popraw `.env` i zrestartuj serwer.
+- **Rozwiązanie:** znajdź komunikat w tabeli, popraw `.env` i uruchom serwer ponownie.
 
 | Zmienna | Komunikat | Przyczyna i naprawa |
 | --- | --- | --- |
@@ -389,7 +399,15 @@ Problemy są ułożone w kolejności kroków [pierwszego uruchomienia](#pierwsze
 | `RESEND_API_KEY` | `wymagana w produkcji` | `NODE_ENV=production` bez klucza Resend (usługi wysyłki maili używanej na produkcji). Lokalnie wystarczy dowolna niepusta wartość, bo przy ustawionym `SMTP_URL` klucz nie jest używany. |
 | `BETTER_AUTH_SECRET` | `w produkcji nie może być wartością z .env.example` | `NODE_ENV=production` z sekretem z `.env.example`. Wygeneruj własny. |
 
-Przykład z dwoma problemami (brak `DATABASE_URL`, `MULTI_ORG=1`):
+Przykład z dwoma problemami (brak `DATABASE_URL`, `MULTI_ORG=1`) w raporcie serwera (sprawdzone 2026-11-04 na zbudowanym serwerze repozytorium kitu):
+
+```text
+Nieprawidłowe zmienne środowiskowe (2):
+- DATABASE_URL: Invalid input: expected string, received undefined
+- MULTI_ORG: Invalid option: expected one of ""|"true"|"false"
+```
+
+Ten sam przypadek w jednoliniowym komunikacie `parseEnv`, który widać w `npm run admin:create`:
 
 ```text
 Nieprawidłowe zmienne środowiskowe: DATABASE_URL: Invalid input: expected string, received undefined; MULTI_ORG: Invalid option: expected one of ""|"true"|"false"
@@ -418,8 +436,8 @@ Dwa ostatnie wiersze tabeli dotyczą produkcji. `NODE_ENV=production` ustawia `n
 ### Logowanie kończy się błędem, chociaż strona się otwiera
 
 - **Objaw:** po wysłaniu formularza logowania pojawia się komunikat „Nie udało się zalogować”.
-- **Przyczyna:** złe dane logowania, błędny `.env` (strona `/sign-in` renderuje się bez odczytu zmiennych), brak połączenia z bazą albo `APP_URL` z innym portem niż serwer.
-- **Rozwiązanie:** przeczytaj terminal z `npm run dev`. `Nieprawidłowe zmienne środowiskowe` oznacza błąd w `.env`, a `Invalid origin: <origin>` rozjazd portu w `APP_URL` ([Port aplikacji](#port-aplikacji)). Zapomniane hasło odzyskasz przez „Zapomniałeś hasła?” i mail w mailpit.
+- **Przyczyna:** złe dane logowania, brak połączenia z bazą albo `APP_URL` z innym portem niż serwer. Błędny `.env` zatrzymuje `npm run dev` już przy starcie ([Komunikat `Nieprawidłowe zmienne środowiskowe`](#bledy-env)).
+- **Rozwiązanie:** przeczytaj terminal z `npm run dev`. `Invalid origin: <origin>` oznacza rozjazd portu w `APP_URL` ([Port aplikacji](#port-aplikacji)). Zapomniane hasło odzyskasz przez „Zapomniałeś hasła?” i mail w mailpit.
 
 ### Maile nie docierają do mailpit
 
