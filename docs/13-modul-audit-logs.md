@@ -310,7 +310,6 @@ Pole `auditActions?: { action: string; labelKey: string }[]` w `defineModule` m�
 - **Brak klucza w tłumaczeniach.** next-intl zgłasza `MISSING_MESSAGE` i pokazuje ścieżkę klucza zamiast etykiety.
 - **Ta sama akcja w dwóch modułach.** Wygrywa moduł wcześniej w rejestrze: najpierw rdzeń, potem moduły kitu, potem moduły projektu.
 - **Bez modułu.** Nikt nie czyta pola; deklaracja przechodzi typecheck i nic nie robi ([12](12-moduly-kitu.md#punkty-wejscia)).
-- **Ostrzeżenie dla testów.** Test kitu „pokazuje surowy action, gdy akcja nie ma deklaracji” w `src/features/audit-logs/components/__tests__/audit-log-view.test.tsx` renderuje widok na prawdziwym rejestrze i zakłada, że akcja `delivery.received` nie jest zadeklarowana. Moduł projektu, który zadeklaruje dokładnie tę akcję, psuje ten test i `npm run verify` (sprawdzone: przebieg z deklaracją `delivery.received` dał `Tests  1 failed | 1455 passed (1456)`). Wybierz inną nazwę akcji ([Typowe problemy](13b-modul-audit-logs-uzycie.md#problemy)).
 
 <a id="zapis"></a>
 
@@ -359,12 +358,12 @@ Pięć zdarzeń organizacji łapie plugin better-auth modułu (`src/features/aud
 
 | Akcja | `entityType`, `entityId` | Dane | Kto zapisuje i kiedy |
 | --- | --- | --- | --- |
-| `member.invited` | `invitation`, id zaproszenia | `newData: { email, role }` | Plugin, `/organization/invite-member`. |
+| `member.invited` | `invitation`, id zaproszenia | `newData: { email, role }` | Plugin, `/organization/invite-member`. Rdzeń, `inviteUserCommand` (strona „Użytkownicy”) po udanej rejestracji konta, autor to admin z `getOrgContext()`; w trybie serwisowym wpis ma `serviceMode: true`. Gdy rejestracja się nie uda, komenda usuwa zaproszenie i wpisu nie ma. |
 | `invitation.canceled` | `invitation`, id zaproszenia | brak | Plugin, `/organization/cancel-invitation`. |
 | `invitation.accepted` | `invitation`, id zaproszenia | brak | Plugin, `/organization/accept-invitation` (strona przyjęcia zaproszenia), autor to osoba przyjmująca. Rdzeń, `joinOrganizationCommand` przy rejestracji z zaproszeniem, autor to nowy użytkownik. |
 | `member.role_changed` | `member`, id członkostwa | `oldData: { role }` (gdy poprzednia rola znana), `newData: { role }` | Plugin, `/organization/update-member-role`. |
 | `member.removed` | `member`, id członkostwa | `oldData: { userId, role }` | Plugin, `/organization/remove-member`. |
-| `organization.entered` | `organization`, id organizacji | `serviceMode: true` | Rdzeń, `enterOrganizationCommand`, gdy superadmin wchodzi do organizacji bez członkostwa. |
+| `organization.entered` | `organization`, id organizacji | `serviceMode: true` | Rdzeń, gdy superadmin wchodzi do organizacji bez członkostwa: `enterOrganizationCommand` (przełącznik i `/no-organization`) oraz hook `databaseHooks.session.create.after` przez `trackServiceModeEntry`, gdy nowa sesja (logowanie) dostaje taką organizację jako aktywną. |
 | `api_key.created` | `api_key`, id klucza | `newData: { name, scopes, displayPrefix }` | `api-keys`, `createApiKeyCommand`. |
 | `api_key.revoked`, `api_key.deleted` | `api_key`, id klucza | `oldData: { name, displayPrefix }` | `api-keys`, `revokeApiKeyCommand` i `deleteApiKeyCommand`, tylko gdy zapis zmienił wiersz. |
 | `upload.created` | `upload`, id pliku | `newData: { purpose, key, size }` | `uploads`, `createUpload` (trasa `POST /api/uploads`). |

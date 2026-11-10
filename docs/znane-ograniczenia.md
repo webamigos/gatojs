@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - gdzie w kodzie siedzi przyczyna każdej pozycji i który plik dokumentacji opisuje ją szczegółowo;
 - czym ograniczenie różni się od decyzji z [rejestru decyzji](decyzje.md).
 
-Zweryfikowano z kodem: 75f7322, 2026-10-30 (sekcje [CLI i składanie projektu](#cli) i [Moduły kitu](#moduly-kitu)); pozostałe pozycje: d416599, 2026-10-28
+Zweryfikowano z kodem: 6c05f1f, 2026-11-05 (pozycje modułu `uploads`: [provider `local`](#uploads-local) i skutki dla `uploads` w [`wa add` nie uzupełnia `.env`](#add-env)); 734391b, 2026-11-04 ([magazyn bez sprzątania](#bez-sprzatania) w module `uploads`); 2788536, 2026-11-04 (skutki błędnego `env` w pozycjach [`wa add` nie uzupełnia `.env`](#add-env) i [`API_KEY_PEPPER`](#api-key-pepper)); 75f7322, 2026-10-30 (sekcje [CLI i składanie projektu](#cli) i [Moduły kitu](#moduly-kitu)); pozostałe pozycje: d416599, 2026-10-28
 
 Źródła:
 
@@ -18,7 +18,7 @@ Zweryfikowano z kodem: 75f7322, 2026-10-30 (sekcje [CLI i składanie projektu](#
 - język, logi i serwer: `src/i18n/routing.ts`, `src/shared/lib/logger.ts`, `src/instrumentation.ts`, `src/app/api/healthcheck/route.ts`, `src/shared/utils/error-handling.ts`, `Dockerfile`, `railway.toml`;
 - testy i proces: `stryker.integration.config.json`, `vitest.integration.config.ts`, `mutation-gate.json`, `scripts/lib/mutation-gate.ts`, `.claude/hooks/protect-tests.mjs`, `.claude/hooks/block-comments.mjs`, `.github/workflows/e2e.yml`, `commitlint.config.mjs`, `.gitignore`;
 - CLI i składanie projektu: `kit/cli/src/args.ts`, `kit/cli/src/bin.ts`, `kit/cli/src/commands/create.ts`, `kit/cli/src/commands/add.ts`, `kit/cli/src/commands/remove.ts`, `kit/cli/src/kit/source.ts`, `kit/cli/src/kit/files.ts`, `kit/cli/src/commands/list.ts`, `kit/cli/src/process/prompter.ts`, `kit/cli/src/manifest/kit-state.ts`, `kit/cli/src/assemble/copy.ts`, `kit/cli/src/assemble/project-names.ts`, `kit/cli/src/assemble/placeholders.ts`, `kit/cli/src/assemble/package-json.ts`, `kit/cli/src/assemble/resolve-modules.ts`, `kit/cli/src/process/runner.ts`, `kit/kit.json`, `kit/modules/*.json`, `.github/workflows/kit.yml`;
-- moduły kitu: `src/features/audit-logs/`, `src/features/api-keys/env.ts`, `src/features/api-keys/services/api-key-secret.ts`, `src/features/uploads/services/commands/create-upload.ts`, `src/features/uploads/services/commands/upload-commands.ts`, `src/test/integration/setup-env.ts`, `prisma/schema/uploads.prisma`;
+- moduły kitu: `src/features/audit-logs/`, `src/features/api-keys/env.ts`, `src/features/api-keys/services/api-key-secret.ts`, `src/features/uploads/env.ts`, `src/features/uploads/services/storage-env.ts`, `src/features/uploads/services/local-storage.ts`, `src/features/uploads/services/path-inside.ts`, `src/features/uploads/services/storage.ts`, `src/features/uploads/services/commands/create-upload.ts`, `src/features/uploads/services/commands/upload-commands.ts`, `src/test/integration/setup-env.ts`, `prisma/schema/uploads.prisma`;
 - biblioteki (wersje w `package-lock.json`): `node_modules/@stryker-mutator/core/dist/src/concurrent/concurrency-token-provider.js`, `node_modules/better-auth/dist/api/routes/sign-up.mjs`, `node_modules/better-auth/dist/plugins/admin/routes.mjs`, `node_modules/next-intl/dist/esm/development/middleware/resolveLocale.js`.
 
 Ta lista opisuje zachowania, które wyszły przy czytaniu kodu i przy uruchamianiu komend z dokumentacji. Część z nich to luki, które właściciel kitu może zamknąć zmianą kodu. Inne to cena świadomej decyzji. Decyzje i ich powody są w [rejestrze decyzji](decyzje.md), a tu jest to, co z nich wynika dla Ciebie w praktyce, gdy coś zachowuje się niespodziewanie.
@@ -44,7 +44,7 @@ Priorytet „wysoki” dostają pozycje, które dotyczą domyślnej ścieżki st
 | [Wysoki priorytet](#wysoki-priorytet) | [dwa procesy testów w przebiegu integracyjnym Strykera](#stryker-concurrency), [Railway nie czyta `railway.toml`](#railway-toml) |
 | [Funkcje projektu i rejestr modułów](#funkcje-projektu) | [mniejsze pozycje generatora i rejestru](#rejestr-male) |
 | [CLI i składanie projektu](#cli) | [`wa add` nie uzupełnia `.env`](#add-env), [wydanie bez tagu](#tagi-kitu), [mniejsze pozycje](#cli-male) |
-| [Moduły kitu](#moduly-kitu) | [dziennik i bucket bez sprzątania](#bez-sprzatania), [`API_KEY_PEPPER`](#api-key-pepper), [mniejsze pozycje](#moduly-male) |
+| [Moduły kitu](#moduly-kitu) | [dziennik i magazyn plików bez sprzątania](#bez-sprzatania), [provider `local` modułu `uploads`](#uploads-local), [`API_KEY_PEPPER`](#api-key-pepper), [mniejsze pozycje](#moduly-male) |
 | [Logowanie, role i organizacje](#auth) | [zaproszenie dla istniejącego konta](#zaproszenie-istniejace-konto), [rola z kilkoma wartościami](#rola-wielowartosciowa), [tryb serwisowy](#tryb-serwisowy-luki), [impersonacja i konta serwisowe](#konta-serwisowe), [mniejsze pozycje](#auth-male) |
 | [Język i komunikaty](#jezyk) | [wykrywanie języka](#wykrywanie-jezyka), [komunikaty i strona 404](#jezyk-male) |
 | [Logi, healthcheck i serwer](#serwer) | [logi na produkcji](#logi), [`HOSTNAME=127.0.0.1`](#hostname), [mniejsze pozycje](#serwer-male) |
@@ -112,7 +112,7 @@ Działanie komend opisuje [16-cli-wa.md](16-cli-wa.md), a pracę nad CLI i wydan
 
 ### `wa add` nie uzupełnia `.env`, a aplikacja bez zmiennej modułu nie wystartuje
 
-**Skutek.** Po `wa add api-keys` albo `wa add uploads` zmienne modułu (`API_KEY_PEPPER`, `S3_*`) trafiają tylko do regionu `wa:modules` w `.env.example`. `.env` się nie zmienia, więc przy pierwszym odczycie `env` aplikacja kończy się błędem `Nieprawidłowe zmienne środowiskowe: …`. Komunikat CLI o tym nie mówi: ostatnia linia to podpowiedź migracji. Symetrycznie `wa remove` zostawia zmienne modułu w `.env`.
+**Skutek.** Po `wa add api-keys` albo `wa add uploads` zmienne modułu (`API_KEY_PEPPER` albo `STORAGE_PROVIDER`, `STORAGE_LOCAL_PATH` i `S3_*`) trafiają tylko do regionu `wa:modules` w `.env.example`. `.env` się nie zmienia. Po `wa add api-keys` serwer aplikacji nie wystartuje: przy starcie wypisze raport `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):` i zakończy się kodem 1 ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Po `wa add uploads` w wersji `0.2.0` (z lokalnego klonu kitu przez `--kit <klon>`, na `core` `0.5.0`, [15-modul-uploads.md](15-modul-uploads.md#wersja-core)) serwer deweloperski wystartuje z providerem `local` i katalogiem `./volumes/uploads`, ale przy `NODE_ENV=production` raport zgłosi brak `STORAGE_LOCAL_PATH` ([15-modul-uploads.md](15-modul-uploads.md#reguly-produkcyjne)). Komunikat CLI o tym nie mówi: ostatnia linia to podpowiedź migracji. Symetrycznie `wa remove` zostawia zmienne modułu w `.env`.
 
 **Gdzie.** `kit/cli/src/commands/add.ts` (`add` nie czyta ani nie zapisuje `.env`), `kit/cli/src/commands/create.ts` (`writeEnvFile` tworzy `.env` tylko przy `wa create`).
 
@@ -170,20 +170,40 @@ Moduły opisują pliki 13–15 (konfiguracja i szwy) oraz 13b–15b (użycie we 
 
 <a id="bez-sprzatania"></a>
 
-### Dziennik `audit_logs` i bucket `uploads` rosną bez sprzątania
+### Dziennik `audit_logs` i magazyn plików `uploads` rosną bez sprzątania
 
 **Skutek.** Dwa powiązane zachowania:
 
 - **`audit-logs` nie ma retencji.** Nic nie usuwa starych wpisów, więc tabela `audit_logs` rośnie bez limitu. Wpisy znikają tylko razem z organizacją ([13-modul-audit-logs.md](13-modul-audit-logs.md#co-robi)).
-- **`uploads` zostawia osierocone obiekty.** Obiekt w buckecie bez rekordu albo rekord bez encji projektu zostaje, gdy użytkownik wgrał plik i nie zapisał formularza (`<FileUpload>` zapisuje plik od razu po wyborze), gdy encja projektu zniknęła bez `deleteUploadCommand`, gdy usunięcie obiektu albo cofnięcie zapisu się nie udało, po usunięciu organizacji (rekordy znikają kaskadowo, obiekty pod `orgs/<organizationId>/` zostają) i po `wa remove uploads` z migracją usuwającą tabelę ([15-modul-uploads.md](15-modul-uploads.md#osierocone)).
+- **`uploads` zostawia osierocone obiekty** przy obu providerach. Obiekt w magazynie (plik w katalogu `STORAGE_LOCAL_PATH` albo obiekt w buckecie) bez rekordu albo rekord bez encji projektu zostaje, gdy użytkownik wgrał plik i nie zapisał formularza (`<FileUpload>` zapisuje plik od razu po wyborze), gdy encja projektu zniknęła bez `deleteUploadCommand`, gdy usunięcie obiektu albo cofnięcie zapisu się nie udało, po usunięciu organizacji (rekordy znikają kaskadowo, obiekty pod `orgs/<organizationId>/` zostają) i po `wa remove uploads` z migracją usuwającą tabelę ([15-modul-uploads.md](15-modul-uploads.md#osierocone)).
 
 **Gdzie.** `src/features/audit-logs/` (brak zadania usuwającego wpisy), `src/features/uploads/services/commands/create-upload.ts` (log `upload rollback failed`), `src/features/uploads/services/commands/upload-commands.ts` (log `upload deleteObject failed`), `prisma/schema/uploads.prisma` (`onDelete: Cascade` na organizacji).
 
-**Obejście.** Retencję robisz w projekcie, na przykład okresowym zapytaniem usuwającym wpisy starsze niż ustalony termin. Obiekty bez rekordu znajdziesz, porównując klucze w buckecie z kolumną `key` tabeli `uploads`; przy usuwaniu encji wołaj `deleteUploadCommand` ([15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#usuwanie-z-encja)).
+**Obejście.** Retencję robisz w projekcie, na przykład okresowym zapytaniem usuwającym wpisy starsze niż ustalony termin. Obiekty bez rekordu znajdziesz, porównując klucze (przy `local` ścieżki plików względem `STORAGE_LOCAL_PATH`, przy `s3` klucze w buckecie) z kolumną `key` tabeli `uploads`; przy usuwaniu encji wołaj `deleteUploadCommand` ([15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#usuwanie-z-encja)).
 
 **Kierunek zmiany.** Retencja dziennika i sprzątanie osieroconych obiektów jako zadania cykliczne modułu `worker` ([D41](decyzje.md#d41), [D44](decyzje.md#d44), [plany](README.md#plany)).
 
 **Sprawdzono.** Z kodu modułów i specu planu 3 (§2 i §9). Osierocone obiekty po cofnięciu i usunięciu opisuje [15-modul-uploads.md](15-modul-uploads.md#osierocone).
+
+<a id="uploads-local"></a>
+
+### Provider `local` modułu `uploads`: jedna instancja, trwały katalog, bez przenoszenia plików
+
+**Skutek.** Domyślny provider `local` zapisuje pliki w katalogu na dysku serwera ([15-modul-uploads.md](15-modul-uploads.md#provider)). Wynika z tego pięć ograniczeń:
+
+- **Jedna instancja.** Druga instancja aplikacji nie widzi plików pierwszej, więc upload na jednej i pobranie z drugiej da 404. Na Railway usługa z wolumenem i tak nie może mieć replik (dokumentacja Railway).
+- **Trwały katalog.** Katalog musi przetrwać restart i nowe wdrożenie. Reguły przy starcie wymagają na produkcji wolumenu na Railway i jawnego `STORAGE_LOCAL_PATH` ze ścieżką bezwzględną poza Railway, ale nie sprawdzają, czy wskazany katalog jest trwały ani czy proces może do niego pisać. Brak prawa zapisu wychodzi dopiero przy pierwszym uploadzie (500 `storage_failed`).
+- **Bez przenoszenia plików między providerami.** Po zmianie `STORAGE_PROVIDER` pliki zapisane wcześniej zostają w poprzednim magazynie, a `GET /api/uploads/<id>` daje dla nich 404.
+- **Katalog, który usuwa build albo wdrożenie.** `server.js` zmienia katalog roboczy na `.next/standalone`, a `next build` usuwa ten katalog razem z plikami. Względny `STORAGE_LOCAL_PATH`, także `./volumes/uploads` z `.env` po `wa create`, wskazywałby przy ręcznym `node .next/standalone/server.js` właśnie `.next/standalone/volumes/uploads`, ale w produkcji poza Railway zatrzymuje start ([15-modul-uploads.md](15-modul-uploads.md#reguly-produkcyjne)). Zostaje ścieżka bezwzględna, która wskazuje katalog czyszczony przez build, wdrożenie albo administratora, na przykład `<projekt>/.next/standalone/volumes/uploads` albo katalog tymczasowy systemu: tego reguły nie wykrywają.
+- **Ochrona przed wyjściem poza katalog jest leksykalna.** Dowiązanie symboliczne wewnątrz katalogu magazynu, które prowadzi poza niego, zostanie odczytane albo zapisane, bo `resolveObjectPath` nie rozwiązuje dowiązań. Zakłada to, że katalog z `STORAGE_LOCAL_PATH` należy wyłącznie do aplikacji ([15-modul-uploads.md](15-modul-uploads.md#path-traversal)).
+
+**Gdzie.** `src/features/uploads/services/storage-env.ts` (`resolveStorageEnv`: katalog względem `process.cwd()`, reguły produkcyjne), `src/features/uploads/services/local-storage.ts` (`resolveObjectPath`, zapis i odczyt plików), `src/features/uploads/services/path-inside.ts` (`isPathInside` na samych ścieżkach), `.next/standalone/server.js` (`process.chdir(__dirname)`, kod generowany przez `next build`).
+
+**Obejście.** Kilka instancji: `STORAGE_PROVIDER=s3`. Na Railway wolumen pod `/app/volumes/uploads` albo Railway Bucket, na własnym serwerze wolumen Dockera z `STORAGE_LOCAL_PATH=/app/volumes/uploads` ([10-wdrozenie.md](10-wdrozenie.md#pliki-uploads)). Provider wybierz przed pierwszym uploadem; przy zmianie przenieś pliki sam, z tymi samymi kluczami, bo oba providery używają klucza z kolumny `key`. Bezwzględny `STORAGE_LOCAL_PATH` wskazuj poza `.next` i poza katalogami, które czyści wdrożenie. Katalogu magazynu nie współdziel z innymi procesami ani użytkownikami.
+
+**Kierunek zmiany.** Komenda przenosząca pliki między providerami (Ragen też jej nie ma); sprawdzenie prawa zapisu do katalogu przy starcie.
+
+**Sprawdzono.** Uruchomiono 2026-11-04: reguły produkcyjne i ich komunikaty na zbudowanym serwerze ze zmiennymi Railway ustawionymi w powłoce; `process.chdir(__dirname)` w zbudowanym `.next/standalone/server.js`; plik w `.next/standalone/volumes/uploads` zniknął po `npm run build`. Uruchomiono 2026-11-05: zbudowany serwer z `STORAGE_LOCAL_PATH=./volumes/uploads` bez zmiennych Railway zakończył się przy starcie kodem 1 z linią `STORAGE_LOCAL_PATH: w produkcji poza Railway musi być ścieżką bezwzględną: wskaż trwały katalog`. Z kodu: jedna instancja, brak przenoszenia plików i leksykalna ochrona ścieżek (`local-storage.ts`, `path-inside.ts`). Z dokumentacji Railway: brak replik przy wolumenie.
 
 <a id="api-key-pepper"></a>
 
@@ -191,7 +211,7 @@ Moduły opisują pliki 13–15 (konfiguracja i szwy) oraz 13b–15b (użycie we 
 
 **Skutek.** Trzy powiązane zachowania modułu `api-keys`:
 
-- **`wa create` i `wa add` nie losują peppera.** `.env` dostaje wartość przykładową z `.env.example` (przy `wa add` żadnej, [wyżej](#add-env)). Przy `NODE_ENV=production` schemat modułu odrzuca tę wartość, a błąd schematu psuje walidację `env` całej aplikacji, nie tylko modułu: trasy `/api/v1/…` z kluczem zwracają 500 ([14-modul-api-keys.md](14-modul-api-keys.md#pepper)).
+- **`wa create` i `wa add` nie losują peppera.** `.env` dostaje wartość przykładową z `.env.example` (przy `wa add` żadnej, [wyżej](#add-env)). Przy `NODE_ENV=production` schemat modułu odrzuca tę wartość, a błąd schematu zatrzymuje start serwera całej aplikacji, nie tylko modułu ([14-modul-api-keys.md](14-modul-api-keys.md#pepper)).
 - **Zmiana peppera unieważnia wszystkie klucze.** Klucz jest zapisany jako HMAC-SHA256 z jednym pepperem. Po zmianie żaden zapisany klucz nie zostanie znaleziony (401 `{"error":"invalid"}`), a lista na `/api-keys` dalej pokazuje je jako aktywne.
 - **Nie ma rotacji.** Moduł zna jeden pepper; nie da się przyjmować kluczy ze starym i nowym pepperem w okresie przejściowym.
 
@@ -413,18 +433,15 @@ Gdy kod różni się od zdania w `AGENTS.md`, dokumentacja opisuje kod. Poniższ
 
 ### Hook `protect-tests` chroni mniej, niż mówi `AGENTS.md`
 
-**Skutek.** Dwie luki w blokadzie testów w fazie `implement`:
+**Skutek.** W fazie `implement` hook blokuje `__tests__/`, `e2e/` i pliki `*.test.*` oraz `*.spec.*` (rozszerzenia JS i TS). Nie obejmuje `src/test/` (`fake-prisma.ts`, `resetDatabase`, `setup-env.ts`), `vitest*.config.ts`, `vitest.setup.ts`, `playwright.config.ts`, `stryker*.json`, `mutation-gate.json`, samego hooka ani `.claude/settings.json`. Implementer w tej fazie może więc narzędziem `Edit` zmienić zachowanie Prismy w pamięci, zawęzić `mutate` albo dopisać wpis do `allowed` w bramce.
 
-- **Zakres ścieżek.** Hook blokuje `__tests__/`, `e2e/` i pliki `*.test.*` oraz `*.spec.*` (rozszerzenia JS i TS). Nie obejmuje `src/test/` (`fake-prisma.ts`, `resetDatabase`, `setup-env.ts`), `vitest*.config.ts`, `vitest.setup.ts`, `playwright.config.ts`, `stryker*.json`, `mutation-gate.json`, samego hooka ani `.claude/settings.json`. Implementer w tej fazie może więc narzędziem `Edit` zmienić zachowanie Prismy w pamięci, zawęzić `mutate` albo dopisać wpis do `allowed` w bramce.
-- **Katalog fazy.** Hook czyta `.superpowers/phase` z `CLAUDE_PROJECT_DIR`, czyli z katalogu, w którym wystartowała sesja, a nie z worktree, w którym pracuje agent. Plik fazy zapisany w worktree zadania nie blokuje implementera, a plik w głównej kopii blokuje edycję testów we wszystkich worktree tej sesji, także dla `test-writer`. Z tego samego powodu uruchamiana jest wersja hooków z głównej kopii.
+**Gdzie.** `.claude/hooks/protect-tests.mjs` (stała `TEST_PATH`).
 
-**Gdzie.** `.claude/hooks/protect-tests.mjs` (stałe `TEST_PATH` i `projectDir`).
+**Obejście.** Diff plików spoza blokady sprawdź poleceniem z sekcji [Czego hook nie blokuje](08b-testy-adwersarialne.md#czego-hook-nie-blokuje). Wpisy do `allowed` i tak zatwierdza człowiek w PR.
 
-**Obejście.** Zapisz plik fazy w katalogu, w którym wystartowała sesja. Usuń go po implementacji. Diff plików spoza blokady sprawdź poleceniem z sekcji [Czego hook nie blokuje](08b-testy-adwersarialne.md#czego-hook-nie-blokuje). Wpisy do `allowed` i tak zatwierdza człowiek w PR.
+**Kierunek zmiany.** Rozszerzyć wzorzec o wymienione ścieżki i pokryć zmianę testem w `.claude/hooks/protect-tests.test.mjs`. Albo dopisać kontrolę diffu tych plików do checklisty `.claude/agents/test-reviewer.md`.
 
-**Kierunek zmiany.** Rozszerzyć wzorzec o wymienione ścieżki, czytać fazę z katalogu z `input.cwd`, a każdą zmianę pokryć testem w `.claude/hooks/protect-tests.test.mjs`. Albo dopisać kontrolę diffu tych plików do checklisty `.claude/agents/test-reviewer.md`.
-
-**Sprawdzono.** Uruchomiono hook z `CLAUDE_PROJECT_DIR` głównej kopii: plik fazy tylko w worktree daje kod 0, tylko w głównej kopii kod 2. Opis: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza), [11-praca-z-kitem.md](11-praca-z-kitem.md#faza).
+**Sprawdzono.** Uruchomiono `isTestPath` z hooka na wymienionych ścieżkach: żadna nie jest rozpoznana jako test. Opis: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza), [11-praca-z-kitem.md](11-praca-z-kitem.md#faza).
 
 <a id="testy-male"></a>
 

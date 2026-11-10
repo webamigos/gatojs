@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it, vi } from "vitest";
 
 const mockEnv = vi.hoisted(() => ({
+  STORAGE_PROVIDER: "s3",
   S3_ENDPOINT: process.env.INTEGRATION_S3_ENDPOINT ?? "http://localhost:9000",
   S3_REGION: "auto",
   S3_ACCESS_KEY_ID: "minioadmin",

@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - czego potrzebują testy e2e i co robią przed pierwszym testem;
 - które testy działają w `npm run verify`, a które tylko w osobnych jobach CI.
 
-Zweryfikowano z kodem: 25adbb8, 2026-10-28
+Zweryfikowano z kodem: 6c05f1f, 2026-11-05 (magazyn plików modułu `uploads` w testach integracyjnych i e2e, [uruchomienie e2e przez agenta AI](#e2e-agent)); pozostałe sekcje: 25adbb8, 2026-10-28
 
 Źródła:
 
@@ -26,6 +26,7 @@ Zweryfikowano z kodem: 25adbb8, 2026-10-28
 - `playwright.config.ts`
 - `e2e/`
 - `kit/cli/vitest.config.ts`
+- `kit/cli/vitest.setup.ts`
 - `turbo.json`
 - `.claude/hooks/block-comments.test.mjs`
 - `.claude/hooks/protect-tests.test.mjs`
@@ -60,7 +61,7 @@ Każdy rodzaj testu zastępuje inną część systemu, więc każdy łapie inne 
 `npm test` uruchamia Vitest z `vitest.config.ts`. Najważniejsze ustawienia:
 
 - **Środowisko `jsdom`** dla wszystkich plików, żeby testy komponentów mogły renderować React. Plik, który potrzebuje czystego Node, zaczyna się od dyrektywy `// @vitest-environment node` (tak robi test architektury).
-- **`vitest.setup.ts`** dodaje matchery Testing Library dla DOM (na przykład `toBeInTheDocument`) i wczytuje `.env.local` oraz `.env` przez dotenv. Testy widzą więc `DATABASE_URL` z `.env`, ale z bazą się nie łączą, bo Prisma jest w nich zastąpiona.
+- **`vitest.setup.ts`** dodaje matchery Testing Library dla DOM (na przykład `toBeInTheDocument`) i wczytuje `.env.local` oraz `.env` przez dotenv. Testy widzą więc `DATABASE_URL` z `.env`, ale z bazą się nie łączą, bo Prisma jest w nich zastąpiona. W procesach Strykera (ze zmienną `STRYKER_MUTATOR_WORKER`) ustawia też stały seed testów właściwości ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#seed)).
 - **Pliki:** `src/**/*.test.ts`, `src/**/*.test.tsx`, `scripts/**/*.test.ts` i `e2e/**/*.test.ts`. Pominięte są `*.integration.test.ts`, `packages/**` (CLI ma własną konfigurację), `kit/**`, `docs/**`, `.superpowers/**` i `.stryker-tmp/**` (kopie projektu robione przez Strykera).
 - **`globals: true`** udostępnia `describe`, `it` i `expect` bez importu, a **`clearMocks: true`** czyści historię wywołań mocków przed każdym testem.
 - **Alias `server-only`** wskazuje pusty plik `empty.js` z pakietu `server-only`, więc pliki serwerowe z `import "server-only"` dają się zaimportować w teście.
@@ -82,13 +83,13 @@ Jeden plik uruchomisz komendą `npx vitest run <ścieżka>`, a tryb obserwowania
 
 ## Testy integracyjne
 
-Testy integracyjne sprawdzają query, komendy i guardy na prawdziwym Postgresie. Są w plikach `*.integration.test.ts` i nie wchodzą do `npm test`. Rdzeń ma jeden taki plik, test izolacji organizacji ([Test izolacji organizacji](#izolacja)). Moduły kitu dokładają własne: `audit-logs` cztery, `api-keys` dwa, `uploads` trzy (w repozytorium kitu razem 10 plików). Projekt ma pliki rdzenia i zainstalowanych modułów. Testy `uploads` zapisują i czytają obiekty w prawdziwym magazynie S3, więc wymagają działającego MinIO ([15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#testowanie)).
+Testy integracyjne sprawdzają query, komendy i guardy na prawdziwym Postgresie. Są w plikach `*.integration.test.ts` i nie wchodzą do `npm test`. Rdzeń ma jeden taki plik, test izolacji organizacji ([Test izolacji organizacji](#izolacja)). Moduły kitu dokładają własne: `audit-logs` cztery, `api-keys` dwa, `uploads` trzy (w repozytorium kitu razem 10 plików). Projekt ma pliki rdzenia i zainstalowanych modułów. Testy `uploads` zapisują i czytają obiekty w prawdziwym magazynie S3, więc wymagają działającego MinIO, także w projekcie, którego aplikacja zapisuje pliki na dysku: `setup-env.ts` ustawia testom `STORAGE_PROVIDER=s3` ([15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#testowanie)).
 
 Konfiguracja `vitest.integration.config.ts`:
 
 - środowisko `node`, pliki `src/**/*.integration.test.ts`;
 - `globalSetup: ["./src/test/integration/global-setup.ts"]` raz przed wszystkimi plikami zakłada bazę, gdy jej nie ma, i dopasowuje jej schemat przez `prisma db push` ([co dokładnie robi z bazą](#baza));
-- `setupFiles: ["./src/test/integration/setup-env.ts"]` przed każdym plikiem ustawia zmienne: `DATABASE_URL` na adres bazy testowej, `BETTER_AUTH_SECRET`, `APP_URL`, `EMAIL_FROM`, `API_KEY_PEPPER`, zmienne magazynu (`S3_ENDPOINT` z `INTEGRATION_S3_ENDPOINT`, domyślnie `http://localhost:9000`; `S3_BUCKET` z `INTEGRATION_S3_BUCKET`, domyślnie `<slug>-uploads` ze sluga w `src/shared/config/project.ts`; klucze `minioadmin`; `S3_FORCE_PATH_STYLE=true`), `MULTI_ORG=false` i `AUTH_PUBLIC_SIGNUP=false`. Pepper i zmienne S3 są ustawione zawsze, także w projekcie bez `api-keys` i `uploads`;
+- `setupFiles: ["./src/test/integration/setup-env.ts"]` przed każdym plikiem ustawia zmienne: `DATABASE_URL` na adres bazy testowej, `BETTER_AUTH_SECRET`, `APP_URL`, `EMAIL_FROM`, `API_KEY_PEPPER`, zmienne magazynu (`STORAGE_PROVIDER=s3`; `S3_ENDPOINT` z `INTEGRATION_S3_ENDPOINT`, domyślnie `http://localhost:9000`; `S3_BUCKET` z `INTEGRATION_S3_BUCKET`, domyślnie `<slug>-uploads` ze sluga w `src/shared/config/project.ts`; klucze `minioadmin`; `S3_FORCE_PATH_STYLE=true`), `MULTI_ORG=false` i `AUTH_PUBLIC_SIGNUP=false`. Pepper i zmienne magazynu są ustawione zawsze, także w projekcie bez `api-keys` i `uploads`;
 - `fileParallelism: false`: pliki działają po kolei, bo wszystkie używają jednej bazy, a każdy test zaczyna od wyczyszczenia tabel;
 - `testTimeout: 20_000` i `hookTimeout: 60_000` (w milisekundach, zamiast domyślnych w Vitest 5 i 10 sekund), bo test i `beforeEach` czekają na bazę.
 
@@ -107,7 +108,7 @@ Pomocniki do zakładania danych są w `src/test/integration/database.ts`:
 
 Komenda czyści bazę testową, a zabezpieczenie sprawdza tylko jej nazwę, nie serwer ani port. Przed pierwszym uruchomieniem przeczytaj [Czego zabezpieczenie nie sprawdza](#baza-pulapki).
 
-1. Uruchom bazę z `docker-compose.yml`: `docker compose up -d db`. W projekcie z modułem `uploads` uruchom też MinIO i założenie bucketu: `docker compose up -d db minio minio-init` ([15-modul-uploads.md](15-modul-uploads.md#minio)). MinIO na innym porcie albo inny bucket podajesz w powłoce przez `INTEGRATION_S3_ENDPOINT` i `INTEGRATION_S3_BUCKET`.
+1. Uruchom bazę z `docker-compose.yml`: `docker compose up -d db`. W projekcie z modułem `uploads` uruchom też MinIO i założenie bucketu. Obie usługi mają profil `s3`, więc komenda go podaje: `docker compose --profile s3 up -d db minio minio-init` ([15-modul-uploads.md](15-modul-uploads.md#minio)). Samej komendy nie uruchamiano (niesprawdzone); `docker compose --profile s3 config --services` wypisuje `db`, `mail`, `minio` i `minio-init` (sprawdzone 2026-11-04). MinIO na innym porcie albo inny bucket podajesz w powłoce przez `INTEGRATION_S3_ENDPOINT` i `INTEGRATION_S3_BUCKET`.
 2. W katalogu głównym repozytorium uruchom testy z adresem bazy testowej. Port w adresie to port Twojego kontenera (`DB_PORT` albo 5432). Bazy `wa_app_test` nie musisz zakładać, zrobi to `globalSetup`.
 
    ```bash
@@ -115,7 +116,7 @@ Komenda czyści bazę testową, a zabezpieczenie sprawdza tylko jej nazwę, nie 
    ```
 
    Przy porcie 5432 zmienną możesz pominąć, bo to jej wartość domyślna.
-3. Na początku Prisma wypisze linię `Datasource "db": PostgreSQL database "wa_app_test", schema "public" at "localhost:5432"`. Sprawdź w niej nazwę bazy i port. Na końcu Vitest wypisze liczbę plików (`Test Files  … passed`) i testów. Bez działającego MinIO testy `uploads` nie przejdą, bo łączą się z magazynem pod `S3_ENDPOINT` (wniosek z kodu testów, przebiegu nie uruchamiano).
+3. Na początku Prisma wypisze linię `Datasource "db": PostgreSQL database "wa_app_test", schema "public" at "localhost:5432"`. Sprawdź w niej nazwę bazy i port. Na końcu Vitest wypisze liczbę plików (`Test Files  … passed`) i testów. Bez działającego MinIO testy `uploads` nie przejdą, bo łączą się z magazynem pod `S3_ENDPOINT` (wniosek z kodu testów, przebiegu bez MinIO nie uruchamiano). Z MinIO na porcie 9100 (`INTEGRATION_S3_ENDPOINT=http://localhost:9100`, `INTEGRATION_S3_BUCKET=wa-app-uploads`) repozytorium kitu dało `Test Files  10 passed (10)` i `Tests  181 passed (181)` (sprawdzone 2026-11-04).
 
 Jeśli ustawiasz `INTEGRATION_DATABASE_URL`, to w powłoce. Vitest nie wczytuje `.env` do `process.env` (sprawdzone próbą z Vitest 4.1.12), a konfiguracja integracyjna nie ma pliku z dotenv, więc wpis w `.env` nie zadziała i testy pójdą na port 5432.
 
@@ -141,7 +142,7 @@ Testy e2e sprawdzają w przeglądarce przepływy, w których biorą udział wszy
 | `core-auth` | `e2e/core-auth.spec.ts` | `E2E_CORE_PORT`, domyślnie 3000 | `false` | `false` | Admin zaprasza użytkownika, ten ustawia hasło z maila i loguje się, a `/users` daje mu 404. Rejestracja bez zaproszenia dostaje 403. Reset hasła przez `/forgot-password`. |
 | `multi-org` | `e2e/multi-org.spec.ts` | `E2E_MULTI_ORG_PORT`, domyślnie 3001 | `true` | `true` | Każda rejestracja tworzy własną organizację, widać `OrgSwitcher`, a druga osoba nie widzi członków pierwszej. |
 
-Serwery dostają zmienne z `appEnv` w `e2e/env.ts`: adres bazy e2e, `APP_URL` z własnym portem, `SMTP_URL` mailpit, `LOG_LEVEL: "warn"`, `RESEND_API_KEY: "re_e2e_unused"`, `API_KEY_PEPPER` i zmienne S3 (`S3_ENDPOINT` z powłoki albo `http://localhost:9000`, klucze `minioadmin`, bucket `wa-app-uploads`, w projekcie `<slug>-uploads`, bo `e2e/env.ts` jest w `placeholderFiles` kitu). Pepper i zmienne S3 są tam tylko po to, żeby przeszła walidacja `env` w projekcie z `api-keys` albo `uploads`; testy e2e kitu nie wysyłają plików, a `e2e.yml` nie uruchamia MinIO ([15-modul-uploads.md](15-modul-uploads.md#ci)). Serwer standalone działa w trybie produkcyjnym, w którym walidacja zmiennych wymaga `RESEND_API_KEY`, a `SMTP_URL` i tak ma pierwszeństwo, więc ten klucz nigdy nie jest używany ([07-i18n-mail-env.md](07-i18n-mail-env.md)).
+Serwery dostają zmienne z `appEnv` w `e2e/env.ts`: adres bazy e2e, `APP_URL` z własnym portem, `SMTP_URL` mailpit, `LOG_LEVEL: "warn"`, `RESEND_API_KEY: "re_e2e_unused"`, `API_KEY_PEPPER`, `STORAGE_PROVIDER: "local"` i `STORAGE_LOCAL_PATH` z `E2E_UPLOADS_DIR` albo `<katalog tymczasowy systemu>/wa-app-e2e-uploads` (w projekcie z nazwą projektu zamiast `wa-app`, bo `e2e/env.ts` jest w `placeholderFiles` kitu). Pepper i zmienne magazynu są tam po to, żeby przeszła walidacja `env` w projekcie z `api-keys` albo `uploads`: serwer standalone działa w trybie produkcyjnym, w którym provider `local` wymaga jawnego katalogu ze ścieżką bezwzględną ([15-modul-uploads.md](15-modul-uploads.md#reguly-produkcyjne)). Testy e2e kitu nie wysyłają plików, a `e2e.yml` nie uruchamia MinIO ([15-modul-uploads.md](15-modul-uploads.md#ci)). Serwer standalone działa w trybie produkcyjnym, w którym walidacja zmiennych wymaga `RESEND_API_KEY`, a `SMTP_URL` i tak ma pierwszeństwo, więc ten klucz nigdy nie jest używany ([07-i18n-mail-env.md](07-i18n-mail-env.md)).
 
 Testy działają po kolei: `workers: 1`, `fullyParallel: false`, a pliki mają `test.describe.configure({ mode: "serial" })`. Testy w pliku zależą od siebie, na przykład trzeci test w `core-auth.spec.ts` loguje się kontem zaproszonym w pierwszym. Nieudany test nie jest powtarzany (`retries: 0`), a ślad Playwright zostaje tylko dla nieudanych (`trace: "retain-on-failure"`). Przeglądarka to Chromium z ustawieniami `Desktop Chrome` i językiem `pl`.
 
@@ -171,13 +172,13 @@ Raport HTML Playwright (`playwright-report/`) powstaje tylko w CI. Lokalnie wyni
 
 ### Uruchomienie przez agenta AI
 
-Prisma 7.10.1 sprawdza przy `db push --force-reset` i `migrate reset`, czy uruchomił ją agent AI (na przykład zmienna `CLAUDECODE` w Claude Code albo `CODEX_THREAD_ID` w Codex CLI). Jeśli tak, a nie ma zmiennej `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION`, odmawia i wypisuje polecenie, żeby agent zapytał użytkownika o zgodę (kod w `node_modules/prisma/build/cli.js`). `globalSetup` przekazuje zmienne środowiskowe dalej, więc `npm run test:e2e` uruchomione przez agenta zatrzyma się na resecie bazy (wniosek z kodu Prismy, przebiegu nie uruchamiano). Testy e2e uruchamia więc człowiek albo agent po jego wyraźnej zgodzie. Testy integracyjne zwykle działają z agentem: zwykłe `prisma db push` robi to sprawdzenie dopiero wtedy, gdy zmiana schematu usunęłaby dane (przebieg `npm run test:integration` z Claude Code przeszedł).
+Prisma 7.10.1 sprawdza przy `db push --force-reset` i `migrate reset`, czy uruchomił ją agent AI (na przykład zmienna `CLAUDECODE` w Claude Code albo `CODEX_THREAD_ID` w Codex CLI). Jeśli tak, a nie ma zmiennej `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION`, odmawia i wypisuje polecenie, żeby agent zapytał użytkownika o zgodę (kod w `node_modules/prisma/build/cli.js`). `globalSetup` przekazuje zmienne środowiskowe dalej, więc `npm run test:e2e` uruchomione przez agenta zatrzymuje się na resecie bazy. Przebieg z Claude Code 2026-11-04 zakończył się po buildzie i starcie obu serwerów komunikatem `Error: Prisma Migrate detected that it was invoked by Claude Code.` i `Error: Command failed: npx prisma db push --force-reset`, zanim zaczął się pierwszy test (sprawdzone). Prisma zdążyła przed odmową założyć pustą bazę e2e. Testy e2e uruchamia więc człowiek albo agent po jego wyraźnej zgodzie. Testy integracyjne zwykle działają z agentem: zwykłe `prisma db push` robi to sprawdzenie dopiero wtedy, gdy zmiana schematu usunęłaby dane (przebieg `npm run test:integration` z Claude Code przeszedł).
 
 <a id="cli-hooki"></a>
 
 ## Testy CLI i hooków
 
-**CLI** (`kit/cli`, tylko w repozytorium kitu) ma własną konfigurację `kit/cli/vitest.config.ts`: środowisko `node`, pliki `src/**/*.test.ts`. Testy generatora, manifestu i komend kopiują pliki do katalogu tymczasowego systemu (`mkdtemp`), więc nie zmieniają plików repozytorium. Wyjątek to test własności plików, który czyta prawdziwe repozytorium kitu ([D38](decyzje.md#d38)). Uruchomisz je komendą `npm test --prefix kit/cli`. Bramka CLI `npm run verify --prefix kit/cli` uruchamia po kolei lint (`eslint .` z `kit/cli/eslint.config.mjs`), typecheck, testy i build bundla; ta sama bramka działa w jobie `cli` workflowu `kit.yml`. CLI ma też własną konfigurację Strykera i bramkę mutacji (`kit/cli/stryker.config.json`, `kit/cli/mutation-gate.json`, komendy `npm run test:mutation:task --prefix kit/cli -- <pliki>` i `npm run test:mutation:gate --prefix kit/cli`); pełny przebieg uruchamia ręcznie `kit-mutation.yml`. Szczegóły: [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli). Główny `npm test` pomija `kit/**`.
+**CLI** (`kit/cli`, tylko w repozytorium kitu) ma własną konfigurację `kit/cli/vitest.config.ts`: środowisko `node`, pliki `src/**/*.test.ts` i plik ustawień `kit/cli/vitest.setup.ts`, który w procesach Strykera ustawia stały seed testów właściwości, tak jak `vitest.setup.ts` aplikacji ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#seed)). Testy generatora, manifestu i komend kopiują pliki do katalogu tymczasowego systemu (`mkdtemp`), więc nie zmieniają plików repozytorium. Wyjątek to test własności plików, który czyta prawdziwe repozytorium kitu ([D38](decyzje.md#d38)). Uruchomisz je komendą `npm test --prefix kit/cli`. Bramka CLI `npm run verify --prefix kit/cli` uruchamia po kolei lint (`eslint .` z `kit/cli/eslint.config.mjs`), typecheck, testy i build bundla; ta sama bramka działa w jobie `cli` workflowu `kit.yml`. CLI ma też własną konfigurację Strykera i bramkę mutacji (`kit/cli/stryker.config.json`, `kit/cli/mutation-gate.json`, komendy `npm run test:mutation:task --prefix kit/cli -- <pliki>` i `npm run test:mutation:gate --prefix kit/cli`); pełny przebieg uruchamia ręcznie `kit-mutation.yml`. Szczegóły: [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli). Główny `npm test` pomija `kit/**`.
 
 **Hooki Claude Code** testuje `npm run test:hooks`, czyli wbudowany runner Node (`node --test`) na `.claude/hooks/block-comments.test.mjs` i `.claude/hooks/protect-tests.test.mjs`. Testy wywołują funkcje hooka, a w części przypadków uruchamiają skrypt jako osobny proces z wejściem JSON, tak jak robi to Claude Code, i sprawdzają kod wyjścia. Co robią hooki: [D23](decyzje.md#d23) (komentarze) i [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza) (testy tylko do odczytu).
 
@@ -452,7 +453,7 @@ Przebiegi z trybem przyrostowym są zwykle znacznie krótsze niż pełne, bo spr
 | `ci.yml`, job `verify` | Push do `main`, pull request do `main`. | `npm run wa -- generate`, `git diff --exit-code` (pliki generowane muszą być aktualne), `npm run verify`. | Brak. |
 | `ci.yml`, job `integration` | Jak `verify`. | Kroki z regionu `# wa:ci-integration:start` / `# wa:ci-integration:end`, potem `npm run test:integration`. | Usługa `postgres:16`, `INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wa_app_test`. Przy module `uploads` region uruchamia MinIO na porcie 9000 i zakłada bucket `<slug>-uploads`. |
 | `e2e.yml` | Push do `main`. Pull request do `main`, chyba że zmienia tylko `docs/**`, `*.md` albo `.husky/**`. | Instalacja Chromium, `npx prisma migrate dev --name init`, `npm run test:e2e`. Raport HTML jako artefakt `playwright-report` (14 dni). Limit 30 minut. | Usługa `postgres:16` z bazą `wa_app_e2e`, mailpit na portach 8025 i 1025. |
-| `mutation.yml` | Tylko ręcznie (`workflow_dispatch`). | `npm run test:mutation`, `npm run test:mutation:integration`, `npm run test:mutation:gate`. Raporty jako artefakt `mutation-report`. Limit 360 minut (maksimum runnera GitHuba): przy limicie 60 minut przebieg unitowy bez cache doszedł do 45% mutantów i został anulowany (2026-11-02). | Usługa `postgres:16`, `INTEGRATION_DATABASE_URL` jak w `integration`. Przed „Run Stryker (integration)” kroki z regionu `# wa:ci-integration:start` / `# wa:ci-integration:end`, ten sam co w `ci.yml`: przy module `uploads` MinIO na porcie 9000 i bucket `<slug>-uploads` (od `core` 0.4.1; przebieg integracyjny z MinIO sprawdzony lokalnie, kroki regionu w GitHub Actions nie doszły do wykonania). |
+| `mutation.yml` | Tylko ręcznie (`workflow_dispatch`). | `npm run test:mutation`, `npm run test:mutation:integration`, `npm run test:mutation:gate`. Raporty jako artefakt `mutation-report`. Limit 360 minut (maksimum runnera GitHuba): przy limicie 60 minut przebieg unitowy bez cache doszedł do 45% mutantów i został anulowany (2026-11-02). | Usługa `postgres:16`, `INTEGRATION_DATABASE_URL` jak w `integration`. Przed „Run Stryker (integration)” kroki z regionu `# wa:ci-integration:start` / `# wa:ci-integration:end`, ten sam co w `ci.yml`: przy module `uploads` MinIO na porcie 9000 i bucket `<slug>-uploads` (od `core` 0.5.1; przebieg integracyjny z MinIO sprawdzony lokalnie, kroki regionu w GitHub Actions nie doszły do wykonania). |
 
 Region `wa:ci-integration` w `ci.yml` i `mutation.yml` wypełnia `npm run wa -- generate` z pól `ciSteps` manifestów zainstalowanych modułów; w kicie ma go tylko `uploads` ([15-modul-uploads.md](15-modul-uploads.md#ci), [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#regiony)). W repozytorium kitu działają jeszcze `kit.yml` (bramka CLI i składanie projektów z kitu) i `kit-mutation.yml` (ręczny przebieg mutacji CLI); do projektów nie trafiają ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#ci-kitu)).
 
@@ -492,7 +493,7 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 | Plik | Co ustawia |
 | --- | --- |
 | `vitest.config.ts` | Testy jednostkowe: `jsdom`, `vitest.setup.ts`, pliki i wykluczenia, aliasy `@` i `server-only`, `globals`, `clearMocks`. |
-| `vitest.setup.ts` | Matchery `@testing-library/jest-dom`, wczytanie `.env.local` i `.env`. |
+| `vitest.setup.ts` | Matchery `@testing-library/jest-dom`, wczytanie `.env.local` i `.env`, stały seed testów właściwości w procesach Strykera. |
 | `vitest.integration.config.ts` | Testy integracyjne: `node`, `globalSetup`, `setupFiles`, `fileParallelism: false`, limity czasu. |
 | `src/test/integration/global-setup.ts` | Sprawdzenie nazwy, założenie bazy, `prisma db push`. |
 | `src/test/integration/setup-env.ts` | Zmienne środowiskowe testów integracyjnych. |
@@ -505,7 +506,8 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 | `e2e/global-setup.ts` | Reset bazy e2e, `admin:create`, czyszczenie mailpit. |
 | `e2e/database-guard.ts` | `assertE2eDatabase`. |
 | `e2e/helpers.ts` | `LABELS`, logowanie, rejestracja, ustawienie hasła, API mailpit. |
-| `kit/cli/vitest.config.ts` | Testy CLI: `node`, `src/**/*.test.ts`. |
+| `kit/cli/vitest.config.ts` | Testy CLI: `node`, `src/**/*.test.ts`, plik ustawień `kit/cli/vitest.setup.ts`. |
+| `kit/cli/vitest.setup.ts` | Stały seed testów właściwości CLI w procesach Strykera. |
 | `kit/cli/eslint.config.mjs`, `kit/cli/stryker.config.json`, `kit/cli/mutation-gate.json` | Lint, Stryker i bramka mutacji CLI ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli)). |
 | `turbo.json` | Zadania `build`, `lint`, `test` i `typecheck` w workspace `packages/*`, który jest pusty; każde po `^build`. |
 | `stryker.config.json`, `stryker.integration.config.json`, `mutation-gate.json` | Mutation testing i bramka mutacji: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#referencja). |
@@ -520,7 +522,7 @@ Wszystkie czytane są tylko ze zmiennych powłoki. Ani Vitest w konfiguracji int
 | --- | --- | --- | --- |
 | `INTEGRATION_DATABASE_URL` | `src/test/integration/database-url.ts` | `postgresql://postgres:postgres@localhost:5432/wa_app_test` | Nazwa bazy musi kończyć się na `_test`. |
 | `INTEGRATION_S3_ENDPOINT`, `INTEGRATION_S3_BUCKET` | `src/test/integration/setup-env.ts`, `storage.integration.test.ts` | `http://localhost:9000`, `<slug>-uploads` | Adres MinIO i bucket testów integracyjnych. |
-| `S3_ENDPOINT` | `e2e/env.ts` | `http://localhost:9000` | Tylko do walidacji `env` serwerów e2e. |
+| `E2E_UPLOADS_DIR` | `e2e/env.ts` | `<katalog tymczasowy systemu>/wa-app-e2e-uploads` | `STORAGE_LOCAL_PATH` serwerów e2e; `globalSetup` go nie czyści. Musi być ścieżką bezwzględną: serwery e2e działają w trybie produkcyjnym poza Railway, więc ścieżka względna zatrzymuje ich start ([15-modul-uploads.md](15-modul-uploads.md#reguly-produkcyjne)). |
 | `DATABASE_URL` | `e2e/env.ts` | `postgresql://postgres:postgres@localhost:${dbPort}/wa_app_e2e` | Nazwa bazy musi kończyć się na `_e2e`. W testach integracyjnych `setup-env.ts` nadpisuje ją adresem testowym. |
 | `DB_PORT` | `e2e/env.ts` | `5432` | Tylko do domyślnego adresu bazy e2e. |
 | `MAILPIT_UI_PORT`, `MAILPIT_URL` | `e2e/env.ts` | `8025`, `http://localhost:${mailpitUiPort}` | API mailpit dla `getLastMail` i `clearMailbox`. |

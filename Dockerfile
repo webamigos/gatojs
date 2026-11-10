@@ -44,6 +44,8 @@ RUN cd /tmp && npm init -y > /dev/null 2>&1 \
     && rm -rf /tmp/node_modules /tmp/package.json /tmp/package-lock.json \
     && chown -R nextjs:nodejs /app/node_modules
 
+RUN mkdir -p /app/volumes/uploads && chown -R nextjs:nodejs /app/volumes
+
 USER nextjs
 
 EXPOSE 3000

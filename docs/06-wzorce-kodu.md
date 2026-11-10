@@ -137,6 +137,7 @@ import { randomBytes } from "node:crypto";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/lib/prisma";
+import { auditActor, trackAudit } from "@/shared/lib/audit";
 import { getAdminUserOrNull } from "@/shared/lib/auth/helpers";
 import { getOrgContext } from "@/shared/lib/auth/org-context";
 import { assertServiceModeConfirmed } from "@/shared/lib/auth/service-mode";
@@ -200,6 +201,13 @@ export async function inviteUserCommand(
       { name, email, invitationId: invitation.id },
       requestHeaders,
     );
+    await trackAudit({
+      ...auditActor(context),
+      action: "member.invited",
+      entityType: "invitation",
+      entityId: invitation.id,
+      newData: { email, role },
+    });
 
     await markEmailVerified(userId);
     const mailSent = await sendWelcomeEmailBestEffort({ name, email, userId });
@@ -223,8 +231,9 @@ export async function inviteUserCommand(
 | 4 | `assertServiceModeConfirmed(context, confirmation)` | W trybie serwisowym bez potwierdzenia aktywnej organizacji rzuca błąd, zanim komenda dotknie bazy. |
 | 5 | `prisma.user.findUnique` | Sprawdza, czy adres ma już konto. Konta są globalne, więc to zapytanie nie filtruje po organizacji ([D07](decyzje.md#d07)). |
 | 6 | `prisma.invitation.create` z `organizationId: context.organizationId` | Zaproszenie należy do aktywnej organizacji z kontekstu. |
-| 7 | `registerInvitedUser`, `markEmailVerified`, `sendWelcomeEmailBestEffort`, `revalidatePath("/users")`, `return mailSent ? … : …` | Funkcje pomocnicze z tego samego pliku, bez `export`, więc nie są endpointami. `revalidatePath` oznacza dane strony `/users` w pamięci podręcznej Next.js jako nieaktualne. Gdy mail się nie wyśle, konto i tak powstało, więc wynik to sukces z ostrzeżeniem `warning: "mail-failed"`, które dodaje typ `OperationResult<{ userId: string }> & { warning?: "mail-failed" }`. |
-| 8 | `catch` i `handleCommandError` | Każdy wyjątek poza przekierowaniem, także błąd potwierdzenia z kroku 4, zamienia na `OperationResult`. Przekierowanie rzuca dalej. |
+| 7 | `trackAudit` z `auditActor(context)` | Wpis `member.invited` w dzienniku zdarzeń po udanej rejestracji. Autor, organizacja i `serviceMode` pochodzą z kontekstu, więc w trybie serwisowym wpis ma `serviceMode: true`. Gdy rejestracja się nie uda, `registerInvitedUser` usuwa zaproszenie i rzuca błąd, zanim komenda dojdzie do wpisu ([13-modul-audit-logs.md](13-modul-audit-logs.md#zdarzenia)). |
+| 8 | `registerInvitedUser`, `markEmailVerified`, `sendWelcomeEmailBestEffort`, `revalidatePath("/users")`, `return mailSent ? … : …` | Funkcje pomocnicze z tego samego pliku, bez `export`, więc nie są endpointami. `revalidatePath` oznacza dane strony `/users` w pamięci podręcznej Next.js jako nieaktualne. Gdy mail się nie wyśle, konto i tak powstało, więc wynik to sukces z ostrzeżeniem `warning: "mail-failed"`, które dodaje typ `OperationResult<{ userId: string }> & { warning?: "mail-failed" }`. |
+| 9 | `catch` i `handleCommandError` | Każdy wyjątek poza przekierowaniem, także błąd potwierdzenia z kroku 4, zamienia na `OperationResult`. Przekierowanie rzuca dalej. |
 
 <a id="kolejnosc"></a>
 
@@ -261,7 +270,9 @@ Błędy zamienia na wynik `handleCommandError`:
 `src/shared/utils/error-handling.ts`
 
 ```ts
-export class DomainError extends Error {}
+export class DomainError extends Error {
+  name = "DomainError";
+}
 // …
 export function handleCommandError(
   error: unknown,
@@ -299,7 +310,7 @@ Odmowa dostępu przez `requireModuleAccess` jest bezpieczna, bo komenda kończy 
 
 Mimo to wołaj `requireModuleAccess` wewnątrz `try` i nie dodawaj `unstable_rethrow`, chociaż dokumentacja Next.js dołączona do paczki tak radzi (`node_modules/next/dist/docs/01-app/03-api-reference/04-functions/redirect.md` i `node_modules/next/dist/docs/01-app/03-api-reference/04-functions/not-found.md`). W kicie dałoby to gorszy wynik. `notFound()`, które wyjdzie z akcji, nie pokaże strony 404: obsługa akcji w Next.js (`isHTTPAccessFallbackError` w `node_modules/next/dist/server/app-render/action-handler.js`) ustawia status 404 i odsyła odrzucony wynik, więc `await run(…)` w `onSubmit` rzuca wyjątek. `handleSubmit` z react-hook-form rzuca go dalej, a nasłuch na nieobsłużone błędy w routerze Next.js (`handleUnhandledRedirect` w `node_modules/next/dist/client/components/app-router.js`) obsługuje tylko przekierowania. Użytkownik nie dostaje wtedy żadnego komunikatu (wniosek z kodu Next.js i react-hook-form, żaden test tego nie sprawdza). Przekierowania działają tak samo w `try` i poza nim, bo `handleCommandError` je przepuszcza. Przy poprawnym kluczu odmowę dostaje zresztą tylko żądanie wysłane z pominięciem strony albo karta otwarta przed zmianą roli lub aktywnej organizacji, bo bez dostępu strona z formularzem się nie otworzy. `requireModuleAccess` czyta aktywną organizację i rolę z bazy, więc karta, w której aktywną organizację przełączono w innej karcie na organizację z niższą rolą, też dostanie odmowę. Przy błędnym kluczu w komendzie, innym niż klucz strony, odmowę dostaje każdy, także admin globalny, bo `requireModuleAccess` nie znajdzie definicji modułu. Gdyby komunikat albo poziom logu dla odmowy miały być inne, zmienia się je w `handleCommandError`, wspólnie dla wszystkich komend, a nie w komendzie.
 
-Przewidziany błąd biznesowy, taki jak zajęty adres, zwracaj przez `return`, tak jak `inviteUserCommand`. `throw new DomainError("…")` przydaje się w funkcji pomocniczej, z której trudno zwrócić wynik, tak jak `assertServiceModeConfirmed` rzuca `ServiceModeConfirmationError`.
+Przewidziany błąd biznesowy, taki jak zajęty adres, zwracaj przez `return`, tak jak `inviteUserCommand`. `throw new DomainError("…")` przydaje się w funkcji pomocniczej, z której trudno zwrócić wynik, tak jak `assertServiceModeConfirmed` rzuca `ServiceModeConfirmationError`. Własna klasa błędu ma w logach produkcyjnych w `err.type` swoją nazwę tylko wtedy, gdy wpisuje ją napisem do `name`, tak jak `ServiceModeConfirmationError`. Klasa, która dziedziczy bezpośrednio po `DomainError` i nie ustawia `name`, ma w `err.type` napis `DomainError`, tak samo jak błąd rzucony wprost jako `DomainError`, także w `npm run dev` ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#logger-typ-bledu)).
 
 Komunikaty komend rdzenia są zapisane w kodzie po polsku, a komunikaty walidacji to domyślne komunikaty Zod po angielsku (na przykład „Invalid email address”), bo schematy rdzenia nie mają własnych komunikatów. Komponenty pokazują `result.error` bez tłumaczenia, więc w wersji `en` użytkownik widzi polskie komunikaty komend. Komunikat walidacji z serwera widać rzadko, bo formularz sprawdza ten sam schemat przed wysłaniem i pokazuje własne, przetłumaczone teksty ([Formularz](#formularz)).
 

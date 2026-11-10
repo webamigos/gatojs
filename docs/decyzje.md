@@ -2,7 +2,7 @@
 
 Ten plik wyjaśnia, dlaczego wa-kit jest zbudowany tak, a nie inaczej. Każdy wpis mówi, jaki problem rozwiązuje decyzja, co wybrano, co odrzucono, co z tego wynika przy pisaniu kodu i co pilnuje, żeby decyzja była przestrzegana. Jak dana część działa krok po kroku, opisują pliki `01`–`16b` (spis w [README.md](README.md)).
 
-Zweryfikowano z kodem: 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
+Zweryfikowano z kodem: 6c05f1f, 2026-11-05 (wpis D49); 734391b, 2026-11-04 (poprawki w D44, D45 i D48); 2788536, 2026-11-04 (wpis D48 i odnośniki do niego w D15, D17 i D43); 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
 
 Rejestr obejmuje decyzje, które obowiązują w kodzie, i decyzje zastąpione, zostawione jako zapis historii. Funkcje zaplanowane, ale niezrobione (na przykład aktualizacja projektu do nowszej wersji kitu albo moduły `worker` i `legal`), pojawiają się wyłącznie jako kontekst albo konsekwencja.
 
@@ -44,7 +44,7 @@ Sposoby egzekwowania różnią się siłą:
 - `zastąpiona przez Dxx`: decyzja przestała obowiązywać. Wpis zostaje w pliku z nowym statusem i jednym zdaniem o tym, co się zmieniło, a decyzja, która go zastąpiła, ma własny numer i mówi, co zmieniła. Pozostała treść zastąpionego wpisu jest zapisem historii i nie opisuje kodu.
 - Gdy w decyzji zmieniły się tylko fakty (na przykład lista plików generowanych albo miejsc w kodzie), wpis poprawia się w miejscu, bez nowego numeru.
 - Numery `D01`, `D02`… są stałe i nie są używane ponownie. Inne pliki linkują do wpisu przez kotwicę, na przykład `[D07](decyzje.md#d07)`, więc zmiana numeru zepsułaby linki. Odnośnik, który opisuje bieżący stan kodu, wskazuje decyzję obowiązującą, a nie zastąpioną.
-- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D46 bez luk: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), pozostałe obowiązują.
+- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D46, D48 i D49: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), pozostałe obowiązują. Numer D47 należy do decyzji o `wa update` z osobnej gałęzi ([webamigos/wa-kit#14](https://github.com/webamigos/wa-kit/pull/14)).
 - Nową decyzję dopisuje się na końcu z następnym wolnym numerem, kotwicą `<a id="dNN"></a>` i wszystkimi polami.
 - Jeden plik wystarcza, dopóki decyzje dopisuje jedna gałąź naraz. Gdy zaczną to robić równolegle różne gałęzie, dwie mogą dopisać ten sam następny numer; wtedy warto rozważyć osobne pliki `docs/decyzje/NNNN-*.md`.
 
@@ -131,9 +131,11 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 | [D41](#d41) | Redakcja danych wrażliwych przed zapisem; bez retencji | Moduły kitu | obowiązuje |
 | [D42](#d42) | Zdarzenia organizacji łapane hookami better-auth | Moduły kitu | obowiązuje |
 | [D43](#d43) | Klucze API: HMAC z pepperem, zakresy, limit, bez `OrgContext` | Moduły kitu | obowiązuje |
-| [D44](#d44) | Uploads: S3, cele uploadu, widoczność i `Cache-Control`, cofnięcie obiektu | Moduły kitu | obowiązuje |
+| [D44](#d44) | Uploads: magazyn plików, cele uploadu, widoczność i `Cache-Control`, cofnięcie obiektu | Moduły kitu | obowiązuje |
 | [D45](#d45) | Region `wa:ci-integration` i pole `ciSteps`; pusty region bez markerów pomijany | CLI i składanie projektu | obowiązuje |
 | [D46](#d46) | Kit wydawany tagiem `v<version>`; projekt pobiera kit tylko w swojej wersji | Wydanie | obowiązuje |
+| [D48](#d48) | Walidacja `env` przy starcie procesu | Konfiguracja i usługi | obowiązuje |
+| [D49](#d49) | Uploads: provider storage `local` albo `s3`, domyślnie `local` | Moduły kitu | obowiązuje |
 
 <a id="d01"></a>
 
@@ -585,10 +587,11 @@ Strona `/sign-up` przy wyłączonej rejestracji i bez `invitationId` przekierowu
 **Konsekwencje.**
 
 - Na produkcji bez `OTEL_EXPORTER_OTLP_ENDPOINT` wpisy z `logger` nie trafiają ani na konsolę, ani do eksportu, więc nie widać ich w logach usługi. Ustaw endpoint na produkcji ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#logger-cel), [10-wdrozenie.md](10-wdrozenie.md)).
+- Raport walidacji zmiennych przy starcie procesu idzie przez `console.error`, a nie przez `logger`, bo bez eksportu wpis by zniknął. Wyjątek obejmuje tylko ten raport ([D48](#d48)).
 - `LOG_LEVEL` jest walidowana w `src/shared/lib/env.ts`, ale logger jej nie czyta i nie filtruje po poziomie ([znane-ograniczenia.md](znane-ograniczenia.md)).
 - Mutation testing nie obejmuje `logger.ts` (wykluczenie w `stryker.config.json`, [D26](#d26)).
 
-**Jak egzekwowana.** Tylko konwencja. Nie ma reguły lintera przeciw `console.log` ani testów loggera.
+**Jak egzekwowana.** Nie ma reguły lintera przeciw `console.log`, więc to, że kod loguje przez `logger`, jest tylko konwencją. Testy loggera (`src/shared/lib/__tests__/logger.test.ts`) sprawdzają tylko atrybuty błędu (`err.type`, `err.message` i `err.stacktrace`) we wpisie z `logger.error`, który trafia do eksportera OpenTelemetry.
 
 **Źródło.** Ruling R15 w [handoffie planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md); [design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §3.
 
@@ -635,16 +638,16 @@ Do tego better-auth oczekuje sekretu o długości co najmniej 32 znaków (ruling
 - `APP_URL` musi być pełnym adresem `http` albo `https`;
 - przy `NODE_ENV=production` wymagany jest `RESEND_API_KEY`, a sekret nie może być wartością z `.env.example`.
 
-Problemy trafiają do jednego komunikatu `Nieprawidłowe zmienne środowiskowe: …`, w dwóch etapach: dwa warunki produkcyjne Zod sprawdza dopiero wtedy, gdy wszystkie pola przejdą podstawowe sprawdzenie, więc błąd produkcyjny może pojawić się dopiero po poprawieniu pozostałych ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Schemat działa przy pierwszym odczycie `env`, a nie przy imporcie, żeby sam import nie przerywał `next build` ani testów bez pełnego środowiska.
+Problemy trafiają do jednego komunikatu `Nieprawidłowe zmienne środowiskowe: …`, w dwóch etapach: dwa warunki produkcyjne Zod sprawdza dopiero wtedy, gdy wszystkie pola przejdą podstawowe sprawdzenie, więc błąd produkcyjny może pojawić się dopiero po poprawieniu pozostałych ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Schemat działa przy pierwszym odczycie `env`, a nie przy imporcie, żeby sam import nie przerywał `next build` ani testów bez pełnego środowiska. Serwer Next.js sprawdza ten sam schemat także przy starcie procesu ([D48](#d48)).
 
 **Odrzucone alternatywy.** Wcześniejsza, łagodna walidacja: każda wartość flagi inna niż `true` dawała `false`, a `APP_URL` mógł być dowolnym niepustym napisem (stan sprzed `494224e`).
 
 **Konsekwencje.**
 
-- `npm run build` nie sprawdza zmiennych. Błąd pojawia się przy pierwszym odczycie: w terminalu serwera przy logowaniu albo od razu w `npm run admin:create`. Tabela komunikatów: [01-uruchomienie.md](01-uruchomienie.md#bledy-env).
+- `npm run build` nie sprawdza zmiennych. Serwer Next.js kończy się przy starcie z raportem wszystkich problemów ([D48](#d48)), a `npm run admin:create` zgłasza błąd przy pierwszym odczycie `env`. Tabela komunikatów: [01-uruchomienie.md](01-uruchomienie.md#bledy-env).
 - Schematy z plików `env.ts` feature (`moduleEnvSchemas` z rejestru) są łączone ze schematem rdzenia.
 
-**Jak egzekwowana.** Guard w kodzie: `parseEnv` przy pierwszym odczycie `env`. Testy: `src/shared/lib/__tests__/env.test.ts` (flagi, sekret, adres, produkcja, `.env.example` jako `.env`).
+**Jak egzekwowana.** Guard w kodzie: `verifyEnvOnStartup` przy starcie serwera ([D48](#d48)) i `parseEnv` przy pierwszym odczycie `env`. Testy: `src/shared/lib/__tests__/env.test.ts` (flagi, sekret, adres, produkcja, `.env.example` jako `.env`).
 
 **Źródło.** Commit `494224e`; ruling R18 w [handoffie planu 1](superpowers/notes/2026-10-26-plan-1-handoff.md); audyt testów planu 1 (znaleziska P1–P3).
 
@@ -910,7 +913,7 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 
 **Konsekwencje.**
 
-- Blokada działa, gdy orkiestrator (agent, który prowadzi zadanie i uruchamia subagentów) zapisze `implement` do `.superpowers/phase`. Plik jest w `.gitignore`, więc blokada obejmuje tylko kopię roboczą, w której go ustawiono.
+- Blokada działa, gdy orkiestrator (agent, który prowadzi zadanie i uruchamia subagentów) zapisze `implement` do `.superpowers/phase`. Plik jest w `.gitignore`, więc blokada obejmuje kopię roboczą, w której go ustawiono, a gdy jest to katalog projektu sesji Claude Code (`$CLAUDE_PROJECT_DIR`), także pozostałe kopie robocze edytowane w tej sesji ([Faza w worktree](08b-testy-adwersarialne.md#faza-worktree)).
 - Hook nie łapie zapisu przez powłokę (na przykład heredoc w Bash).
 
 **Jak egzekwowana.**
@@ -925,7 +928,7 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 
 ## D26 · Mutation testing i bramka plików krytycznych
 
-**Status:** obowiązuje · **Data:** 2026-10-27 · **Kto zdecydował:** nie zapisano; Stryker wprowadza commit `c9d7b25`, bramkę commit `54efbcf`; wpisy wyjątków zatwierdza człowiek (`AGENTS.md`)
+**Status:** obowiązuje · **Data:** 2026-10-27 (stały seed testów właściwości pod Strykerem od 2026-11-05) · **Kto zdecydował:** nie zapisano; Stryker wprowadza commit `c9d7b25`, bramkę commit `54efbcf`; wpisy wyjątków zatwierdza człowiek (`AGENTS.md`); stały seed: sesja agenta (commity `988a2a4` i `fdf7dbe`), do zatwierdzenia w pull requeście
 
 **Kontekst.** Pokrycie kodu testami nie mówi, czy testy wykryją błąd. Mutation testing wstrzykuje do kodu drobne błędy (mutanty) i sprawdza, czy któryś test je zauważy. Autor testów nie może tego wyniku zinterpretować na swoją korzyść: mutant ginie albo nie. Audyt testów planu 1 (na commicie `50a4d9e`) dał wynik mutacji (mutation score) 71,75%, a najpoważniejsze luki, na przykład brak testu sprawdzenia roli admina w `getAdminUserOrNull`, wykrył tylko on. Po audycie dopisano testy zabijające wskazane mutanty (commit `bb935e6`), a przy wprowadzeniu Strykera do repozytorium wynik bazowy wynosił 77% (commit `c9d7b25`). Próg dla całego kodu przepuszcza jednak pojedyncze luki w plikach, w których każda luka jest błędem bezpieczeństwa.
 
@@ -935,18 +938,23 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 - Bramka plików krytycznych (`npm run test:mutation:gate`, konfiguracja w `mutation-gate.json`): w plikach z prefiksami z listy `critical` (auth, organizacje, użytkownicy, sama bramka) każdy niezabity mutant, czyli ze statusem `Survived` albo `NoCoverage`, musi mieć wpis w `allowed` z uzasadnieniem. Wpis z pustym uzasadnieniem też zatrzymuje bramkę. Wpisy dopisuje człowiek; agent je tylko proponuje.
 - Mutation testing nie jest częścią `npm run verify`. Działa w osobnym workflow, a przebieg unitowy pada poniżej `thresholds.break` (75%).
 - Logikę bramki (statusy, łączenie raportów, dopasowanie wpisów, nieaktualne wpisy) zawiera `scripts/lib/mutation-gate.ts`. `AGENTS.md` („Testy, które próbują złamać kod”) podaje regułę łączenia raportów, nieaktualnych wpisów i zakaz obniżania progu, a [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#bramka) opisuje pracę z bramką.
+- Testy właściwości (`test.prop`) mają w procesach Strykera stały seed, a w zwykłych przebiegach losowy ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#seed)). Stryker wybiera testy mutanta po nazwach z przebiegu suchego, a `@fast-check/vitest` dopisuje seed do nazwy testu, więc z losowym seedem testy właściwości nie uruchamiały się dla mutantów. Seed ustawiają `vitest.setup.ts` i `kit/cli/vitest.setup.ts`, tylko gdy istnieje zmienna `STRYKER_MUTATOR_WORKER`, którą Stryker ustawia w każdym swoim procesie.
 
 **Odrzucone alternatywy.**
 
 - Stryker w `npm run verify` (research: pełny przebieg to wielokrotność czasu `npm test`; zalecenie „dodać, ale nie do verify”).
 - Start bez progu (`thresholds.break: null`) i późniejszy próg około 60 (propozycja researchu). Wybrano 75 przy wyniku bazowym 77.
 - Wyłączanie mutacji komentarzem `// Stryker disable` (research: koliduje z regułą bez komentarzy, [D23](#d23), bo hook by go zablokował).
+- Stały seed testów właściwości we wszystkich przebiegach: `npm test` przestałby sprawdzać nowe wejścia przy każdym uruchomieniu.
+- Osobna konfiguracja Vitest dla Strykera (opcja `vitest.configFile` w konfiguracji Strykera) z plikiem ustawień, który zawsze ustawia seed: dodatkowe pliki konfiguracji w aplikacji, w konfiguracji integracyjnej i w CLI.
+- Seed losowany raz na przebieg Strykera: musiałby trafić do wszystkich procesów jednego przebiegu, a między przebiegami zmieniałby nazwy testów, więc tryb przyrostowy nie użyłby starych wyników, a wynik mutacji i bramka nie byłyby powtarzalne.
 
 **Konsekwencje.**
 
 - Pełny przebieg unitowy trwa około 12 minut (audyt planu 1, 8 rdzeni). Nigdy nie uruchamiaj dwóch przebiegów naraz: dwa przebiegi `stryker.config.json` nadpisują sobie `reports/mutation/` i `reports/stryker-incremental.json`; przebieg integracyjny dzieli bazę `_test` z innym przebiegiem integracyjnym i z `npm run test:integration`, więc test, któremu drugi proces wyczyścił tabele, daje fałszywie zabitego mutanta; przy braku procesora testy przekraczają limit czasu, a status `Timeout` liczy się jako wykryty. Katalog `.stryker-tmp/` konfliktu nie powoduje, bo każdy przebieg tworzy w nim własny podkatalog `sandbox-*` i usuwa tylko swój ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#jeden-stryker)). Sam przebieg integracyjny ma znany problem: mimo `concurrency: 1` po sprawdzeniu typów działają w nim dwa procesy testów na wspólnej bazie `_test` ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#concurrency)).
 - `npm run test:mutation:task` przy istniejącym pliku przyrostowym (`reports/stryker-incremental.json`) raportuje i ocenia progiem `break` cały projekt: wyniki pozostałych plików bierze z tego pliku. Wynik pliku zadania trzeba czytać z jego wiersza w raporcie ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#task)).
 - Nowy plik w katalogu z listy `critical` jest objęty bramką od razu, bo bramka porównuje prefiksy ścieżek.
+- W procesach Strykera test właściwości sprawdza w każdym przebiegu te same wejścia: mutant, którego nie wykrywają, przeżyje w każdym przebiegu, a zabije go dopiero test przykładowy albo lepsza właściwość. Przebieg integracyjny (`vitest.integration.config.ts`) nie ładuje `vitest.setup.ts` i nie ma stałego seeda; testy integracyjne nie używają `test.prop`.
 
 **Jak egzekwowana.**
 
@@ -954,9 +962,10 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 - `.github/workflows/mutation.yml` tylko po ręcznym uruchomieniu (`workflow_dispatch`): `npm run test:mutation`, `npm run test:mutation:integration`, `npm run test:mutation:gate`, z Postgresem jako usługą. Workflow nie działa przy pull requeście ani pushu: pełny przebieg trwa około godziny lokalnie i dłużej w GitHub Actions (2026-11-02: unitowy bez cache doszedł tam do 45% mutantów w 55 minut), zużywa minuty GitHub Actions, a przebieg integracyjny ma znany problem z bazą ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#concurrency)). Koszt: CI nie zatrzyma osłabienia testu w pliku krytycznym; pilnuje tego proces lokalny i recenzja pull requestu.
 - `thresholds.break` w `stryker.config.json`.
 - Logika bramki (`scripts/mutation-gate.ts`, `scripts/lib/mutation-gate.ts`): `scripts/lib/__tests__/mutation-gate.test.ts` w `npm test`.
+- Stały seed testów właściwości pod Strykerem: `src/__tests__/vitest-setup.test.ts` w `npm test` i `kit/cli/src/__tests__/vitest-setup.test.ts` w bramce CLI.
 - To, że wpisy w `allowed` dodaje człowiek: tylko konwencja (agent `test-reviewer` nie ma narzędzi `Edit` ani `Write`, ale ma `Bash`).
 
-**Źródło.** Commity `c9d7b25` i `54efbcf`; [AGENTS.md](../AGENTS.md), „Testy, które próbują złamać kod”; [CLAUDE.md](../CLAUDE.md), „Testy”; research i audyt testów planu 1.
+**Źródło.** Commity `c9d7b25` i `54efbcf`; stały seed: commity `988a2a4` i `fdf7dbe`; [AGENTS.md](../AGENTS.md), „Testy, które próbują złamać kod”; [CLAUDE.md](../CLAUDE.md), „Testy”; research i audyt testów planu 1.
 
 <a id="d27"></a>
 
@@ -1412,7 +1421,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 - `audit-logs` ma własny plugin better-auth (`src/features/audit-logs/auth.ts`, eksport `authPlugin`), który generator dopisuje do `authPlugins` w rejestrze.
 - Hook `after` dla ścieżek z `AUDITED_ORGANIZATION_PATHS` (`src/features/audit-logs/services/organization-audit-events.ts`): `/organization/invite-member`, `/organization/cancel-invitation`, `/organization/accept-invitation`, `/organization/update-member-role`, `/organization/remove-member` buduje zdarzenie i woła `trackAudit`. Hook `before` dla `/organization/update-member-role` czyta poprzednią rolę członka, żeby wpis miał stan przed zmianą.
-- Dwa zdarzenia woła kod rdzenia bezpośrednio: `invitation.accepted` przy rejestracji z zaproszeniem (`joinOrganizationCommand` w `src/features/organizations/services/commands/member-commands.ts`) i `organization.entered` przy wejściu do organizacji (`enterOrganizationCommand`).
+- Trzy zdarzenia woła kod rdzenia bezpośrednio: `invitation.accepted` przy rejestracji z zaproszeniem (`joinOrganizationCommand` w `src/features/organizations/services/commands/member-commands.ts`), `member.invited` przy zaproszeniu ze strony „Użytkownicy” (`inviteUserCommand`, które tworzy zaproszenie bez endpointu pluginu) i `organization.entered` przy wejściu do organizacji (`enterOrganizationCommand` oraz `trackServiceModeEntry` w hooku `session.create.after` przy logowaniu).
 
 **Odrzucone alternatywy.** Nie zapisano. Spec dopuszczał też `organizationHooks` albo `databaseHooks`; wykonawca wybrał plugin z hookami ścieżek, ograniczony do ścieżek z listy (commit `999e651`).
 
@@ -1455,14 +1464,14 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 - Guard w kodzie: `authenticateApiKey` w każdej trasie z kluczem (to, że trasa go woła: tylko konwencja).
 - `src/features/api-keys/services/__tests__/authenticate-api-key.test.ts`, `api-key-secret.test.ts`, `api-keys-isolation.integration.test.ts` (dwie organizacje), `src/features/api-keys/services/commands/__tests__/api-key-commands.test.ts` („przy 10 aktywnych kluczach zwraca błąd limitu i nic nie zapisuje”).
-- Walidacja peppera: `envSchema` modułu przy pierwszym odczycie `env` ([D17](#d17)).
+- Walidacja peppera: `envSchema` modułu przy starcie serwera ([D48](#d48)) i przy pierwszym odczycie `env` ([D17](#d17)).
 - Bramka mutacji: `src/features/api-keys/services/` w `critical` ([D26](#d26)).
 
 **Źródło.** [Spec planu 3](superpowers/specs/2026-10-28-wa-kit-plan-3-modules-design.md) §6; [plan 3](superpowers/plans/2026-10-29-wa-kit-plan-3-modules.md), „Global Constraints” (prefiks klucza) i „Review Focus” pkt 3; commity `102b706`, `946e66d`, `a6cffb0`, `97067f4`, `d2cf343`.
 
 <a id="d44"></a>
 
-## D44 · Uploads: magazyn S3, cele uploadu, widoczność `public`/`organization` z `Cache-Control`, cofnięcie obiektu przy błędzie zapisu rekordu
+## D44 · Uploads: magazyn plików, cele uploadu, widoczność `public`/`organization` z `Cache-Control`, cofnięcie obiektu przy błędzie zapisu rekordu
 
 **Status:** obowiązuje · **Data:** 2026-10-29 (`no-store` dla plików organizacji 2026-10-30) · **Kto zdecydował:** Jakub (spec planu 3, §7, „Ustalone”: cele, walidacja typu po zawartości, rekord, role, tryb serwisowy, pobieranie z `Cache-Control` zależnym od widoczności, MinIO lokalnie; 2026-10-30: `private, no-store` dla plików organizacji, commit `2e557c3`); autor specu planu 3 („Moje decyzje”: cofnięcie obiektu, usunięcie rekordu mimo błędu magazynu, brak wyjątku od `getOrgContext()`); poprawki z recenzji PR #8 (commity `0b5c91d`, `19d18d6`, `2e557c3`)
 
@@ -1470,7 +1479,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 **Decyzja.**
 
-- Pliki leżą w magazynie zgodnym z S3: lokalnie MinIO z fragmentu `docker/uploads.compose.yml` (region `wa:services`), na produkcji Railway Bucket albo R2. Zmienne modułu: `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE`.
+- Pliki leżą w magazynie, który wybiera `STORAGE_PROVIDER` ([D49](#d49)): domyślnie w katalogu na dysku serwera (`local`), a przy `s3` w magazynie zgodnym z S3 (lokalnie MinIO z profilu Compose `s3` we fragmencie `docker/uploads.compose.yml`, na produkcji Railway Bucket albo R2). Zmienne S3: `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE`. Do 2026-11-04 (`uploads` `0.1.0`) S3 był jedynym magazynem.
 - Cel uploadu deklaruje moduł w `uploadPurposes` ([D39](#d39)): dozwolone typy, limit rozmiaru, widoczność i opcjonalne zmniejszenie obrazu. Kit dostarcza cel `editor-image` (JPEG, PNG, WebP, do 5 MB, `public`, szerokość do 1200 px).
 - `POST /api/uploads` (`src/app/api/uploads/route.ts`) najpierw wymaga nagłówka `Content-Length` (inaczej 411) z rozmiarem nie większym niż największy limit celu plus 64 KB na narzut formularza (inaczej 413). Sesję i organizację trasa sprawdza po nagłówku `Content-Length`, a przed odczytem ciała. Limit konkretnego celu sprawdza się po odczycie pliku. Typ pliku ustala się z zawartości (`file-type`), nie z `file.type`, a rozszerzenie z typu. W trybie serwisowym trasa wymaga potwierdzenia jak komenda ([D22](#d22)). Klucz obiektu: `orgs/<organizationId>/<cel>/<uuid>.<rozszerzenie>`.
 - Gdy zapis rekordu `Upload` w bazie się nie uda, obiekt jest usuwany z magazynu (błąd sprzątania tylko w logu). Usunięcie pliku kasuje rekord także wtedy, gdy obiektu nie da się usunąć z magazynu.
@@ -1487,7 +1496,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 - Plik `public` jest dostępny dla każdego, kto zna adres, i zostaje w cache po stronie przeglądarki i pośredników do roku. Danych prywatnych nie wgrywa się do celu `public`.
 - Członek kilku organizacji widzi plik `organization` tylko po przełączeniu na jego organizację.
-- `wa remove uploads` i usunięcie rekordu z błędem magazynu zostawiają obiekty w buckecie; sprzątanie osieroconych obiektów ma przyjść z modułem `worker`.
+- `wa remove uploads` i usunięcie rekordu z błędem magazynu zostawiają obiekty w magazynie (pliki w katalogu `STORAGE_LOCAL_PATH` albo obiekty w buckecie); sprzątanie osieroconych obiektów ma przyjść z modułem `worker`.
 - SVG, HTML i XML nie mogą być celem uploadu ([D39](#d39)).
 
 **Jak egzekwowana.**
@@ -1510,7 +1519,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 - `.github/workflows/ci.yml` ma w jobie `integration` region `# wa:ci-integration:start` / `# wa:ci-integration:end`. `wa generate` wpisuje do niego treść plików wskazanych w polu `ciSteps` manifestów, z wcięciem 6 spacji, fragmenty modułów oddzielone pustą linią (`ciStepsBody` w `kit/cli/src/generate/targets.ts`).
 - `uploads` wnosi `ci/uploads.integration-steps.yml` (start MinIO i utworzenie bucketu `<slug>-uploads`); plik jest w `placeholderFiles` ([D32](#d32)).
-- Od `core` 0.4.1 ten sam region (ten sam marker i ta sama treść) ma job `stryker` w `.github/workflows/mutation.yml`, przed krokiem „Run Stryker (integration)”, bo `stryker.integration.config.json` uruchamia te same testy integracyjne, w tym testy `uploads` na S3. Region zamiast kroków wpisanych wprost: projekt bez `uploads` nie uruchamia MinIO, a kroki modułu żyją w jednym pliku (`ciSteps`).
+- Od `core` 0.5.1 ten sam region (ten sam marker i ta sama treść) ma job `stryker` w `.github/workflows/mutation.yml`, przed krokiem „Run Stryker (integration)”, bo `stryker.integration.config.json` uruchamia te same testy integracyjne, w tym testy `uploads` na S3. Region zamiast kroków wpisanych wprost: projekt bez `uploads` nie uruchamia MinIO, a kroki modułu żyją w jednym pliku (`ciSteps`).
 - Gdy plik docelowy dowolnego regionu nie ma markerów, a region byłby pusty, generator go pomija bez błędu. Gdy moduł ma coś do wpisania, brak markerów kończy się błędem `<plik>: brak regionu wa:<marker>; …`, a jeden marker bez drugiego jest błędem uszkodzonego regionu.
 
 **Odrzucone alternatywy.** MinIO jako usługa `services:` w GitHub Actions (brak `command`, spec planu 3, §7). Powodu pomijania pustego regionu commit nie podaje; z testów wynika, że projekt bez markerów w pliku docelowym generuje się bez błędu, dopóki żaden moduł nie ma czego tam wpisać.
@@ -1519,10 +1528,10 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 - Projekt bez modułów z `ciSteps` ma pusty region i nie uruchamia MinIO.
 - `e2e.yml` nie ma regionu: kroki modułów działają tylko w jobie `integration` (`ci.yml`) i w jobie `stryker` (`mutation.yml`).
-- Projekt z modułem, który ma `ciSteps`, po przeniesieniu bundla `.wa/bin/wa.mjs` z `core` 0.4.1 bez nowego `mutation.yml` dostaje przy `wa generate` błąd `.github/workflows/mutation.yml: brak regionu wa:ci-integration; …` (test „mutation.yml bez markerów, a moduł ma ciSteps” w `ci-steps.test.ts`), więc markery przenosi się razem z bundlem. Projekt, który usunął `mutation.yml`, generuje się bez błędu.
+- Projekt z modułem, który ma `ciSteps`, po przeniesieniu bundla `.wa/bin/wa.mjs` z `core` 0.5.1 bez nowego `mutation.yml` dostaje przy `wa generate` błąd `.github/workflows/mutation.yml: brak regionu wa:ci-integration; …` (test „mutation.yml bez markerów, a moduł ma ciSteps” w `ci-steps.test.ts`), więc markery przenosi się razem z bundlem. Projekt, który usunął `mutation.yml`, generuje się bez błędu.
 - `AGENTS.md` nie wymienia regionu ani pola `ciSteps` (rozbieżność R1).
 - Test własności sprawdza, że plik z `compose` należy do modułu, ale pliku z `ciSteps` nie sprawdza ([D38](#d38)).
-- Region działa tylko w CI. Lokalnie testy integracyjne korzystają z MinIO z `docker compose up -d` projektu: domyślne wartości w `src/test/integration/setup-env.ts` (`http://localhost:9000`, bucket `<slug>-uploads`) odpowiadają usługom `minio` i `minio-init`. `INTEGRATION_S3_ENDPOINT` i `INTEGRATION_S3_BUCKET` zmieniają adres i bucket, gdy MinIO działa gdzie indziej.
+- Region działa tylko w CI. Lokalnie testy integracyjne korzystają z MinIO projektu uruchomionego przez `docker compose --profile s3 up -d` ([D49](#d49)): domyślne wartości w `src/test/integration/setup-env.ts` (`http://localhost:9000`, bucket `<slug>-uploads`) odpowiadają usługom `minio` i `minio-init`, a `STORAGE_PROVIDER=s3` z tego pliku trzyma testy na S3 także w projekcie, którego aplikacja zapisuje pliki na dysku. `INTEGRATION_S3_ENDPOINT` i `INTEGRATION_S3_BUCKET` zmieniają adres i bucket, gdy MinIO działa gdzie indziej.
 
 **Jak egzekwowana.** Bramka CLI: `kit/cli/src/generate/__tests__/ci-steps.test.ts` (wcięcie, kolejność, „ci.yml bez markerów i bez ciSteps → sukces, ci.yml bajt w bajt bez zmian”, „ci.yml bez markerów, a moduł ma ciSteps → błąd brak regionu i żaden plik nie zmieniony”). Zgodność regionu z manifestami: job `verify` w `.github/workflows/ci.yml` ([D04](#d04)). Job `assemble` w `.github/workflows/kit.yml` uruchamia MinIO własnymi krokami dla kombinacji z `uploads`.
 
@@ -1552,3 +1561,91 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 **Jak egzekwowana.** Wersja źródła: guard w kodzie (`resolveKitSource`) i testy `kit/cli/src/kit/__tests__/source.test.ts` (na przykład „tag w klonie wynika z wersji projektu”, „lokalny kit w wersji 0.1.0 przy projekcie 9.9.9 kończy się błędem z obiema wersjami”). Ustawienie tagu przy wydaniu: tylko konwencja.
 
 **Źródło.** [kit/CLAUDE.md](../kit/CLAUDE.md), „Składanie i wydanie”; `kit/cli/src/kit/source.ts`; [plan 2](superpowers/plans/2026-10-27-wa-kit-plan-2-cli.md), decyzja D2.
+
+<a id="d48"></a>
+
+## D48 · Walidacja `env` przy starcie procesu
+
+**Status:** obowiązuje · **Data:** 2026-11-04 · **Kto zdecydował:** Jakub (walidacja całego `env` przy starcie procesu tak jak w Ragenie, raport z linią na każdy problem, raport na konsoli: spec providera storage, §2 i §4.2); autor specu providera storage (wyjście z kodem 1, zapisane jako „moja interpretacja reguły Ragena, do sprawdzenia przy czytaniu”; spec Jakub zatwierdził 2026-11-04); autor planu providera storage (wariant bez rzucania `checkEnv`, nagłówek raportu z liczbą problemów, pominięcie fazy `next build` bez warunku); wykonawca planu providera storage (obiekt `processStartupIo` w `src/shared/lib/env.ts` zamiast obiektu `io` w `register()`)
+
+**Kontekst.** Walidacja `env` była wyłącznie leniwa: obiekt `env` sprawdzał zmienne przy pierwszym odczycie, a healthcheck czyta tylko bazę. Błędne zmienne nie zatrzymywały więc wdrożenia. Healthcheck odpowiadał 200, więc według dokumentacji Railway ruch przechodził na nową wersję, a aplikacja zwracała 500 dopiero przy pierwszym żądaniu, które czyta `env`, na przykład przy logowaniu. Spec providera storage wymaga, żeby brak wymaganej zmiennej albo konfiguracja, która zgubiłaby pliki, kończyła się błędem przy starcie procesu, a nie przy pierwszym uploadzie. Ragen sprawdza `env` przy starcie i zbiera wszystkie problemy naraz, bo pętla restartów, która odsłania jedną zmienną na raz, wydłuża konfigurację.
+
+**Decyzja.**
+
+- `register()` w `src/instrumentation.ts`, tylko w środowisku `nodejs` i przed konfiguracją eksportu logów, woła `verifyEnvOnStartup(process.env, processStartupIo)` z `src/shared/lib/env.ts`. Obiekt `processStartupIo` z tego samego pliku przekazuje raport do `console.error`, a kod wyjścia do `process.exit`, więc `src/instrumentation.ts` nie odwołuje się do `process.exit`. Funkcja sprawdza pełny schemat, czyli `coreEnvSchema` razem ze schematami modułów z `moduleEnvSchemas`, tym samym schematem, którego używa `parseEnv`.
+- Wszystkie problemy trafiają do jednego raportu (`formatEnvReport`): pierwsza linia `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):`, potem po jednej linii `- <nazwa>: <komunikat>` na problem. Nazwą jest ścieżka problemu z Zod połączona kropkami, a problem bez ścieżki ma nazwę `(env)` (`checkEnv`).
+- Raport idzie na `console.error`, a nie przez `logger`, a potem proces kończy się kodem 1. To wyjątek od [D15](#d15) tylko dla raportu startowego.
+- `next build` działa bez zmiennych, bo nie wywołuje `register()` (sprawdzone w Next.js 16.4.3). Przy `NEXT_PHASE` równym `phase-production-build` (`PHASE_PRODUCTION_BUILD` z `next/constants`) `verifyEnvOnStartup` i tak niczego nie sprawdza: to zabezpieczenie na wypadek, gdyby build wywołał `register()`.
+- Leniwe `env` zostaje i chroni import w `next build` oraz w testach bez pełnego środowiska ([D17](#d17)). `parseEnv` korzysta z `checkEnv` i rzuca jednoliniowy błąd w tym samym formacie co wcześniej (`Nieprawidłowe zmienne środowiskowe: <nazwa>: <komunikat>; …`). Różni się tylko problem bez ścieżki: ma nazwę `(env)`, a wcześniej miał pusty napis.
+- Sprawdzenie nie ma flagi „już sprawdzone”: przy poprawnych zmiennych niczego nie wypisuje, a przy błędnych proces kończy się przy pierwszym wywołaniu, więc kolejne wywołanie `register()` raportu nie powtórzy.
+
+**Odrzucone alternatywy.**
+
+- Walidacja tylko leniwa, przy pierwszym odczycie `env`, czyli stan sprzed tej decyzji: błędne zmienne przechodziły healthcheck, a aplikacja zwracała 500 dopiero przy pierwszym żądaniu, które czyta `env` (spec §4.2).
+- Proces, który żyje dalej mimo błędnych zmiennych, jak `apps/web` w Ragenie. Ragen zostawia go przy życiu, bo serwuje stronę konfiguracji z listą zmiennych do poprawienia. Kit nie ma takiej strony (nie-cel specu), więc jest w sytuacji `apps/api` i workera Ragena, które kończą pracę (`parseEnvOrExit`).
+- Raport przez `logger`: na produkcji bez `OTEL_EXPORTER_OTLP_ENDPOINT` wpis by zniknął ([D15](#d15)). Ragen z tego samego powodu używa przy starcie konsoli.
+- Sprawdzenie przy starcie, które łapie wyjątek z `parseEnv` i przerabia jego tekst na raport. Spec zostawił wybór wykonawcy (§5), a plan wybrał wariant bez rzucania (`checkEnv`), taki jak w Ragenie.
+
+**Konsekwencje.**
+
+- Każda reguła `env` rdzenia i modułów zatrzymuje start, także reguła produkcyjna `API_KEY_PEPPER` z `api-keys`: wartość z `.env.example` przy `NODE_ENV=production` kończy proces kodem 1 (sprawdzone na zbudowanym serwerze). To zamierzone (spec §4.2).
+- Nowe wdrożenie z błędnymi zmiennymi nie przechodzi healthchecku, a Railway zostawia ruch przy poprzedniej wersji (niesprawdzone na Railway). Restart kontenera niczego nie zmienia, bo każdy start kończy się tym samym raportem ([10-wdrozenie.md](10-wdrozenie.md#blad-env)).
+- Warunki produkcyjne schematu Zod sprawdza dopiero po przejściu podstawowych reguł tego samego schematu, więc po poprawieniu zmiennych kolejny start może pokazać nowy raport ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)).
+- `npm run dev` z niepełnym `.env` kończy się raportem i kodem 1, zamiast startować i zgłaszać błąd przy pierwszym odczycie `env` (sprawdzone).
+- Brak wymaganej zmiennej w `e2e/env.ts` zatrzymuje serwery e2e przy starcie ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#nowy-modul-kitu)).
+- Skrypty (`npm run admin:create`) i testy nie wywołują `register()`. Ich zmienne sprawdza dopiero pierwszy odczyt `env`, a błąd ma postać jednoliniowego wyjątku z `parseEnv`.
+
+**Jak egzekwowana.**
+
+- Guard w kodzie: `register()` w `src/instrumentation.ts` przy każdym starcie serwera Next.js.
+- Testy w `npm run verify`: `src/shared/lib/__tests__/env-startup.test.ts` (na przykład „błędne zmienne → kończy proces raz, kodem 1” i „faza next build → bez sprawdzenia, raportu i wyjścia”) oraz `src/__tests__/instrumentation.test.ts` („runtime nodejs z błędnym env i bez OTel → raport na console.error i process.exit(1)”).
+
+**Źródło.** [Spec providera storage](superpowers/specs/2026-11-04-uploads-storage-provider-design.md) §2, §4.2, §5 i §6; [plan](superpowers/plans/2026-11-04-uploads-storage-provider.md), Task 1; walidacja `env` w Ragenie (ADR-37, `packages/env/src/parse.ts`, `apps/web/src/instrumentation.ts`) w opisie specu.
+
+<a id="d49"></a>
+
+## D49 · Uploads: provider storage `local` albo `s3`, domyślnie `local`
+
+**Status:** obowiązuje · **Data:** 2026-11-04 · **Kto zdecydował:** Jakub (zmienna `STORAGE_PROVIDER` z wartościami `local` i `s3`, domyślnie `local`, i błąd przy starcie procesu zamiast przy pierwszym uploadzie: spec providera storage, §1, §2 i §4.1; spec Jakub zatwierdził 2026-11-04); autor specu providera storage („Moje decyzje”, zapisane „do sprawdzenia przy czytaniu”: nazwy `S3_*` bez zmian, `STORAGE_LOCAL_PATH` z domyślnym `RAILWAY_VOLUME_MOUNT_PATH` i `./volumes/uploads`, trzy reguły produkcyjne, podwójna ochrona przed path traversal, MinIO w profilu Compose `s3`, katalog `/app/volumes/uploads` w obrazie, zalecenie Railway Bucket na Railway); autor planu providera storage (pliki `local-storage.ts`, `s3-storage.ts` i `storage-env.ts`, treść komunikatów, zapis pliku bez pliku tymczasowego); wykonawca planu providera storage (notka o przejściu z `uploads` `0.1.0`, ruling R17 w ledgerze wykonania; ruling R19 po recenzji końcowej gałęzi: czwarta reguła produkcyjna, ścieżka bezwzględna poza Railway, z uzasadnieniem ze specu §4.3)
+
+**Kontekst.** Moduł `uploads` w wersji `0.1.0` zapisywał pliki wyłącznie w magazynie zgodnym z S3, więc nie działał bez bucketu: lokalnie potrzebny był MinIO w Dockerze, a na produkcji Railway Bucket albo R2. Na spotkaniu 2026-11-03 Patryk zwrócił uwagę, że będą wdrożenia bez S3, i wskazał jako wzór pakiet `storage` z Ragena, który ma provider lokalny i S3. Provider lokalny niesie ryzyko cichej utraty plików: na Railway bez wolumenu albo w kontenerze bez trwałego katalogu pliki znikają przy redeployu, a spec providera storage zapisuje to jako anty-cel.
+
+**Decyzja.**
+
+- `STORAGE_PROVIDER` wybiera magazyn: `local` albo `s3`. Wartość jest przycinana i zamieniana na małe litery, brak i pusta wartość dają `local`, a każda inna jest błędem walidacji. Provider `local` trzyma pliki w katalogu `STORAGE_LOCAL_PATH`, a gdy jej nie ma, w `RAILWAY_VOLUME_MOUNT_PATH`, a dalej w `./volumes/uploads` względem katalogu roboczego procesu. Zmienne `S3_*` zostają z dawnymi nazwami i regułami i obowiązują tylko przy `s3`.
+- Wybór i reguły liczy czysta funkcja `resolveStorageEnv` (`src/features/uploads/services/storage-env.ts`), a woła ją schemat `src/features/uploads/env.ts`. Konfiguracja magazynu jest więc częścią sprawdzenia `env` przy starcie ([D48](#d48)). Wynik (`StorageEnv` w `contracts/storage.types.ts`) mówi wprost, który provider wybrano.
+- Przy `NODE_ENV=production` i providerze `local` cztery reguły zatrzymują start: Railway (niepuste `RAILWAY_ENVIRONMENT_ID`) bez wolumenu, `STORAGE_LOCAL_PATH` poza wolumenem Railway, brak `STORAGE_LOCAL_PATH` poza Railway i `STORAGE_LOCAL_PATH` poza Railway, który po obcięciu spacji nie jest ścieżką bezwzględną (`path.isAbsolute`) ([15-modul-uploads.md](15-modul-uploads.md#reguly-produkcyjne)).
+- `putObject`, `getObject` i `deleteObject` w `services/storage.ts` zachowują sygnatury i przekazują wywołania providerowi tworzonemu raz na proces: `local-storage.ts` albo `s3-storage.ts`, za wspólnym interfejsem `ObjectStorage`. Trasy i komendy modułu się nie zmieniły.
+- Provider `local` odrzuca klucz bezwzględny, z segmentem `..` albo z bajtem `\0` i sprawdza, że ścieżka po rozwiązaniu leży w katalogu magazynu. To obrona w głąb, bo klucze tworzy sam moduł.
+- Usługi `minio` i `minio-init` w `docker/uploads.compose.yml` mają profil Compose `s3`, więc `docker compose up -d` ich nie uruchamia. Testy integracyjne zostają na S3 (`STORAGE_PROVIDER=s3` w `src/test/integration/setup-env.ts`), a serwery e2e działają z `local` na katalogu tymczasowym (`e2e/env.ts`).
+- `Dockerfile` (rdzeń) zakłada katalog `/app/volumes/uploads` należący do `nextjs:nodejs`, bo `/app` należy do roota, a proces działa jako `nextjs`.
+- `@aws-sdk/client-s3` zostaje w zależnościach manifestu także dla projektów z `local`, bo warunkowa zależność komplikowałaby CLI.
+
+**Odrzucone alternatywy.**
+
+- S3 jako provider domyślny: świeży projekt ma działać bez konta w chmurze i bez dodatkowej usługi, z tym samym uzasadnieniem co ADR-27 Ragena (spec §1).
+- Nazwy zmiennych z Ragena (`S3_ENDPOINT_URL`, `S3_BUCKET_NAME`): nie dają nic, a zmiana dotknęłaby dokumentacji, CI i e2e (spec §2 i §4.1).
+- Ostrzeżenie w logach zamiast reguły dla `local` w produkcji poza Railway: według [D15](#d15) `logger` na produkcji bez `OTEL_EXPORTER_OTLP_ENDPOINT` nie pisze nigdzie, więc ostrzeżenie byłoby niewidoczne (spec §4.3).
+- Każdy ustawiony `STORAGE_LOCAL_PATH` poza Railway, także względny, jako dowód świadomego wyboru katalogu (wiersz tabeli zachowań w planie, Task 3): `wa create` wpisuje do `.env` przykład `./volumes/uploads`, więc wymóg jawnej ścieżki byłby spełniony bez decyzji administratora, a `node .next/standalone/server.js` liczy tę ścieżkę od `.next/standalone`, który usuwa następny `next build` (ruling R19).
+- Ogólny mechanizm „seamów” jak `STORAGE_SEAM` w Ragenie: przy jednym przełączniku byłby na wyrost (spec §2).
+
+**Konsekwencje.**
+
+- Projekt z `uploads` startuje lokalnie bez MinIO i bez zmiennych `S3_*`; pliki leżą w `volumes/uploads`, który jest w `.gitignore`.
+- Na produkcji `local` wymaga jednej instancji i trwałego katalogu: wolumenu na Railway albo wolumenu Dockera na własnym serwerze. Na Railway dokumentacja kitu zaleca Railway Bucket, bo pozwala na repliki, nie ma przerwy przy redeployu i nie wymaga `RAILWAY_RUN_UID=0` ([10-wdrozenie.md](10-wdrozenie.md#pliki-uploads)).
+- Na własnym serwerze `STORAGE_LOCAL_PATH` jest ścieżką bezwzględną, także przy `npm start` w trybie produkcyjnym na własnym komputerze. `./volumes/uploads` z `.env.example` przechodzi tylko poza produkcją i na Railway, gdzie po rozwiązaniu musi leżeć w wolumenie. Obraz Docker uruchomiony bez `-v`, z bezwzględnym `STORAGE_LOCAL_PATH=/app/volumes/uploads`, przechodzi start, choć pliki leżą na dysku kontenera: tego reguły nie wykrywają ([10-wdrozenie.md](10-wdrozenie.md#wlasny-serwer)).
+- Moduł nie przenosi plików między providerami: po zmianie `STORAGE_PROVIDER` stare pliki zostają w poprzednim magazynie i dają 404 ([znane-ograniczenia.md](znane-ograniczenia.md#uploads-local)).
+- Projekt, który używał S3 na `uploads` `0.1.0`, po przejściu na `0.2.0` ustawia `STORAGE_PROVIDER=s3`, a lokalny MinIO uruchamia przez `docker compose --profile s3 up -d`. Bez tego serwer deweloperski po cichu przechodzi na `local`, a produkcja poza Railway nie wystartuje, bo zatrzyma ją reguła `STORAGE_LOCAL_PATH` ([15-modul-uploads.md](15-modul-uploads.md#aktualizacja)). Według Jakuba w chwili decyzji żaden projekt nie używał `uploads`, więc zmiana domyślnego providera nie ma migracji (spec §1).
+- `uploads` `0.2.0` wymaga `core` `0.5.0` (`src/shared/lib/env.ts`, `src/instrumentation.ts`, `e2e/env.ts`, `src/test/integration/setup-env.ts`, `Dockerfile`). CLI tego nie sprawdza: w lokalnym klonie kitu `wa add` porównuje tylko `version` z `kit/kit.json`, która także w kicie z `uploads` `0.2.0` ma wartość `0.1.0`, więc `wa add uploads --kit <klon>` w projekcie z tagu `v0.1.0` zainstaluje `uploads` `0.2.0` na `core` `0.4.0`. Z domyślnego źródła `wa add` instaluje moduł z tagu `v<kitVersion>`, czyli przy `0.1.0` `uploads` `0.1.0` (tylko S3). Skutki na `core` `0.4.0`: [15-modul-uploads.md](15-modul-uploads.md#wersja-core).
+- Nazwy zmiennych magazynu są w trzech miejscach (pole `env` manifestu, `env.ts` i `storage-env.ts`), a nic ich nie porównuje ([15-modul-uploads.md](15-modul-uploads.md#lista-zmiennych)).
+- Ochrona ścieżek jest leksykalna, więc katalog magazynu ma należeć wyłącznie do aplikacji.
+
+**Jak egzekwowana.**
+
+- Guard w kodzie: reguły `resolveStorageEnv` zatrzymują start przez `register()` ([D48](#d48)), a `resolveObjectPath` sprawdza klucz przy każdej operacji providera `local`.
+- Testy w `npm run verify`: `src/features/uploads/services/__tests__/storage-env.test.ts` (na przykład „w produkcji pusty RAILWAY_ENVIRONMENT_ID znaczy poza Railway”, „w produkcji poza Railway względny STORAGE_LOCAL_PATH daje problem „musi być ścieżką bezwzględną”” i „nieznany STORAGE_PROVIDER daje jeden problem z listą dozwolonych wartości”), `local-storage.test.ts`, `path-inside.test.ts`, `create-object-storage.test.ts`, `storage-local-env.test.ts`, `storage.test.ts` i `src/features/uploads/__tests__/env.test.ts`.
+- Osobny workflow CI: job `integration` w `.github/workflows/ci.yml` uruchamia testy integracyjne modułu na MinIO.
+- Bramka mutacji: `src/features/uploads/services/` w `critical` ([D26](#d26)). `src/features/uploads/env.ts` nie jest we wzorcach `mutate` w `stryker.config.json`, dlatego reguły leżą w `services/`.
+- Profil Compose `s3` i katalog `/app/volumes/uploads` w obrazie: tylko konwencja. Job `assemble` buduje obraz (`docker build .`), ale nie sprawdza katalogu ani listy usług Compose.
+
+**Źródło.** [Spec providera storage](superpowers/specs/2026-11-04-uploads-storage-provider-design.md) §1–§6; [plan](superpowers/plans/2026-11-04-uploads-storage-provider.md), Task 2–6; commity `787fb39`, `c3b0a86`, `b435fda`, `cc7c13b`, `22bd604`, `a08b121`, `734391b` i `6c05f1f` (ruling R19); pakiet `storage` i ADR-27 Ragena oraz dokumentacja Railway ([wolumeny](https://docs.railway.com/volumes/reference), [Storage Buckets](https://docs.railway.com/storage-buckets)) w opisie specu.

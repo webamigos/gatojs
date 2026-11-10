@@ -91,7 +91,7 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
   - bramka mutacji: `critical` i `allowed` w root `mutation-gate.json` (`c8b5f74`, `c6c26c4`, `36dd132`).
   Skutek: projekt z samym `core` dostaje katalogi `critical` nieobecnych modułów, wpisy `allowed` dla plików `api-keys` i wartości `API_KEY_PEPPER`, `S3_*` w plikach testowych; nieszkodliwe, bo `checkMutationGate` (`scripts/lib/mutation-gate.ts`) ocenia tylko pliki z raportu.
 - **Propozycja:** dopisać w `kit/CLAUDE.md`, że moduł kitu może wymagać zmian plików rdzenia (setup testów, `mutation-gate.json`, szwy), które robi się osobnym commitem `core` z podbiciem jego wersji; albo przenieść wartości testowe modułów do plików modułów (na przykład przez region generowany z manifestu). Dokumentacja: [16b-rozwoj-kitu.md](../../16b-rozwoj-kitu.md#nowy-modul-kitu).
-- **Status:** otwarte.
+- **Status:** decyzja Jakuba (2026-11-02): doprecyzować regułę. `kit/CLAUDE.md` („Moduły i manifest”) mówi, że zmianę rdzenia wymaganą przez moduł robi się osobnym commitem z podbiciem `core`; `AGENTS.md`/`CLAUDE.md` bez zmian (reguła dla modułów w projekcie). Wcześniejsze commity planu 3 zostają, jak są.
 
 ## R13. `AGENTS.md` nie wymienia punktów wejścia rdzenia dla modułów, a kontrakt trybu serwisowego w UI zna tylko `run`
 
@@ -161,7 +161,7 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Dokument:** `AGENTS.md`, „Testy” (testy integracyjne na bazie `_test`; nic o sprzątaniu magazynu).
 - **Kod:** `src/features/uploads/services/__tests__/storage.integration.test.ts` zapisuje obiekty `orgs/o1/test/<uuid>.txt` i `orgs/o2/test/<uuid>.txt` i nie usuwa ich (`read-upload.integration.test.ts` i `uploads-isolation.integration.test.ts` usuwają swoje w `afterAll`). Po przebiegu Task 8 w buckecie `upload-demo-uploads` zostało siedem takich obiektów.
 - **Propozycja:** w teście kitu zbierać klucze i usuwać je w `afterAll` (zgłoszenie do kitu). `docs/15b-modul-uploads-uzycie.md` („Testowanie”) ostrzega przed wskazywaniem testom bucketu z danymi.
-- **Status:** naprawione ([PR #12](https://github.com/webamigos/wa-kit/pull/12)): test usuwa zapisane klucze w `afterAll` (`uploads` 0.1.1). Pozycja usunięta z [znane-ograniczenia.md](../../znane-ograniczenia.md#moduly-male), ostrzeżenie w 15b zastąpione.
+- **Status:** naprawione ([PR #12](https://github.com/webamigos/wa-kit/pull/12)): test usuwa zapisane klucze w `afterAll` (`uploads` 0.2.1). Pozycja usunięta z [znane-ograniczenia.md](../../znane-ograniczenia.md#moduly-male), ostrzeżenie w 15b zastąpione.
 
 ## R23. 01 i 09b odsyłają do usuniętych sekcji `uploads` w 12
 
@@ -175,14 +175,16 @@ Kod nie jest poprawiany. Dokumentacja opisuje to, co robi kod. Każdy wpis ma po
 - **Dokument:** RFC 5987/8187 (`attr-char`: litery, cyfry i ``!#$&+-.^_`|~``) i [spec planu 3](../specs/2026-10-28-wa-kit-plan-3-modules-design.md) §7 („Poprawny `Content-Disposition` (RFC 6266, `filename*`)”).
 - **Kod:** `src/features/uploads/services/content-disposition.ts` koduje `filename*` przez `encodeURIComponent` i zamienia tylko `'` na `%27`; `encodeURIComponent` zostawia `!~*()` (`encodeURIComponent("a!~*()b.png")` daje `a!~*()b.png`). `*`, `(` i `)` nie są `attr-char`, więc nazwa z nawiasami daje wartość niezgodną ze składnią RFC.
 - **Propozycja:** w kodzie kitu zamieniać też `*`, `(`, `)` na `%2A`, `%28`, `%29` i dopisać przypadek testu (zgłoszenie do kitu). `docs/15-modul-uploads.md` („Pobieranie”) opisuje zachowanie z kodu.
-- **Status:** naprawione ([PR #12](https://github.com/webamigos/wa-kit/pull/12)): `filename*` koduje też `(`, `)` i `*` (`uploads` 0.1.1). Pozycja usunięta z [znane-ograniczenia.md](../../znane-ograniczenia.md#moduly-male), opis w 15 poprawiony.
+- **Status:** naprawione ([PR #12](https://github.com/webamigos/wa-kit/pull/12)): `filename*` koduje też `(`, `)` i `*` (`uploads` 0.2.1). Pozycja usunięta z [znane-ograniczenia.md](../../znane-ograniczenia.md#moduly-male), opis w 15 poprawiony.
 
 ## R25. `mutation.yml` nie uruchamia MinIO, a przebieg integracyjny Strykera obejmuje testy `uploads`
 
 - **Dokument:** `AGENTS.md`, „Testy” (`.github/workflows/mutation.yml` uruchamiany ręcznie, pełny przebieg przed releasem kitu) i [D26](../../decyzje.md#d26).
 - **Kod:** `.github/workflows/mutation.yml` ma tylko usługę `postgres:16` i nie ma regionu `wa:ci-integration` ani kroków MinIO, a krok „Run Stryker (integration)” uruchamia `npm run test:mutation:integration` z `vitest.integration.config.ts`, czyli także `src/features/uploads/services/__tests__/*.integration.test.ts`, które łączą się z S3 pod `http://localhost:9000` (`setup-env.ts`, `storage.integration.test.ts`). Lista `mutate` w `stryker.integration.config.json` obejmuje `src/features/*/services/**/*.ts`. Bez MinIO testy `uploads` nie przejdą już w przebiegu początkowym Strykera, więc przebieg integracyjny w tym workflowie w repozytorium kitu i w projekcie z `uploads` najpewniej zakończy się błędem (wniosek z kodu workflowu i testów; workflow nie był uruchamiany). Job `integration` w `ci.yml` ma te kroki w regionie `wa:ci-integration`.
 - **Propozycja:** dodać do `mutation.yml` region `# wa:ci-integration:start/end` przed krokiem „Run Stryker (integration)” i wpisać ten plik do regionów generatora (zgłoszenie do kitu). `docs/08-testy.md` („CI”) opisuje stan z kodu.
-- **Status:** naprawione ([PR #12](https://github.com/webamigos/wa-kit/pull/12)): `mutation.yml` ma region `wa:ci-integration` wypełniany przez `wa generate` (`core` 0.4.1, nowy cel w `kit/cli/src/generate/targets.ts`). Pozycja usunięta z [znane-ograniczenia.md](../../znane-ograniczenia.md#moduly-male), opis w 08 i D45 poprawiony.. Nagłówki „Zweryfikowano z kodem” wskazywały commity spoza historii `main`
+- **Status:** naprawione ([PR #12](https://github.com/webamigos/wa-kit/pull/12)): `mutation.yml` ma region `wa:ci-integration` wypełniany przez `wa generate` (`core` 0.5.1, nowy cel w `kit/cli/src/generate/targets.ts`). Pozycja usunięta z [znane-ograniczenia.md](../../znane-ograniczenia.md#moduly-male), opis w 08 i D45 poprawiony.
+
+## R26. Nagłówki „Zweryfikowano z kodem” wskazywały commity spoza historii `main`
 
 - **Dokument:** `docs/01-uruchomienie.md` i `docs/10-wdrozenie.md` (`09744c4`), `docs/07-i18n-mail-env.md` (`f965e0a`), `docs/09b-implementacja-i-bramki.md` (`a4d5af3`), linia 11. `git merge-base --is-ancestor <sha> HEAD` daje fałsz dla wszystkich trzech, a `git branch -a --contains` nie wskazuje żadnej gałęzi: te commity nie są osiągalne z żadnej gałęzi (ten sam temat i data co commity na `main`, więc najpewniej wersje sprzed przepisania historii gałęzi modułów).
 - **Kod:** odpowiedniki na `origin/main` (ten sam temat commitu, ta sama data): `09744c4` → `1166d08` („ci(kit): assemble uploads and all combos”), `f965e0a` → `e2a4a2a` („fix(api-keys): confirm before revoking or deleting keys”), `a4d5af3` → `0b5c91d` („fix(uploads): flatten images, forbid xml and sandbox downloads”). Lokalna gałąź `main` (`5b2d308`) jest za `origin/main` (`76ca2d7`) i nie zawiera żadnego z nich; `origin/main` jest przodkiem `docs/part-2`. Wynik `git diff <stary> <odpowiednik> -- <pliki z „Źródła”>` (bez ścieżek w `node_modules/` i dokumentacji zewnętrznej, które nie są w gicie):

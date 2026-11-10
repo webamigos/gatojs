@@ -5,7 +5,7 @@ Po przeczytaniu będziesz wiedzieć:
 - dlaczego testy zadania pisze inny agent niż kod i co z tego wynika dla Twojej pracy;
 - jak przebiega zadanie: `test-writer`, faza implementacji z hookiem `protect-tests`, `test-reviewer`;
 - jakie zasady muszą spełniać testy i jak wyglądają w kodzie kitu;
-- jak działa Stryker, co znaczy wynik mutacji i jak uruchomić go na plikach zadania;
+- jak działa Stryker, co znaczy wynik mutacji, jak uruchomić go na plikach zadania i dlaczego testy właściwości mają pod nim stały seed;
 - jak działa bramka plików krytycznych, kto dopisuje wyjątki do `mutation-gate.json` i co zrobić, gdy bramka jest czerwona;
 - dlaczego naraz może działać tylko jeden Stryker.
 
@@ -20,6 +20,11 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 - `.claude/settings.json`
 - `stryker.config.json`
 - `stryker.integration.config.json`
+- `vitest.setup.ts`
+- `src/__tests__/vitest-setup.test.ts`
+- `kit/cli/vitest.config.ts`
+- `kit/cli/vitest.setup.ts`
+- `kit/cli/src/__tests__/vitest-setup.test.ts`
 - `mutation-gate.json`
 - `scripts/mutation-gate.ts`
 - `scripts/lib/mutation-gate.ts`
@@ -115,7 +120,7 @@ flowchart TD
 
 ## Faza implementacji i hook `protect-tests`
 
-Hook `.claude/hooks/protect-tests.mjs` jest zarejestrowany w `.claude/settings.json` jako `PreToolUse` dla narzędzi pasujących do `Edit|Write`, obok hooka komentarzy ([D23](decyzje.md#d23)). Przed każdą edycją pliku Claude Code przekazuje mu ścieżkę pliku. Hook czyta plik `.superpowers/phase` z katalogu projektu (`CLAUDE_PROJECT_DIR`, a bez niego katalog roboczy sesji) i blokuje edycję, gdy zawartość pliku po obcięciu białych znaków na brzegach ma wartość dokładnie `implement`, a ścieżka pasuje do wzorca:
+Hook `.claude/hooks/protect-tests.mjs` jest zarejestrowany w `.claude/settings.json` jako `PreToolUse` dla narzędzi pasujących do `Edit|Write`, obok hooka komentarzy ([D23](decyzje.md#d23)). Przed każdą edycją pliku Claude Code przekazuje mu ścieżkę pliku. Hook czyta plik `.superpowers/phase` z dwóch miejsc: z kopii roboczej, w której leży edytowany plik, i z katalogu projektu sesji ([Faza w worktree](#faza-worktree)). Blokuje edycję, gdy w którymkolwiek z nich zawartość pliku po obcięciu białych znaków na brzegach ma wartość dokładnie `implement`, a ścieżka pasuje do wzorca:
 
 `.claude/hooks/protect-tests.mjs`
 
@@ -132,7 +137,7 @@ Zablokowane: faza implementacji (.superpowers/phase = implement), testy są tylk
 Jeśli test jest błędny albo sprzeczny ze specyfikacją, zatrzymaj się i zgłoś to w raporcie zamiast go zmieniać.
 ```
 
-Fazę włącza i wyłącza orkiestrator w katalogu głównym repozytorium:
+Fazę włącza i wyłącza orkiestrator w katalogu głównym kopii roboczej, w której pracuje implementer, czyli w katalogu worktree, gdy zadanie ma własny worktree:
 
 ```bash
 mkdir -p .superpowers && printf 'implement\n' > .superpowers/phase
@@ -140,6 +145,25 @@ rm .superpowers/phase
 ```
 
 Hook czyta plik przy każdej edycji, więc zmiana działa od razu, bez restartu sesji.
+
+<a id="faza-worktree"></a>
+
+### Faza w worktree
+
+`$CLAUDE_PROJECT_DIR` wskazuje katalog projektu sesji, a nie katalog, w którym agent akurat pracuje ([Hooki Claude Code](11-praca-z-kitem.md#hooki)). W sesji uruchomionej w głównej kopii zmienna zostaje przy głównej kopii także po przejściu agenta do worktree. W sesji, którą aplikacja Claude uruchamia we własnym worktree w `.claude/worktrees/`, od początku wskazuje główną kopię. Gdyby hook czytał plik fazy tylko z `$CLAUDE_PROJECT_DIR`, orkiestrator, który zapisał fazę w worktree zadania, nie zablokowałby implementera. Dlatego hook czyta plik fazy z dwóch katalogów:
+
+- z katalogu głównego kopii roboczej edytowanego pliku, czyli z najbliższego katalogu nad plikiem, który zawiera wpis `.git` (w głównej kopii to katalog `.git/`, w worktree plik `.git`). Hook szuka go od fizycznej ścieżki katalogu pliku, po rozwinięciu dowiązań symbolicznych, więc ścieżka, która prowadzi do worktree przez dowiązanie, też trafia na jego plik fazy;
+- z katalogu projektu sesji (`$CLAUDE_PROJECT_DIR`, a bez tej zmiennej z katalogu roboczego sesji).
+
+| Gdzie leży plik fazy | Gdzie hook blokuje edycję testów |
+| --- | --- |
+| W worktree zadania. | W tym worktree, w każdej sesji. |
+| W głównej kopii. | W każdej kopii roboczej edytowanej w sesji, której `$CLAUDE_PROJECT_DIR` wskazuje główną kopię. Tak jest w sesji uruchomionej w głównej kopii i w każdej sesji aplikacji Claude dla tego repozytorium, także działającej w `.claude/worktrees/`. |
+| W głównej kopii, a sesja wystartowała w katalogu worktree poza aplikacją Claude, na przykład poleceniem `claude` w tym katalogu. | Tylko w głównej kopii. Hook nie szuka pliku fazy powyżej katalogu z `.git`, a `$CLAUDE_PROJECT_DIR` tej sesji wskazuje worktree. |
+
+Zapisuj plik fazy w kopii roboczej implementera, a nie w głównej kopii. Wtedy blokada obejmuje tylko jego zadanie, a `test-writer` innego zadania może w tym czasie pisać testy w innym worktree. Plik w głównej kopii zablokowałby edycję testów we wszystkich sesjach aplikacji Claude dla tego repozytorium. Przypadki z tabeli sprawdzają testy w `.claude/hooks/protect-tests.test.mjs`.
+
+Skrypt hooka Claude Code uruchamia z katalogu projektu sesji (`$CLAUDE_PROJECT_DIR/.claude/hooks/protect-tests.mjs`). Sesja uruchomiona w głównej kopii i każda sesja aplikacji Claude w `.claude/worktrees/` używają więc wersji hooka z głównej kopii, a nie z gałęzi swojego worktree. Zmiana hooka zaczyna w nich działać dopiero wtedy, gdy główna kopia ma jego nową wersję, na przykład po scaleniu do `main` i `git pull` w głównej kopii.
 
 ### Czego hook nie blokuje
 
@@ -149,7 +173,7 @@ Hook czyta plik przy każdej edycji, więc zmiana działa od razu, bez restartu 
 | Pomocniki testów poza `__tests__/`: `src/test/fake-prisma.ts`, `src/test/integration/`. | Implementer może zmienić `resetDatabase` albo zachowanie Prismy w pamięci. | Tylko przegląd diffu. |
 | Konfiguracja testów i mutacji: `vitest.config.ts`, `vitest.integration.config.ts`, `playwright.config.ts`, `stryker.config.json`, `stryker.integration.config.json`, `mutation-gate.json`, a także sam hook i `.claude/settings.json`. | Implementer może na przykład zawęzić `mutate` albo dopisać wpis do `allowed`. | Tylko przegląd diffu. |
 | Inne narzędzia niż Claude Code (Codex, Cursor, edytor człowieka). | Hook działa tylko w sesji Claude Code. | Przegląd diffu. |
-| Inna kopia robocza, worktree. | Hook czyta `.superpowers/phase` z katalogu, w którym wystartowała sesja Claude Code (`$CLAUDE_PROJECT_DIR`), także gdy agent pracuje w worktree. Plik w głównej kopii blokuje więc też edycję testów w worktree, do którego agent przeszedł w trakcie sesji, a plik zapisany w worktree działa tylko w sesji uruchomionej w tym worktree. `.superpowers/` jest w `.gitignore`, więc inne kopie robocze pliku nie dostają. | — |
+| Plik fazy poza kopią roboczą edytowanego pliku i poza katalogiem projektu sesji, na przykład w worktree innego zadania. | Hook nie widzi takiego pliku i przepuszcza edycję testów ([Faza w worktree](#faza-worktree)). `.superpowers/` jest w `.gitignore`, więc nowy worktree nie dostaje pliku fazy z głównej kopii. | `test-reviewer`: punkt checklisty o zmianach w plikach testowych. |
 
 `test-reviewer` najłatwiej sprawdzi, czy implementer nie zmienił testów, gdy testy mają własny commit sprzed implementacji. Wystarczy wtedy porównać pliki testów, ich pomocników i bramki od tego commitu, na przykład:
 
@@ -171,7 +195,7 @@ Pełna lista jest w [AGENTS.md](../AGENTS.md#testy-które-próbują-złamać-kod
 | Każda pozycja z „Mutacji do zabicia” ma test, który pada przy tej mutacji. | Mutacje z planu to błędy, które autor planu uznał za najgroźniejsze. | Test „owner organizacji A podaje id B ręcznie → odmowa, sesja bez zmian” zabija mutację „brak sprawdzenia członkostwa”. |
 | Każda granica (akcja serwerowa, query, parser) ma testy negatywne: niepoprawne wejście Zod, brak sesji, cudza organizacja, za niska rola, awaria zależności, podwójne wywołanie. | Autor kodu testuje zwykle tylko szczęśliwą ścieżkę. Te klasy błędów leżą poza nią. | Bloki „tryb serwisowy” i „poza trybem serwisowym” w `src/features/users/services/commands/__tests__/invite-user-command.test.ts`, test „dwa równoległe dołączenia tego samego użytkownika → jedno członkostwo” w teście izolacji. |
 | Mockuje się tylko wejście i wyjście: Prismę w testach jednostkowych, mail, sieć, `auth.api`. Nie mockuje się pliku z regułą bezpieczeństwa, którą test sprawdza, i nie sprawdza się samego mocka. | Mock pliku z regułą wyłącza ją z testu. Tak powstała luka w `getAdminUserOrNull` opisana w [Dlaczego](#dlaczego). | `src/shared/lib/auth/__tests__/helpers.test.ts` podstawia tylko wejścia: nagłówki, język, `redirect` i `auth.api.getSession`. |
-| Czysta funkcja z niezmiennikiem (parser, serializacja, normalizacja, slug) dostaje test właściwości `test.prop` z `@fast-check/vitest`. | Wejścia losuje biblioteka (domyślnie 100 na test), więc test sprawdza też przypadki, o których autor nie pomyślał. | Slug organizacji poniżej. |
+| Czysta funkcja z niezmiennikiem (parser, serializacja, normalizacja, slug) dostaje test właściwości `test.prop` z `@fast-check/vitest`. | Wejścia losuje biblioteka (domyślnie 100 na test), więc test sprawdza też przypadki, o których autor nie pomyślał. Pod Strykerem losuje je ze stałego seeda ([Testy właściwości pod Strykerem](#seed)). | Slug organizacji poniżej. |
 | Poprawka błędu ma test, który bez poprawki nie przechodzi. | Dowodzi, że test w ogóle widzi ten błąd. | `test-reviewer` sprawdza to, cofając poprawkę. |
 | Nazwa testu opisuje zachowanie z punktu widzenia kontraktu, po polsku. | Czerwony test od razu mówi, które zachowanie się zepsuło. | „zaproszenie wygasa dokładnie 48 godzin po utworzeniu”. |
 
@@ -292,6 +316,44 @@ Stryker wypisuje na końcu na przykład `Final mutation score of 83.02 is greate
 - **Katalog roboczy**: każdy przebieg kopiuje projekt do własnego podkatalogu `.stryker-tmp/sandbox-<losowe znaki>`, z pominięciem plików, które Stryker pomija zawsze (między innymi `node_modules`, `.git`, `.next`, katalog roboczy `.stryker-tmp`, plik przyrostowy i pliki raportów HTML i JSON), oraz `ignorePatterns` z konfiguracji, które w obu konfiguracjach wykluczają cały katalog `reports`. Po udanym przebiegu usuwa swój podkatalog, a po przerwanym albo nieudanym go zostawia. Stare podkatalogi możesz usunąć, gdy nie działa żaden Stryker. `npm test` pomija `.stryker-tmp/**`, więc kopie testów z tego katalogu się nie uruchamiają.
 - **Wyłączenie pliku z mutacji** zapisuje się wzorcem z `!` w `mutate`, a nie komentarzem `// Stryker disable`, bo hook komentarzy by go zablokował ([D23](decyzje.md#d23)).
 
+<a id="seed"></a>
+
+### Testy właściwości pod Strykerem
+
+W procesach Strykera testy właściwości (`test.prop`) losują wejścia ze stałego seeda, a w zwykłych przebiegach z nowego przy każdym uruchomieniu. Stały seed jest potrzebny, bo Stryker wybiera testy dla mutanta po nazwach. W przebiegu suchym, czyli przebiegu testów bez mutantów, zapisuje pełną nazwę każdego testu i to, kod których mutantów test wykonał. Dla mutanta uruchamia potem tylko testy o nazwach, które go objęły (filtr `testNamePattern` w `node_modules/@stryker-mutator/vitest-runner/dist/src/vitest-test-runner.js`). `@fast-check/vitest` dopisuje do nazwy testu właściwości seed, na przykład `… (with seed=-480522100)`, a gdy seed nie jest ustawiony, losuje go przy każdym ładowaniu pliku testów (`node_modules/@fast-check/vitest/lib/vitest-fast-check.js`). Bez stałego seeda test w procesie z mutantem ma więc inną nazwę niż w przebiegu suchym i filtr go pomija (sprawdzone). Mutant, którego wykrywa tylko test właściwości, dostaje wtedy `Survived`, a w pliku krytycznym bramka każe go zabić nowym testem albo opisać wpisem w `mutation-gate.json`, choć test, który go wykrywa, istnieje. Bez stałego seeda testy właściwości uruchamiają się tylko dla mutantów statycznych, czyli zmian w kodzie wykonywanym przy ładowaniu modułu, bo dla nich Stryker uruchamia wszystkie testy bez filtra nazw.
+
+Seed ustawia `vitest.setup.ts`, tylko gdy istnieje zmienna `STRYKER_MUTATOR_WORKER`. Stryker ustawia ją na numer procesu w każdym procesie, w którym uruchamia testy albo sprawdza typy (`child-process-proxy.js` w `node_modules/@stryker-mutator/core`), a procesy Vitest dziedziczą ją po procesie Strykera:
+
+`vitest.setup.ts`
+
+```ts
+// …
+// WHY: @fast-check/vitest puts the seed in each property test's name and Stryker picks a mutant's tests by
+// the names from its dry run, so a seed drawn anew in every Stryker process would keep property tests from running.
+if (process.env.STRYKER_MUTATOR_WORKER !== undefined) {
+  fc.configureGlobal({ seed: 42 });
+}
+```
+
+Przykład z lokalnych przebiegów `npm run test:mutation:task` z 2026-11-05 na plikach z testami właściwości, bez stałego seeda i z nim (sprawdzone):
+
+- Z opcją `--disableBail` Stryker wykonuje wszystkie testy, które obejmują mutanta, i zapisuje każdy test, który padł. Na pięciu plikach (`service-mode.ts`, `organization-slug.ts`, `upload.schemas.ts`, `content-disposition.ts`, `api-key-secret.ts`) testy właściwości zabiły bez stałego seeda 2 mutanty, oba statyczne, a ze stałym seedem 56. Bez stałego seeda każdy z 71 mutantów objętych testem właściwości miał wykonanych dokładnie o tyle testów mniej, ile testów właściwości go obejmowało.
+- W zwykłym przebiegu (bez `--disableBail`) na dziesięciu plikach z testami właściwości wynik mutacji się nie zmienił (95,02%). Stryker kończy przebieg mutanta na pierwszym teście, który padnie, a w tych plikach testy przykładowe stoją przed testami właściwości i zabijają te same mutanty. 9 mutantów objętych testem właściwości przeżyło w obu przebiegach, ale ze stałym seedem z wykonanym testem właściwości: właściwości nie sprawdzają tych zachowań albo mutant jest równoważny. Na przykład w `organization-slug.ts` zamiana `/^-+|-+$/g` na `/^-|-+$/g` nic nie zmienia, bo wcześniejsze `.replace(/[^a-z0-9]+/g, "-")` nie zostawia dwóch myślników obok siebie.
+
+Które mutanty zabija test właściwości, pokaże więc dopiero przebieg z `--disableBail`, na przykład `npm run test:mutation:task -- src/a.ts --disableBail`. Trwa dłużej, bo dla każdego mutanta wykonuje wszystkie testy, które go obejmują.
+
+Co z tego wynika:
+
+- `npm test` i CI losują seed przy każdym uruchomieniu, więc każdy przebieg sprawdza nowe wejścia. Seed jest w nazwie testu, a gdy właściwość nie przejdzie, fast-check wypisuje parametry do powtórzenia kontrprzykładu, na przykład `{ seed: 42, path: "6:1:0", endOnFailure: true }`. Podaj je w drugim argumencie `test.prop`.
+- W procesach Strykera każdy test właściwości sprawdza w każdym przebiegu te same wejścia. Mutant, którego te wejścia nie wykrywają, przeżyje w każdym przebiegu i ponowne uruchomienie tego nie zmieni. Zabije go test przykładowy albo właściwość z lepiej dobranym generatorem wejść lub większym `numRuns`.
+- Wejścia z procesów Strykera odtworzysz bez Strykera: `STRYKER_MUTATOR_WORKER=0 npx vitest run <plik testu>`. Przydaje się to, gdy test właściwości pada w przebiegu suchym Strykera, a w `npm test` przechodzi.
+- `fc.configureGlobal` zastępuje całą konfigurację globalną fast-check. Wywołanie bez `seed` w pliku testów usuwa stały seed dla tego pliku, więc jego testy właściwości znowu nie biorą udziału w przebiegach mutantów. Ustawienie dla jednego testu podawaj w drugim argumencie `test.prop`, jak `{ numRuns: 300 }` w `src/features/uploads/services/__tests__/content-disposition.test.ts`.
+- Nazwy testów właściwości są stałe także między przebiegami Strykera. Plik przyrostowy rozpoznaje test po pliku, pozycji i nazwie (`IncrementalDiffer` w `node_modules/@stryker-mutator/core`). Z losowym seedem każdy przebieg uznawałby testy właściwości za nowe i od nowa sprawdzał mutanty, które obejmują; ze stałym seedem tryb przyrostowy może użyć ich wyników z poprzedniego przebiegu.
+- `vitest.integration.config.ts` nie ładuje `vitest.setup.ts`, więc przebieg integracyjny nie ma stałego seeda. Testy integracyjne nie używają `test.prop`; test właściwości dopisany do testów integracyjnych potrzebowałby tego samego ustawienia w `src/test/integration/setup-env.ts`.
+- CLI kitu ma to samo ustawienie w `kit/cli/vitest.setup.ts` (`setupFiles` w `kit/cli/vitest.config.ts`), bo jego Stryker wybiera testy tak samo ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli)).
+
+Ustawienie sprawdzają `src/__tests__/vitest-setup.test.ts` i `kit/cli/src/__tests__/vitest-setup.test.ts`: plik ustawień jest wpisany w `setupFiles`, przy ustawionej zmiennej seed wynosi 42 dla każdego numeru procesu i przy każdym ładowaniu pliku, także przy innej dacie systemowej, a bez zmiennej seed nie jest ustawiony.
+
 <a id="bramka"></a>
 
 ## Bramka mutacji
@@ -324,16 +386,16 @@ Plik jest krytyczny, gdy jego ścieżka od katalogu głównego repozytorium zacz
     {
       "file": "src/shared/lib/auth/org-context.ts",
       "mutator": "StringLiteral",
-      "original": "\"NoOrganizationError\"",
+      "original": "\"Użytkownik nie należy do aktywnej organizacji\"",
       "replacement": "\"\"",
       "reason": "tylko komunikat: NoOrganizationError rozpoznajemy przez instanceof, nie przez name/message"
     },
 ```
 
-Mutant zamienia nazwę błędu na pusty napis. Kod rozpoznaje ten błąd przez `instanceof`, więc żaden test nie może tego mutanta zabić bez sprawdzania samego tekstu. `AGENTS.md` dopuszcza trzy rodzaje uzasadnień, a każdy ma przykład w pliku:
+Mutant zamienia komunikat błędu `NoOrganizationError` na pusty napis. Kod kitu rozpoznaje ten błąd przez `instanceof`, a jego komunikat czyta tylko `logger`: wpis `error` z `handleCommandError` ma go w `err.message`. Użytkownik dostaje wtedy domyślny komunikat komendy, bo `NoOrganizationError` nie dziedziczy po `DomainError` ([03-dane-i-organizacje.md](03-dane-i-organizacje.md#no-organization-error)). Żaden test nie może więc zabić tego mutanta bez sprawdzania samego tekstu. `AGENTS.md` dopuszcza trzy rodzaje uzasadnień, a każdy ma przykład w pliku:
 
 - **mutant równoważny**: zachowanie się nie zmienia, na przykład `{ id: true }` → `{}` w `select`, gdy wynik jest sprawdzany tylko na obecność;
-- **tylko komunikat albo log**: tekst bez kontraktu, jak w przykładzie wyżej;
+- **tylko komunikat albo log**: tekst bez kontraktu, jak komunikat `NoOrganizationError` w przykładzie wyżej;
 - **świadoma stała konfiguracyjna**: na przykład `60 * 5` (czas cookie cache sesji) w `src/shared/lib/auth/index.ts`.
 
 Wpisy dopisuje i zatwierdza człowiek w pull requeście. Agent, także `test-reviewer`, tylko je proponuje w raporcie.
@@ -400,7 +462,7 @@ Dopisz test, który zabija mutanta, albo dodaj wpis do mutation-gate.json z uzas
 2. **Brak uzasadnienia.** Uzupełnij `reason` we wskazanym wpisie.
 3. **Nieaktualny wpis.** Mutant jest zabity albo kod się zmienił. Człowiek usuwa wpis albo poprawia `original` w pull requeście.
 
-[AGENTS.md](../AGENTS.md#testy-które-próbują-złamać-kod) zabrania obniżania `thresholds.break`, żeby przepuścić zmianę. Wyjątki od mutacji ustawia się w `mutate`, ale wykluczenie służy plikom bez logiki do testowania, jak `src/shared/lib/prisma.ts` i `src/shared/lib/logger.ts`. Plik krytyczny wykluczony z `mutate` przestaje być mutowany. Przy istniejącym pliku przyrostowym (lokalnie i w CI z cache) Stryker przenosi do raportu stare wyniki tego pliku dla kodu, który się nie zmienił (`IncrementalDiffer` w `node_modules/@stryker-mutator/core`), więc bramka widzi zamrożony stan. Bez pliku przyrostowego plik znika z raportu, a bramka pomija go razem z jego wpisami w `allowed`, bez komunikatu o nieaktualnym wpisie (`checkMutationGate` bierze pod uwagę tylko pliki obecne w raporcie). W obu przypadkach nowy kod tego pliku nie ma żadnej kontroli mutacjami.
+[AGENTS.md](../AGENTS.md#testy-które-próbują-złamać-kod) zabrania obniżania `thresholds.break`, żeby przepuścić zmianę. Wyjątki od mutacji ustawia się w `mutate`, ale wykluczenie służy plikom bez logiki do testowania, jak `src/shared/lib/prisma.ts`. Wykluczony jest też `src/shared/lib/logger.ts`, chociaż jego reguła typu błędu ma testy ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#logger-typ-bledu)): pełny przebieg (`npm run test:mutation`) jej nie mutuje, a jej mutanty pokazuje dopiero przebieg zadania z tym plikiem, `npm run test:mutation:task -- src/shared/lib/logger.ts`. Plik krytyczny wykluczony z `mutate` przestaje być mutowany. Przy istniejącym pliku przyrostowym (lokalnie i w CI z cache) Stryker przenosi do raportu stare wyniki tego pliku dla kodu, który się nie zmienił (`IncrementalDiffer` w `node_modules/@stryker-mutator/core`), więc bramka widzi zamrożony stan. Bez pliku przyrostowego plik znika z raportu, a bramka pomija go razem z jego wpisami w `allowed`, bez komunikatu o nieaktualnym wpisie (`checkMutationGate` bierze pod uwagę tylko pliki obecne w raporcie). W obu przypadkach nowy kod tego pliku nie ma żadnej kontroli mutacjami.
 
 <a id="praktyka"></a>
 
@@ -459,7 +521,7 @@ Katalog `.stryker-tmp/` sam w sobie nie jest problemem: każdy przebieg ma w nim
 | Ustawienie | `stryker.config.json` | `stryker.integration.config.json` |
 | --- | --- | --- |
 | Komendy | `npm run test:mutation`, `npm run test:mutation:task` | `npm run test:mutation:integration` |
-| Testy | domyślna konfiguracja Vitest (`vitest.config.ts`) | `vitest.integration.config.ts`, baza `_test` |
+| Testy | domyślna konfiguracja Vitest (`vitest.config.ts`) z plikiem ustawień `vitest.setup.ts`, który ustawia stały seed testów właściwości ([Testy właściwości pod Strykerem](#seed)) | `vitest.integration.config.ts`, baza `_test`; bez `vitest.setup.ts`, więc bez stałego seeda |
 | `mutate` | `src/shared/lib/**/*.ts`, `src/shared/utils/**/*.ts`, `src/features/**/services/**/*.ts`, `src/features/**/contracts/**/*.ts`, `src/i18n/**/*.ts`, `src/app/api/**/*.ts`, `scripts/lib/**/*.ts`; bez `**/__tests__/**`, `src/shared/lib/prisma.ts`, `src/shared/lib/logger.ts` | `src/features/*/services/**/*.ts`, `src/shared/lib/auth/org-context.ts`, `src/shared/lib/auth/require-module-access.ts`; bez `**/__tests__/**` |
 | `concurrency` | domyślna Strykera (logiczne procesory minus jeden przy więcej niż czterech; po sprawdzeniu typów tyle procesów testów) | `1` (1 proces sprawdzania typów i 1 proces testów, po sprawdzeniu typów 2 procesy testów) |
 | `incrementalFile` | `reports/stryker-incremental.json` | `reports/stryker-integration-incremental.json` |
@@ -481,6 +543,8 @@ Katalog `.stryker-tmp/` sam w sobie nie jest problemem: każdy przebieg ma w nim
 | `.claude/settings.json` | Rejestracja hooków `PreToolUse` dla narzędzi `Edit` i `Write`. |
 | `.superpowers/phase` | Plik fazy, lokalny, poza git. |
 | `stryker.config.json`, `stryker.integration.config.json` | Konfiguracje Strykera. |
+| `vitest.setup.ts`, `kit/cli/vitest.setup.ts` | Stały seed testów właściwości w procesach Strykera ([Testy właściwości pod Strykerem](#seed)). |
+| `src/__tests__/vitest-setup.test.ts`, `kit/cli/src/__tests__/vitest-setup.test.ts` | Testy tego seeda (w `npm test` i `npm test --prefix kit/cli`). |
 | `mutation-gate.json` | Pliki krytyczne i wpisy wyjątków. |
 | `scripts/mutation-gate.ts` | Wejście bramki: czyta raporty i konfigurację, wypisuje wynik. |
 | `scripts/lib/mutation-gate.ts` | Logika bramki: `mergeReports`, `checkMutationGate`, `mutantOriginal`. |

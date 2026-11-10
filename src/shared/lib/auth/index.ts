@@ -16,6 +16,7 @@ import {
   resolveSignupMembership,
 } from "@/features/organizations/services/signup-membership";
 import { getDefaultActiveOrganizationId } from "@/features/organizations/services/queries/default-organization-query";
+import { trackServiceModeEntry } from "@/features/organizations/services/service-mode-entry";
 import { env } from "@/shared/lib/env";
 import { prisma } from "@/shared/lib/prisma";
 import { createAdminRoles, assertAdminActionAllowed } from "./admin-access";
@@ -103,6 +104,9 @@ export const auth = betterAuth({
             ),
           },
         }),
+        after: async (session) => {
+          await trackServiceModeEntry(session);
+        },
       },
     },
   },
