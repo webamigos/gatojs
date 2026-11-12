@@ -2,6 +2,11 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+const classNameRead =
+  ':matches(MemberExpression[object.property.name="constructor"], MemberExpression[object.meta.name="new"], MemberExpression[object.name=/^[A-Z]/])[property.name="name"]';
+const errorNameMessage =
+  'Ustaw name klasy błędu napisem, np. this.name = "KeyLimitError": build minifikuje nazwy klas, więc err.type w logach produkcyjnych miałby jedną literę. Zobacz docs/07b-logi-naglowki-healthcheck.md#logger-typ-bledu w repo webamigos/wa-kit.';
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -9,6 +14,17 @@ const eslintConfig = defineConfig([
     rules: {
       curly: "error",
       "no-nested-ternary": "error",
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: `AssignmentExpression[left.object.type="ThisExpression"][left.property.name="name"] > ${classNameRead}.right`,
+          message: errorNameMessage,
+        },
+        {
+          selector: `PropertyDefinition[key.name="name"] > ${classNameRead}.value`,
+          message: errorNameMessage,
+        },
+      ],
     },
   },
   globalIgnores([
