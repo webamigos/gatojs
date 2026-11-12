@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jakie nagłówki bezpieczeństwa dostaje każda odpowiedź;
 - co sprawdza `/api/healthcheck`, a czego nie.
 
-Zweryfikowano z kodem: 9fb52a0, 2026-11-12 (akapit o regule ESLint w sekcji [Typ błędu w `<klucz>.type`](#logger-typ-bledu)); b3c4fc1, 2026-11-05 (pozostała część tej sekcji); pozostałe sekcje: 734391b, 2026-11-04
+Zweryfikowano z kodem: 219b6e7, 2026-11-12 (akapit o regule ESLint w sekcji [Typ błędu w `<klucz>.type`](#logger-typ-bledu)); b3c4fc1, 2026-11-05 (pozostała część tej sekcji); pozostałe sekcje: 734391b, 2026-11-04
 
 Źródła:
 

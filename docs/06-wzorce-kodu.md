@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - które reguły stylu sprawdza ESLint, które hook Claude Code, a których pilnuje tylko przegląd kodu;
 - co sprawdza test architektury `server-entrypoints-guard.test.ts`, jak naprawić jego błąd i jak dodać wyjątek.
 
-Zweryfikowano z kodem: 9fb52a0, 2026-11-12 (wiersz „`name` klasy błędu napisem, a nie nazwą klasy” w [Regułach stylu](#reguly-stylu)); pozostała część pliku: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: 219b6e7, 2026-11-12 (wiersz „`name` klasy błędu napisem, a nie nazwą klasy” w [Regułach stylu](#reguly-stylu)); pozostała część pliku: 4a6ffcb, 2026-10-27
 
 Źródła:
 
