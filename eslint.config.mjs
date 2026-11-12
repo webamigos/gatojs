@@ -6,7 +6,7 @@ const classNameRead =
   ':matches(MemberExpression[object.computed=false][object.property.name="constructor"], MemberExpression[object.meta.name="new"], MemberExpression[object.name=/^[A-Z]/])[computed=false][property.name="name"]';
 const errorNameMessage =
   'Ustaw name klasy błędu napisem, np. this.name = "KeyLimitError". Build minifikuje nazwy klas, więc err.type w logach produkcyjnych byłby krótką nazwą w rodzaju "d". Zobacz docs/07b-logi-naglowki-healthcheck.md#logger-typ-bledu w repo webamigos/wa-kit.';
-// WHY: esquery 1.7 nigdy nie dopasowuje łańcucha :has(> A > B), bo wiąże ">" z ostatnim krokiem,
+// WHY: esquery 1.7 czyta :has(> A > B) jako „podmiot :has to A i ma dziecko B”, a nie „dziecko A ma dziecko B”,
 // więc każdy krok w dół drzewa to osobne :has(> …).
 const childPath = (...steps) =>
   steps.reduceRight((inner, step) => `${step}:has(> ${inner})`);
@@ -54,6 +54,7 @@ const eslintConfig = defineConfig([
       "**/__tests__/**",
       "**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}",
       "e2e/**",
+      "**/*.d.ts",
     ],
     rules: {
       "no-restricted-syntax": ["error", ...restrictedSyntax],
