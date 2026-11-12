@@ -57,15 +57,12 @@ export function checkVersions(
   target: string,
 ): "same" | "newer" {
   const order = compareVersions(target, current);
-  if (order === 0) {
-    return "same";
-  }
   if (order < 0) {
     throw new Error(
       `Projekt ma wa-kit ${current}, nowszą niż ${target}; wa update nie obniża wersji`,
     );
   }
-  return "newer";
+  return order === 0 ? "same" : "newer";
 }
 
 export async function assertCleanTree(projectDir: string): Promise<void> {
@@ -90,7 +87,7 @@ export async function assertCleanTree(projectDir: string): Promise<void> {
       { cause: error },
     );
   }
-  if (status.trim() !== "") {
+  if (status !== "") {
     throw new Error(
       "Niezacommitowane zmiany w projekcie; zrób commit albo stash przed wa update",
     );

@@ -21815,15 +21815,12 @@ var PERMISSION_BITS2 = 511;
 var MANAGED2 = "managed";
 function checkVersions(current, target) {
   const order = compareVersions(target, current);
-  if (order === 0) {
-    return "same";
-  }
   if (order < 0) {
     throw new Error(
       `Projekt ma wa-kit ${current}, nowsz\u0105 ni\u017C ${target}; wa update nie obni\u017Ca wersji`
     );
   }
-  return "newer";
+  return order === 0 ? "same" : "newer";
 }
 async function assertCleanTree(projectDir) {
   let status;
@@ -21847,7 +21844,7 @@ async function assertCleanTree(projectDir) {
       { cause: error62 }
     );
   }
-  if (status.trim() !== "") {
+  if (status !== "") {
     throw new Error(
       "Niezacommitowane zmiany w projekcie; zr\xF3b commit albo stash przed wa update"
     );

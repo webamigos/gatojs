@@ -978,7 +978,7 @@ describe("update: kontrole przed zapisem", () => {
         }
         await editJson(kitDir, "kit/modules/needs-demo.json", (json) => {
           json.version = "0.5.0";
-          json.requires = ["demo", "extra", "zeta"];
+          json.requires = ["zeta", "demo", "extra"];
         });
       },
     });
