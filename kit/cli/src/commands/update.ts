@@ -210,9 +210,7 @@ function nextState(
   const paths = [...target.files.keys()];
   const modules = Object.fromEntries(
     target.manifests.map((manifest) => {
-      const managed = Object.entries(
-        state.modules[manifest.name]?.files ?? {},
-      ).filter(
+      const managed = Object.entries(state.modules[manifest.name].files).filter(
         ([path, hash]) =>
           hash === MANAGED && target.config.managedFiles.includes(path),
       );
@@ -255,9 +253,7 @@ async function writeUpdate(input: {
   }
   const createdDirectories = missingDirectories(
     projectDir,
-    writes
-      .filter(({ file }) => file.action !== "usunięto")
-      .map(({ file }) => file.path),
+    writes.map(({ file }) => file.path),
   );
   try {
     for (const write of writes) {

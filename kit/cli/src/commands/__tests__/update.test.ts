@@ -101,10 +101,15 @@ type Setup = {
 async function prepare(input: {
   kit: (kitDir: string) => Promise<void>;
   modules?: string[];
+  name?: string;
   project?: (dir: string) => Promise<void>;
 }): Promise<Setup> {
   const kitDir = await makeTaggedKit(input.kit);
-  const dir = await createProjectFromTag(kitDir, "app", input.modules ?? []);
+  const dir = await createProjectFromTag(
+    kitDir,
+    input.name ?? "app",
+    input.modules ?? [],
+  );
   if (input.project) {
     await input.project(dir);
     await commitAll(dir);
@@ -1008,5 +1013,136 @@ describe("update: kontrole przed zapisem", () => {
     expect(await snapshotDir(outside, IGNORE)).toEqual(outsideBefore);
     expect(await snapshotDir(setup.dir, [...IGNORE, "shared"])).toEqual(before);
     expect(runner).not.toHaveBeenCalled();
+  });
+});
+
+describe("update: wpisy files w .wa/kit.json po aktualizacji", () => {
+  it("files rdzenia to dokładnie pliki rdzenia z v0.2.0 oraz package.json i package-lock.json jako managed, bez pliku usuniętego w kicie", async () => {
+    const setup = await prepare({
+      kit: async (kitDir) => {
+        await rm(join(kitDir, "src/i18n/config.ts"));
+      },
+    });
+
+    expect(await run(setup)).toEqual({ exitCode: 0 });
+
+    const files = (await rawState(setup.dir)).modules.core?.files ?? {};
+    expect(Object.keys(files).sort()).toEqual([
+      ".env.example",
+      ".wa/bin/wa.mjs",
+      "docker-compose.yml",
+      "package-lock.json",
+      "package.json",
+      "prisma/schema/auth.prisma",
+      "prisma/schema/organizations.prisma",
+      "src/features/auth/module.ts",
+      "src/shared/config/project.ts",
+    ]);
+    expect(files["package.json"]).toBe("managed");
+    expect(files["package-lock.json"]).toBe("managed");
+  });
+
+  it("managedFiles w v0.2.0 bez package-lock.json: files rdzenia nie mają klucza package-lock.json", async () => {
+    const setup = await prepare({
+      kit: async (kitDir) => {
+        await changeAuthModule(kitDir);
+        await editJson(kitDir, "kit/kit.json", (json) => {
+          json.managedFiles = ["package.json"];
+        });
+      },
+    });
+
+    expect(await run(setup)).toEqual({ exitCode: 0 });
+
+    const files = (await rawState(setup.dir)).modules.core?.files ?? {};
+    expect("package-lock.json" in files).toBe(false);
+    expect(files["package.json"]).toBe("managed");
+  });
+
+  it("package-lock.json z ręcznym hashem zamiast managed w .wa/kit.json projektu: po aktualizacji brak wpisu", async () => {
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        await editJson(dir, ".wa/kit.json", (json) => {
+          const modules = json.modules as RawState["modules"];
+          const core = modules.core;
+          if (core) core.files["package-lock.json"] = sha256("lock\n");
+        });
+      },
+    });
+
+    expect(await run(setup)).toEqual({ exitCode: 0 });
+
+    const files = (await rawState(setup.dir)).modules.core?.files ?? {};
+    expect("package-lock.json" in files).toBe(false);
+    expect(files["package.json"]).toBe("managed");
+  });
+
+  it("usunięty w projekcie, zmieniony w kicie: plik nie wraca, do decyzji, kod 1, brak wpisu w files", async () => {
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        await rm(join(dir, AUTH_MODULE));
+      },
+    });
+
+    expect(await run(setup)).toEqual({ exitCode: 1 });
+
+    expect(existsSync(join(setup.dir, AUTH_MODULE))).toBe(false);
+    expect(lines()).toContain(
+      "  do decyzji     src/features/auth/module.ts (usunięty w projekcie, zmieniony w kicie)",
+    );
+    const state = await rawState(setup.dir);
+    expect(state.kitVersion).toBe("0.2.0");
+    expect(AUTH_MODULE in (state.modules.core?.files ?? {})).toBe(false);
+  });
+});
+
+describe("update: moduły i placeholdery", () => {
+  it("needs-demo w v0.2.0 wymaga zainstalowanego demo: aktualizacja przechodzi, plik needs-demo ma treść kitu", async () => {
+    const updated =
+      'export default { key: "needs-demo", version: "v0.2.0" };\n';
+    const setup = await prepare({
+      modules: ["demo", "needs-demo"],
+      kit: async (kitDir) => {
+        await writeFile(
+          join(kitDir, "src/features/needs-demo/module.ts"),
+          updated,
+        );
+      },
+    });
+
+    expect(await run(setup)).toEqual({ exitCode: 0 });
+
+    expect(await read(setup.dir, "src/features/needs-demo/module.ts")).toBe(
+      updated,
+    );
+    expect(
+      (await rawState(setup.dir)).modules["needs-demo"]?.files[
+        "src/features/needs-demo/module.ts"
+      ],
+    ).toBe(sha256(updated));
+  });
+
+  it("projekt my-app, kit zmienił linię z wa_app w .env.example: nowa linia ma my_app", async () => {
+    const setup = await prepare({
+      name: "my-app",
+      kit: async (kitDir) => {
+        const path = join(kitDir, ".env.example");
+        await writeFile(
+          path,
+          (await readFile(path, "utf8")).replace(
+            "localhost:5432/wa_app",
+            "localhost:5433/wa_app",
+          ),
+        );
+      },
+    });
+
+    expect(await run(setup)).toEqual({ exitCode: 0 });
+
+    expect((await read(setup.dir, ".env.example")).split("\n")[0]).toBe(
+      "DATABASE_URL=postgresql://postgres:postgres@localhost:5433/my_app",
+    );
   });
 });

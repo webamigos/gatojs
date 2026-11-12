@@ -335,6 +335,16 @@ describe("updateFromSource — --from-kit", () => {
     expect(await readdir(tmpRoot)).toEqual([]);
   });
 
+  it("--from-kit z klonem 0.2.0 i bundlem z wa-kit 0.1.0: wersji bundla nie sprawdza, aktualizuje w procesie bez node", async () => {
+    const fromKit = await cloneTag("0.2.0");
+    const bundleKit = await cloneTag("0.1.0");
+    const result = await run({ fromKit }, { bundleKitDir: bundleKit });
+    expect(result).toEqual({ exitCode: 0 });
+    expect(callsOf("node")).toEqual([]);
+    expect(await readAuth()).toBe(UPDATED_AUTH);
+    expect(await readdir(tmpRoot)).toEqual([]);
+  });
+
   it("--from-kit z --dry-run nie zmienia projektu i nie woła node", async () => {
     const fromKit = await cloneTag("0.2.0");
     const before = await snapshotDir(dir, IGNORE);

@@ -21934,9 +21934,7 @@ function nextState(state, target, undecided2) {
   const paths = [...target.files.keys()];
   const modules = Object.fromEntries(
     target.manifests.map((manifest) => {
-      const managed = Object.entries(
-        state.modules[manifest.name]?.files ?? {}
-      ).filter(
+      const managed = Object.entries(state.modules[manifest.name].files).filter(
         ([path, hash2]) => hash2 === MANAGED2 && target.config.managedFiles.includes(path)
       );
       const files = Object.fromEntries([
@@ -21970,7 +21968,7 @@ async function writeUpdate(input2) {
   }
   const createdDirectories = missingDirectories(
     projectDir,
-    writes.filter(({ file: file2 }) => file2.action !== "usuni\u0119to").map(({ file: file2 }) => file2.path)
+    writes.map(({ file: file2 }) => file2.path)
   );
   try {
     for (const write of writes) {
