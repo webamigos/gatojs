@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - które reguły stylu sprawdza ESLint, które hook Claude Code, a których pilnuje tylko przegląd kodu;
 - co sprawdza test architektury `server-entrypoints-guard.test.ts`, jak naprawić jego błąd i jak dodać wyjątek.
 
-Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
+Zweryfikowano z kodem: e980427, 2026-11-12 (wiersz „Klasa błędu wpisuje `name` napisem, a nie nazwą klasy” w [Regułach stylu](#reguly-stylu)); pozostałe sekcje: 4a6ffcb, 2026-10-27
 
 Źródła:
 
@@ -492,6 +492,7 @@ Reguły pochodzą z sekcji „Bez komentarzy w kodzie” i „Struktura” w [AG
 | `@ts-expect-error` tylko z opisem (co najmniej 3 znaki), bez `@ts-ignore` | ESLint, `@typescript-eslint/ban-ts-comment` | `typescript-eslint` `configs.recommended`, dołączony przez `eslint-config-next/typescript` w `eslint.config.mjs` | `@ts-ignore` nic nie zgłasza, gdy błąd typów zniknie, a opis mówi, dlaczego wyłączenie jest potrzebne. |
 | Bez zagnieżdżonych ternary | ESLint, `no-nested-ternary: "error"` | `eslint.config.mjs` | Zagnieżdżone `? :` trudno czytać; zamiast tego `if` z wczesnym `return`. |
 | Klamry przy każdym `if`, `else` i pętli | ESLint, `curly: "error"` | `eslint.config.mjs`. `AGENTS.md` tej reguły nie wymienia. | Druga linia dopisana pod `if` bez klamer wykonuje się zawsze. |
+| Klasa błędu wpisuje `name` napisem, a nie nazwą klasy | ESLint, `no-restricted-syntax` | `eslint.config.mjs` | Build minifikuje nazwy klas, więc `this.constructor.name`, `new.target.name` i `<Klasa>.name` dają na produkcji jednoliterowy typ błędu w logach ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#logger-typ-bledu)). |
 | Bez `any` | ESLint, `@typescript-eslint/no-explicit-any`; TypeScript z `strict: true` zgłasza niejawne `any` | `eslint-config-next/typescript`, `tsconfig.json` | `any` wyłącza sprawdzanie typów. Dane z zewnątrz mają typ `unknown` i są zawężane walidacją, jak `confirmation` w `assertServiceModeConfirmed`. |
 | Bez cichych `catch` | tylko przegląd kodu | Reguła `no-empty` nie jest włączona: pusty `catch {}` przechodzi `npm run lint`. | Połknięty błąd nie zostawia śladu ani w logu, ani w interfejsie. |
 | Logika biznesowa i Prisma poza komponentami, `page.tsx`, `layout.tsx` i route handlerami | tylko przegląd kodu | Brak reguły ESLint. Test architektury sprawdza pliki `"use server"` i `services/queries/`, a nie strony i komponenty. | Komponent działa w przeglądarce albo w renderze strony. Kod w `services/` przechodzi przez guardy i test architektury, da się go testować bez Reacta, a mutacje Strykera ([D26](decyzje.md#d26)) obejmują `src/features/**/services/**/*.ts` i `src/features/**/contracts/**/*.ts` (`mutate` w `stryker.config.json`), czyli nie obejmują komponentów ani stron. |
