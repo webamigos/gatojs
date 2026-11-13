@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak wydać nową wersję kitu z tagiem;
 - jak dodać do kitu nowy moduł, krok po kroku, tak jak zrobił to plan 3.
 
-Zweryfikowano z kodem: 4eb594a, 2026-11-12 (wersja `core` w [Manifestach modułów](#manifesty)); pozostałe sekcje: 734391b, 2026-11-04
+Zweryfikowano z kodem: a065725, 2026-11-13 (wersje `core`, `uploads` i `audit-logs` w [Manifestach modułów](#manifesty)); pozostałe sekcje: 734391b, 2026-11-04
 
 Źródła:
 
@@ -102,7 +102,7 @@ W drugą stronę reguła nie działa: workflowy rdzenia (`ci.yml`, `e2e.yml`, `m
 
 Każdy moduł kitu ma plik `kit/modules/<nazwa>.json`. Pole `name` musi być równe nazwie pliku, inaczej odczyt manifestów kończy się błędem `kit/modules/<plik>: name "<name>" nie zgadza się z nazwą pliku` (`readKitManifests` w `kit/cli/src/kit/kit-config.ts`). Manifesty są czytane w kolejności: `core`, potem pozostałe alfabetycznie (`compareModuleNames`). Schemat (`moduleManifestSchema` w `kit/cli/src/manifest/schema.ts`) jest ten sam co w `.wa/kit.json` projektu; pełną listę pól z typami i wartościami domyślnymi podaje [02b](02b-rejestr-i-generator.md#referencja-manifest).
 
-Manifesty w repozytorium kitu (`version` w `kit/kit.json`: `0.1.0`). Tag `v0.1.0` ma starsze wersje dwóch z nich: `core` `0.4.0` i `uploads` `0.1.0`, bo `core` `0.5.2` (walidacja `env` przy starcie od `0.5.0`, [D48](decyzje.md#d48)) i `uploads` `0.2.0` ([D49](decyzje.md#d49)) przyszły po tagu, a wersja kitu się nie zmieniła:
+Manifesty w repozytorium kitu (`version` w `kit/kit.json`: `0.1.0`). Tag `v0.1.0` ma starsze wersje trzech z nich: `core` `0.4.0`, `uploads` `0.1.0` i `audit-logs` `0.1.0`, bo `core` `0.5.3` (walidacja `env` przy starcie od `0.5.0`, [D48](decyzje.md#d48)), `uploads` `0.2.1` (provider storage od `0.2.0`, [D49](decyzje.md#d49)) i `audit-logs` `0.1.1` przyszły po tagu, a wersja kitu się nie zmieniła:
 
 | Moduł | `version` | `files` | Zależności npm | `env` | `compose` | `ciSteps` |
 | --- | --- | --- | --- | --- | --- | --- |
