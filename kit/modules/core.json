@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
   "requires": [],
   "files": [

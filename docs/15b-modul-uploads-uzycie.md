@@ -264,7 +264,7 @@ Uruchomienie z MinIO na porcie 9100:
 INTEGRATION_S3_ENDPOINT=http://localhost:9100 npm run test:integration
 ```
 
-Tak uruchomiono testy w przebiegu: `Test Files  5 passed (5)`, `Tests  74 passed (74)`, w tym trzy pliki integracyjne modułu (sprawdzone). W repozytorium kitu ta sama komenda z bazą z `INTEGRATION_DATABASE_URL` i `INTEGRATION_S3_BUCKET=wa-app-uploads` dała `Test Files  10 passed (10)` i `Tests  181 passed (181)` (sprawdzone 2026-11-04). Bucket musi istnieć przed testami; testy go nie tworzą. Test `storage.integration.test.ts` nie usuwa swoich obiektów: po przebiegu w buckecie zostały obiekty `orgs/o1/test/…` i `orgs/o2/test/…` (sprawdzone), więc nie wskazuj testom bucketu z danymi, które przeglądasz.
+Tak uruchomiono testy w przebiegu: `Test Files  5 passed (5)`, `Tests  74 passed (74)`, w tym trzy pliki integracyjne modułu (sprawdzone). W repozytorium kitu ta sama komenda z bazą z `INTEGRATION_DATABASE_URL` i `INTEGRATION_S3_BUCKET=wa-app-uploads` dała `Test Files  10 passed (10)` i `Tests  181 passed (181)` (sprawdzone 2026-11-04). Bucket musi istnieć przed testami; testy go nie tworzą. Trzy pliki integracyjne modułu usuwają zapisane obiekty w `afterAll` (`storage.integration.test.ts` od `uploads` 0.2.1, R22 w notatce rozbieżności); obiekty zostają tylko wtedy, gdy przebieg przerwiesz przed `afterAll`.
 
 **Test integracyjny funkcji.** Test woła `createUpload` z prawdziwym plikiem PNG (zrobionym przez `sharp` w teście), komendy funkcji i `readUploadForDownload`, na prawdziwej bazie i MinIO. Mockuje tylko I/O frameworka (`next/headers`, `next/cache`, `next-intl/server`, `next/navigation`, `@/i18n/routing`) i sesję przez `vi.spyOn(auth.api, "getSession")`.
 
