@@ -6,6 +6,7 @@ import { isPathInside } from "./path-inside";
 export class InvalidStorageKeyError extends Error {
   constructor() {
     super("Nieprawidłowy klucz obiektu");
+    this.name = "InvalidStorageKeyError";
   }
 }
 
