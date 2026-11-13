@@ -1576,7 +1576,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 - Dla każdego pliku są trzy strony: baza (tag `v<kitVersion>`), kit (tag `v<wersja>`), obie po podmianie placeholderów nazwami projektu, i plik projektu. Plik zmieniony tylko w kicie dostaje treść kitu, zmieniony po obu stronach jest scalany przez `git merge-file --diff3`, a konflikt zostawia markery w pliku. Plik usunięty w projekcie nie wraca, a plik projektu na ścieżce nowego pliku kitu nie jest nadpisywany. Pełna tabela: [16-cli-wa.md](16-cli-wa.md#update-plan) (`planUpdate` w `kit/cli/src/update/plan.ts`).
 - „Projekt równy bazie” wymaga równości z bazą z tagu i z hashem w `.wa/kit.json`. Plik zgodny z hashem, ale różny od bazy z tagu (projekt złożony z drzewa roboczego klonu), jest traktowany jak zmieniony w projekcie.
 - `package.json` scala się tekstowo z bazą i kitem odtworzonymi z manifestów ([D30](#d30)); `package-lock.json` jest poza planem i zmienia go tylko `npm install`. `.env` nie jest zmieniany.
-- Komenda startuje tylko na czystym drzewie git (bez `--dry-run`), więc całość cofa `git restore . && git clean -fd`. Treść każdego pliku powstaje w pamięci przed pierwszym zapisem, a błąd zapisu cofa zmiany jak w `wa add` ([D34](#d34)).
+- Komenda startuje tylko na czystym drzewie git (bez `--dry-run`), więc całość cofa `git restore . && git clean -fd` (poza plikami ignorowanymi przez `.gitignore`, na przykład `node_modules` po `npm install`). Treść każdego pliku powstaje w pamięci przed pierwszym zapisem, a błąd zapisu cofa zmiany jak w `wa add` ([D34](#d34)).
 - `.wa/kit.json` dostaje nową wersję, manifesty i hashe treści **kitu** (nie scalonej), także przy konfliktach. Przy konfliktach `wa generate` i `npm install` są pominięte; konflikt albo plik „do decyzji” kończy komendę kodem 1.
 - Obie wersje kitu CLI klonuje z tagu, także ze ścieżki lokalnej. Aktualizację liczy bundel wersji docelowej: bundel projektu klonuje tag docelowy i uruchamia jego bundel z wewnętrzną opcją `--from-kit`. Projekt z `v0.1.0`, którego bundel nie zna `update`, aktualizuje się pierwszy raz one-linerem z klonu tagu docelowego.
 
@@ -1594,7 +1594,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 - Po `wa update` przeglądasz `git diff`, rozwiązujesz markery i pliki „do decyzji”, uruchamiasz `npm run wa -- generate` i `npm install` (przy konfliktach), tworzysz migrację i uzupełniasz `.env` ([16-cli-wa.md](16-cli-wa.md#update-konflikty)).
 - Kod wyjścia 1 nie zawsze znaczy „nic się nie zmieniło”: przy konflikcie albo pliku „do decyzji” zmiany są zapisane, a `.wa/kit.json` ma już nową wersję.
-- Moduł usunięty albo przemianowany w kicie i nowe `requires` zatrzymują komendę przed zmianami; brakujące moduły dodaje się najpierw `wa add`.
+- Moduł usunięty albo przemianowany w kicie i nowe `requires` zatrzymują komendę przed zmianami. `wa add` doda brakujący moduł tylko wtedy, gdy istnieje on w wersji kitu projektu, bo pobiera kit w wersji `kitVersion`; moduł, który pojawia się dopiero w wersji docelowej, blokuje `wa update`, a zmiany kitu trzeba wtedy przenieść ręcznie, jak przed `wa update` ([znane-ograniczenia.md](znane-ograniczenia.md#cli-male)). Wydanie kitu nie powinno więc dodawać do istniejącego modułu `requires` na moduł nowy w tym samym wydaniu.
 - Wydanie kitu musi mieć tag dla obu wersji: bazowej projektu i docelowej ([D46](#d46)).
 - Pierwsza aktualizacja projektu z `v0.1.0` wymaga one-linera ([16-cli-wa.md](16-cli-wa.md#update-pierwsza)).
 

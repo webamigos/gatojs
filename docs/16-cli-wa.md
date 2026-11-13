@@ -531,7 +531,7 @@ Wszystkie kontrole i całe scalanie idą w pamięci, przed pierwszym zapisem.
 6. **Bundel z klonu** (one-liner): wersja jego kitu równa `<wersja>` ([wyżej](#update-pierwsza)).
 7. **Pobranie wersji docelowej i bazowej:** `git -c advice.detachedHead=false clone --depth 1 --branch v<wersja> --quiet` (dla ścieżki lokalnej bez `--depth 1`) do katalogu tymczasowego `wa-update-…`, który znika po komendzie, także po błędzie. Brak tagu: `Nie udało się pobrać wa-kit v<wersja> z <źródło>. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`, a nad nim linia gita (sprawdzone; przy polskich ustawieniach `fatal: Nie znaleziono zdalnej gałęzi v0.4.0 w repozytorium origin`). Tag z inną `version` w `kit/kit.json`: `Kit w <klon> ma wersję <x>, oczekiwano <wersja>`. Bundel projektu klonuje tu wersję docelową i przekazuje pracę ([wyżej](#update-delegacja)); proces potomny powtarza kroki 2–5 i klonuje wersję bazową `v<kitVersion>`.
 8. **Odczyt obu wersji**, najpierw bazowej (`readKitSnapshot` w `kit/cli/src/update/snapshot.ts`): `kit/kit.json` i manifesty (błąd schematu to surowy błąd Zod), potem moduły. Każdy moduł kitu z `.wa/kit.json` musi istnieć w obu wersjach: `Moduł <x> nie istnieje w wa-kit <wersja>` (moduł usunięty albo przemianowany w kicie wymaga ręcznej decyzji). Kit wskazany przez `--from-kit` w innej wersji niż docelowa: `Kit docelowy ma wersję <x>, oczekiwano <wersja>`.
-9. **`requires`** modułów w wersji docelowej muszą być zainstalowane: `Moduł <x> w wa-kit <wersja> wymaga niezainstalowanych modułów: <lista>`. Komenda nie dodaje modułów sama. `projectModules` zostają bez zmian, a ich `requires` sprawdza odczyt `.wa/kit.json` jak w każdej komendzie.
+9. **`requires`** modułów w wersji docelowej muszą być zainstalowane: `Moduł <x> w wa-kit <wersja> wymaga niezainstalowanych modułów: <lista>`. Komenda nie dodaje modułów sama. Brakujący moduł, który istnieje w wersji kitu projektu, doda `wa add`; moduł nowy dopiero w wersji docelowej nie ma ścieżki w CLI ([znane ograniczenia](znane-ograniczenia.md#cli-male)). `projectModules` zostają bez zmian, a ich `requires` sprawdza odczyt `.wa/kit.json` jak w każdej komendzie.
 10. **Plan dla każdego pliku** ([niżej](#update-plan)), razem ze scaleniem treści. Ścieżka, która po rozwiązaniu symlinków wychodzi poza projekt, daje `Ścieżka poza projektem: <ścieżka>`; błąd `git merge-file` daje `git merge-file: <komunikat gita>`.
 11. **`--dry-run`:** wypisanie planu i kod 0.
 12. **Zapis** plików według planu, potem `.wa/kit.json` ([Co zapisuje](#update-zapis)). Błąd zapisu cofa zmiany ([Cofanie](#update-cofanie)).
@@ -638,7 +638,7 @@ Po konfliktach:
 1. Rozwiąż markery w plikach z linią `konflikt` i zdecyduj o plikach `do decyzji` (usuń je, zostaw jako kod projektu albo przenieś zmiany).
 2. `npm run wa -- generate`, potem `npm install`.
 3. Migracja i zmienne, jak w [Po `wa update`](#update-po).
-4. Commit. Cofnięcie całości przed commitem: `git restore . && git clean -fd`; pojedynczy plik: `git restore <plik>`.
+4. Commit. Cofnięcie całości przed commitem: `git restore . && git clean -fd`; pojedynczy plik: `git restore <plik>`. `git clean -fd` nie usuwa plików ignorowanych przez `.gitignore` (na przykład `node_modules` po `npm install`), więc po cofnięciu uruchom jeszcze `npm install`, żeby zależności zgadzały się z przywróconym `package-lock.json`.
 
 <a id="update-zapis"></a>
 
@@ -665,8 +665,8 @@ Potem:
 
 1. **Migracja:** uruchom podaną komendę przy działającej bazie i zacommituj migrację ([03b](03b-schemat-i-migracje.md#migracje-w-projekcie)). Kit nie dostarcza migracji ([D13](decyzje.md#d13)).
 2. **`.env`:** skopiuj nowe zmienne z regionu `wa:modules` w `.env.example` i ustaw wartości; `wa update` nie zmienia `.env`.
-3. **Przegląd:** `git diff`, `npm run verify`, commit.
-4. Z `--no-install` zainstaluj zależności sam (`npm install`), co zaktualizuje też `package-lock.json`.
+3. Z `--no-install` zainstaluj zależności sam (`npm install`), co zaktualizuje też `package-lock.json`.
+4. **Przegląd:** `git diff`, `npm run verify`, commit (razem z `package-lock.json`).
 
 <a id="update-cofanie"></a>
 
