@@ -236,13 +236,15 @@ Jedna gałąź `claude/kind-goldberg-a73811` i jeden PR po Task 4, otwarty na pr
 **Mutacje do zabicia:** nie dotyczy.
 
 - [ ] **Step 1:** Dokumentacja.
-- [ ] **Step 2:** Bramki końcowe:
+- [ ] **Step 2:** Commit `docs(uploads): describe module startup checks and the local write check`. Bramki z kroku 3 działają na czystym drzewie, więc `git diff --exit-code` pokazuje tylko zmiany z `kit sync` i `generate`.
+- [ ] **Step 3:** Bramki końcowe:
   - `npm run verify`;
   - `npm run verify --prefix kit/cli`;
   - `npm run wa -- kit sync && npm run wa -- generate && git diff --exit-code`;
   - `npm run test:mutation:gate` i `npm run test:mutation:gate --prefix kit/cli`;
   - `npm run test:e2e` po `docker compose up -d db mail`. Serwery e2e przechodzą sprawdzenie zapisu w katalogu tymczasowym z `e2e/env.ts`.
-- [ ] **Step 3:** Commit `docs(uploads): describe module startup checks and the local write check`.
+
+  Poprawka po nieudanej bramce idzie osobnym commitem.
 
 ## Zakończenie
 
