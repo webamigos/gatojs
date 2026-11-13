@@ -81,6 +81,8 @@ KIT_DIR=$(mktemp -d) && git clone --depth 1 --branch v0.1.0 https://github.com/w
 
 `kit/README.md` nazywa tę linię `create-wa-app`; to nazwa w dokumentacji, nie osobny program. Zamiast `v0.1.0` podaj tag wersji, którą chcesz. Wymagany jest `git` z dostępem do `webamigos/wa-kit` i Node.js 22.
 
+Tag `v0.1.0` pyta o moduły i języki tekstem, po przecinku. Listę wyboru opisaną w sekcji [Pytania](#create-pytania) ma dopiero wydanie, które ją zawiera.
+
 `git clone` wypisuje przy tym ostrzeżenie i długą poradę (sprawdzone, `git` 2.56.0, `LC_ALL=C`):
 
 ```text
