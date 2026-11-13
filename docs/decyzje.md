@@ -219,7 +219,7 @@ Manifest leży w `.wa/kit.json` jako `modules.core.manifest` (schemat `kitStateS
 | region `wa:relations` w `prisma/schema/auth.prisma` i `prisma/schema/organizations.prisma` | pola relacji zwrotnych w modelach `User` i `Organization` | `schemaRelations` manifestów |
 | region `wa:modules` w `.env.example` | zmienne modułów innych niż `core` | pole `env` manifestu |
 | region `wa:services` w `docker-compose.yml` | usługi Dockera modułów | plik wskazany w polu `compose` manifestu |
-| region `wa:ci-integration` w `.github/workflows/ci.yml` | kroki joba testów integracyjnych | plik wskazany w polu `ciSteps` manifestu ([D45](#d45)) |
+| region `wa:ci-integration` w `.github/workflows/ci.yml` i `.github/workflows/mutation.yml` | kroki joba testów integracyjnych i przebiegu integracyjnego Strykera | plik wskazany w polu `ciSteps` manifestu ([D45](#d45)) |
 
 Poza szwami generowanymi rdzeń ma punkty wejścia, które woła kod modułu albo projektu (`trackAudit`, `auditActor`), i pola danych w `defineModule`, z których moduły czytają wkład innych modułów ([D39](#d39), [D40](#d40)).
 
@@ -961,7 +961,7 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 **Jak egzekwowana.**
 
 - Lokalnie: `test-reviewer` uruchamia `npm run test:mutation:task -- <pliki>` i `npm run test:mutation:gate` przy każdym zadaniu; pełny przebieg przed releasem kitu.
-- `.github/workflows/mutation.yml` tylko po ręcznym uruchomieniu (`workflow_dispatch`): `npm run test:mutation`, `npm run test:mutation:integration`, `npm run test:mutation:gate`, z Postgresem jako usługą. Workflow nie działa przy pull requeście ani pushu: pełny przebieg trwa kilkanaście minut, zużywa minuty GitHub Actions, a przebieg integracyjny ma znany problem z bazą ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#concurrency)). Koszt: CI nie zatrzyma osłabienia testu w pliku krytycznym; pilnuje tego proces lokalny i recenzja pull requestu.
+- `.github/workflows/mutation.yml` tylko po ręcznym uruchomieniu (`workflow_dispatch`): `npm run test:mutation`, `npm run test:mutation:integration`, `npm run test:mutation:gate`, z Postgresem jako usługą. Workflow nie działa przy pull requeście ani pushu: pełny przebieg trwa około godziny lokalnie i dłużej w GitHub Actions (2026-11-02: unitowy bez cache doszedł tam do 45% mutantów w 55 minut), zużywa minuty GitHub Actions, a przebieg integracyjny ma znany problem z bazą ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#concurrency)). Koszt: CI nie zatrzyma osłabienia testu w pliku krytycznym; pilnuje tego proces lokalny i recenzja pull requestu.
 - `thresholds.break` w `stryker.config.json`.
 - Logika bramki (`scripts/mutation-gate.ts`, `scripts/lib/mutation-gate.ts`): `scripts/lib/__tests__/mutation-gate.test.ts` w `npm test`.
 - Stały seed testów właściwości pod Strykerem: `src/__tests__/vitest-setup.test.ts` w `npm test` i `kit/cli/src/__tests__/vitest-setup.test.ts` w bramce CLI.
@@ -1513,7 +1513,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 ## D45 · Region `wa:ci-integration` i pole manifestu `ciSteps`; pusty region w pliku bez markerów jest pomijany
 
-**Status:** obowiązuje · **Data:** 2026-10-29 (pomijanie pustego regionu 2026-10-30) · **Kto zdecydował:** Jakub (spec planu 3, §7, „CI projektu (Jakub)”: region markerów w `ci.yml` wypełniany krokami z manifestów; 2026-10-30: pomijanie pustego regionu w pliku bez markerów, commit `1753a2d`); wykonawca planu 3 (nazwa regionu i pola, bez regionu w `e2e.yml`)
+**Status:** obowiązuje · **Data:** 2026-10-29 (pomijanie pustego regionu 2026-10-30, region w `mutation.yml` 2026-11-02) · **Kto zdecydował:** Jakub (spec planu 3, §7, „CI projektu (Jakub)”: region markerów w `ci.yml` wypełniany krokami z manifestów; 2026-10-30: pomijanie pustego regionu w pliku bez markerów, commit `1753a2d`; 2026-11-02: naprawa R25 z notatki rozbieżności części 2); wykonawca planu 3 (nazwa regionu i pola, bez regionu w `e2e.yml`)
 
 **Kontekst.** Testy integracyjne modułu `uploads` potrzebują MinIO z bucketem. W GitHub Actions `services:` nie uruchomi `minio server`, bo nie ma pola `command`, więc MinIO startuje krokiem joba. Projekt bez `uploads` nie powinien go uruchamiać, a moduł nie może edytować `ci.yml` rdzenia ([D03](#d03)).
 
@@ -1521,6 +1521,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 - `.github/workflows/ci.yml` ma w jobie `integration` region `# wa:ci-integration:start` / `# wa:ci-integration:end`. `wa generate` wpisuje do niego treść plików wskazanych w polu `ciSteps` manifestów, z wcięciem 6 spacji, fragmenty modułów oddzielone pustą linią (`ciStepsBody` w `kit/cli/src/generate/targets.ts`).
 - `uploads` wnosi `ci/uploads.integration-steps.yml` (start MinIO i utworzenie bucketu `<slug>-uploads`); plik jest w `placeholderFiles` ([D32](#d32)).
+- Od `core` 0.5.3 ten sam region (ten sam marker i ta sama treść) ma job `stryker` w `.github/workflows/mutation.yml`, przed krokiem „Run Stryker (integration)”, bo `stryker.integration.config.json` uruchamia te same testy integracyjne, w tym testy `uploads` na S3. Region zamiast kroków wpisanych wprost: projekt bez `uploads` nie uruchamia MinIO, a kroki modułu żyją w jednym pliku (`ciSteps`).
 - Gdy plik docelowy dowolnego regionu nie ma markerów, a region byłby pusty, generator go pomija bez błędu. Gdy moduł ma coś do wpisania, brak markerów kończy się błędem `<plik>: brak regionu wa:<marker>; …`, a jeden marker bez drugiego jest błędem uszkodzonego regionu.
 
 **Odrzucone alternatywy.** MinIO jako usługa `services:` w GitHub Actions (brak `command`, spec planu 3, §7). Powodu pomijania pustego regionu commit nie podaje; z testów wynika, że projekt bez markerów w pliku docelowym generuje się bez błędu, dopóki żaden moduł nie ma czego tam wpisać.
@@ -1528,7 +1529,8 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 **Konsekwencje.**
 
 - Projekt bez modułów z `ciSteps` ma pusty region i nie uruchamia MinIO.
-- `e2e.yml` nie ma regionu: kroki modułów działają tylko w jobie `integration`.
+- `e2e.yml` nie ma regionu: kroki modułów działają tylko w jobie `integration` (`ci.yml`) i w jobie `stryker` (`mutation.yml`).
+- Projekt z modułem, który ma `ciSteps`, po przeniesieniu bundla `.wa/bin/wa.mjs` z `core` 0.5.3 bez nowego `mutation.yml` dostaje przy `wa generate` błąd `.github/workflows/mutation.yml: brak regionu wa:ci-integration; …` (test „mutation.yml bez markerów, a moduł ma ciSteps” w `ci-steps.test.ts`), więc markery przenosi się razem z bundlem. Projekt, który usunął `mutation.yml`, generuje się bez błędu.
 - `AGENTS.md` nie wymienia regionu ani pola `ciSteps` (rozbieżność R1).
 - Test własności sprawdza, że plik z `compose` należy do modułu, ale pliku z `ciSteps` nie sprawdza ([D38](#d38)).
 - Region działa tylko w CI. Lokalnie testy integracyjne korzystają z MinIO projektu uruchomionego przez `docker compose --profile s3 up -d` ([D49](#d49)): domyślne wartości w `src/test/integration/setup-env.ts` (`http://localhost:9000`, bucket `<slug>-uploads`) odpowiadają usługom `minio` i `minio-init`, a `STORAGE_PROVIDER=s3` z tego pliku trzyma testy na S3 także w projekcie, którego aplikacja zapisuje pliki na dysku. `INTEGRATION_S3_ENDPOINT` i `INTEGRATION_S3_BUCKET` zmieniają adres i bucket, gdy MinIO działa gdzie indziej.

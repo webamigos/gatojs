@@ -558,7 +558,7 @@ jobs:
 
 Job `test-e2e` instaluje Chromium, uruchamia `npx prisma migrate dev --name init` i `npm run test:e2e` z usługami `postgres:16` i mailpit, a raport HTML zapisuje jako artefakt `playwright-report`. W projekcie z zacommitowanymi migracjami ten krok ma skutek uboczny: gdy ktoś zmienił schemat bez migracji, `migrate dev` utworzy brakującą migrację w trakcie przebiegu i testy przejdą, a `prisma migrate deploy` na produkcji jej nie dostanie (wniosek z kodu workflowu: w repozytorium kitu ten sam krok tworzy migrację `init` bez pytania). Wyjątek to zmiana, przy której Prisma pyta o zgodę (ostrzeżenia o utracie danych): w CI nie ma kogo zapytać, więc krok najpewniej skończy się błędem (niesprawdzone). Przed pushem uruchom lokalnie `npx prisma migrate dev`. Wynik `Already in sync, no schema change or pending migration was found.` znaczy, że migracje pokrywają schemat; w przeciwnym razie komenda utworzy brakującą migrację, którą dołączasz do commita ([03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#migracje-w-projekcie), krok 4).
 
-**`mutation.yml`** uruchamia testy mutacyjne tylko ręcznie (`workflow_dispatch`), na przykład przed releasem kitu. Na co dzień mutacje działają lokalnie ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#przebieg)).
+**`mutation.yml`** uruchamia testy mutacyjne tylko ręcznie (`workflow_dispatch`), na przykład przed releasem kitu. Przed przebiegiem integracyjnym wykonuje kroki z regionu `wa:ci-integration`, tego samego co job `integration`. Na co dzień mutacje działają lokalnie ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#przebieg)).
 
 `.github/workflows/mutation.yml`
 
@@ -571,7 +571,7 @@ jobs:
     name: Stryker (incremental)
 ```
 
-Job `stryker` uruchamia `npm run test:mutation`, `npm run test:mutation:integration` i `npm run test:mutation:gate`, z limitem 60 minut ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#stryker)).
+Job `stryker` uruchamia `npm run test:mutation`, `npm run test:mutation:integration` i `npm run test:mutation:gate`, z limitem 360 minut ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#stryker)).
 
 **`security-audit.yml`** sprawdza podatności zależności przy zmianie `package.json` albo `package-lock.json` (w pull requeście także przy zmianie samego workflowu) i co poniedziałek o 6:00 UTC.
 
