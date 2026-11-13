@@ -311,3 +311,150 @@ describe("generate: plik bez markerów regionu", () => {
     expect(await snapshotDir(dir)).toEqual(snap);
   });
 });
+
+const MUTATION_YML = [
+  "jobs:",
+  "  mutation-integration:",
+  "    steps:",
+  "      - name: Install dependencies",
+  "        run: npm ci",
+  "",
+  "      # wa:ci-integration:start",
+  "      # wa:ci-integration:end",
+  "",
+  "      - name: Stryker (integration)",
+  "        run: npm run test:mutation:integration",
+  "",
+].join("\n");
+
+const MUTATION_YML_WITHOUT_MARKERS = [
+  "jobs:",
+  "  mutation-integration:",
+  "    steps:",
+  "      - name: Install dependencies",
+  "        run: npm ci",
+  "",
+  "      - name: Stryker (integration)",
+  "        run: npm run test:mutation:integration",
+  "",
+].join("\n");
+
+const MUTATION_PATH = ".github/workflows/mutation.yml";
+
+async function readMutation(dir: string): Promise<string> {
+  return readFile(join(dir, MUTATION_PATH), "utf8");
+}
+
+async function makeUploadsProject(mutationYml: string | null): Promise<string> {
+  const dir = await makeProject({
+    uploads: {
+      ciSteps: "ci/uploads.integration-steps.yml",
+      env: [{ name: "S3_BUCKET", example: "uploads" }],
+    },
+  });
+  await put(dir, ".env.example", "# wa:modules:start\n# wa:modules:end\n");
+  await put(
+    dir,
+    "ci/uploads.integration-steps.yml",
+    [
+      "- name: Start MinIO",
+      "  run: docker compose up -d minio",
+      "- name: Create bucket",
+      "  run: ./create-bucket.sh",
+      "",
+    ].join("\n"),
+  );
+  if (mutationYml !== null) {
+    await put(dir, MUTATION_PATH, mutationYml);
+  }
+  return dir;
+}
+
+describe("generate: region ci-integration w mutation.yml", () => {
+  it("kroki z ciSteps trafiają do regionu mutation.yml z wcięciem 6 spacji", async () => {
+    const dir = await makeUploadsProject(MUTATION_YML);
+
+    await generate(dir);
+
+    expect(await readMutation(dir)).toBe(
+      [
+        "jobs:",
+        "  mutation-integration:",
+        "    steps:",
+        "      - name: Install dependencies",
+        "        run: npm ci",
+        "",
+        "      # wa:ci-integration:start",
+        "      - name: Start MinIO",
+        "        run: docker compose up -d minio",
+        "      - name: Create bucket",
+        "        run: ./create-bucket.sh",
+        "      # wa:ci-integration:end",
+        "",
+        "      - name: Stryker (integration)",
+        "        run: npm run test:mutation:integration",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("mutation.yml i ci.yml dostają ten sam region ci-integration", async () => {
+    const dir = await makeUploadsProject(MUTATION_YML);
+
+    await generate(dir);
+
+    const region =
+      "      # wa:ci-integration:start\n      - name: Start MinIO\n        run: docker compose up -d minio\n      - name: Create bucket\n        run: ./create-bucket.sh\n      # wa:ci-integration:end\n";
+    expect(await readMutation(dir)).toContain(region);
+    expect(await readCi(dir)).toContain(region);
+  });
+
+  it("mutation.yml zmieniony przez generate trafia do listy changed", async () => {
+    const dir = await makeUploadsProject(MUTATION_YML);
+
+    const { changed } = await generate(dir);
+
+    expect(changed).toContain(MUTATION_PATH);
+  });
+
+  it("moduł bez ciSteps zostawia mutation.yml bez zmian", async () => {
+    const dir = await makeProject({ alpha: {} });
+    await put(dir, MUTATION_PATH, MUTATION_YML);
+
+    const { changed } = await generate(dir);
+
+    expect(await readMutation(dir)).toBe(MUTATION_YML);
+    expect(changed).not.toContain(MUTATION_PATH);
+  });
+
+  it("projekt bez mutation.yml: generate przechodzi i nie tworzy pliku", async () => {
+    const dir = await makeUploadsProject(null);
+
+    await generate(dir);
+
+    await expect(stat(join(dir, MUTATION_PATH))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("mutation.yml bez markerów, a moduł ma ciSteps → błąd brak regionu i żaden plik nie zmieniony", async () => {
+    const dir = await makeUploadsProject(MUTATION_YML_WITHOUT_MARKERS);
+    const snap = await snapshotDir(dir);
+
+    await expect(generate(dir)).rejects.toThrow(
+      ".github/workflows/mutation.yml: brak regionu wa:ci-integration; dodaj linie ze znacznikami wa:ci-integration:start i wa:ci-integration:end",
+    );
+    expect(await snapshotDir(dir)).toEqual(snap);
+  });
+
+  it("drugie generate nie zmienia mutation.yml", async () => {
+    const dir = await makeUploadsProject(MUTATION_YML);
+    await generate(dir);
+    const first = await readMutation(dir);
+
+    const { changed } = await generate(dir);
+
+    expect(await readMutation(dir)).toBe(first);
+    expect(changed).not.toContain(MUTATION_PATH);
+  });
+});

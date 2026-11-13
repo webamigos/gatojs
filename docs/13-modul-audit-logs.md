@@ -310,7 +310,6 @@ Pole `auditActions?: { action: string; labelKey: string }[]` w `defineModule` m�
 - **Brak klucza w tłumaczeniach.** next-intl zgłasza `MISSING_MESSAGE` i pokazuje ścieżkę klucza zamiast etykiety.
 - **Ta sama akcja w dwóch modułach.** Wygrywa moduł wcześniej w rejestrze: najpierw rdzeń, potem moduły kitu, potem moduły projektu.
 - **Bez modułu.** Nikt nie czyta pola; deklaracja przechodzi typecheck i nic nie robi ([12](12-moduly-kitu.md#punkty-wejscia)).
-- **Ostrzeżenie dla testów.** Test kitu „pokazuje surowy action, gdy akcja nie ma deklaracji” w `src/features/audit-logs/components/__tests__/audit-log-view.test.tsx` renderuje widok na prawdziwym rejestrze i zakłada, że akcja `delivery.received` nie jest zadeklarowana. Moduł projektu, który zadeklaruje dokładnie tę akcję, psuje ten test i `npm run verify` (sprawdzone: przebieg z deklaracją `delivery.received` dał `Tests  1 failed | 1455 passed (1456)`). Wybierz inną nazwę akcji ([Typowe problemy](13b-modul-audit-logs-uzycie.md#problemy)).
 
 <a id="zapis"></a>
 
