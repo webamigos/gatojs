@@ -80,8 +80,9 @@ async function collectAnswers(
 ): Promise<Answers> {
   const { prompter, yes } = options;
   let modules = options.modules ?? [];
-  if (options.modules === null && !yes) {
-    modules = await prompter.select("Moduły", moduleChoices(manifests));
+  const choices = moduleChoices(manifests);
+  if (options.modules === null && !yes && choices.length > 0) {
+    modules = await prompter.select("Moduły", choices);
   }
   let locales = options.locales ?? parseLocales(DEFAULT_LOCALES);
   if (options.locales === null && !yes) {

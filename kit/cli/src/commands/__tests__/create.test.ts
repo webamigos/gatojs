@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generate } from "../../generate/index.js";
 import { readKitState } from "../../manifest/kit-state.js";
@@ -728,6 +730,24 @@ describe("create: pytania", () => {
     const dir = join(tmp, "acme-shop");
     const { prompter } = scriptedPrompter([], [], [[]]);
     await create(opts({ target: dir, modules: null, prompter }));
+    expect(Object.keys((await readKitState(dir)).modules)).toEqual(["core"]);
+  });
+
+  it("kit bez modułów poza core nie pyta o moduły i składa projekt z samym core", async () => {
+    await promisify(execFile)("git", [
+      "-C",
+      kit,
+      "rm",
+      "-qf",
+      "kit/modules/demo.json",
+      "kit/modules/needs-demo.json",
+    ]);
+    const dir = join(tmp, "acme-shop");
+    const { prompter, selections } = scriptedPrompter([]);
+    await create(opts({ target: dir, modules: null, prompter }));
+    expect(selections.map((selection) => selection.question)).toEqual([
+      "Języki",
+    ]);
     expect(Object.keys((await readKitState(dir)).modules)).toEqual(["core"]);
   });
 

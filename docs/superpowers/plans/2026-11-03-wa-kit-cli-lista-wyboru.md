@@ -85,6 +85,7 @@ Testy: `kit/cli/src/commands/__tests__/create.test.ts`, fałszywy prompter w `ki
   `choices` z pozycjami `demo — Demo` i `needs-demo — …` (literały z fixture), bez pozycji `core`.
 - `select` dla modułów zwraca `["needs-demo"]` → w `.wa/kit.json` są `core`, `demo` i `needs-demo`.
 - `select` dla modułów zwraca `[]` → tylko `core`.
+- kit, którego `kit/modules` ma tylko `core.json` (lista modułów pusta), `modules: null`, bez `--yes` → `select` nie jest wołany dla modułów (pierwsze `select` to `"Języki"`), projekt powstaje z samym `core`. Powód: `@inquirer/checkbox` rzuca `No selectable choices` dla listy bez pozycji (uwaga z recenzji PR #23).
 - `select` dla języków zwraca `["pl"]` → `locales` w `.wa/kit.json` to `["pl"]`; zwraca `["pl", "en"]` → `["pl", "en"]`.
 - `select` dla języków zwraca `["en"]` (fałszywy prompter) → błąd `--locales: dozwolone pl,en; pl jest wymagany`.
 - drugie wywołanie `select` ma pytanie `"Języki"` i dokładnie pozycje `pl` (`checked: true`, `locked: true`) i `en` (`checked: true`).
@@ -99,6 +100,7 @@ Testy: `kit/cli/src/commands/__tests__/create.test.ts`, fałszywy prompter w `ki
 - `pl` bez `locked` albo bez `checked`; `en` bez `checked`.
 - pominięcie `parseLocales` (zła lista języków przechodzi).
 - pytanie o moduły mimo `--modules` albo `--yes`.
+- pytanie o moduły przy pustej liście modułów.
 
 ## Zadanie 3. Bundel, dokumentacja, `audit-logs.json`
 

@@ -21117,8 +21117,9 @@ function moduleChoices(manifests) {
 async function collectAnswers(options, manifests, names) {
   const { prompter, yes } = options;
   let modules = options.modules ?? [];
-  if (options.modules === null && !yes) {
-    modules = await prompter.select("Modu\u0142y", moduleChoices(manifests));
+  const choices = moduleChoices(manifests);
+  if (options.modules === null && !yes && choices.length > 0) {
+    modules = await prompter.select("Modu\u0142y", choices);
   }
   let locales = options.locales ?? parseLocales(DEFAULT_LOCALES);
   if (options.locales === null && !yes) {
