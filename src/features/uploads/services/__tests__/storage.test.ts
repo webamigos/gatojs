@@ -14,6 +14,7 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
 });
 vi.mock("@/shared/lib/env", () => ({
   env: {
+    STORAGE_PROVIDER: "s3",
     S3_ENDPOINT: "http://localhost:9100",
     S3_REGION: "auto",
     S3_ACCESS_KEY_ID: "key",
@@ -24,7 +25,7 @@ vi.mock("@/shared/lib/env", () => ({
 }));
 
 import { NoSuchKey } from "@aws-sdk/client-s3";
-import { getObject } from "../storage";
+import { deleteObject, getObject, putObject } from "../storage";
 
 function errorNamed(name: string): Error {
   const error = new Error("boom");
@@ -70,5 +71,32 @@ describe("getObject", () => {
     mockSend.mockRejectedValue(notAnError);
 
     await expect(getObject("a/b.png")).rejects.toBe(notAnError);
+  });
+
+  it("zwraca pusty body i contentType odpowiedzi, a nie null, gdy odpowiedź S3 nie ma Body", async () => {
+    mockSend.mockResolvedValue({ ContentType: "text/plain" });
+
+    await expect(getObject("a/b.png")).resolves.toEqual({
+      body: new Uint8Array(),
+      contentType: "text/plain",
+    });
+  });
+});
+
+describe("putObject i deleteObject przy awarii S3", () => {
+  it("putObject odrzuca obietnicę błędem S3, zamiast go połknąć", async () => {
+    const failure = errorNamed("AccessDenied");
+    mockSend.mockRejectedValue(failure);
+
+    await expect(
+      putObject("a/b.png", new Uint8Array([1]), "image/png"),
+    ).rejects.toBe(failure);
+  });
+
+  it("deleteObject odrzuca obietnicę błędem S3, zamiast go połknąć", async () => {
+    const failure = errorNamed("AccessDenied");
+    mockSend.mockRejectedValue(failure);
+
+    await expect(deleteObject("a/b.png")).rejects.toBe(failure);
   });
 });

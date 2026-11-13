@@ -5,21 +5,21 @@ Po przeczytaniu będziesz wiedzieć:
 - jak next-intl ustala język strony, kiedy przekierowuje na `/en/...` i jak dodać tekst albo nowy język;
 - jak teksty feature trafiają do własnego namespace i co się dzieje przy kolizji nazw;
 - którędy aplikacja wysyła maile (SMTP, Resend albo tylko wpis w logu) i czego wymaga produkcja;
-- jak `src/shared/lib/env.ts` sprawdza zmienne środowiskowe i które zmienne kod czyta z pominięciem tej walidacji;
+- jak `src/shared/lib/env.ts` sprawdza zmienne środowiskowe przy starcie serwera i przy pierwszym odczycie `env` oraz które zmienne kod czyta z pominięciem tej walidacji;
 - które zmienne poza schematem czytają kod aplikacji, Next.js, Docker i testy.
 
-Zweryfikowano z kodem: e2a4a2a, 2026-10-29
+Zweryfikowano z kodem: 734391b, 2026-11-04
 
 Źródła:
 
 - tłumaczenia: `src/i18n/config.ts`, `src/i18n/routing.ts`, `src/i18n/request.ts`, `src/i18n/merge-messages.ts`, `src/i18n/__tests__/merge-messages.test.ts`, `src/proxy.ts`, `next.config.ts`, `src/app/layout.tsx`, `src/app/[locale]/layout.tsx`, `src/app/messages/pl.json`, `src/app/messages/en.json`, `src/features/account/i18n/`, `src/features/auth/i18n/`, `src/features/dashboard/i18n/`, `src/features/organizations/i18n/`, `src/features/users/i18n/`, `src/features/organizations/components/organization-members.tsx`, `src/shared/components/service-mode/service-mode-banner.tsx`, `src/modules.generated.ts`, `kit/cli/src/generate/index.ts`, `kit/cli/src/generate/registry.ts`, `playwright.config.ts`;
 - maile: `src/shared/lib/mailer.ts`, `src/shared/lib/__tests__/mailer.test.ts`, `src/app/emails/`, `src/shared/lib/auth/index.ts`, `src/shared/lib/auth/welcome-set-password.ts`, `src/features/users/services/commands/invite-user-command.ts`, `src/features/users/contracts/user-account.schemas.ts`, `src/app/[locale]/(app)/users/page.tsx`, `src/shared/utils/error-handling.ts`, `e2e/helpers.ts`;
-- zmienne środowiskowe: `src/shared/lib/env.ts`, `src/shared/lib/__tests__/env.test.ts`, `.env.example`, `.wa/kit.json`, `src/shared/lib/prisma.ts`, `prisma.config.ts`, `scripts/admin-create.ts`, `src/shared/lib/logger.ts`, `src/instrumentation.ts`, `docker-compose.yml`, `Dockerfile`, `e2e/env.ts`, `src/test/integration/database-url.ts`;
-- biblioteki (wersje w `package-lock.json`): `node_modules/next-intl/dist/esm/development/routing/config.js` (next-intl 4.14.9, `receiveRoutingConfig`), `node_modules/next-intl/dist/esm/development/middleware/resolveLocale.js`, `node_modules/next-intl/dist/esm/development/middleware/syncCookie.js`, `node_modules/@opentelemetry/otlp-exporter-base/build/src/configuration/otlp-node-http-env-configuration.js` (0.218.0), `node_modules/resend/dist/index.mjs` (resend 6.34.1, `logError`), `node_modules/next/dist/bin/next` (Next.js 16.3.8, opcje `-p` i `-H`).
+- zmienne środowiskowe: `src/shared/lib/env.ts`, `src/shared/lib/__tests__/env.test.ts`, `src/shared/lib/__tests__/env-startup.test.ts`, `src/__tests__/instrumentation.test.ts`, `src/features/api-keys/env.ts`, `src/features/uploads/env.ts`, `src/features/uploads/services/storage-env.ts`, `.env.example`, `.wa/kit.json`, `src/shared/lib/prisma.ts`, `prisma.config.ts`, `scripts/admin-create.ts`, `src/shared/lib/logger.ts`, `src/instrumentation.ts`, `docker-compose.yml`, `Dockerfile`, `e2e/env.ts`, `src/test/integration/database-url.ts`;
+- biblioteki (wersje w `package-lock.json`): `node_modules/next-intl/dist/esm/development/routing/config.js` (next-intl 4.14.9, `receiveRoutingConfig`), `node_modules/next-intl/dist/esm/development/middleware/resolveLocale.js`, `node_modules/next-intl/dist/esm/development/middleware/syncCookie.js`, `node_modules/@opentelemetry/otlp-exporter-base/build/src/configuration/otlp-node-http-env-configuration.js` (0.218.0), `node_modules/resend/dist/index.mjs` (resend 6.34.1, `logError`), `node_modules/next/dist/bin/next` (Next.js 16.3.8, opcje `-p` i `-H`), `node_modules/next/dist/build/index.js` i `node_modules/next/dist/shared/lib/constants.js` (Next.js 16.4.3, `NEXT_PHASE` i `PHASE_PRODUCTION_BUILD`).
 
 Rozdział opisuje tłumaczenia, wysyłkę maili i zmienne środowiskowe, czyli infrastrukturę wspólną dla wszystkich feature. Logi, OpenTelemetry, nagłówki bezpieczeństwa i healthcheck opisuje [07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md). Pliki opisane w rozdziale należą do modułu `core`: wszystko w `src/i18n/` i `src/shared/`, pliki rdzenia w `src/app/` (między innymi `messages/`, `emails/` i layouty), a także `src/proxy.ts`, `src/instrumentation.ts` i pliki konfiguracji w katalogu głównym, na przykład `next.config.ts`, `Dockerfile` i `docker-compose.yml` (wzorce w manifeście `kit/modules/core.json` w repozytorium kitu, a w projekcie w kopii manifestu w `.wa/kit.json`). Strony i trasy modułów w `src/app/` należą do tych modułów. W repozytorium kitu test własności w bramce CLI pilnuje, żeby każdy plik z indeksu gita poza `kitOnly` i `generatedFiles` miał dokładnie jednego właściciela; w projekcie klienta tego testu nie ma ([D38](decyzje.md#d38)). Moduł korzysta z tych plików, ale ich nie edytuje ([D03](decyzje.md#d03)).
 
-Oznaczenie „(sprawdzone)” znaczy, że zachowanie potwierdziło uruchomienie kodu z repozytorium: funkcji (`parseEnv`, `mergeMessages`, middleware next-intl, `createTranslator` z next-intl, `sendPasswordResetEmail`), kompilacji `tsc` pliku próbnego, `wa generate` i `tsc --noEmit` na kopii repozytorium (w [Dodawaniu języka](#dodawanie-jezyka)) albo zbudowanego serwera (`.next/standalone/server.js`) na lokalnych portach, bez wysyłki czegokolwiek na zewnątrz.
+Oznaczenie „(sprawdzone)” znaczy, że zachowanie potwierdziło uruchomienie kodu z repozytorium: funkcji (`parseEnv`, `mergeMessages`, middleware next-intl, `createTranslator` z next-intl, `sendPasswordResetEmail`), kompilacji `tsc` pliku próbnego, `wa generate` i `tsc --noEmit` na kopii repozytorium (w [Dodawaniu języka](#dodawanie-jezyka)) albo serwera Next.js (zbudowanego `.next/standalone/server.js` albo `next dev`) na lokalnych portach, bez wysyłki czegokolwiek na zewnątrz.
 
 <a id="i18n"></a>
 
@@ -373,10 +373,48 @@ Testy e2e czytają maile przez API mailpit (`e2e/helpers.ts`, [08-testy.md](08-t
 
 ### Kiedy i jak działa walidacja
 
-`src/shared/lib/env.ts` definiuje schemat Zod `coreEnvSchema`, łączy go ze schematami feature (`moduleEnvSchemas`) i eksportuje dwie rzeczy:
+`src/shared/lib/env.ts` definiuje schemat Zod `coreEnvSchema`, łączy go ze schematami feature (`moduleEnvSchemas`) i eksportuje:
 
-- `parseEnv(source)`: sprawdza podany obiekt i zwraca wynik albo rzuca jeden błąd `Nieprawidłowe zmienne środowiskowe: <ZMIENNA>: <komunikat>; <ZMIENNA>: <komunikat>`;
+- `checkEnv(source)`: sprawdza podany obiekt i zwraca `{ ok: true, env }` albo `{ ok: false, issues }`. Każdy problem ma `name`, czyli ścieżkę z Zod połączoną kropkami (na przykład `DATABASE_URL`), i `message`, czyli komunikat Zod. Problem bez ścieżki, który schemat feature zgłasza dla całego obiektu, ma nazwę `(env)`;
+- `formatEnvReport(issues)`: składa z problemów raport startowy, opisany niżej;
+- `parseEnv(source)`: woła `checkEnv` i zwraca wynik albo rzuca jeden błąd `Nieprawidłowe zmienne środowiskowe: <ZMIENNA>: <komunikat>; <ZMIENNA>: <komunikat>`;
+- `verifyEnvOnStartup(source, io)`: sprawdzenie przy starcie procesu, opisane niżej;
+- `processStartupIo`: obiekt `io` dla `verifyEnvOnStartup`, który przekazuje raport do `console.error`, a kod wyjścia do `process.exit`;
 - `env`: obiekt, który sprawdza `process.env` przy pierwszym odczycie dowolnego pola i zapamiętuje wynik do końca działania procesu.
+
+Serwer Next.js sprawdza zmienne przy starcie procesu, zanim obsłuży pierwsze żądanie ([D48](decyzje.md#d48)). Next.js wywołuje `register()` z `src/instrumentation.ts` przy starcie serwera (sprawdzone dla `next dev` i `server.js` z `output: "standalone"`). W Node.js (`NEXT_RUNTIME` równe `nodejs`), przed konfiguracją eksportu logów, `register()` woła:
+
+`src/instrumentation.ts`
+
+```ts
+  const { verifyEnvOnStartup, processStartupIo } =
+    await import("@/shared/lib/env");
+  verifyEnvOnStartup(process.env, processStartupIo);
+```
+
+Import dynamiczny trzyma Zod i rejestr modułów poza paczką dla środowiska Edge, w której `register()` jest pustą funkcją (sprawdzone). Przy poprawnych zmiennych `verifyEnvOnStartup` niczego nie wypisuje. Przy błędzie wypisuje przez `console.error` raport ze wszystkimi problemami, a potem kończy proces kodem 1. Pierwsza linia raportu podaje liczbę problemów, a każda następna jeden problem w postaci `- <nazwa>: <komunikat>`. Zbudowany serwer uruchomiony bez żadnych zmiennych (`env -i PATH="$PATH" PORT=3998 node .next/standalone/server.js`) zakończył się sam po 0,43 s, bez żadnego żądania, z kodem 1, a na stderr wypisał (sprawdzone 2026-11-04):
+
+```text
+Nieprawidłowe zmienne środowiskowe (6):
+- DATABASE_URL: Invalid input: expected string, received undefined
+- BETTER_AUTH_SECRET: Invalid input: expected string, received undefined
+- APP_URL: Invalid input: expected string, received undefined
+- EMAIL_FROM: Invalid input: expected string, received undefined
+- API_KEY_PEPPER: Invalid input: expected string, received undefined
+- STORAGE_LOCAL_PATH: wymagana w produkcji przy STORAGE_PROVIDER=local: wskaż trwały katalog
+```
+
+Cztery pierwsze linie pochodzą ze schematu rdzenia, piąta z modułu `api-keys`, a ostatnia z modułu `uploads`: `server.js` działa z `NODE_ENV=production`, a provider `local`, domyślny bez `STORAGE_PROVIDER`, wymaga w produkcji poza Railway jawnego katalogu ([15-modul-uploads.md](15-modul-uploads.md#reguly-produkcyjne)).
+
+`next dev` bez zmiennych kończy się tym samym raportem i kodem 1 (sprawdzone). W obu przypadkach Next.js wypisuje na stdout swój nagłówek z linią `✓ Ready` przed raportem, więc `Ready` nie znaczy, że zmienne są poprawne. Raport idzie na konsolę, a nie przez `logger`, bo na produkcji bez eksportu OTLP wpisy `logger` znikają ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#logger-cel)).
+
+Sprawdzenia przy starcie nie ma w trzech sytuacjach:
+
+- **Faza `next build`.** `npm run build` przechodzi bez pliku `.env` i bez zmiennych (sprawdzone), bo `next build` nie wywołuje `register()`: Next.js 16.4.3 ustawia workerom `next build` `NEXT_PHASE` równe `phase-production-build`, ale w tym projekcie żaden z nich nie wczytał `instrumentation.js` (sprawdzone). Przy tej wartości (stała `PHASE_PRODUCTION_BUILD` z `next/constants`) `verifyEnvOnStartup` i tak wraca bez sprawdzania. To zabezpieczenie na wypadek, gdyby build kiedyś wywołał `register()`.
+- **Środowisko Edge.** `register()` kończy się przed sprawdzeniem, gdy `NEXT_RUNTIME` nie jest równe `nodejs`.
+- **Procesy bez serwera Next.js.** Testy Vitest, `npm run admin:create` i inne skrypty nie wywołują `register()`, więc ich zmienne sprawdza dopiero pierwszy odczyt `env`.
+
+Obiekt `env` zostaje leniwy: sam import niczego nie sprawdza, więc nie przerywa `next build` ani testów bez pełnego środowiska.
 
 `src/shared/lib/env.ts`
 
@@ -392,11 +430,11 @@ export const env = new Proxy({} as CoreEnv, {
 });
 ```
 
-Co z tego wynika dla dewelopera (kiedy pojawia się błąd, restart po zmianie `.env`, tabela komunikatów), opisuje [01-uruchomienie.md](01-uruchomienie.md#plik-env). Dwie rzeczy, których tam nie ma:
+W serwerze oba sprawdzenia czytają `process.env` tym samym schematem. Restart po zmianie `.env` i tabelę komunikatów opisuje [01-uruchomienie.md](01-uruchomienie.md#plik-env). Rzeczy, których tam nie ma:
 
-- Schematy zainstalowanych modułów (`moduleEnvSchemas`) są częścią tej samej walidacji: zła zmienna modułu, na przykład `API_KEY_PEPPER` z modułu `api-keys`, psuje `env` dla całej aplikacji, a nie tylko dla modułu ([14-modul-api-keys.md](14-modul-api-keys.md#pepper)).
+- Schematy zainstalowanych modułów (`moduleEnvSchemas`) są częścią tej samej walidacji: zła zmienna modułu, na przykład `API_KEY_PEPPER` z modułu `api-keys`, zatrzymuje start całej aplikacji, a nie tylko modułu ([14-modul-api-keys.md](14-modul-api-keys.md#pepper)).
 - Zmiennych spoza schematu wynik nie zawiera: `env.FOO` daje `undefined`, nawet gdy `FOO` jest w `process.env`.
-- Dwa warunki produkcyjne (`RESEND_API_KEY` i sekret z `.env.example`) Zod sprawdza dopiero wtedy, gdy wszystkie pola przejdą podstawowe sprawdzenie. Przy `NODE_ENV=production`, braku `RESEND_API_KEY` i `MULTI_ORG=1` komunikat wymienia tylko `MULTI_ORG`, a błąd `RESEND_API_KEY` pojawia się po jego poprawieniu (sprawdzone).
+- Warunki produkcyjne Zod sprawdza dopiero wtedy, gdy przejdą podstawowe reguły tego samego schematu. W rdzeniu są to `RESEND_API_KEY` i sekret z `.env.example`, a w module `api-keys` pepper z `.env.example`. Moduł `uploads` sprawdza swoje reguły w `transform` schematu, którego pola są opcjonalnymi napisami, więc jego reguły produkcyjne raport wymienia od razu, obok braków rdzenia (sprawdzone 2026-11-04, raport wyżej). Raport i komunikat `parseEnv` nie wymieniają więc od razu wszystkiego: przy `NODE_ENV=production`, braku `RESEND_API_KEY` i `MULTI_ORG=1` wymieniają tylko `MULTI_ORG`, a błąd `RESEND_API_KEY` pojawia się po jego poprawieniu (sprawdzone). Schemat rdzenia i schematy modułów są sprawdzane niezależnie: zbudowany serwer bez `DATABASE_URL`, bez `RESEND_API_KEY` i z pepperem z `.env.example` wypisał w raporcie `DATABASE_URL` i `API_KEY_PEPPER: w produkcji nie może być wartością z .env.example`, ale nie `RESEND_API_KEY` (sprawdzone).
 
 <a id="reguly-parsowania"></a>
 
@@ -436,15 +474,15 @@ Pozostałe reguły (sekret, `APP_URL`, `NODE_ENV`, zmienne wymagane) są w [tabe
 
 ### Zmienne czytane z pominięciem `env`
 
-Walidacja chroni tylko odczyty przez `env`. Część zmiennych ze schematu kod czyta wprost z `process.env`:
+Poza serwerem Next.js, który sprawdza zmienne przy starcie, walidacja chroni tylko odczyty przez `env`. Część zmiennych ze schematu kod czyta wprost z `process.env`:
 
 | Zmienna | Kto czyta wprost | Skutek |
 | --- | --- | --- |
 | `DATABASE_URL` | `src/shared/lib/prisma.ts`, `prisma.config.ts` | Prisma łączy się bez walidacji pozostałych zmiennych. `env.DATABASE_URL` nie czyta żaden plik. |
-| `NODE_ENV`, `OTEL_EXPORTER_OTLP_ENDPOINT` | `src/shared/lib/logger.ts` (przy imporcie), `src/instrumentation.ts` | Logger i eksport działają niezależnie od wyniku walidacji. |
+| `NODE_ENV`, `OTEL_EXPORTER_OTLP_ENDPOINT` | `src/shared/lib/logger.ts` (przy imporcie), `src/instrumentation.ts` | Logger czyta te zmienne wprost z `process.env`, bez walidacji. Start serwera i tak zależy od `verifyEnvOnStartup`: przy błędnym `env` `register()` kończy proces, zanim skonfiguruje eksport, więc serwer z błędnym `env` nie działa dalej. |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | `scripts/admin-create.ts` (`values.password ?? process.env.ADMIN_PASSWORD`) | Pusta wartość `ADMIN_PASSWORD` działa jak brak: skrypt generuje hasło ([04-auth-i-role.md](04-auth-i-role.md#pusta-admin-password)). |
 
-Skutek przy wdrożeniu: `/api/healthcheck` nie odczytuje `env`, więc odpowiada `200` także przy błędnych zmiennych. Błąd pojawi się dopiero przy pierwszym żądaniu, które czyta `env`, na przykład przy logowaniu, wejściu na `/dashboard` albo `/sign-up` ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#healthcheck)).
+Skutek przy wdrożeniu: `/api/healthcheck` nie odczytuje `env`, ale przy błędnych zmiennych nie odpowiada wcale, bo proces kończy się przy starcie ([07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#healthcheck), [10-wdrozenie.md](10-wdrozenie.md#blad-env)).
 
 <a id="env-feature"></a>
 
@@ -453,7 +491,7 @@ Skutek przy wdrożeniu: `/api/healthcheck` nie odczytuje `env`, więc odpowiada 
 Feature może mieć plik `src/features/<x>/env.ts`, który eksportuje schemat Zod `envSchema`. Generator dopisuje go do `moduleEnvSchemas` w rejestrze ([02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#rejestr-modulow)), a `env.ts` łączy go ze schematem rdzenia przez `z.intersection`. Żaden feature rdzenia nie ma `env.ts`, więc w projekcie z samym rdzeniem `moduleEnvSchemas` jest pustą tablicą. W kicie zawiera schematy modułów `api-keys` i `uploads` ([14b-modul-api-keys-uzycie.md](14b-modul-api-keys-uzycie.md#referencja-env), [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#referencja-env)). Zachowanie połączonego schematu (sprawdzone z przykładowym schematem zmiennej `DEMO_TOKEN`):
 
 - Wynik zawiera zmienne rdzenia i feature.
-- Błędy obu schematów trafiają do jednego komunikatu, na przykład `MULTI_ORG: …; DEMO_TOKEN: Invalid input: expected string, received undefined`.
+- Błędy obu schematów trafiają do jednego komunikatu `parseEnv`, na przykład `MULTI_ORG: …; DEMO_TOKEN: Invalid input: expected string, received undefined`, i do jednego raportu startowego, po linii na problem.
 - `env` ma typ `CoreEnv`, więc odczyt `env.DEMO_TOKEN` kończy się błędem TypeScript TS2339, chociaż wartość jest w obiekcie. Kit nie ma gotowego sposobu odczytu zmiennych feature z typem.
 
 Linie w regionie `# wa:modules:start` / `# wa:modules:end` w `.env.example` pochodzą z innego miejsca: z pola `env` manifestu modułu w `.wa/kit.json`, a nie z `env.ts` ([02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#regiony)). Generator nie porównuje tych dwóch list, więc zmienna sprawdzana przez `envSchema` może nie mieć linii w `.env.example`. Moduł `core` ma pustą listę `env`, a jego zmienne są wpisane w `.env.example` na stałe, poza regionem.
@@ -466,7 +504,7 @@ Linie w regionie `# wa:modules:start` / `# wa:modules:end` w `.env.example` poch
 
 ### Zmienne ze schematu `src/shared/lib/env.ts`
 
-„Flaga” i `optionalString` opisuje [Reguły parsowania](#reguly-parsowania). „Czyta” wymienia kod aplikacji, który korzysta z wartości. `.env.example` zawiera wszystkie zmienne z tabeli poza `NODE_ENV`. Zmienne modułów, wpisane w region `wa:modules` w `.env.example`, opisują [14b-modul-api-keys-uzycie.md](14b-modul-api-keys-uzycie.md#referencja-env) (`API_KEY_PEPPER`) i [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#referencja-env) (zmienne `S3_*`).
+„Flaga” i `optionalString` opisuje [Reguły parsowania](#reguly-parsowania). „Czyta” wymienia kod aplikacji, który korzysta z wartości. `.env.example` zawiera wszystkie zmienne z tabeli poza `NODE_ENV`. Zmienne modułów, wpisane w region `wa:modules` w `.env.example`, opisują [14b-modul-api-keys-uzycie.md](14b-modul-api-keys-uzycie.md#referencja-env) (`API_KEY_PEPPER`) i [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#referencja-env) (zmienne `STORAGE_*` i `S3_*`).
 
 | Zmienna | Typ i parsowanie | Domyślna | Na produkcji | Czyta | Opis |
 | --- | --- | --- | --- | --- | --- |
@@ -489,7 +527,7 @@ Linie w regionie `# wa:modules:start` / `# wa:modules:end` w `.env.example` poch
 
 ### Zmienne spoza schematu
 
-Te zmienne czyta kod, konfiguracja albo biblioteki z pominięciem `env.ts`. Nie ma ich w `.env.example` i nie przechodzą walidacji.
+Te zmienne czyta kod, konfiguracja albo biblioteki z pominięciem schematu z `env.ts`. Nie ma ich w `.env.example` i nie przechodzą walidacji.
 
 | Zmienna | Kto czyta | Wartość domyślna i parsowanie | Opis |
 | --- | --- | --- | --- |
@@ -498,6 +536,7 @@ Te zmienne czyta kod, konfiguracja albo biblioteki z pominięciem `env.ts`. Nie 
 | `GIT_COMMIT_SHA` | `src/instrumentation.ts` | brak daje `dev`; pusta wartość zostaje pusta (`??`) | `service.version` w eksporcie logów. Nic w repozytorium jej nie ustawia: ani `Dockerfile`, ani `railway.toml`, ani workflow CI. |
 | `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_EXPORTER_OTLP_LOGS_HEADERS` | eksporter OTLP (`@opentelemetry/otlp-exporter-base`) | `klucz=wartość` rozdzielone przecinkami; nagłówki z `…_LOGS_HEADERS` wygrywają | Nagłówki żądań do odbiornika logów, na przykład klucz dostępu. |
 | `NEXT_RUNTIME` | `src/instrumentation.ts` | ustawia Next.js | `register()` działa tylko przy `nodejs`. |
+| `NEXT_PHASE` | `src/shared/lib/env.ts` (`verifyEnvOnStartup`) | ustawia Next.js; `next build` daje `phase-production-build` | Przy `phase-production-build` sprawdzenie przy starcie jest pomijane ([Kiedy i jak działa walidacja](#walidacja-env)). |
 | `PORT` | `next dev` i `next start` (opcja `-p`, domyślnie ze zmiennej `PORT`), `server.js` z `output: "standalone"` | 3000; `Dockerfile` ustawia `PORT=3000` | Port serwera. `PORT` wpisany do `.env` nie działa ([01-uruchomienie.md](01-uruchomienie.md#port-aplikacji)). |
 | `HOSTNAME` | tylko `server.js` z `output: "standalone"`; `next dev` i `next start` biorą adres z opcji `-H` | `0.0.0.0`; `Dockerfile` ustawia `HOSTNAME="0.0.0.0"` | Adres, na którym serwer nasłuchuje. **Zostaw `0.0.0.0` albo `::`.** Działa też `localhost` (tak ustawiają serwery e2e w `e2e/env.ts`), ale serwer słucha wtedy tylko na loopbacku. Przy `127.0.0.1` polskie adresy bez prefiksu odpowiadają przekierowaniem 307 na ten sam adres, czyli pętlą, także za reverse proxy, a healthcheck tego nie wykryje (sprawdzone na zbudowanym serwerze). |
 | `NEXT_TELEMETRY_DISABLED` | Next.js | `Dockerfile` ustawia `1` | Wyłącza telemetrię Next.js w obrazie. |
@@ -508,4 +547,4 @@ Te zmienne czyta kod, konfiguracja albo biblioteki z pominięciem `env.ts`. Nie 
 | `MAILPIT_URL` | `e2e/env.ts` | `http://localhost:<MAILPIT_UI_PORT>` | Adres API mailpit, z którego testy czytają maile. |
 | `CI` | `playwright.config.ts` | brak | Ustawiona: `forbidOnly` i raport HTML. |
 
-Zmienne spoza schematu dla usług i testów modułu `uploads` (`MINIO_PORT`, `MINIO_CONSOLE_PORT`, `INTEGRATION_S3_ENDPOINT`, `INTEGRATION_S3_BUCKET`, a w testach e2e `S3_ENDPOINT` z powłoki) opisuje [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#referencja-env).
+Zmienne spoza schematu dla usług i testów modułu `uploads` (`MINIO_PORT`, `MINIO_CONSOLE_PORT`, `INTEGRATION_S3_ENDPOINT`, `INTEGRATION_S3_BUCKET`, a w testach e2e `E2E_UPLOADS_DIR` z powłoki) opisuje [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#referencja-env). Zmienne `RAILWAY_ENVIRONMENT_ID` i `RAILWAY_VOLUME_MOUNT_PATH` ustawia Railway, a czyta je schemat modułu `uploads` ([15-modul-uploads.md](15-modul-uploads.md#provider)).

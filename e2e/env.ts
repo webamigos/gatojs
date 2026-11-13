@@ -1,3 +1,6 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 const dbPort = process.env.DB_PORT ?? "5432";
 const mailpitUiPort = process.env.MAILPIT_UI_PORT ?? "8025";
 const mailpitSmtpPort = process.env.MAILPIT_SMTP_PORT ?? "1025";
@@ -43,11 +46,9 @@ export function appEnv(options: {
     AUTH_PUBLIC_SIGNUP: String(options.publicSignup),
     MULTI_ORG: String(options.multiOrg),
     API_KEY_PEPPER: "e2e-api-key-pepper-at-least-32-characters-long",
-    S3_ENDPOINT: process.env.S3_ENDPOINT ?? "http://localhost:9000",
-    S3_ACCESS_KEY_ID: "minioadmin",
-    S3_SECRET_ACCESS_KEY: "minioadmin",
-    S3_BUCKET: "wa-app-uploads",
-    S3_FORCE_PATH_STYLE: "true",
+    STORAGE_PROVIDER: "local",
+    STORAGE_LOCAL_PATH:
+      process.env.E2E_UPLOADS_DIR ?? join(tmpdir(), "wa-app-e2e-uploads"),
     LOG_LEVEL: "warn",
   };
 }
