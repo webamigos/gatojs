@@ -1,6 +1,6 @@
 {
   "name": "uploads",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Pliki organizacji na dysku albo w magazynie S3",
   "requires": [],
   "files": [

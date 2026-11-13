@@ -478,6 +478,11 @@ var regionTargets = [
     file: ".github/workflows/ci.yml",
     marker: "ci-integration",
     body: ciStepsBody
+  },
+  {
+    file: ".github/workflows/mutation.yml",
+    marker: "ci-integration",
+    body: ciStepsBody
   }
 ];
 var REGION_FILES = regionTargets.map((target) => target.file).sort(compareCodePoint);

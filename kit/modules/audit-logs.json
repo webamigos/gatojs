@@ -1,6 +1,6 @@
 {
   "name": "audit-logs",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Dziennik zdarzeń organizacji: model AuditLog, sink i redakcja danych wrażliwych",
   "requires": [],
   "files": [

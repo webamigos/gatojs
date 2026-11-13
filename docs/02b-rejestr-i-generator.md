@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - kiedy uruchomić generator i jak CI sprawdza, że pliki generowane są aktualne;
 - jak rozpoznać typowe błędy przy dodawaniu feature do rejestru i co znaczy każdy komunikat generatora.
 
-Zweryfikowano z kodem: 734391b, 2026-11-04
+Zweryfikowano z kodem: a065725, 2026-11-13 (wersje `core` i `uploads` we fragmencie pliku w sekcji [`.wa/kit.json`](#kit-json)); pozostałe sekcje: 734391b, 2026-11-04
 
 Źródła:
 
@@ -120,10 +120,10 @@ Plik opisuje, z jakich modułów kitu składa się projekt i jakie ma funkcje w�
   "modules": {
 // …
     "core": {
-      "version": "0.5.0",
+      "version": "0.5.3",
       "manifest": {
         "name": "core",
-        "version": "0.5.0",
+        "version": "0.5.3",
         "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
         "requires": [],
         "files": [
@@ -138,10 +138,10 @@ Plik opisuje, z jakich modułów kitu składa się projekt i jakie ma funkcje w�
       "files": {}
     },
     "uploads": {
-      "version": "0.2.0",
+      "version": "0.2.1",
       "manifest": {
         "name": "uploads",
-        "version": "0.2.0",
+        "version": "0.2.1",
         "description": "Pliki organizacji na dysku albo w magazynie S3",
         "requires": [],
         "files": [
@@ -243,7 +243,7 @@ Generator uruchom po:
 - dodaniu albo usunięciu w feature pliku `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts`, `audit-sink.ts` albo `i18n/<locale>.json`;
 - dodaniu, usunięciu albo zmianie nazwy katalogu feature;
 - zmianie treści pliku wskazanego w polu `compose` manifestu, bo generator kopiuje ją do `docker-compose.yml`;
-- zmianie treści pliku wskazanego w polu `ciSteps` manifestu, bo generator kopiuje ją do regionu `wa:ci-integration` w `.github/workflows/ci.yml`.
+- zmianie treści pliku wskazanego w polu `ciSteps` manifestu, bo generator kopiuje ją do regionu `wa:ci-integration` w `.github/workflows/ci.yml` i `.github/workflows/mutation.yml`.
 
 Wynik commitujesz razem ze zmianą, która go wywołała.
 
@@ -299,7 +299,7 @@ const FEATURE_GLOB = /^src\/features\/([^/*]+)\//;
 
 ### Regiony `wa:*`
 
-Region to fragment pliku między linią z `wa:<marker>:start` a linią z `wa:<marker>:end`. Generator zastępuje wszystko między tymi liniami, a same linie z markerami zostawia. Składnię komentarza (`//` albo `#`) wyznacza plik, a generator szuka tylko tekstu markera. Pięć regionów, z czterema różnymi markerami, wymienia stała `regionTargets`:
+Region to fragment pliku między linią z `wa:<marker>:start` a linią z `wa:<marker>:end`. Generator zastępuje wszystko między tymi liniami, a same linie z markerami zostawia. Składnię komentarza (`//` albo `#`) wyznacza plik, a generator szuka tylko tekstu markera. Sześć regionów, z czterema różnymi markerami, wymienia stała `regionTargets`:
 
 `kit/cli/src/generate/targets.ts`
 
@@ -322,6 +322,11 @@ export const regionTargets: RegionTarget[] = [
     marker: "ci-integration",
     body: ciStepsBody,
   },
+  {
+    file: ".github/workflows/mutation.yml",
+    marker: "ci-integration",
+    body: ciStepsBody,
+  },
 ];
 ```
 
@@ -332,6 +337,7 @@ export const regionTargets: RegionTarget[] = [
 | `.env.example` (na końcu pliku) | `# wa:modules:start`, `# wa:modules:end` | Dla każdego modułu innego niż `core`, który ma zmienne: linia `# <nazwa modułu>` i linie `NAZWA=example`, w których `{{projectSlug}}` i `{{projectName}}` są zastąpione wartościami z pola `project`. Bloki modułów rozdziela pusta linia. | `env` (`name`, `example`) |
 | `docker-compose.yml` (pod `services:`) | `# wa:services:start`, `# wa:services:end` | Treść pliku wskazanego w `compose`, bez końcowych pustych linii, z każdą niepustą linią wciętą o dwie spacje. Pliki kolejnych modułów następują bez pustej linii. | `compose` (ścieżka względem katalogu projektu) |
 | `.github/workflows/ci.yml` (w jobie `integration`, przed krokiem „Integration tests”) | `# wa:ci-integration:start`, `# wa:ci-integration:end` | Treść pliku wskazanego w `ciSteps`, czyli lista kroków GitHub Actions, bez końcowych pustych linii, z każdą niepustą linią wciętą o sześć spacji. Fragmenty kolejnych modułów rozdziela pusta linia ([D45](decyzje.md#d45)). | `ciSteps` (ścieżka względem katalogu projektu) |
+| `.github/workflows/mutation.yml` (w jobie `stryker`, przed krokiem „Run Stryker (integration)”) | `# wa:ci-integration:start`, `# wa:ci-integration:end` | To samo co w `ci.yml`. | `ciSteps` |
 
 Zmiennych modułu `core` region w `.env.example` nie obejmuje, bo są wpisane w ten plik na stałe; placeholderów w przykładach `core` generator też nie podmienia. Relacja z innym modelem niż `User` i `Organization` nie trafia do żadnego regionu i generator tego nie zgłasza. Moduły projektu wypełniają regiony tak samo jak moduły kitu.
 
@@ -345,7 +351,7 @@ Przykład z testu „generuje wszystkie cele” w `kit/cli/src/generate/__tests_
 | `env: [{ name: "DEMO_TOKEN", example: "changeme" }]` | `wa:modules` w `.env.example`: linie `# demo` i `DEMO_TOKEN=changeme`. |
 | `compose: "src/features/demo/compose.yml"` | `wa:services` w `docker-compose.yml`: treść tego pliku (`demo:`, `image: demo:latest`, `ports:`), wcięta o dwie spacje. |
 
-Wcięcie i rozdzielanie fragmentów `ciSteps` sprawdzają testy z `describe("generate: region ci-integration")` w `kit/cli/src/generate/__tests__/ci-steps.test.ts`.
+Wcięcie i rozdzielanie fragmentów `ciSteps` sprawdzają testy z `describe("generate: region ci-integration")`, a region w `mutation.yml` testy z `describe("generate: region ci-integration w mutation.yml")` w `kit/cli/src/generate/__tests__/ci-steps.test.ts`.
 
 Reguły regionów:
 
@@ -440,7 +446,7 @@ Schematy `kitStateSchema` i `moduleManifestSchema` z `kit/cli/src/manifest/schem
 | region `wa:relations` w `prisma/schema/organizations.prisma` | relacje zwrotne modelu `Organization` | `wa generate` |
 | region `wa:modules` w `.env.example` | zmienne modułów innych niż `core` | `wa generate` |
 | region `wa:services` w `docker-compose.yml` | usługi Dockera modułów | `wa generate` |
-| region `wa:ci-integration` w `.github/workflows/ci.yml` | kroki CI modułów przed testami integracyjnymi | `wa generate` |
+| region `wa:ci-integration` w `.github/workflows/ci.yml` i `.github/workflows/mutation.yml` | kroki CI modułów przed testami integracyjnymi | `wa generate` |
 | `src/generated/prisma/` | klient Prismy, w `.gitignore` | `prisma generate` (`postinstall`, `npm run db:generate`), nie `wa generate` |
 
 Trzy pierwsze pliki są w `generatedFiles` w `kit/kit.json`: nie należą do żadnego modułu, `wa create` i `wa add` ich nie kopiują, tylko tworzy je generator ([D31](decyzje.md#d31)).

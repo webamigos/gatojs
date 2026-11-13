@@ -106,6 +106,11 @@ export const regionTargets: RegionTarget[] = [
     marker: "ci-integration",
     body: ciStepsBody,
   },
+  {
+    file: ".github/workflows/mutation.yml",
+    marker: "ci-integration",
+    body: ciStepsBody,
+  },
 ];
 
 export const REGION_FILES: string[] = regionTargets

@@ -104,6 +104,8 @@ src/app/[locale]/(auth|app)
   i obsługują błędy przez `handleCommandError()`.
 - Najpierw szukaj istniejącej implementacji (DRY). Nie wprowadzaj nowych wzorców bez potrzeby.
 - Bez zagnieżdżonych ternary (`no-nested-ternary`), bez cichych `catch {}`, bez `any`.
+- `name` klasy błędu ustawiaj napisem (`this.name = "KeyLimitError"` albo pole `name = "KeyLimitError"`); ESLint odrzuca
+  `this.constructor.name`, `new.target.name` i `KeyLimitError.name`, bo build minifikuje nazwy klas.
 
 ### Auth
 
