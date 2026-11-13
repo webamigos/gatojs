@@ -106,10 +106,10 @@ Manifesty w repozytorium kitu (`version` w `kit/kit.json`: `0.1.0`). Tag `v0.1.0
 
 | Moduł | `version` | `files` | Zależności npm | `env` | `compose` | `ciSteps` |
 | --- | --- | --- | --- | --- | --- | --- |
-| `core` | `0.5.2` | wszystkie pliki rdzenia, od `.claude/agents/test-reviewer.md` po `src/types/**`, w tym `.wa/bin/wa.mjs` | wszystkie zależności rdzenia | — | — | — |
-| `audit-logs` | `0.1.0` | `prisma/schema/audit-logs.prisma`, `src/features/audit-logs/**`, `src/app/[locale]/(app)/audit-log/**` | `better-call` w `devDependencies` | — | — | — |
+| `core` | `0.5.3` | wszystkie pliki rdzenia, od `.claude/agents/test-reviewer.md` po `src/types/**`, w tym `.wa/bin/wa.mjs` | wszystkie zależności rdzenia | — | — | — |
+| `audit-logs` | `0.1.1` | `prisma/schema/audit-logs.prisma`, `src/features/audit-logs/**`, `src/app/[locale]/(app)/audit-log/**` | `better-call` w `devDependencies` | — | — | — |
 | `api-keys` | `0.1.0` | `prisma/schema/api-keys.prisma`, `src/features/api-keys/**`, `src/app/api/v1/organization/**`, `src/app/[locale]/(app)/api-keys/**` | — | `API_KEY_PEPPER` | — | — |
-| `uploads` | `0.2.0` | `prisma/schema/uploads.prisma`, `src/features/uploads/**`, `src/app/api/uploads/**`, `docker/uploads.compose.yml`, `ci/uploads.integration-steps.yml` | `@aws-sdk/client-s3`, `file-type`, `sharp` | `STORAGE_PROVIDER`, `STORAGE_LOCAL_PATH`, `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE`, wszystkie z `required: false` | `docker/uploads.compose.yml` | `ci/uploads.integration-steps.yml` |
+| `uploads` | `0.2.1` | `prisma/schema/uploads.prisma`, `src/features/uploads/**`, `src/app/api/uploads/**`, `docker/uploads.compose.yml`, `ci/uploads.integration-steps.yml` | `@aws-sdk/client-s3`, `file-type`, `sharp` | `STORAGE_PROVIDER`, `STORAGE_LOCAL_PATH`, `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE`, wszystkie z `required: false` | `docker/uploads.compose.yml` | `ci/uploads.integration-steps.yml` |
 
 Żaden z modułów nie ma `requires`. Co każdy moduł robi, opisuje [12-moduly-kitu.md](12-moduly-kitu.md).
 
