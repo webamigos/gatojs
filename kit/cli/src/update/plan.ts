@@ -110,12 +110,14 @@ async function decideExisting(
   input: PlanInput,
 ): Promise<Decision> {
   const baseHash = contentHash(path, base.content);
-  if (kit && contentHash(path, kit.content) === baseHash) {
+  const kitContentUnchanged =
+    kit !== undefined && contentHash(path, kit.content) === baseHash;
+  if (kitContentUnchanged && kit.mode === base.mode) {
     return UNCHANGED;
   }
   const project = await input.readProject(path);
   if (!project) {
-    if (!kit) {
+    if (!kit || kitContentUnchanged) {
       return UNCHANGED;
     }
     return {

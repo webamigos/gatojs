@@ -19,6 +19,7 @@ import { cloneKitVersion, kitSourceLocation } from "../kit/source.js";
 import { moduleFiles } from "../assemble/resolve-modules.js";
 import { compareCodePoint } from "../compare.js";
 import { generate } from "../generate/index.js";
+import { REGION_FILES } from "../generate/targets.js";
 import {
   KIT_STATE_PATH,
   readKitState,
@@ -319,6 +320,13 @@ export async function update(
     return { exitCode: 0 };
   }
 
+  for (const path of [
+    KIT_STATE_PATH,
+    ...target.config.generatedFiles,
+    ...REGION_FILES,
+  ]) {
+    await insideProject(projectDir, path);
+  }
   const writes: Write[] = [];
   for (const file of plan.files) {
     const absolute = await insideProject(projectDir, file.path);
@@ -400,7 +408,14 @@ async function delegateToTarget(input: {
       ],
       input.projectDir,
     );
-  } catch {
+  } catch (error) {
+    const { code, message } = error as NodeJS.ErrnoException;
+    if (typeof code === "string") {
+      throw new Error(
+        `Nie udało się uruchomić bundla wa-kit ${args.version}: ${message}`,
+        { cause: error },
+      );
+    }
     // WHY: proces potomny wypisał już swój błąd; jego kod wyjścia staje się kodem komendy
     return { exitCode: 1 };
   }

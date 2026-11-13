@@ -231,6 +231,26 @@ describe("updateFromSource — bundel projektu", () => {
     expect(await readdir(tmpRoot)).toEqual([]);
   });
 
+  it("błąd uruchomienia node (ENOENT) rzuca błąd z wersją, komunikatem i przyczyną oraz usuwa katalog tymczasowy", async () => {
+    const spawnError = Object.assign(new Error("spawn node ENOENT"), {
+      code: "ENOENT",
+    });
+    runner.mockImplementation(async (command, commandArgs, cwd) => {
+      if (command === "git") {
+        await spawnRunner(command, commandArgs, cwd);
+        return;
+      }
+      throw spawnError;
+    });
+    const result = run();
+    await expect(result).rejects.toThrow(
+      "Nie udało się uruchomić bundla wa-kit 0.2.0: spawn node ENOENT",
+    );
+    await expect(result).rejects.toMatchObject({ cause: spawnError });
+    expect(callsOf("node")).toHaveLength(1);
+    expect(await readdir(tmpRoot)).toEqual([]);
+  });
+
   it("bundleKitDir z katalogiem kit/ bez kit/kit.json jest bundlem projektu i deleguje do node z --from-kit", async () => {
     const bundleDir = await makeTempDir("wa-kit-bundle-");
     await mkdir(join(bundleDir, "kit"));

@@ -103,6 +103,39 @@ describe("planUpdate", () => {
     });
   });
 
+  it("aktualizuje plik równy bazie, gdy kit zmienił tylko bity uprawnień", async () => {
+    expect(
+      await plan({
+        base: { "bin/run.sh": { content: BASE, mode: 0o644 } },
+        target: { "bin/run.sh": { content: BASE, mode: 0o755 } },
+        project: { "bin/run.sh": BASE },
+        recordedHashes: { "bin/run.sh": recorded("bin/run.sh", BASE) },
+      }),
+    ).toEqual({
+      files: [
+        {
+          path: "bin/run.sh",
+          action: "zaktualizowano",
+          reason: null,
+          content: Buffer.from("a\nb\nc\nd\ne\nf\n"),
+          mode: 0o755,
+        },
+      ],
+      mismatchedBase: [],
+    });
+  });
+
+  it("nie nadpisuje pliku zmienionego w projekcie, gdy kit zmienił tylko bity uprawnień", async () => {
+    expect(
+      await plan({
+        base: { "bin/run.sh": { content: BASE, mode: 0o644 } },
+        target: { "bin/run.sh": { content: BASE, mode: 0o755 } },
+        project: { "bin/run.sh": PROJECT },
+        recordedHashes: { "bin/run.sh": recorded("bin/run.sh", BASE) },
+      }),
+    ).toEqual({ files: [], mismatchedBase: [] });
+  });
+
   it("aktualizuje plik równy bazie, gdy brak zapisanego hasha", async () => {
     expect(
       await plan({

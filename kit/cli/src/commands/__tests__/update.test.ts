@@ -701,6 +701,19 @@ describe("update: pliki dodane i usunięte w kicie", () => {
     expect(AUTH_MODULE in files).toBe(false);
   });
 
+  it("kit zmienił tylko bity uprawnień pliku rdzenia: plik w projekcie staje się wykonywalny", async () => {
+    const setup = await prepare({
+      kit: async (kitDir) => {
+        await chmod(join(kitDir, AUTH_MODULE), 0o755);
+      },
+    });
+
+    expect(await run(setup)).toEqual({ exitCode: 0 });
+
+    expect((await stat(join(setup.dir, AUTH_MODULE))).mode & 0o777).toBe(0o755);
+    expect(lines()).toContain("  zaktualizowano src/features/auth/module.ts");
+  });
+
   it("usunięty w kicie, zmieniony w projekcie: plik zostaje, do decyzji, kod 1, generate i npm install wołane, brak wpisu w files", async () => {
     const setup = await prepare({
       kit: async (kitDir) => {
@@ -1012,6 +1025,79 @@ describe("update: kontrole przed zapisem", () => {
 
     expect(await snapshotDir(outside, IGNORE)).toEqual(outsideBefore);
     expect(await snapshotDir(setup.dir, [...IGNORE, "shared"])).toEqual(before);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it(".wa/kit.json jako symlink do pliku poza projektem: błąd ścieżki, plik zewnętrzny i plik rdzenia bez zmian", async () => {
+    const outside = join(await makeTempDir("wa-kit-outside-"), "kit.json");
+    let outsideBefore = "";
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        outsideBefore = await read(dir, ".wa/kit.json");
+        await writeFile(outside, outsideBefore);
+        await rm(join(dir, ".wa/kit.json"));
+        await symlink(outside, join(dir, ".wa/kit.json"));
+      },
+    });
+    const authBefore = await read(setup.dir, AUTH_MODULE);
+
+    await expect(run(setup)).rejects.toThrow(
+      "Ścieżka poza projektem: .wa/kit.json",
+    );
+
+    expect(await readFile(outside, "utf8")).toBe(outsideBefore);
+    expect(await read(setup.dir, AUTH_MODULE)).toBe(authBefore);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("src/modules.generated.ts jako symlink do pliku poza projektem: błąd ścieżki, plik zewnętrzny bez zmian", async () => {
+    const outside = join(
+      await makeTempDir("wa-kit-outside-"),
+      "modules.generated.ts",
+    );
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        await writeFile(outside, STALE_REGISTRY);
+        await rm(join(dir, "src/modules.generated.ts"));
+        await symlink(outside, join(dir, "src/modules.generated.ts"));
+      },
+    });
+    const authBefore = await read(setup.dir, AUTH_MODULE);
+
+    await expect(run(setup)).rejects.toThrow(
+      "Ścieżka poza projektem: src/modules.generated.ts",
+    );
+
+    expect(await readFile(outside, "utf8")).toBe(STALE_REGISTRY);
+    expect(await read(setup.dir, AUTH_MODULE)).toBe(authBefore);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("docker-compose.yml z regionem jako symlink do pliku poza projektem, kit go nie zmienia: błąd ścieżki, plik zewnętrzny bez zmian", async () => {
+    const outside = join(
+      await makeTempDir("wa-kit-outside-"),
+      "docker-compose.yml",
+    );
+    let outsideBefore = "";
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        outsideBefore = await read(dir, "docker-compose.yml");
+        await writeFile(outside, outsideBefore);
+        await rm(join(dir, "docker-compose.yml"));
+        await symlink(outside, join(dir, "docker-compose.yml"));
+      },
+    });
+    const authBefore = await read(setup.dir, AUTH_MODULE);
+
+    await expect(run(setup)).rejects.toThrow(
+      "Ścieżka poza projektem: docker-compose.yml",
+    );
+
+    expect(await readFile(outside, "utf8")).toBe(outsideBefore);
+    expect(await read(setup.dir, AUTH_MODULE)).toBe(authBefore);
     expect(runner).not.toHaveBeenCalled();
   });
 });

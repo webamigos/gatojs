@@ -21623,12 +21623,13 @@ async function mergeChanged(path, base, project, kit, input2) {
 }
 async function decideExisting(path, base, kit, input2) {
   const baseHash = contentHash(path, base.content);
-  if (kit && contentHash(path, kit.content) === baseHash) {
+  const kitContentUnchanged = kit !== void 0 && contentHash(path, kit.content) === baseHash;
+  if (kitContentUnchanged && kit.mode === base.mode) {
     return UNCHANGED;
   }
   const project = await input2.readProject(path);
   if (!project) {
-    if (!kit) {
+    if (!kit || kitContentUnchanged) {
       return UNCHANGED;
     }
     return {
@@ -22030,6 +22031,13 @@ async function update(options) {
     report.forEach((line) => log(line));
     return { exitCode: 0 };
   }
+  for (const path of [
+    KIT_STATE_PATH,
+    ...target.config.generatedFiles,
+    ...REGION_FILES
+  ]) {
+    await insideProject(projectDir, path);
+  }
   const writes = [];
   for (const file2 of plan.files) {
     const absolute = await insideProject(projectDir, file2.path);
@@ -22100,7 +22108,14 @@ async function delegateToTarget(input2) {
       ],
       input2.projectDir
     );
-  } catch {
+  } catch (error62) {
+    const { code, message } = error62;
+    if (typeof code === "string") {
+      throw new Error(
+        `Nie uda\u0142o si\u0119 uruchomi\u0107 bundla wa-kit ${args.version}: ${message}`,
+        { cause: error62 }
+      );
+    }
     return { exitCode: 1 };
   }
   return { exitCode: 0 };
