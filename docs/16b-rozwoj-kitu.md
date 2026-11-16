@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak wydać nową wersję kitu z tagiem;
 - jak dodać do kitu nowy moduł, krok po kroku, tak jak zrobił to plan 3.
 
-Zweryfikowano z kodem: a065725, 2026-11-13 (wersje `core`, `uploads` i `audit-logs` w [Manifestach modułów](#manifesty)); pozostałe sekcje: 734391b, 2026-11-04
+Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wersja `uploads` w [Manifestach modułów](#manifesty)); a065725, 2026-11-13 (wersje `core` i `audit-logs` w [Manifestach modułów](#manifesty)); pozostałe sekcje: 734391b, 2026-11-04
 
 Źródła:
 
@@ -102,14 +102,14 @@ W drugą stronę reguła nie działa: workflowy rdzenia (`ci.yml`, `e2e.yml`, `m
 
 Każdy moduł kitu ma plik `kit/modules/<nazwa>.json`. Pole `name` musi być równe nazwie pliku, inaczej odczyt manifestów kończy się błędem `kit/modules/<plik>: name "<name>" nie zgadza się z nazwą pliku` (`readKitManifests` w `kit/cli/src/kit/kit-config.ts`). Manifesty są czytane w kolejności: `core`, potem pozostałe alfabetycznie (`compareModuleNames`). Schemat (`moduleManifestSchema` w `kit/cli/src/manifest/schema.ts`) jest ten sam co w `.wa/kit.json` projektu; pełną listę pól z typami i wartościami domyślnymi podaje [02b](02b-rejestr-i-generator.md#referencja-manifest).
 
-Manifesty w repozytorium kitu (`version` w `kit/kit.json`: `0.1.0`). Tag `v0.1.0` ma starsze wersje trzech z nich: `core` `0.4.0`, `uploads` `0.1.0` i `audit-logs` `0.1.0`, bo `core` `0.5.3` (walidacja `env` przy starcie od `0.5.0`, [D48](decyzje.md#d48)), `uploads` `0.2.1` (provider storage od `0.2.0`, [D49](decyzje.md#d49)) i `audit-logs` `0.1.2` przyszły po tagu, a wersja kitu się nie zmieniła:
+Manifesty w repozytorium kitu (`version` w `kit/kit.json`: `0.1.0`). Tag `v0.1.0` ma starsze wersje trzech z nich: `core` `0.4.0`, `uploads` `0.1.0` i `audit-logs` `0.1.0`, bo `core` `0.5.3` (walidacja `env` przy starcie od `0.5.0`, [D48](decyzje.md#d48)), `uploads` `0.2.2` (provider storage od `0.2.0`, [D49](decyzje.md#d49)) i `audit-logs` `0.1.2` przyszły po tagu, a wersja kitu się nie zmieniła:
 
 | Moduł | `version` | `files` | Zależności npm | `env` | `compose` | `ciSteps` |
 | --- | --- | --- | --- | --- | --- | --- |
 | `core` | `0.5.3` | wszystkie pliki rdzenia, od `.claude/agents/test-reviewer.md` po `src/types/**`, w tym `.wa/bin/wa.mjs` | wszystkie zależności rdzenia | — | — | — |
 | `audit-logs` | `0.1.2` | `prisma/schema/audit-logs.prisma`, `src/features/audit-logs/**`, `src/app/[locale]/(app)/audit-log/**` | `better-call` w `devDependencies` | — | — | — |
 | `api-keys` | `0.1.0` | `prisma/schema/api-keys.prisma`, `src/features/api-keys/**`, `src/app/api/v1/organization/**`, `src/app/[locale]/(app)/api-keys/**` | — | `API_KEY_PEPPER` | — | — |
-| `uploads` | `0.2.1` | `prisma/schema/uploads.prisma`, `src/features/uploads/**`, `src/app/api/uploads/**`, `docker/uploads.compose.yml`, `ci/uploads.integration-steps.yml` | `@aws-sdk/client-s3`, `file-type`, `sharp` | `STORAGE_PROVIDER`, `STORAGE_LOCAL_PATH`, `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE`, wszystkie z `required: false` | `docker/uploads.compose.yml` | `ci/uploads.integration-steps.yml` |
+| `uploads` | `0.2.2` | `prisma/schema/uploads.prisma`, `src/features/uploads/**`, `src/app/api/uploads/**`, `docker/uploads.compose.yml`, `ci/uploads.integration-steps.yml` | `@aws-sdk/client-s3`, `file-type`, `sharp` | `STORAGE_PROVIDER`, `STORAGE_LOCAL_PATH`, `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE`, wszystkie z `required: false` | `docker/uploads.compose.yml` | `ci/uploads.integration-steps.yml` |
 
 Żaden z modułów nie ma `requires`. Co każdy moduł robi, opisuje [12-moduly-kitu.md](12-moduly-kitu.md).
 

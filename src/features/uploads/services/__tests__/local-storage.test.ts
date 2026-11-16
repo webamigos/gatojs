@@ -69,6 +69,28 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
+describe("InvalidStorageKeyError", () => {
+  it("ma nazwę InvalidStorageKeyError zamiast dziedziczonej Error", () => {
+    expect(new InvalidStorageKeyError().name).toBe("InvalidStorageKeyError");
+  });
+
+  it("ma stały komunikat bez klucza i jest błędem Error", () => {
+    const error = new InvalidStorageKeyError();
+
+    expect(error.message).toBe("Nieprawidłowy klucz obiektu");
+    expect(error).toBeInstanceOf(Error);
+  });
+
+  it("podklasa o innej nazwie, jak klasa zminifikowana do d, ma nazwę InvalidStorageKeyError, a nie nazwę swojej klasy", () => {
+    class d extends InvalidStorageKeyError {}
+
+    const error = new d();
+
+    expect(error.name).toBe("InvalidStorageKeyError");
+    expect(error.message).toBe("Nieprawidłowy klucz obiektu");
+  });
+});
+
 describe("resolveObjectPath", () => {
   it("zamienia klucz na ścieżkę pliku pod katalogiem magazynu", () => {
     expect(resolveObjectPath(root, "orgs/o1/editor-image/u.jpg")).toBe(
@@ -134,6 +156,13 @@ describe("resolveObjectPath", () => {
   it("odrzuca klucz absolutny, nawet gdy wskazuje plik w katalogu magazynu", () => {
     expect(() => resolveObjectPath(root, path.join(root, "x"))).toThrow(
       InvalidStorageKeyError,
+    );
+  });
+
+  it("błąd dla klucza wychodzącego z katalogu przez .. ma nazwę InvalidStorageKeyError", () => {
+    expect(resolveOutcome(root, "../x")).toHaveProperty(
+      "error.name",
+      "InvalidStorageKeyError",
     );
   });
 
@@ -440,6 +469,12 @@ describe("createLocalStorage: klucz wychodzący poza katalog magazynu", () => {
     await expect(
       stat(path.join(path.dirname(storageRoot), "escape.txt")),
     ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("put odrzuca błąd o nazwie InvalidStorageKeyError", async () => {
+    await expect(
+      storage.put("../escape.txt", bytes("x"), "text/plain"),
+    ).rejects.toHaveProperty("name", "InvalidStorageKeyError");
   });
 
   it("get odrzuca InvalidStorageKeyError zamiast czytać plik obok katalogu magazynu", async () => {

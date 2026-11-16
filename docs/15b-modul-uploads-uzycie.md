@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak przetestować funkcję z plikami: jednostkowo bez MinIO, a w testach integracyjnych na prawdziwym MinIO, i jakie problemy pojawiają się najczęściej, w tym błędy konfiguracji magazynu przy starcie;
 - jakie zmienne, trasy, cele, akcje i komunikaty ma moduł.
 
-Zweryfikowano z kodem: 6c05f1f, 2026-11-05
+Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wiersz `Nieprawidłowy klucz obiektu` w [Komunikatach](#referencja-komunikaty)); pozostałe sekcje: 6c05f1f, 2026-11-05
 
 Źródła:
 
@@ -16,6 +16,7 @@ Zweryfikowano z kodem: 6c05f1f, 2026-11-05
 - `src/app/api/uploads/route.ts`, `src/app/api/uploads/[id]/route.ts`
 - `src/shared/lib/modules/define-module.ts`, `src/shared/components/service-mode/use-service-mode-action.tsx`
 - `src/instrumentation.ts`, `src/shared/lib/env.ts` (sprawdzenie zmiennych przy starcie)
+- `src/shared/lib/logger.ts` (`err.type` we wpisach logu)
 - `src/test/integration/` (`setup-env.ts`, `database.ts`, `global-setup.ts`), `vitest.integration.config.ts`, `e2e/env.ts`, `e2e/global-setup.ts`, `docker/uploads.compose.yml`
 - `mutation-gate.json`
 
@@ -418,7 +419,7 @@ Typy zakazane w każdym celu: `image/svg+xml`, `text/html`, `application/xhtml+x
 | `Nie udało się usunąć pliku` | wynik `deleteUploadCommand` | Nieprawidłowe `id`, plik innej organizacji, plik nieistniejący albo błąd bazy. |
 | `Brak uprawnień do usunięcia pliku` | wynik `deleteUploadCommand` | `member` usuwa cudzy plik. |
 | `upload putObject failed` (log `error`, pole `err`) | log serwera | Zapis obiektu się nie powiódł; odpowiedź 500. |
-| `Nieprawidłowy klucz obiektu` | komunikat wyjątku `InvalidStorageKeyError` providera `local`, przy zapisie w polu `err` wpisu `upload putObject failed` | Klucz bezwzględny, z segmentem `..`, z bajtem `\0` albo wskazujący sam katalog magazynu; klucze tworzone przez moduł takie nie są ([Ochrona przed wyjściem poza katalog](15-modul-uploads.md#path-traversal)). |
+| `Nieprawidłowy klucz obiektu` | komunikat wyjątku `InvalidStorageKeyError` providera `local`, przy zapisie w polu `err` wpisu `upload putObject failed`, z `err.type` równym `InvalidStorageKeyError` | Klucz bezwzględny, z segmentem `..`, z bajtem `\0` albo wskazujący sam katalog magazynu; klucze tworzone przez moduł takie nie są ([Ochrona przed wyjściem poza katalog](15-modul-uploads.md#path-traversal)). |
 | `upload record create failed` (log `error`, pole `err`) | log serwera | Zapis rekordu się nie powiódł; obiekt jest cofany. |
 | `upload rollback failed` (log `error`, pola `err`, `key`) | log serwera | Cofnięcie obiektu się nie powiodło; obiekt jest osierocony. |
 | `upload deleteObject failed` (log `error`, pola `err`, `key`) | log serwera | Usunięcie obiektu się nie powiodło; rekord usunięty, obiekt osierocony. |

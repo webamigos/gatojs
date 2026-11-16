@@ -247,10 +247,10 @@
       "files": {}
     },
     "uploads": {
-      "version": "0.2.1",
+      "version": "0.2.2",
       "manifest": {
         "name": "uploads",
-        "version": "0.2.1",
+        "version": "0.2.2",
         "description": "Pliki organizacji na dysku albo w magazynie S3",
         "requires": [],
         "files": [
