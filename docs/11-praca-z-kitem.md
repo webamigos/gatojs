@@ -492,7 +492,7 @@ Generator kitu (`wa generate`) zapisuje miejsca, przez które rdzeń dowiaduje s
 - region `wa:relations` w `prisma/schema/auth.prisma` i w `prisma/schema/organizations.prisma`;
 - region `wa:modules` w `.env.example`;
 - region `wa:services` w `docker-compose.yml`;
-- region `wa:ci-integration` w `.github/workflows/ci.yml` (kroki z pola `ciSteps` manifestów).
+- region `wa:ci-integration` w `.github/workflows/ci.yml` i `.github/workflows/mutation.yml` (kroki z pola `ciSteps` manifestów).
 
 Trzy pliki generowane wymienia `generatedFiles` w `kit/kit.json`. `CLAUDE.md` i `AGENTS.md` wymieniają z nazwy tylko dwa pliki rejestru. `CLAUDE.md` zakazuje edycji wszystkich regionów wzorcem `wa:*:start/end`, więc obejmuje też `wa:ci-integration`; jawna lista regionów w `AGENTS.md` go nie ma. Zakaz ręcznej edycji dotyczy wszystkich miejsc z tej listy: generator przepisuje je tak samo, a CI sprawdza je tym samym `git diff --exit-code`.
 

@@ -36,6 +36,18 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/audit-log",
   useSearchParams: () => new URLSearchParams(currentSearch.value),
 }));
+vi.mock("@/modules.client.generated", () => ({
+  clientModules: [
+    {
+      key: "audit-logs",
+      nav: [],
+      routePrefixes: [],
+      auditActions: [
+        { action: "member.invited", labelKey: "action-member-invited" },
+      ],
+    },
+  ],
+}));
 
 import { AuditLogView } from "../audit-log-view";
 

@@ -49,11 +49,37 @@ describe("contentDisposition", () => {
     );
   });
 
+  it("koduje gwiazdkę i nawiasy w filename* wielkimi literami hex, bo nie są attr-char", () => {
+    expect(contentDisposition("zdjęcie (1)*.png", "inline")).toBe(
+      "inline; filename=\"zdj_cie (1)*.png\"; filename*=UTF-8''zdj%C4%99cie%20%281%29%2A.png",
+    );
+  });
+
+  it.each([
+    ["*", "%2A"],
+    ["(", "%28"],
+    [")", "%29"],
+    ["'", "%27"],
+  ])("koduje pojedynczy znak %s w filename* jako %s", (char, encoded) => {
+    expect(contentDisposition(`a${char}b`, "attachment")).toBe(
+      `attachment; filename="a${char}b"; filename*=UTF-8''a${encoded}b`,
+    );
+  });
+
+  it("zostawia znaki attr-char wykrzyknik i tyldę niezakodowane w filename*", () => {
+    expect(contentDisposition("a!~b.txt", "attachment")).toBe(
+      "attachment; filename=\"a!~b.txt\"; filename*=UTF-8''a!~b.txt",
+    );
+  });
+
   test.prop(
     [
       fc.oneof(
         fc.string({ unit: "grapheme-ascii" }),
         fc.string({ unit: "grapheme" }),
+        fc.string({
+          unit: fc.constantFrom("*", "(", ")", "'", "!", "~", "a", "ż", " "),
+        }),
       ),
       fc.constantFrom("inline" as const, "attachment" as const),
     ],
@@ -70,7 +96,7 @@ describe("contentDisposition", () => {
       expect(match).not.toBeNull();
       expect(match![1]).toBe(disposition);
       expect(match![2]).toMatch(/^[ !#-:<-\[\]-~]*$/);
-      expect(match![3]).toMatch(/^[A-Za-z0-9%._~!*()-]*$/);
+      expect(match![3]).toMatch(/^(?:[A-Za-z0-9!#$&+\-.^_`|~]|%[0-9A-F]{2})*$/);
       expect(decodeURIComponent(match![3]!)).toBe(fileName);
       expect(header).toMatch(/^[\x20-\x7e]*$/);
     },
