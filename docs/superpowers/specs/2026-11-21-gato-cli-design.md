@@ -12,7 +12,7 @@ Data: 2026-11-21. Projekt Patryka z agentem. Szkic do przeglądu, nie plan imple
 
 ## 1. Po co
 
-Kit ma się stać publicznym frameworkiem GatoJS. Dziś nowy projekt zakłada się jednolinijkowcem z `git clone` prywatnego repo, a każdy projekt niesie skopiowany bundel `.wa/bin/wa.mjs`. To działa wewnątrz Web Amigos, ale nie nadaje się dla ludzi spoza firmy:
+Kit (roboczo „wa-kit”) ma się stać publicznym frameworkiem GatoJS w repozytorium `webamigos/gatojs`. Dziś nowy projekt zakłada się jednolinijkowcem z `git clone` prywatnego repo, a każdy projekt niesie skopiowany bundel `.wa/bin/wa.mjs`. To działa wewnątrz Web Amigos, ale nie nadaje się dla ludzi spoza firmy:
 
 - wymaga `git` z dostępem do prywatnego repo i ręcznie wpisanego tagu;
 - nie ma kreatora: nie sprawdza wersji Node ani portów, nie generuje sekretów modułów, nie pyta o provider storage;
@@ -26,6 +26,7 @@ Ragen rozwiązał to samo dwoma publicznymi pakietami npm. Ten spec przenosi ten
 2. `gato-cli` trafia do projektu jako `devDependency`. Commitowany bundel `.wa/bin/wa.mjs` znika.
 3. Źródła obu pakietów leżą w katalogu `packages/` repo kitu.
 4. CLI ma własny semver, niezależny od wersji kitu. Zgodność pilnuje numer formatu kitu.
+5. „wa-kit” to nazwa robocza. Framework nazywa się **GatoJS**, a repozytorium **`webamigos/gatojs`**.
 
 ## 3. Dwa pakiety
 
@@ -117,7 +118,8 @@ Komunikaty: patrz pytanie otwarte 2.
 
 - Licencja (Ragen: Apache-2.0 z `NOTICE`), `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`.
 - Skan całej historii na sekrety (trufflehog na pełnej historii, nie tylko na diffie) przed zmianą widoczności.
-- Nazwa repo (`webamigos/wa-kit` czy `webamigos/gato`) i przekierowanie dla istniejących projektów (`kitRepo` w `.wa/kit.json`).
+- Zmiana nazwy repo `webamigos/wa-kit` → `webamigos/gatojs` (GitHub zostawia przekierowanie ze starego adresu, ale `kitRepo` w `kit/kit.json` i w projektach trzeba przepisać na nowy adres).
+- Nazwa robocza znika z kodu i tekstów widocznych dla użytkownika: `@wa-kit/cli`, komunikaty w rodzaju „Uruchom create z klonu wa-kit”, katalog tymczasowy `wa-list-`, `WA_KIT_SOURCE` (→ `GATO_KIT_SOURCE`, stara nazwa czytana przez okres przejściowy), commit `chore: initial commit from wa-kit v<wersja>`, `README.md`, `kit/README.md`, `AGENTS.md`, `CLAUDE.md` i `docs/`. Lista do zebrania `grep -rni "wa-kit\|wa_kit"`.
 - Przegląd plików pod kątem danych klientów i wewnętrznych odnośników (ClickUp, nazwiska w planach w `docs/superpowers/`).
 
 ## 11. Kolejność prac
@@ -128,13 +130,13 @@ Komunikaty: patrz pytanie otwarte 2.
 4. `create-gato-app`: kreator z punktu 7.
 5. `gato doctor`, `gato version`.
 6. Workflowy publikacji i smoke testy z punktu 9.
-7. Upublicznienie kitu (punkt 10) i pierwsze wydanie w npm.
+7. Zmiana nazwy na GatoJS w kodzie i dokumentacji, przeniesienie repo do `webamigos/gatojs`, upublicznienie (punkt 10) i pierwsze wydanie w npm.
 
 Punkty 2–6 mogą powstawać przy prywatnym repo: CI używa `--kit <checkout>`, a tarball z GitHuba działa z tokenem (`GATO_GITHUB_TOKEN`) do czasu upublicznienia.
 
 ## 12. Pytania otwarte
 
-1. **Katalog `.wa/` i nazwy `wa:*`:** zmienić na `.gato/` i `gato:*` przed pierwszym wydaniem publicznym (CLI czyta oba przez okres przejściowy), czy zostawić `wa` jako nazwę wewnętrzną?
+1. **Katalog `.wa/` i nazwy `wa:*`:** po decyzji o nazwie GatoJS rekomendacja to `.gato/` i `gato:*` przed pierwszym wydaniem publicznym (CLI czyta oba przez okres przejściowy). Do potwierdzenia.
 2. **Język komunikatów CLI:** dziś po polsku. Publiczne narzędzie po angielsku (jak strona), polski przez `--lang pl` / `LANG`, czy zostaje polski?
 3. **Język dokumentacji kitu** (`docs/` po polsku) po upublicznieniu: osobny serwis dokumentacji po angielsku (strona wspomina Mintlify) czy `docs/` w obu językach?
 4. **Istniejące projekty z `.wa/bin/wa.mjs`:** czy są takie u klientów? Jeśli tak, potrzebna jest komenda migracji albo instrukcja (zamiana bundla na `devDependency`).
