@@ -53,6 +53,7 @@
     "vitest.config.ts",
     "vitest.integration.config.ts",
     "vitest.setup.ts",
+    "src/__tests__/architecture/**",
     "src/__tests__/instrumentation.test.ts",
     "src/__tests__/proxy-matcher.test.ts",
     "src/__tests__/server-entrypoints-guard.test.ts",
