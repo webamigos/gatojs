@@ -29,3 +29,17 @@ Zasady dla plików tylko kitu (`kit/`). Nie trafiają do projektów (`.dockerign
 - Fixture modułu projektu (`kit/cli/src/__tests__/fixtures/project-module/`) jest używane przez `assemble`; zmiana kontraktu `projectModules` wymaga jego aktualizacji.
 - Wydanie: podbij `version` zmienionych modułów, uruchom `npm run wa -- kit sync`, zmerguj do `main`; tag `v<version>` ustawia człowiek.
 - Opis dla użytkowników CLI: `kit/README.md`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues w GitHub Issues repo `webamigos/wa-kit` (CLI `gh`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Domyślne role: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` w katalogu głównym (tworzony leniwie), decyzje w `docs/decyzje.md` (`D<nn>`), nie w `docs/adr/`. See `docs/agents/domain.md`.
