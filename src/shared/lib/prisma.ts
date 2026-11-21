@@ -1,9 +1,10 @@
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { tenantScopeExtension } from "@/shared/lib/tenant-scope/tenant-scope-extension";
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
+  prisma: ScopedPrismaClient | undefined;
 };
 
 function parsePoolMax(): number {
@@ -19,8 +20,12 @@ function createPrismaClient() {
     connectionTimeoutMillis: 10_000,
     statement_timeout: 30_000,
   });
-  return new PrismaClient({ adapter: new PrismaPg(pool) });
+  return new PrismaClient({ adapter: new PrismaPg(pool) }).$extends(
+    tenantScopeExtension,
+  );
 }
+
+type ScopedPrismaClient = ReturnType<typeof createPrismaClient>;
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 

@@ -42,7 +42,10 @@ npx prisma migrate dev --name <nazwa>     # nowa migracja
 - **Zapytania do danych domenowych zawsze przez `getOrgContext()` i filtr `organizationId`.**
   `getOrgContext()` (`src/shared/lib/auth/org-context.ts`) zwraca `{ userId, organizationId, orgRole, userRole, serviceMode }`
   z sesji i rzuca `NoOrganizationError`, gdy użytkownik nie ma aktywnej organizacji. Nie ma automatycznego
-  filtrowania w Prisma — każde zapytanie domenowe filtruje po `organizationId` jawnie.
+  filtrowania w Prisma — każde zapytanie domenowe filtruje po `organizationId` jawnie. Guard w runtime
+  (`src/shared/lib/tenant-scope/`) rzuca `TenantScopeError` przy zapytaniu bez filtra organizacji na modelu
+  z `organizationId` (poza `Member`/`Invitation`); świadomy odczyt między organizacjami tylko przez
+  `withoutTenantScope(reason, fn)`.
 - Strony modułów chroni `requireModuleAccess(key)` (`src/shared/lib/auth/require-module-access.ts`), który czyta
   rejestr modułów. Ukrycie pozycji w nawigacji nie jest ochroną.
 - Każda akcja serwerowa sama sprawdza uprawnienia (akcja to endpoint POST — nie przechodzi przez layout strony).
