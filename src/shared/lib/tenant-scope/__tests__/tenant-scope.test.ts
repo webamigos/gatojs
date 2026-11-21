@@ -163,6 +163,14 @@ describe("isTenantScopeSatisfied: wartość organizationId w where", () => {
     ).toBe(false);
   });
 
+  it("obiekt z organizationId w środku wartości organizationId nie przypina organizacji", () => {
+    expect(
+      isTenantScopeSatisfied("findMany", {
+        where: { organizationId: { organizationId: "org_a" } },
+      }),
+    ).toBe(false);
+  });
+
   it("{ contains: napis } nie przypina organizacji", () => {
     expect(
       isTenantScopeSatisfied("findMany", {
@@ -542,6 +550,15 @@ describe("isTenantScopeSatisfied: operacje z where", () => {
     ).toBe(false);
   });
 
+  it("nieznana operacja z filtrem w where i create.organizationId jest odrzucona", () => {
+    expect(
+      isTenantScopeSatisfied("findRaw", {
+        where: { organizationId: "org_a" },
+        create: { organizationId: "org_a" },
+      }),
+    ).toBe(false);
+  });
+
   it("nieznana operacja aggregateRaw jest odrzucona", () => {
     expect(
       isTenantScopeSatisfied("aggregateRaw", {
@@ -772,6 +789,35 @@ describe("isTenantScopeSatisfied: niezmienniki", () => {
     (operation, negated) => {
       expect(
         isTenantScopeSatisfied(operation, { where: { NOT: negated } }),
+      ).toBe(false);
+    },
+  );
+
+  test.prop([
+    fc
+      .string({ maxLength: 20 })
+      .filter(
+        (operation) =>
+          ![
+            ...WHERE_OPERATIONS,
+            ...CREATE_MANY_OPERATIONS,
+            "create",
+            "upsert",
+          ].includes(operation),
+      ),
+    orgId,
+    fc.dictionary(fieldName, fc.jsonValue(), { maxKeys: 3 }),
+  ])(
+    "operacja spoza znanej listy nigdy nie spełnia filtra, także z przypiętym where, data i create",
+    (operation, organizationId, extra) => {
+      expect(
+        isTenantScopeSatisfied(operation, {
+          ...extra,
+          where: { organizationId },
+          data: { organizationId },
+          create: { organizationId },
+          update: {},
+        }),
       ).toBe(false);
     },
   );
