@@ -2,7 +2,7 @@
 
 Ten plik wyjaśnia, dlaczego wa-kit jest zbudowany tak, a nie inaczej. Każdy wpis mówi, jaki problem rozwiązuje decyzja, co wybrano, co odrzucono, co z tego wynika przy pisaniu kodu i co pilnuje, żeby decyzja była przestrzegana. Jak dana część działa krok po kroku, opisują pliki `01`–`16b` (spis w [README.md](README.md)).
 
-Zweryfikowano z kodem: 6c05f1f, 2026-11-05 (wpis D49); 734391b, 2026-11-04 (poprawki w D44, D45 i D48); 2788536, 2026-11-04 (wpis D48 i odnośniki do niego w D15, D17 i D43); 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
+Zweryfikowano z kodem: 8c9f5eb, 2026-11-21 (wpis D52); 6c05f1f, 2026-11-05 (wpis D49); 734391b, 2026-11-04 (poprawki w D44, D45 i D48); 2788536, 2026-11-04 (wpis D48 i odnośniki do niego w D15, D17 i D43); 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
 
 Rejestr obejmuje decyzje, które obowiązują w kodzie, i decyzje zastąpione, zostawione jako zapis historii. Funkcje zaplanowane, ale niezrobione (na przykład aktualizacja projektu do nowszej wersji kitu albo moduły `worker` i `legal`), pojawiają się wyłącznie jako kontekst albo konsekwencja.
 
@@ -44,7 +44,7 @@ Sposoby egzekwowania różnią się siłą:
 - `zastąpiona przez Dxx`: decyzja przestała obowiązywać. Wpis zostaje w pliku z nowym statusem i jednym zdaniem o tym, co się zmieniło, a decyzja, która go zastąpiła, ma własny numer i mówi, co zmieniła. Pozostała treść zastąpionego wpisu jest zapisem historii i nie opisuje kodu.
 - Gdy w decyzji zmieniły się tylko fakty (na przykład lista plików generowanych albo miejsc w kodzie), wpis poprawia się w miejscu, bez nowego numeru.
 - Numery `D01`, `D02`… są stałe i nie są używane ponownie. Inne pliki linkują do wpisu przez kotwicę, na przykład `[D07](decyzje.md#d07)`, więc zmiana numeru zepsułaby linki. Odnośnik, który opisuje bieżący stan kodu, wskazuje decyzję obowiązującą, a nie zastąpioną.
-- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D46, D48 i D49: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), pozostałe obowiązują. Numer D47 należy do decyzji o `wa update` z osobnej gałęzi ([webamigos/wa-kit#14](https://github.com/webamigos/wa-kit/pull/14)).
+- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D46, D48, D49 i D52: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), pozostałe obowiązują. Numer D47 należy do decyzji o `wa update` z osobnej gałęzi ([webamigos/wa-kit#14](https://github.com/webamigos/wa-kit/pull/14)).
 - Nową decyzję dopisuje się na końcu z następnym wolnym numerem, kotwicą `<a id="dNN"></a>` i wszystkimi polami.
 - Jeden plik wystarcza, dopóki decyzje dopisuje jedna gałąź naraz. Gdy zaczną to robić równolegle różne gałęzie, dwie mogą dopisać ten sam następny numer; wtedy warto rozważyć osobne pliki `docs/decyzje/NNNN-*.md`.
 
@@ -136,6 +136,7 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 | [D46](#d46) | Kit wydawany tagiem `v<version>`; projekt pobiera kit tylko w swojej wersji | Wydanie | obowiązuje |
 | [D48](#d48) | Walidacja `env` przy starcie procesu | Konfiguracja i usługi | obowiązuje |
 | [D49](#d49) | Uploads: provider storage `local` albo `s3`, domyślnie `local` | Moduły kitu | obowiązuje |
+| [D52](#d52) | Skille projektowe, Task Router i allowlista `permissions` jako pliki rdzenia | Jakość i proces | obowiązuje |
 
 <a id="d01"></a>
 
@@ -1649,3 +1650,39 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 - Profil Compose `s3` i katalog `/app/volumes/uploads` w obrazie: tylko konwencja. Job `assemble` buduje obraz (`docker build .`), ale nie sprawdza katalogu ani listy usług Compose.
 
 **Źródło.** [Spec providera storage](superpowers/specs/2026-11-04-uploads-storage-provider-design.md) §1–§6; [plan](superpowers/plans/2026-11-04-uploads-storage-provider.md), Task 2–6; commity `787fb39`, `c3b0a86`, `b435fda`, `cc7c13b`, `22bd604`, `a08b121`, `734391b` i `6c05f1f` (ruling R19); pakiet `storage` i ADR-27 Ragena oraz dokumentacja Railway ([wolumeny](https://docs.railway.com/volumes/reference), [Storage Buckets](https://docs.railway.com/storage-buckets)) w opisie specu.
+
+<a id="d52"></a>
+
+## D52 · Skille projektowe, Task Router i allowlista `permissions` jako pliki rdzenia
+
+**Status:** obowiązuje · **Data:** 2026-11-21 · **Kto zdecydował:** Patryk (zakres i odrzucenie pluginu: [spec harnessu z Ragena](superpowers/specs/2026-11-21-harness-from-ragen-design.md) §5 i [plan](superpowers/plans/2026-11-21-harness-from-ragen.md), Task 3); wykonawca planu (lista reguł `permissions` dopasowana do składni Claude Code)
+
+**Kontekst.** Instrukcje agenta w kicie to `CLAUDE.md` i `AGENTS.md`. Odsyłacze do dokumentacji były rozproszone po sekcjach `AGENTS.md`, a wiedza o powtarzalnych zadaniach (recenzja zmiany, podbicie zależności, nowa funkcja) była tylko w długich dokumentach repozytorium kitu, których projekt nie ma. Każda bramka i każda komenda tylko do odczytu wymagała zgody użytkownika, więc agent przerywał pracę na `npm run verify` czy `git diff`. Ragen (`ragen-app`) rozwiązuje to skillami w `.claude/skills/`, sekcją „Task Router” w `AGENTS.md` i listą `permissions.allow` w `.claude/settings.json`; spec przenosi te trzy elementy do kitu.
+
+**Decyzja.**
+
+- Trzy skille w `.claude/skills/<nazwa>/SKILL.md`: `wa-code-review` (niezmienniki, których `npm run verify` nie sprawdzi), `wa-upgrade-dependency` (podbicie zależności z e2e jako bramką, osobno better-auth, Prisma i Next.js), `wa-new-module` (funkcja projektu w `projectModules` albo moduł kitu). Nagłówek ma `name` i `description` z wyzwalaczami po polsku i angielsku, treść jest po polsku i zawiera tylko fakty sprawdzone w repozytorium.
+- Skille należą do rdzenia (`.claude/skills/**` w `files` w `kit/modules/core.json`), więc trafiają do projektu przez `wa create`. Odsyłacze do `docs/` w skillach wskazują repozytorium `webamigos/wa-kit`, bo `docs/**` jest w `kitOnly`.
+- `AGENTS.md` ma sekcję „Task Router”: tabela „zadanie → gdzie patrzeć”, w której każda komórka wskazuje plik repozytorium, dokument kitu albo skill. Wiersze modułów kitu wskazują tylko dokumentację, bo projekt bez modułu nie ma jego plików.
+- `.claude/settings.json` dostaje `permissions.allow` z bramkami i komendami tylko do odczytu: `npm run verify`, `lint`, `typecheck`, `npm test`, skrypty testów hooków, integracyjnych i mutacyjnych, `npm run wa -- generate`, `npx vitest run`, `npx tsc --noEmit`, `git status`, `git diff`, `git log`, `git show` ([Uprawnienia](11-praca-z-kitem.md#uprawnienia)). Sekcja `hooks` się nie zmienia.
+- Plan wymieniał regułę `Bash(npm run test:*)`. Według dokumentacji Claude Code końcowe `:*` znaczy to samo co ` *`, więc reguła nie obejmuje skryptów `test:<nazwa>`. Lista ma osobną regułę dla każdego skryptu testów poza `test:e2e` (reset bazy e2e wymaga zgody użytkownika) i `test:watch` (proces się nie kończy).
+
+**Odrzucone alternatywy.**
+
+- Plugin Claude Code wspólny dla wszystkich projektów Web Amigos: miałby wersjonowanie niezależne od kitu, więc skill mógłby opisywać inną wersję rdzenia niż ta w projekcie, a `wa kit sync` i manifesty kitu go nie obejmują (plan, Task 3).
+- Reguła `Bash(npm run test:*)` z planu: nie obejmuje skryptów `test:<nazwa>` (decyzja wyżej).
+
+**Konsekwencje.**
+
+- Skill jest instrukcją jak `AGENTS.md`: zmiana reguły w kodzie to także zmiana skilla, który ją cytuje. Zmiana skilla w projekcie, która przyda się innym, wraca do kitu pull requestem.
+- Nowy wiersz Task Routera zastępuje odsyłacz w innej sekcji `AGENTS.md`, a nie go dubluje, bo Codex po cichu ucina instrukcje powyżej 32 KiB.
+- Agent uruchamia bramki i odczyt repozytorium bez pytania. Komendy, które zmieniają bazę poza bazą testową, instalują pakiety, usuwają pliki albo pushują, dalej wymagają zgody. Własne reguły projekt dopisuje w `.claude/settings.local.json`.
+- Skille działają jako skille tylko w Claude Code. Inne narzędzia czytają je jako zwykłe pliki Markdown przez odsyłacze w routerze.
+
+**Jak egzekwowana.**
+
+- Test `npm run test:hooks` w `npm run verify` sprawdza hooki z `.claude/hooks/`, ale nie treść `permissions`.
+- Istnienie komend `npm run` i ścieżek cytowanych w `AGENTS.md` i `.claude/**/*.md` oraz rozmiar `AGENTS.md` pilnują testy architektury z [D50](#d50).
+- Zgodność treści skilli z kodem: tylko konwencja.
+
+**Źródło.** [Spec harnessu z Ragena](superpowers/specs/2026-11-21-harness-from-ragen-design.md) §5 i §6; [plan](superpowers/plans/2026-11-21-harness-from-ragen.md), Task 3; `ragen-app/.claude/skills/`, sekcja „Task Router” w `ragen-app/AGENTS.md` i `ragen-app/.claude/settings.json`; [dokumentacja uprawnień Claude Code](https://code.claude.com/docs/en/permissions).
