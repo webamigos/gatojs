@@ -34,12 +34,12 @@ Zasady dla plików tylko kitu (`kit/`). Nie trafiają do projektów (`.dockerign
 
 ### Issue tracker
 
-Issues w GitHub Issues repo `webamigos/wa-kit` (CLI `gh`). See `docs/agents/issue-tracker.md`.
+Issues live in GitHub Issues of `webamigos/wa-kit` (`gh` CLI). See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-Domyślne role: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+Default roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-Single-context: `GLOSSARY.md` w katalogu głównym (tworzony leniwie), decyzje w `docs/decyzje.md` (`D<nn>`), nie w `docs/adr/`. See `docs/agents/domain.md`.
+Single-context: `GLOSSARY.md` at the root (created lazily), decisions in the `D<nn>` log in `docs/decyzje.md`, not in `docs/adr/`. See `docs/agents/domain.md`.
