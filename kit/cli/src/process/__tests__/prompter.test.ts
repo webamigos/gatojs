@@ -18,7 +18,37 @@ vi.mock("node:readline/promises", () => ({
   }),
 }));
 
+type CheckboxConfig = {
+  message: string;
+  choices: unknown[];
+  theme: {
+    style: {
+      keysHelpTip: (keys: [string, string][]) => string | undefined;
+    };
+    i18n: { disabledError: string };
+  };
+};
+
+const terminal = vi.hoisted(() => ({
+  configs: [] as unknown[],
+  result: [] as string[],
+  failure: null as Error | null,
+}));
+
+vi.mock("@inquirer/checkbox", () => ({
+  default: async (config: unknown) => {
+    terminal.configs.push(config);
+    if (terminal.failure) throw terminal.failure;
+    return terminal.result;
+  },
+}));
+
 import { readlinePrompter } from "../prompter.js";
+
+function lastConfig(): CheckboxConfig {
+  expect(terminal.configs).toHaveLength(1);
+  return terminal.configs[0] as CheckboxConfig;
+}
 
 let originalIsTTY: boolean | undefined;
 
@@ -29,6 +59,9 @@ beforeEach(() => {
   readline.answer = "";
   readline.fail = false;
   readline.close.mockClear();
+  terminal.configs = [];
+  terminal.result = [];
+  terminal.failure = null;
 });
 
 afterEach(() => {
@@ -93,5 +126,108 @@ describe("readlinePrompter z terminalem", () => {
       "awaria wejścia",
     );
     expect(readline.close).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("readlinePrompter.select", () => {
+  it("bez terminala rzuca Brak terminala: użyj --yes i nie otwiera listy", async () => {
+    process.stdin.isTTY = false;
+    await expect(
+      readlinePrompter.select("Moduły", [{ value: "a", label: "a" }]),
+    ).rejects.toThrow("Brak terminala: użyj --yes");
+    expect(terminal.configs).toEqual([]);
+  });
+
+  it("przekazuje pytanie i pozycje z etykietą, domyślnie niezaznaczone i odblokowane", async () => {
+    await readlinePrompter.select("Moduły", [
+      { value: "a", label: "a — opis" },
+      { value: "b", label: "b", checked: true },
+    ]);
+    const config = lastConfig();
+    expect(config.message).toBe("Moduły");
+    expect(config.choices).toEqual([
+      {
+        value: "a",
+        name: "a — opis",
+        short: "a",
+        checked: false,
+        disabled: false,
+      },
+      { value: "b", name: "b", short: "b", checked: true, disabled: false },
+    ]);
+  });
+
+  it("pozycja zablokowana jest zaznaczona i opisana jako (wymagany)", async () => {
+    await readlinePrompter.select("Języki", [
+      { value: "pl", label: "pl", checked: true, locked: true },
+      { value: "en", label: "en", checked: true },
+    ]);
+    expect(lastConfig().choices).toEqual([
+      {
+        value: "pl",
+        name: "pl",
+        short: "pl",
+        checked: true,
+        disabled: "(wymagany)",
+      },
+      { value: "en", name: "en", short: "en", checked: true, disabled: false },
+    ]);
+  });
+
+  it("zwraca wartości wybrane na liście", async () => {
+    terminal.result = ["b"];
+    expect(
+      await readlinePrompter.select("Moduły", [
+        { value: "a", label: "a" },
+        { value: "b", label: "b" },
+      ]),
+    ).toEqual(["b"]);
+  });
+
+  it("pusty wybór zwraca pustą tablicę", async () => {
+    terminal.result = [];
+    expect(
+      await readlinePrompter.select("Moduły", [{ value: "a", label: "a" }]),
+    ).toEqual([]);
+  });
+
+  it("Ctrl+C na liście rzuca Przerwano", async () => {
+    terminal.failure = Object.assign(
+      new Error("User force closed the prompt with SIGINT"),
+      { name: "ExitPromptError" },
+    );
+    await expect(
+      readlinePrompter.select("Moduły", [{ value: "a", label: "a" }]),
+    ).rejects.toMatchObject({ message: "Przerwano" });
+  });
+
+  it("inny błąd listy przechodzi bez zmian", async () => {
+    const failure = new Error("awaria");
+    terminal.failure = failure;
+    await expect(
+      readlinePrompter.select("Moduły", [{ value: "a", label: "a" }]),
+    ).rejects.toBe(failure);
+  });
+
+  it("podpowiedź klawiszy jest po polsku, pary rozdziela kropka", async () => {
+    await readlinePrompter.select("Moduły", [{ value: "a", label: "a" }]);
+    expect(
+      lastConfig().theme.style.keysHelpTip([
+        ["↑↓", "navigate"],
+        ["space", "select"],
+        ["a", "all"],
+        ["i", "invert"],
+        ["⏎", "submit"],
+      ]),
+    ).toBe(
+      "↑↓ przesuń • spacja zaznacz • a wszystkie • i odwróć • ⏎ zatwierdź",
+    );
+  });
+
+  it("komunikat przy próbie odznaczenia pozycji wymaganej jest po polsku", async () => {
+    await readlinePrompter.select("Moduły", [{ value: "a", label: "a" }]);
+    expect(lastConfig().theme.i18n.disabledError).toBe(
+      "Tej pozycji nie można odznaczyć",
+    );
   });
 });

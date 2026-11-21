@@ -74,6 +74,10 @@ export async function createProject(
     prompter: {
       ask: async (_question, fallback) => fallback,
       confirm: async (_question, fallback) => fallback,
+      select: async (_question, choices) =>
+        choices
+          .filter((choice) => choice.checked)
+          .map((choice) => choice.value),
     },
     log: () => {},
   });
