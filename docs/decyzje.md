@@ -2,7 +2,7 @@
 
 Ten plik wyjaśnia, dlaczego wa-kit jest zbudowany tak, a nie inaczej. Każdy wpis mówi, jaki problem rozwiązuje decyzja, co wybrano, co odrzucono, co z tego wynika przy pisaniu kodu i co pilnuje, żeby decyzja była przestrzegana. Jak dana część działa krok po kroku, opisują pliki `01`–`16b` (spis w [README.md](README.md)).
 
-Zweryfikowano z kodem: 6c05f1f, 2026-11-05 (wpis D49); 734391b, 2026-11-04 (poprawki w D44, D45 i D48); 2788536, 2026-11-04 (wpis D48 i odnośniki do niego w D15, D17 i D43); 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
+Zweryfikowano z kodem: b0f6382, 2026-11-21 (wpis D50); 6c05f1f, 2026-11-05 (wpis D49); 734391b, 2026-11-04 (poprawki w D44, D45 i D48); 2788536, 2026-11-04 (wpis D48 i odnośniki do niego w D15, D17 i D43); 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
 
 Rejestr obejmuje decyzje, które obowiązują w kodzie, i decyzje zastąpione, zostawione jako zapis historii. Funkcje zaplanowane, ale niezrobione (na przykład aktualizacja projektu do nowszej wersji kitu albo moduły `worker` i `legal`), pojawiają się wyłącznie jako kontekst albo konsekwencja.
 
@@ -44,7 +44,7 @@ Sposoby egzekwowania różnią się siłą:
 - `zastąpiona przez Dxx`: decyzja przestała obowiązywać. Wpis zostaje w pliku z nowym statusem i jednym zdaniem o tym, co się zmieniło, a decyzja, która go zastąpiła, ma własny numer i mówi, co zmieniła. Pozostała treść zastąpionego wpisu jest zapisem historii i nie opisuje kodu.
 - Gdy w decyzji zmieniły się tylko fakty (na przykład lista plików generowanych albo miejsc w kodzie), wpis poprawia się w miejscu, bez nowego numeru.
 - Numery `D01`, `D02`… są stałe i nie są używane ponownie. Inne pliki linkują do wpisu przez kotwicę, na przykład `[D07](decyzje.md#d07)`, więc zmiana numeru zepsułaby linki. Odnośnik, który opisuje bieżący stan kodu, wskazuje decyzję obowiązującą, a nie zastąpioną.
-- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D46, D48 i D49: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), pozostałe obowiązują. Numer D47 należy do decyzji o `wa update` z osobnej gałęzi ([webamigos/wa-kit#14](https://github.com/webamigos/wa-kit/pull/14)).
+- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D46 i D48–D50: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), pozostałe obowiązują. Numer D47 należy do decyzji o `wa update` z osobnej gałęzi ([webamigos/wa-kit#14](https://github.com/webamigos/wa-kit/pull/14)).
 - Nową decyzję dopisuje się na końcu z następnym wolnym numerem, kotwicą `<a id="dNN"></a>` i wszystkimi polami.
 - Jeden plik wystarcza, dopóki decyzje dopisuje jedna gałąź naraz. Gdy zaczną to robić równolegle różne gałęzie, dwie mogą dopisać ten sam następny numer; wtedy warto rozważyć osobne pliki `docs/decyzje/NNNN-*.md`.
 
@@ -136,6 +136,7 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 | [D46](#d46) | Kit wydawany tagiem `v<version>`; projekt pobiera kit tylko w swojej wersji | Wydanie | obowiązuje |
 | [D48](#d48) | Walidacja `env` przy starcie procesu | Konfiguracja i usługi | obowiązuje |
 | [D49](#d49) | Uploads: provider storage `local` albo `s3`, domyślnie `local` | Moduły kitu | obowiązuje |
+| [D50](#d50) | Testy architektury repo w rdzeniu kitu | Jakość i proces | obowiązuje |
 
 <a id="d01"></a>
 
@@ -1649,3 +1650,36 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 - Profil Compose `s3` i katalog `/app/volumes/uploads` w obrazie: tylko konwencja. Job `assemble` buduje obraz (`docker build .`), ale nie sprawdza katalogu ani listy usług Compose.
 
 **Źródło.** [Spec providera storage](superpowers/specs/2026-11-04-uploads-storage-provider-design.md) §1–§6; [plan](superpowers/plans/2026-11-04-uploads-storage-provider.md), Task 2–6; commity `787fb39`, `c3b0a86`, `b435fda`, `cc7c13b`, `22bd604`, `a08b121`, `734391b` i `6c05f1f` (ruling R19); pakiet `storage` i ADR-27 Ragena oraz dokumentacja Railway ([wolumeny](https://docs.railway.com/volumes/reference), [Storage Buckets](https://docs.railway.com/storage-buckets)) w opisie specu.
+
+<a id="d50"></a>
+
+## D50 · Testy architektury repo w rdzeniu kitu
+
+**Status:** obowiązuje · **Data:** 2026-11-21 · **Kto zdecydował:** Patryk (przeniesienie testów zgodności repo z Ragena do rdzenia kitu, lista siedmiu testów i zasada „naruszenie poprawia się w tym samym zadaniu”: spec harnessu z Ragena, §2 i §3); autor planu harnessu (reguły rozpoznawania ścieżek, kluczy, importów i literałów `node-version`, Task 1); wykonawca Task 1 (funkcje wykrywające w `scripts/lib/architecture/`, gołe nazwy plików z katalogu głównego tylko z rozszerzeniami plików konfiguracji, pominięcie `import type`, trzy moduły `@/shared/lib/auth` dozwolone w plikach klienckich)
+
+**Kontekst.** Harness kitu pilnuje tego, jak agent pisze kod i testy (hooki, tester inny niż implementer, bramka mutacji), ale nie spójności repo: czy komendy i ścieżki z instrukcji agenta istnieją, czy klucze tłumaczeń są w obu językach, czy `.env.example` przechodzi walidację, czy wersja Node jest jedna. Monorepo Ragena ma na to około 125 testów zgodności w `tests/architecture/`. Przegląd harnessu z Patrykiem 2026-11-21 wybrał z nich siedem, które pasują do projektu złożonego z kitu.
+
+**Decyzja.**
+
+- Siedem testów w `src/__tests__/architecture/`: budżet `AGENTS.md` (31 744 bajty), istniejące komendy `npm run`, istniejące cytowane ścieżki, te same klucze tłumaczeń w każdym języku, `.env.example` zgodny z `checkEnv`, jedna wersja Node w `.nvmrc`, `Dockerfile` i workflow, pliki klienckie bez importów serwerowych. Lista i reguły: [08-testy.md](08-testy.md#architektura).
+- Testy są plikami rdzenia (`src/__tests__/architecture/**` w `files` manifestu `core`), więc działają w każdym projekcie, i czytają tylko pliki, które projekt ma. Odsyłacze do `docs/` i `kit/` (`kitOnly`) są pomijane.
+- Każdy test ma czystą funkcję wykrywającą w `scripts/lib/architecture/`, testowaną na literałach, i jedno wywołanie na prawdziwym repo, które oczekuje pustej listy naruszeń. Funkcje nie leżą w `src/__tests__/`, bo hook `protect-tests` blokuje tam zapis w fazie implementacji.
+- Naruszenie w obecnym kodzie poprawia się w tym samym zadaniu. Przy wprowadzeniu testów żadnego nie było. Wyjątek z uzasadnieniem jest dopuszczalny tylko wtedy, gdy poprawka wykracza poza zadanie, i zadanie zgłasza go człowiekowi. Jedyny taki wyjątek to `CLIENT_SAFE_AUTH_MODULES`: komponenty rdzenia importują stałe ról z `@/shared/lib/auth/roles` i `@/shared/lib/auth/permissions`, a te pliki nie importują kodu serwera.
+
+**Odrzucone alternatywy.**
+
+- Testy tylko w repo kitu (na przykład w `kit/cli`): nie sprawdzałyby projektu, który zmienia `AGENTS.md`, dodaje tłumaczenia albo zmienia `Dockerfile` po `wa create`.
+- Reguły ESLint zamiast testów: ESLint sprawdza pojedynczy plik źródłowy, a te niezmienniki łączą kilka plików różnych typów (Markdown z `package.json`, `.nvmrc` z `Dockerfile` i YAML, pary plików JSON). Importy w plikach klienckich dałoby się sprawdzić regułą `no-restricted-imports`, ale bez warunku na dyrektywę `"use client"`.
+
+**Konsekwencje.**
+
+- Projekt, który zmieni plik rdzenia w niezgodny sposób (wydłuży `AGENTS.md` ponad budżet, usunie skrypt z `package.json` wspomniany w `CLAUDE.md`, podbije Node tylko w `Dockerfile`), dostaje czerwony `npm test`. Poprawia plik albo test w swoim repo, a poprawkę ogólną zgłasza do kitu.
+- Moduł kitu z tłumaczeniami musi mieć plik dla każdego języka projektu, a zmienna modułu z `.env.example` musi przejść schemat `env.ts` modułu.
+- Testy są heurystyczne: nie widzą importu względnego ani pośredniego modułu serwerowego w pliku klienckim, gołej nazwy pliku z rozszerzeniem spoza listy ani komendy `npm test` czy `npm start`.
+
+**Jak egzekwowana.**
+
+- Testy w `npm run verify`: `src/__tests__/architecture/*.test.ts`, na przykład „AGENTS.md o bajt za duży zgłasza rozmiar i limit”, „różny kształt to naruszenie w obie strony” i „import typu jest ignorowany”.
+- Bramka mutacji: `scripts/lib/architecture/` jest we wzorcach `mutate` w `stryker.config.json`, ale nie w `critical` w `mutation-gate.json`, bo to nie logika bezpieczeństwa.
+
+**Źródło.** [Spec harnessu z Ragena](superpowers/specs/2026-11-21-harness-from-ragen-design.md) §1–§3 i §6; [plan](superpowers/plans/2026-11-21-harness-from-ragen.md), Task 1; testy Ragena `tests/architecture/` (w tym `agent-instructions-fit-the-budget.test.ts`, `documented-commands-exist.test.ts`, `i18n-keys-exist-in-every-locale.test.ts`, `the-node-floor-is-one-number.test.ts`, `client-bundles-stay-browser-safe.test.ts`) w opisie specu.
