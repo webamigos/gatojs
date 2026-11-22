@@ -15,4 +15,4 @@
 - [ ] Changed kit files: owning module `version` bumped in `kit/modules/<module>.json` and `npm run wa -- kit sync` run
 - [ ] User-facing text added to both `pl` and `en` messages
 - [ ] Prisma schema change: migration notes for projects included
-- [ ] A decision worth recording has an ADR in `docs/adrs/`; a non-obvious gotcha has a lesson in `docs/lessons/`
+- [ ] A decision worth recording is added to `docs/decyzje.md`

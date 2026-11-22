@@ -26,7 +26,7 @@ node gatojs/.wa/bin/wa.mjs create my-app
 
 - Rules for contributors and agents: [`AGENTS.md`](../AGENTS.md), [`CLAUDE.md`](../CLAUDE.md)
 - Kit documentation: [`docs/README.md`](../docs/README.md) (Polish, being translated)
-- Decisions: `docs/adrs/` and [`docs/decyzje.md`](../docs/decyzje.md); gotchas: `docs/lessons.md`
+- Decisions: [`docs/decyzje.md`](../docs/decyzje.md)
 
 ## Contributing and security
 
