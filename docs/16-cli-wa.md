@@ -39,7 +39,7 @@ Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wersja `uploads` w sekcji [Po `wa ad
 - `kit/kit.json`
 - `kit/modules/core.json`, `kit/modules/audit-logs.json`, `kit/modules/api-keys.json`, `kit/modules/uploads.json`
 - `kit/README.md`
-- `src/shared/lib/env.ts`
+- `packages/env/src/*.ts`, `src/env.ts`
 - `src/features/api-keys/env.ts`
 - `src/features/uploads/env.ts`, `src/features/uploads/services/storage-env.ts`, `docker/uploads.compose.yml`
 

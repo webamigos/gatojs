@@ -14,7 +14,7 @@ Zweryfikowano z kodem: 2c83429, 2026-11-21 ([Guard w runtime](#guard-w-runtime),
 
 - `prisma/schema/auth.prisma`
 - `prisma/schema/organizations.prisma`
-- `src/shared/lib/env.ts`
+- `packages/env/src/*.ts`, `src/env.ts`
 - `src/shared/lib/auth/org-context.ts`
 - `src/shared/lib/auth/index.ts`
 - `src/shared/lib/auth/helpers.ts`

@@ -22,7 +22,7 @@ Zweryfikowano z kodem: 734391b, 2026-11-04 (punkt „Usługi modułów” w [Us�
 - `src/app/api/`
 - `src/shared/lib/auth/*.ts`
 - `src/shared/lib/modules/`
-- `src/shared/lib/env.ts`
+- `packages/env/src/*.ts`, `src/env.ts`
 - `src/shared/lib/prisma.ts`
 - `src/shared/lib/mailer.ts`
 - `src/shared/lib/logger.ts`

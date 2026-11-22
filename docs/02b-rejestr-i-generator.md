@@ -22,7 +22,7 @@ Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wersja `uploads` we fragmencie pliku
 - `src/modules.client.generated.ts`
 - `src/i18n/locales.generated.ts`
 - `src/i18n/config.ts`
-- `src/shared/lib/env.ts`
+- `packages/env/src/*.ts`, `src/env.ts`
 - `src/shared/lib/audit.ts`
 - `src/shared/lib/auth/index.ts`
 - `src/shared/lib/auth/client.ts`
@@ -81,7 +81,7 @@ Każdy z plików, które generator czyta z feature, trafia do innej tablicy:
 | --- | --- | --- | --- | --- |
 | `module.ts` | domyślny: `defineModule({...})` | `modules` | `src/modules.generated.ts` | Rdzeń nie czyta. Moduły czytają z niego deklaracje innych feature: `knownApiScopes` w `src/features/api-keys/services/api-scopes.ts`, `listUploadPurposes` w `src/features/uploads/services/upload-purposes.ts` i `<AuditTrail>` w `src/features/audit-logs/components/audit-trail.tsx`. |
 | `module.ts` | domyślny: `defineModule({...})` | `clientModules` | `src/modules.client.generated.ts` | Rdzeń: `src/shared/lib/auth/permissions.ts` (guard stron), `src/shared/lib/modules/nav.ts` (menu) i filtr testów rdzenia `src/test/core-modules.ts`. Moduły: `audit-log-view.tsx` (`audit-logs`) i `api-keys-manager.tsx` (`api-keys`). |
-| `env.ts` | `envSchema` | `moduleEnvSchemas` | `src/modules.generated.ts` | `src/shared/lib/env.ts`, który łączy go ze schematem rdzenia przez `z.intersection` |
+| `env.ts` | `envSchema` | `moduleEnvSchemas` | `src/modules.generated.ts` | `checkEnv`/`createEnv` z `@gatojs/env`, które łączą go ze schematem rdzenia przez `z.intersection` |
 | `auth.ts` | `authPlugin` | `authPlugins` | `src/modules.generated.ts` | lista `plugins` w `src/shared/lib/auth/index.ts` |
 | `auth-client.ts` | `authClientPlugin` | `authClientPlugins` | `src/modules.client.generated.ts` | lista `plugins` w `src/shared/lib/auth/client.ts` |
 | `audit-sink.ts` | `auditSink` | `auditSinks` | `src/modules.generated.ts` | `trackAudit` w `src/shared/lib/audit.ts`, który woła po kolei każde ujście ([D40](decyzje.md#d40)) |
@@ -441,7 +441,7 @@ Schematy `kitStateSchema` i `moduleManifestSchema` z `packages/gato-cli/src/mani
 
 | Plik | Co zawiera | Kto generuje |
 | --- | --- | --- |
-| `src/modules.generated.ts` | `modules`, `moduleEnvSchemas`, `authPlugins`, `auditSinks`, typ `MessageLoader`, `moduleMessages` | `wa generate` |
+| `src/modules.generated.ts` | `modules`, `moduleEnvSchemas`, `authPlugins`, `auditSinks`, `env` (`createEnv(moduleEnvSchemas)`), typ `MessageLoader`, `moduleMessages` | `wa generate` |
 | `src/modules.client.generated.ts` | `authClientPlugins`, `clientModules` | `wa generate` |
 | `src/i18n/locales.generated.ts` | `locales`: języki z `.wa/kit.json`, importowane przez `src/i18n/config.ts` | `wa generate` |
 | region `wa:relations` w `prisma/schema/auth.prisma` | relacje zwrotne modelu `User` | `wa generate` |

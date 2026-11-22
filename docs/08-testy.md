@@ -190,9 +190,9 @@ Testy w `src/__tests__/architecture/` sprawdzają spójność plików projektu, 
 | `documented-commands-exist` | Każde `npm run <skrypt>` w `AGENTS.md`, `CLAUDE.md`, `README.md` i plikach `.md` w `.claude/` istnieje w `scripts` w `package.json`. Argumenty po nazwie skryptu się nie liczą. |
 | `cited-paths-exist` | Każda ścieżka w backtickach albo w celu linku w `AGENTS.md`, `CLAUDE.md` i plikach `.md` w `.claude/` istnieje. |
 | `i18n-keys-exist-in-every-locale` | `src/app/messages/<locale>.json` i każde `src/features/*/i18n/<locale>.json` istnieją dla każdego języka z `src/i18n/locales.generated.ts` i mają ten sam zbiór kluczy (pełnych ścieżek liści, na przykład `form.title`). |
-| `env-example-passes-validation` | `checkEnv` z `src/shared/lib/env.ts`, ze schematami zmiennych modułów projektu, przyjmuje `.env.example` z `NODE_ENV=development`. |
+| `env-example-passes-validation` | `checkEnv` z `@gatojs/env`, ze schematami zmiennych modułów projektu, przyjmuje `.env.example` z `NODE_ENV=development`. |
 | `node-version-is-one-number` | Major z `.nvmrc` jest równy majorowi z każdej linii `FROM node:<tag>` w `Dockerfile`, a żaden workflow w `.github/workflows/` nie ma klucza `node-version:` (tylko `node-version-file: .nvmrc`). |
-| `client-bundles-stay-server-free` | Plik `.ts`/`.tsx` w `src/` (bez `src/generated/`) z dyrektywą `"use client"` jako pierwszą instrukcją nie importuje `@/shared/lib/prisma`, `@/shared/lib/env`, `@/generated/prisma`, `server-only`, `node:*` ani modułów `@/shared/lib/auth`. |
+| `client-bundles-stay-server-free` | Plik `.ts`/`.tsx` w `src/` (bez `src/generated/`) z dyrektywą `"use client"` jako pierwszą instrukcją nie importuje `@/shared/lib/prisma`, `@/env`, `@gatojs/env`, `@/generated/prisma`, `server-only`, `node:*` ani modułów `@/shared/lib/auth`. |
 
 Reguły, które wymagały doprecyzowania:
 
