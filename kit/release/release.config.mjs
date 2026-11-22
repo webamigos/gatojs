@@ -1,5 +1,6 @@
 export default {
   branches: ["main"],
+  repositoryUrl: "git@github.com:webamigos/gatojs.git",
   tagFormat: "v${version}",
   plugins: [
     [

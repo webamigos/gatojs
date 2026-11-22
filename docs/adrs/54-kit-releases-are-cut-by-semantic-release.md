@@ -33,8 +33,10 @@ Conventional Commits, which this repository enforces with commitlint.
   - `@semantic-release/git` commits both files as `chore(release): <version> [skip ci]` (no notes in the body, so
     commitlint's 100-character body line limit cannot fail), and semantic-release tags that commit `v<version>`;
   - `@semantic-release/github` publishes a GitHub Release with the notes. Nothing is published to npm.
-- The job uses `secrets.GITHUB_TOKEN` with `contents: write`, `issues: write`, `pull-requests: write`. `main` is not
-  protected, so the bot can push the release commit.
+- `main` is protected by the "Protect main" ruleset (PR, one approval, required checks). The job checks out with
+  `ssh-key: secrets.RELEASE_DEPLOY_KEY`, a write deploy key that is a bypass actor of that ruleset, and
+  `repositoryUrl` points at the SSH remote, so semantic-release pushes the release commit and tag through the key.
+  `GITHUB_TOKEN` (`contents: write`, `issues: write`, `pull-requests: write`) is used only for the GitHub Release API.
 - `kit/kit.json` `version` is written only by the release. Module `version` bumps in `kit/modules/*.json` stay manual.
 - `.github/workflows/release.yml` is in `kitOnly`; `kit/release/**` is covered by `kit/**`. No release file or
   dependency reaches a project.
@@ -47,8 +49,9 @@ Conventional Commits, which this repository enforces with commitlint.
   convention only.
 - A tag without a version commit (version derived from the tag only): `resolveKitSource` compares a local kit by
   `kit/kit.json` `version`, and `wa create` reads it, so the tagged tree must carry the version.
-- A personal access token: `GITHUB_TOKEN` is enough while `main` is unprotected, and its pushes do not start other
-  workflows.
+- `GITHUB_TOKEN` for the push: GitHub does not accept the GitHub Actions app as a bypass actor of a repository
+  ruleset, so its push to the protected `main` is rejected.
+- A personal access token (Ragen's `GH_TOKEN`): tied to one person's account and broader than one repository.
 - The `angular` preset (Ragen's default): it does not read `feat!:` as a breaking change.
 
 ## Consequences
@@ -59,7 +62,8 @@ Conventional Commits, which this repository enforces with commitlint.
   of `main`.
 - The release commit lands on `main` after the merge; pull it before the next branch.
 - A breaking change stays a minor bump until the kit reaches 1.0; going to 1.0 needs a config change.
-- `[skip ci]` and the `GITHUB_TOKEN` push mean the release commit and tag do not start `kit.yml` or `ci.yml`. The
+- `[skip ci]` keeps the release commit (pushed with the deploy key, which would otherwise start workflows) from
+  starting `kit.yml` or `ci.yml`. The
   commit changes only two version fields, which `kit.yml`'s "Kit state and generated files are up to date" step
   would accept.
 - If `main` becomes protected, the workflow needs a token or app allowed to bypass protection.
