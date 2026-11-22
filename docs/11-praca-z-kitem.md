@@ -273,7 +273,7 @@ Czasy przebiegów są w [08-testy.md](08-testy.md#czas). Pierwszy `verify` po do
 
 ## Praca z agentami AI
 
-Repozytorium jest przygotowane do pracy z agentami AI: instrukcje są w `CLAUDE.md` i `AGENTS.md`, hooki i definicje agentów w `.claude/`, a pull requesty recenzuje CodeRabbit. Hooki i agenci testów działają tylko w Claude Code. Inne narzędzia dostają tylko instrukcje, więc reguły pilnują w nich CI i recenzja.
+Repozytorium jest przygotowane do pracy z agentami AI: instrukcje są w `CLAUDE.md` i `AGENTS.md`, hooki i definicje agentów w `.claude/`, a pull requesty może dodatkowo recenzować CodeRabbit, jeśli jest zainstalowany. CodeRabbit nie jest bramką: recenzję bez niego robi się według `.claude/skills/wa-code-review/SKILL.md` ([ADR-55](adrs/55-code-review-does-not-depend-on-coderabbit.md)). Hooki i agenci testów działają tylko w Claude Code. Inne narzędzia dostają tylko instrukcje, więc reguły pilnują w nich CI i recenzja.
 
 <a id="claude-agents-md"></a>
 
@@ -448,7 +448,7 @@ Własne reguły zapisuj w `.claude/settings.local.json` (Claude Code dopisuje ta
 
 ### CodeRabbit
 
-`.coderabbit.yaml` konfiguruje CodeRabbit, usługę, która recenzuje pull requesty na GitHubie przy pomocy AI. Plik działa tylko wtedy, gdy aplikacja CodeRabbit jest zainstalowana dla repozytorium. Z samego repozytorium tego nie widać.
+`.coderabbit.yaml` konfiguruje CodeRabbit, usługę, która recenzuje pull requesty na GitHubie przy pomocy AI. Plik działa tylko wtedy, gdy aplikacja CodeRabbit jest zainstalowana dla repozytorium. Z samego repozytorium tego nie widać. CodeRabbit jest opcjonalny: nie jest wymaganym checkiem w regule `main`, a recenzja bez niego idzie według checklisty `wa-code-review` ([ADR-55](adrs/55-code-review-does-not-depend-on-coderabbit.md)).
 
 | Ustawienie | Wartość | Skutek |
 | --- | --- | --- |

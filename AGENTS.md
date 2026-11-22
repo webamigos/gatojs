@@ -38,7 +38,7 @@ Zadanie → gdzie patrzeć. Ścieżki `docs/…` są w repo `webamigos/wa-kit`; 
 | Pliki generowane, CLI `wa` | `npm run wa -- generate`; `docs/02b-rejestr-i-generator.md`, `docs/16-cli-wa.md` |
 | Podbicie zależności | skill `wa-upgrade-dependency` |
 | Testy i mutacje | „Testy” niżej; `.claude/agents/test-writer.md`, `.claude/agents/test-reviewer.md`, `mutation-gate.json`; `docs/08-testy.md`, `docs/08b-testy-adwersarialne.md` |
-| Recenzja zmiany | skill `wa-code-review` |
+| Recenzja zmiany | skill `wa-code-review` (`.claude/skills/wa-code-review/SKILL.md`, zwykły Markdown: czyta go każdy agent i człowiek); CodeRabbit jest opcjonalny, nie jest bramką |
 
 ## Komendy
 
