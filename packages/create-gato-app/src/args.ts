@@ -13,7 +13,7 @@ export type CliArgs =
 export const USAGE = [
   "Usage: create-gato-app <dir> [options]",
   "",
-  "Creates a GatoJS project: downloads the kit and runs its `wa create`.",
+  "Creates a GatoJS project: downloads the kit and runs `gato create` from gato-cli.",
   "",
   "Options of create-gato-app:",
   "  --kit-version <x.y.z>  kit version (tag v<x.y.z>); default: the highest v<x.y.z> tag",
@@ -22,19 +22,21 @@ export const USAGE = [
   "  -h, --help             print this help",
   "  -v, --version          print the create-gato-app version",
   "",
-  "Other options go to `wa create`: --modules a,b  --locales pl,en  --title <text>",
+  "Other options go to `gato create`: --modules a,b  --locales pl,en  --title <text>",
   "  --admin-email <email>  --yes  --setup  --no-install  --no-git",
+  "  --cli-source <tarball>  (the project's gato-cli from a packed tarball, for CI)",
   "",
   "Private repository: set GITHUB_TOKEN or GH_TOKEN, or log in with `gh auth login`.",
 ].join("\n");
 
 const KIT_VERSION_PATTERN =
   /^v?((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/;
-const WA_CREATE_VALUE_OPTIONS = new Set([
+const GATO_CREATE_VALUE_OPTIONS = new Set([
   "--modules",
   "--locales",
   "--title",
   "--admin-email",
+  "--cli-source",
 ]);
 const UNSUPPORTED_FLAGS = new Set(["--skip-docker"]);
 const NO_INSTALL = "--no-install";
@@ -111,7 +113,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
       continue;
     }
     passthrough.push(arg);
-    if (WA_CREATE_VALUE_OPTIONS.has(arg)) {
+    if (GATO_CREATE_VALUE_OPTIONS.has(arg)) {
       const value = argv[index + 1];
       if (value !== undefined) {
         passthrough.push(value);

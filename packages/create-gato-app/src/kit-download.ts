@@ -11,7 +11,7 @@ export type Spawn = (
 ) => Promise<SpawnResult>;
 
 const GIT_REQUIRED =
-  "create-gato-app needs git to read the kit files (`wa create` lists them with git ls-files)";
+  "create-gato-app needs git to read the kit files (`gato create` lists them with git ls-files)";
 
 async function runGit(
   spawn: Spawn,
@@ -54,7 +54,7 @@ export async function downloadKit(input: {
       `Could not extract the kit tarball: ${extracted.stderr.trim()}`,
     );
   }
-  // WHY: a tarball has no .git, and `wa create` lists kit files with git ls-files; the tarball holds exactly
+  // WHY: a tarball has no .git, and `gato create` lists kit files with git ls-files; the tarball holds exactly
   // the tracked files, so -f also keeps files that the kit's .gitignore matches but git tracks.
   await runGit(input.spawn, ["init", "-q"], kitDir);
   await runGit(input.spawn, ["add", "-A", "-f"], kitDir);

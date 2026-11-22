@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { parseCliArgs, USAGE } from "./args.js";
-import { waCreateCommand } from "./delegate.js";
+import { gatoCreateCommand } from "./delegate.js";
 import { resolveKitVersion, resolveToken, type FetchLike } from "./github.js";
 import { downloadKit, type Spawn } from "./kit-download.js";
 import { checkNodeVersion } from "./node-version.js";
@@ -8,6 +8,7 @@ import { checkNodeVersion } from "./node-version.js";
 export type CliDeps = {
   nodeVersion: string;
   nodePath: string;
+  gatoBin: string;
   env: Record<string, string | undefined>;
   cwd: string;
   packageVersion: string;
@@ -25,8 +26,9 @@ async function delegate(
   kitDir: string,
   passthrough: string[],
 ): Promise<number> {
-  const { command, args } = waCreateCommand({
+  const { command, args } = gatoCreateCommand({
     nodePath: deps.nodePath,
+    gatoBin: deps.gatoBin,
     kitDir,
     passthrough,
   });

@@ -33,7 +33,7 @@
     "cli"
   ],
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22"
   },
   "scripts": {
     "clean": "rm -rf dist",
@@ -46,6 +46,9 @@
     "test:mutation": "stryker run",
     "test:mutation:task": "stryker run --force --mutate",
     "test:smoke": "bash scripts/smoke-pack.sh"
+  },
+  "dependencies": {
+    "gato-cli": "0.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

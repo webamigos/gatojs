@@ -31,7 +31,7 @@ export const spawnProcess: Spawn = (command, args, options) =>
       stderr += chunk.toString();
     });
     // WHY: with an attached terminal, Ctrl+C reaches the child too; ignoring it here lets the child finish
-    // (wa create cleans up after itself) and still runs our temp dir cleanup instead of dying first.
+    // (gato create cleans up after itself) and still runs our temp dir cleanup instead of dying first.
     const ignore = (): void => {};
     if (options.stdio === "inherit") {
       for (const signal of FORWARDED_SIGNALS) {

@@ -16,10 +16,16 @@ export type NodeVerdict =
 
 const NODE_VERSION_PATTERN = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
 
+function withoutZeroMinorPatch(version: string): string {
+  return version.endsWith(".0.0") ? version.slice(0, -".0.0".length) : version;
+}
+
 export function enginesRange(ranges: readonly NodeRange[]): string {
   return ranges
     .map((range) =>
-      range.belowMajor === undefined ? `>=${range.from}` : `^${range.from}`,
+      range.belowMajor === undefined
+        ? `>=${withoutZeroMinorPatch(range.from)}`
+        : `^${range.from}`,
     )
     .join(" || ");
 }
@@ -116,7 +122,7 @@ export function checkNodeVersion(input: {
     message: [
       summary,
       "",
-      "Stopping before anything is downloaded: `wa create` runs npm install under this Node.",
+      "Stopping before anything is downloaded: `gato create` runs npm install under this Node.",
       "",
       `  nvm install ${recommendedMajor}   # or fnm, volta, asdf, …`,
       "",

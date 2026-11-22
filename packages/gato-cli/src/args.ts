@@ -14,6 +14,7 @@ export type CreateArgs = {
   install: boolean;
   git: boolean;
   kit: string | null;
+  cliSource: string | null;
 };
 
 const LOCALES_ERROR = "--locales: dozwolone pl,en; pl jest wymagany";
@@ -98,6 +99,7 @@ export function parseCreateArgs(argv: string[]): CreateArgs {
     "no-install": { type: "boolean", default: false },
     "no-git": { type: "boolean", default: false },
     kit: { type: "string" },
+    "cli-source": { type: "string" },
   });
   const [target] = positionals;
   if (target === undefined) {
@@ -118,6 +120,7 @@ export function parseCreateArgs(argv: string[]): CreateArgs {
     install: !values["no-install"],
     git: !values["no-git"],
     kit: optionalValue(values.kit, "--kit"),
+    cliSource: optionalValue(values["cli-source"], "--cli-source"),
   };
 }
 

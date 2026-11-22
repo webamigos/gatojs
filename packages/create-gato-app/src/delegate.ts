@@ -1,14 +1,13 @@
-import { join } from "node:path";
-
-export function waCreateCommand(input: {
+export function gatoCreateCommand(input: {
   nodePath: string;
+  gatoBin: string;
   kitDir: string;
   passthrough: string[];
 }): { command: string; args: string[] } {
   return {
     command: input.nodePath,
     args: [
-      join(input.kitDir, ".wa", "bin", "wa.mjs"),
+      input.gatoBin,
       "create",
       ...input.passthrough,
       "--kit",
