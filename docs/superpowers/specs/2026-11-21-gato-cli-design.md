@@ -44,8 +44,9 @@ Outside a project (no `.wa/kit.json`), `gato` does not assemble anything; it pri
 ### 3.1 npm names
 
 - `gato` is taken (an unrelated package). `gato-cli`, `create-gato-app`, `gatojs` and the `@gatojs` scope were free on 2026-11-21.
-- npm's similarity filter rejected `ragen` for Ragen (403), so the names should be reserved now by publishing `0.0.0` versions with only a README. If npm rejects `gato-cli`, the fallback is `@gatojs/cli`; the `gato` command does not change, because `bin` is independent of `name`.
-- The `@gatojs` scope is created as an npm organization with two people allowed to publish.
+- Reserved on 2026-11-22: Patryk published `create-gato-app` and `gato-cli` 0.0.1 by hand (placeholders whose bin prints how to create a project from the repository) and owns the `@gatojs` npm organization. npm accepted both names, so the `@gatojs/cli` fallback is not needed. `gatojs` without a scope is still free.
+- Patryk's npm account uses staged publishing: every publish waits for his approval on npmjs.com, and until then the registry serves only a `0.0.0-stage` stub. The release flow in section 9 accounts for it (plan `2026-11-22-packages.md`, Task 6).
+- Open: a second owner for both names and members of the `@gatojs` organization, so publishing and approvals do not depend on one account.
 
 ## 4. `packages/` in the kit repo
 
