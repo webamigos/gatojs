@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jaki kontrakt ma `authenticateApiKey`, jakie kody odpowiedzi zwraca i dlaczego trasa z kluczem sama filtruje dane po organizacji;
 - jakie szwy i deklaracje ma moduł (`apiScopes`, zdarzenia dziennika, kanał `API`) i co się dzieje bez modułu.
 
-Zweryfikowano z kodem: 2788536, 2026-11-04
+Zweryfikowano z kodem: 2c83429, 2026-11-21 (guard organizacji w [Kontrakcie `authenticateApiKey`](#authenticate) i [Braku `OrgContext`](#bez-orgcontext)); pozostałe sekcje: 2788536, 2026-11-04
 
 Źródła:
 
@@ -314,6 +314,7 @@ export async function authenticateApiKey(
 - **Zakresy.** Zakresy klucza są przecinane z `knownApiScopes()`. Zakres, którego żaden moduł w rejestrze nie deklaruje, nie daje dostępu i nie trafia do `context.scopes`; dotyczy to także wymaganego zakresu trasy: jeśli moduł go nie deklaruje w `apiScopes`, trasa zawsze zwraca 403, nawet dla klucza z tym zakresem w bazie (sprawdzone: po usunięciu deklaracji `deliveries:read` test trasy dostał `expected 403 to be 200`).
 - **`lastUsedAt`.** Po sukcesie funkcja zapisuje `lastUsedAt` w tle, bez czekania; błąd tego zapisu trafia tylko do logu jako `Nie udało się zaktualizować lastUsedAt klucza API`. Nieudane uwierzytelnienie, także 403, nie zmienia `lastUsedAt`.
 - **Organizacja.** `context.organizationId` pochodzi z wiersza klucza. Nagłówki i parametry żądania nie mają na nią wpływu.
+- **Guard organizacji.** Przed sprawdzeniem klucza organizacja jest nieznana, więc odczyt po `hashedKey` jest opakowany w `withoutTenantScope("api key lookup by hash", …)`. Bez tego guard w runtime odrzuciłby zapytanie `TenantScopeError` ([03](03-dane-i-organizacje.md#guard-w-runtime), [D51](decyzje.md#d51)). Zapis `lastUsedAt` ma już organizację z wiersza i filtruje po `{ id, organizationId }`, więc zwolnienia nie potrzebuje.
 - **Bez modułu.** Pliku nie ma: import `@/features/api-keys/services/authenticate-api-key` kończy się `TS2307` w typechecku i buildzie ([12](12-moduly-kitu.md#punkty-wejscia)). Trasa projektu z kluczem istnieje więc tylko razem z modułem, a funkcja, która ją ma, wpisuje `api-keys` do `requires`.
 - **Ostrzeżenie.** To, że trasa woła `authenticateApiKey` przed dostępem do danych, jest konwencją: żaden test architektury nie sprawdza plików `route.ts` ([D43](decyzje.md#d43)). Trasa bez tego wywołania jest publiczna.
 
@@ -321,7 +322,7 @@ export async function authenticateApiKey(
 
 ### Brak `OrgContext` i jawny filtr organizacji
 
-Klucz nie jest sesją. Trasa z kluczem nie woła `getOrgContext()`, `requireModuleAccess()` ani `assertServiceModeConfirmed`: nie ma użytkownika, roli w organizacji ani trybu serwisowego, a jedyną tożsamością jest `ApiKeyContext`. Rdzeń nie filtruje Prismy automatycznie, więc **każde zapytanie wołane z trasy musi mieć `organizationId: context.organizationId`** w `where` przy odczycie, zmianie i usuwaniu, a w `data` przy tworzeniu ([03](03-dane-i-organizacje.md#filtr-organizationid), [D07](decyzje.md#d07)). Organizacji nie bierz z treści żądania: w przebiegu `POST` z polem `organizationId` innej organizacji zapisał dostawę w organizacji klucza, bo schemat wejścia tego pola nie zna (sprawdzone testem).
+Klucz nie jest sesją. Trasa z kluczem nie woła `getOrgContext()`, `requireModuleAccess()` ani `assertServiceModeConfirmed`: nie ma użytkownika, roli w organizacji ani trybu serwisowego, a jedyną tożsamością jest `ApiKeyContext`. Rdzeń nie filtruje Prismy automatycznie, a guard w runtime odrzuca tylko zapytanie bez żadnego filtra organizacji, więc **każde zapytanie wołane z trasy musi mieć `organizationId: context.organizationId`** w `where` przy odczycie, zmianie i usuwaniu, a w `data` przy tworzeniu ([03](03-dane-i-organizacje.md#filtr-organizationid), [D07](decyzje.md#d07)). Organizacji nie bierz z treści żądania: w przebiegu `POST` z polem `organizationId` innej organizacji zapisał dostawę w organizacji klucza, bo schemat wejścia tego pola nie zna (sprawdzone testem).
 
 Gdzie położyć kod wołany z trasy:
 

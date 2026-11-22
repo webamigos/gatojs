@@ -5,10 +5,11 @@ Po przeczytaniu będziesz wiedzieć:
 - jakie rodzaje testów ma kit, co jest w każdym z nich prawdziwe, a co zastąpione, i jak go uruchomić;
 - które komendy czyszczą albo przebudowują bazę, którą bazę ruszają i co je zatrzymuje przed bazą deweloperską;
 - kiedy dopisać test izolacji organizacji i jak go zbudować na prawdziwym Postgresie;
+- co sprawdzają testy architektury repo i jak dodać nowy;
 - czego potrzebują testy e2e i co robią przed pierwszym testem;
 - które testy działają w `npm run verify`, a które tylko w osobnych jobach CI.
 
-Zweryfikowano z kodem: 6c05f1f, 2026-11-05 (magazyn plików modułu `uploads` w testach integracyjnych i e2e, [uruchomienie e2e przez agenta AI](#e2e-agent)); pozostałe sekcje: 25adbb8, 2026-10-28
+Zweryfikowano z kodem: b0f6382, 2026-11-21 ([testy architektury](#architektura)); 6c05f1f, 2026-11-05 (magazyn plików modułu `uploads` w testach integracyjnych i e2e, [uruchomienie e2e przez agenta AI](#e2e-agent)); pozostałe sekcje: 25adbb8, 2026-10-28
 
 Źródła:
 
@@ -30,6 +31,8 @@ Zweryfikowano z kodem: 6c05f1f, 2026-11-05 (magazyn plików modułu `uploads` w 
 - `turbo.json`
 - `.claude/hooks/block-comments.test.mjs`
 - `.claude/hooks/protect-tests.test.mjs`
+- `src/__tests__/architecture/`
+- `scripts/lib/architecture/`
 - `.github/workflows/ci.yml`
 - `.github/workflows/e2e.yml`
 - `.github/workflows/mutation.yml`
@@ -46,6 +49,7 @@ Każdy rodzaj testu zastępuje inną część systemu, więc każdy łapie inne 
 | --- | --- | --- | --- | --- | --- |
 | Jednostkowe i komponentowe | Prawdziwy kod funkcji albo komponent React w jsdom (przeglądarka symulowana w Node). Zastąpione: Prisma, sesja better-auth, Next.js, mail. | `__tests__/` obok kodu w `src/` i `scripts/lib/`, także `e2e/__tests__/` | `npm test` | nie | tak |
 | Test architektury | Składnia plików z `src/`. Sprawdza, czy punkty wejścia serwera wołają guardy przed Prismą ([D24](decyzje.md#d24)). | `src/__tests__/server-entrypoints-guard.test.ts` | `npm test` | nie | tak |
+| Testy architektury repo | Prawdziwe pliki projektu na dysku: instrukcje agentów, tłumaczenia, `.env.example`, wersja Node, importy plików klienckich ([D50](decyzje.md#d50), [niżej](#architektura)). | `src/__tests__/architecture/` | `npm test` | nie | tak |
 | Integracyjne | Prawdziwe: Postgres, Prisma, query, komendy i guardy, a w testach modułu `uploads` także magazyn S3 (MinIO). Zastąpione: nagłówki i przekierowania Next.js, język z next-intl, `auth.api.getSession`. | `*.integration.test.ts` | `npm run test:integration` | `_test`, czyści | nie |
 | E2E | Cała aplikacja po buildzie produkcyjnym, przeglądarka Chromium, baza i mailpit. Nic nie jest zastąpione. | `e2e/*.spec.ts` | `npm run test:e2e` | `_e2e`, kasuje | nie |
 | CLI | Generator i komendy `wa` na kopii plików w katalogu tymczasowym systemu. Tylko w repozytorium kitu. | `kit/cli/src/**/__tests__/` | `npm test --prefix kit/cli` | nie | nie (bramka CLI) |
@@ -173,6 +177,39 @@ Raport HTML Playwright (`playwright-report/`) powstaje tylko w CI. Lokalnie wyni
 ### Uruchomienie przez agenta AI
 
 Prisma 7.10.1 sprawdza przy `db push --force-reset` i `migrate reset`, czy uruchomił ją agent AI (na przykład zmienna `CLAUDECODE` w Claude Code albo `CODEX_THREAD_ID` w Codex CLI). Jeśli tak, a nie ma zmiennej `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION`, odmawia i wypisuje polecenie, żeby agent zapytał użytkownika o zgodę (kod w `node_modules/prisma/build/cli.js`). `globalSetup` przekazuje zmienne środowiskowe dalej, więc `npm run test:e2e` uruchomione przez agenta zatrzymuje się na resecie bazy. Przebieg z Claude Code 2026-11-04 zakończył się po buildzie i starcie obu serwerów komunikatem `Error: Prisma Migrate detected that it was invoked by Claude Code.` i `Error: Command failed: npx prisma db push --force-reset`, zanim zaczął się pierwszy test (sprawdzone). Prisma zdążyła przed odmową założyć pustą bazę e2e. Testy e2e uruchamia więc człowiek albo agent po jego wyraźnej zgodzie. Testy integracyjne zwykle działają z agentem: zwykłe `prisma db push` robi to sprawdzenie dopiero wtedy, gdy zmiana schematu usunęłaby dane (przebieg `npm run test:integration` z Claude Code przeszedł).
+
+<a id="architektura"></a>
+
+## Testy architektury
+
+Testy w `src/__tests__/architecture/` sprawdzają spójność plików projektu, której nie złapie ani TypeScript, ani ESLint: czy komenda z instrukcji agenta istnieje, czy klucz tłumaczenia jest w każdym języku, czy `.env.example` przechodzi walidację. Są plikami rdzenia, więc działają w każdym projekcie złożonym przez `wa create` i aktualizowanym przez `wa kit sync`, z dowolnym zestawem modułów ([D50](decyzje.md#d50)). Wchodzą do `npm test`, więc do `npm run verify`; nie potrzebują bazy ani sieci.
+
+| Test | Niezmiennik |
+| --- | --- |
+| `agent-instructions-fit-the-budget` | `AGENTS.md` ma najwyżej 31 744 bajty: 32 KiB, po których Codex ucina instrukcje (`project_doc_max_bytes`), minus 1 KiB zapasu. Liczą się bajty UTF-8, nie znaki. |
+| `documented-commands-exist` | Każde `npm run <skrypt>` w `AGENTS.md`, `CLAUDE.md`, `README.md` i plikach `.md` w `.claude/` istnieje w `scripts` w `package.json`. Argumenty po nazwie skryptu się nie liczą. |
+| `cited-paths-exist` | Każda ścieżka w backtickach albo w celu linku w `AGENTS.md`, `CLAUDE.md` i plikach `.md` w `.claude/` istnieje. |
+| `i18n-keys-exist-in-every-locale` | `src/app/messages/<locale>.json` i każde `src/features/*/i18n/<locale>.json` istnieją dla każdego języka z `src/i18n/locales.generated.ts` i mają ten sam zbiór kluczy (pełnych ścieżek liści, na przykład `form.title`). |
+| `env-example-passes-validation` | `checkEnv` z `src/shared/lib/env.ts`, ze schematami zmiennych modułów projektu, przyjmuje `.env.example` z `NODE_ENV=development`. |
+| `node-version-is-one-number` | Major z `.nvmrc` jest równy majorowi z każdej linii `FROM node:<tag>` w `Dockerfile`, a żaden workflow w `.github/workflows/` nie ma klucza `node-version:` (tylko `node-version-file: .nvmrc`). |
+| `client-bundles-stay-server-free` | Plik `.ts`/`.tsx` w `src/` (bez `src/generated/`) z dyrektywą `"use client"` jako pierwszą instrukcją nie importuje `@/shared/lib/prisma`, `@/shared/lib/env`, `@/generated/prisma`, `server-only`, `node:*` ani modułów `@/shared/lib/auth`. |
+
+Reguły, które wymagały doprecyzowania:
+
+- **Ścieżka w `cited-paths-exist`** to kandydat bez spacji, który zaczyna się od `src/`, `prisma/`, `scripts/`, `e2e/`, `.claude/`, `.github/`, `kit/` albo `docs/`, albo nazwa pliku z katalogu głównego z rozszerzeniem `md`, `json`, `jsonc`, `yml`, `yaml`, `toml`, `example` lub wzorcem `*.config.{ts,mts,js,mjs,cjs}`. Nazwy plików modułu bez katalogu (`env.ts`, `page.tsx`) i wyrażenia z kropką (`test.prop`) nie są ścieżkami. Kotwica `#…` jest odcinana. Pomijane są ścieżki z `docs/` i `kit/`, bo w projekcie te katalogi nie istnieją (`kitOnly`) i odsyłacze do nich dotyczą repo `webamigos/wa-kit`, oraz wzorce z `<`, `*` albo `{`.
+- **Importy w `client-bundles-stay-server-free`** to `import … from`, `import "…"`, `export … from` i `import()` z literałem, odczytane z drzewa składni TypeScript. `import type` i `export type` są pomijane, bo kompilator je usuwa. Trzy moduły `@/shared/lib/auth` są dozwolone (`CLIENT_SAFE_AUTH_MODULES`): `client`, `roles` i `permissions`, bo nie importują kodu serwera, a komponenty rdzenia biorą z nich role i uprawnienia. Test sprawdza tylko importy wprost: import względny (`../lib/prisma`) i moduł kliencki, który importuje moduł serwerowy przez pośredni plik, przechodzą.
+- **`.env.example`** jest czytany prostym parserem: `KEY=value`, podział na pierwszym `=`, linie puste i zaczynające się od `#` pominięte, jedna para cudzysłowów zdjęta z brzegów wartości.
+
+Funkcje wykrywające leżą w `scripts/lib/architecture/`, a nie obok testów, bo hook `protect-tests` blokuje w fazie implementacji zapis w każdym katalogu `__tests__/` ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza)). Katalog `scripts/lib/` jest też we wzorcach `mutate` Strykera.
+
+Test, który pada, podaje plik i wartość, na przykład `CLAUDE.md: npm run nope` albo `src/features/x/i18n/en.json: form.title`. Naruszenie poprawia się w pliku, nie w teście.
+
+### Jak dodać test architektury
+
+1. Czysta funkcja wykrywająca w `scripts/lib/architecture/<nazwa>.ts` przyjmuje treść pliku (napis), a nie ścieżkę, i zwraca listę naruszeń. Obok niej `check<Nazwa>(root)` czyta pliki względem katalogu głównego (pomocniki w `repo-files.ts`) i zwraca komunikaty `"<plik>: <wartość>"`.
+2. Test `src/__tests__/architecture/<niezmiennik>.test.ts` z dyrektywą `// @vitest-environment node` sprawdza funkcję na literałach, `check<Nazwa>` na fiksurach w katalogu z `mkdtemp` i raz na prawdziwym repo: `expect(check<Nazwa>(repoRoot)).toEqual([])`.
+3. Test czyta tylko pliki, które ma każdy projekt. Pliki `kitOnly` z `kit/kit.json` (`docs/**`, `kit/**`) w projekcie nie istnieją.
+4. Naruszenie znalezione w obecnym kodzie poprawia się w tym samym zadaniu. Wyjątek w teście, z uzasadnieniem, tylko wtedy, gdy poprawka wykracza poza zadanie.
 
 <a id="cli-hooki"></a>
 

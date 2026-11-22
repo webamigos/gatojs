@@ -4,11 +4,11 @@ Po przeczytaniu będziesz wiedzieć:
 
 - jakie modele ma rdzeń i jak organizacje łączą się z kontami;
 - co zwraca `getOrgContext()`, skąd bierze dane i kiedy kończy się przekierowaniem albo wyjątkiem `NoOrganizationError`;
-- jak napisać zapytanie, które nie pokaże danych innej organizacji, i jak sprawdzają to testy;
+- jak napisać zapytanie, które nie pokaże danych innej organizacji, co zatrzymuje zapytanie bez filtra w runtime i jak sprawdzają to testy;
 - jak aplikacja ustawia aktywną organizację i co widzi użytkownik, który jej nie ma;
 - co zmienia `MULTI_ORG`, a co zostaje takie samo w obu trybach.
 
-Zweryfikowano z kodem: 012fe4d, 2026-10-29
+Zweryfikowano z kodem: 2c83429, 2026-11-21 ([Guard w runtime](#guard-w-runtime), [Filtr `organizationId`](#filtr-organizationid) i `TenantScopeError` w [Wyjątkach](#referencja-wyjatki)); pozostałe sekcje: 012fe4d, 2026-10-29
 
 Źródła:
 
@@ -21,6 +21,8 @@ Zweryfikowano z kodem: 012fe4d, 2026-10-29
 - `src/shared/lib/auth/roles.ts`
 - `src/shared/lib/auth/require-module-access.ts`
 - `src/shared/lib/auth/service-mode.ts`
+- `src/shared/lib/prisma.ts`
+- `src/shared/lib/tenant-scope/`
 - `src/shared/lib/auth/single-org-guard.ts`
 - `src/shared/lib/auth/signup-membership-context.ts`
 - `src/shared/utils/error-handling.ts`
@@ -314,7 +316,43 @@ Zapis bierze `organizationId` z tego samego kontekstu. Komenda „Zaproś użytk
 
 `assertServiceModeConfirmed` dotyczy każdej komendy na danych organizacji. Kontrakt opisują [AGENTS.md](../AGENTS.md#dane-i-organizacje) i [06-wzorce-kodu.md](06-wzorce-kodu.md).
 
-Brakującego filtra nic nie zatrzyma w działaniu aplikacji. Test architektury sprawdza, czy funkcja woła guard, a nie, czy zapytanie filtruje. Lukę wychwyci tylko test izolacji, który autor dopisze razem z query albo komendą.
+Brakujący filtr zatrzymuje guard organizacji w runtime ([niżej](#guard-w-runtime)). Test architektury sprawdza tylko, czy funkcja woła guard sesji, a nie, czy zapytanie filtruje. Filtr po organizacji innej niż aktywna, na przykład z wejścia formularza, guard przepuszcza, więc test izolacji z dwiema organizacjami nadal jest obowiązkowy.
+
+<a id="guard-w-runtime"></a>
+
+## Guard w runtime
+
+Klient `prisma` z `src/shared/lib/prisma.ts` ma rozszerzenie `tenantScopeExtension` (`src/shared/lib/tenant-scope/`). Ten sam klient dostaje `prismaAdapter` better-auth. Rozszerzenie sprawdza każde zapytanie na modelu objętym guardem. Zapytanie bez filtra organizacji kończy się błędem `TenantScopeError` (`name = "TenantScopeError"`, pola `model` i `operation`) i nie trafia do bazy. Tak samo jest w dev, testach i na produkcji. Guard nie ma trybu ostrzegania ([D51](decyzje.md#d51)).
+
+**Modele objęte guardem.** Każdy model ze skalarnym polem `organizationId` z wyjątkiem `Member` i `Invitation`. Listę `isTenantScoped(model)` liczy przy starcie z wygenerowanego klienta (`Prisma.ModelName` i `Prisma.<Model>ScalarFieldEnum`), więc nowy model modułu albo funkcji projektu z `organizationId` jest objęty bez zmiany rdzenia. W kicie to `ApiKey`, `AuditLog` i `Upload`. Rdzeń sam nie ma takiego modelu. `Member` i `Invitation` to tabele better-auth: adapter czyta je po `id`, `userId` i adresie e-mail, a rdzeń legalnie czyta członkostwa jednego konta we wszystkich organizacjach.
+
+**Co liczy się jako filtr** (`isTenantScopeSatisfied` w `tenant-scope.ts`):
+
+- `organizationId` na najwyższym poziomie `where` z wartością przypinającą: niepusty napis, `{ equals: <napis> }` albo `{ in: [<co najmniej jeden niepusty napis>] }`;
+- selektor złożony unikalny z `organizationId`, na przykład `organizationId_userId: { organizationId, userId }`;
+- jeden z elementów `AND` (tablica albo obiekt), który spełnia powyższe;
+- `OR`, w którym każda gałąź spełnia powyższe.
+
+Nie liczą się: `NOT`, filtr relacji (`organization: { id }`), `{ not }`, `{ notIn }`, `{ in: [] }`, `{ equals: undefined }`, `undefined`, `null` i pusty napis. Operacje z `where` (`findUnique`, `findFirst`, `findMany`, `update`, `updateMany`, `delete`, `deleteMany`, `count`, `aggregate`, `groupBy` i warianty `…OrThrow` oraz `…AndReturn`) wymagają filtra w `where`; brak `where` to brak filtra. `create` wymaga `data.organizationId`, `createMany` i `createManyAndReturn` wymagają go w każdym wierszu, a `upsert` wymaga filtra w `where` i `create.organizationId`. `organization: { connect }` nie wystarcza. Nieznana operacja jest odrzucana.
+
+**Świadomy odczyt między organizacjami.** Gdy organizacja jest nieznana przed odczytem, kod opakowuje zapytanie w `withoutTenantScope(reason, fn)` z `@/shared/lib/tenant-scope`:
+
+`src/features/api-keys/services/authenticate-api-key.ts`
+
+```ts
+  const record = await withoutTenantScope("api key lookup by hash", () =>
+    prisma.apiKey.findUnique({
+      where: { hashedKey },
+      // …
+    }),
+  );
+```
+
+`reason` to niepusty napis; pusty kończy się błędem przed wywołaniem `fn`. Zwolnienie działa przez `AsyncLocalStorage` tylko w obrębie `fn` (także zagnieżdżone) i znika po jej zakończeniu, również po błędzie. Każde zapytanie bez filtra wewnątrz `fn` zapisuje `logger.debug` z modelem, operacją i powodem. W kicie `withoutTenantScope` mają dwa miejsca: odczyt klucza API po skrócie ([14-modul-api-keys.md](14-modul-api-keys.md#authenticate)) i odczyt pliku po `id` przed sprawdzeniem widoczności ([15-modul-uploads.md](15-modul-uploads.md#get)). Testy integracyjne używają go w asercjach, które sprawdzają stan bazy niezależnie od organizacji.
+
+**Ograniczenia.** Guard nie widzi `$queryRaw`, `$executeRaw` ani zapytań przez relację zagnieżdżoną (`include`, `select` relacji, zapis zagnieżdżony z modelu nadrzędnego, na przykład `organization.findUnique({ include: { apiKeys: true } })`). Nie sprawdza też, czy filtr wskazuje aktywną organizację, tylko czy jakiś filtr jest ([znane-ograniczenia.md](znane-ograniczenia.md#guard-organizacji)).
+
+Testy: `src/shared/lib/tenant-scope/__tests__/` (reguły filtra na literałach, `withoutTenantScope`, `guardTenantQuery`) i w modułach `src/features/<moduł>/services/__tests__/tenant-scope-*.test.ts`, w tym `src/features/api-keys/services/__tests__/tenant-scope-guard.integration.test.ts` na prawdziwej bazie.
 
 <a id="izolacja"></a>
 
@@ -537,6 +575,7 @@ Rejestracja z `invitationId` przyjmuje tylko zaproszenie ze statusem `pending`, 
 
 | Błąd | Skąd | Kiedy | Wynik |
 | --- | --- | --- | --- |
+| `TenantScopeError` (`Error`, komunikat „Zapytanie <Model>.<operacja> bez filtra organizationId…”) | rozszerzenie `tenantScopeExtension` klienta `prisma` | Zapytanie na modelu objętym guardem bez filtra organizacji, poza `withoutTenantScope` ([Guard w runtime](#guard-w-runtime)). | Wyjątek, zapytanie nie trafia do bazy. `handleCommandError` zapisuje `logger.error` i zwraca komunikat domyślny komendy. |
 | `NoOrganizationError` (`Error`, komunikat „Użytkownik nie należy do aktywnej organizacji”) | `getOrgContext` | Brak aktywnej organizacji; brak członkostwa poza superadminem; superadmin z organizacją, której nie ma w bazie. | [Kto obsługuje](#no-organization-error). |
 | Przekierowanie na `/sign-in` (`NEXT_REDIRECT`) | `getOrgContext`, `requireUser` | Brak sesji. | Next.js przekierowuje. `handleCommandError` rzuca je dalej. |
 | `ServiceModeConfirmationError` (`DomainError`, „Potwierdź zmianę w trybie serwisowym”) | `assertServiceModeConfirmed` w `service-mode.ts` | W trybie serwisowym: brak potwierdzenia aktywnej organizacji. W każdym trybie: przekazane potwierdzenie nie wskazuje aktywnej organizacji, na przykład z karty otwartej przed przełączeniem organizacji. | `{ success: false, error: "Potwierdź zmianę w trybie serwisowym" }` ([04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md#kontrakt-potwierdzenia)). |

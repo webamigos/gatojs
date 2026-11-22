@@ -1,4 +1,4 @@
-name: Kit
+name: GatoJS
 
 on:
   push:
@@ -35,6 +35,26 @@ jobs:
 
       - name: Bundle is up to date
         run: git diff --exit-code -- .wa/bin/wa.mjs
+
+  release-scripts:
+    name: Release scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: kit/release/package-lock.json
+
+      - name: Install release dependencies
+        run: npm ci --prefix kit/release
+
+      - name: Test release scripts
+        run: npm test --prefix kit/release
 
   assemble:
     name: Assemble (${{ matrix.combo.name }})

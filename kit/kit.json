@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "repo": "https://github.com/webamigos/gatojs.git",
   "kitOnly": [
     "kit/**",
@@ -9,6 +9,7 @@
     ".wa/kit.json",
     ".github/workflows/kit.yml",
     ".github/workflows/kit-mutation.yml",
+    ".github/workflows/release.yml",
     "prisma/migrations/.gitignore",
     "LICENSE",
     "NOTICE",
