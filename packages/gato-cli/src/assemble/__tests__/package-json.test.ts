@@ -6,6 +6,7 @@ import {
   dependencyConflicts,
   projectPackageJson,
   removeDependencies,
+  withCliDependency,
 } from "../package-json.js";
 import { manifestOf } from "./manifests.js";
 
@@ -406,6 +407,174 @@ describe("dependencyConflicts", () => {
           manifestOf("demo", { dependencies: deps, devDependencies: devDeps }),
         ),
       ).toEqual([]);
+    },
+  );
+});
+
+describe("withCliDependency", () => {
+  it("null returns the input byte for byte, even when it is not formatted", () => {
+    const input =
+      '{"name":"acme",  "devDependencies":{"zod":"^4","eslint":"^9"}}';
+    expect(withCliDependency(input, null)).toBe(input);
+  });
+
+  it("null keeps a formatted file with its trailing newline untouched", () => {
+    const input = '{\n    "name": "acme"\n}\n';
+    expect(withCliDependency(input, null)).toBe(input);
+  });
+
+  it("a caret version is added to devDependencies in sorted order", () => {
+    const input = `${JSON.stringify(
+      {
+        name: "acme",
+        scripts: { dev: "next dev" },
+        dependencies: { next: "^16.0.0" },
+        devDependencies: { eslint: "^9", zod: "^4" },
+      },
+      null,
+      2,
+    )}\n`;
+    expect(withCliDependency(input, "^0.2.0")).toBe(
+      [
+        "{",
+        '  "name": "acme",',
+        '  "scripts": {',
+        '    "dev": "next dev"',
+        "  },",
+        '  "dependencies": {',
+        '    "next": "^16.0.0"',
+        "  },",
+        '  "devDependencies": {',
+        '    "eslint": "^9",',
+        '    "gato-cli": "^0.2.0",',
+        '    "zod": "^4"',
+        "  }",
+        "}",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("devDependencies are sorted by code point, not by locale", () => {
+    const input = JSON.stringify({
+      devDependencies: { zod: "^4", "@types/node": "^22", Zeta: "1.0.0" },
+    });
+    const out = JSON.parse(withCliDependency(input, "^0.2.0")) as {
+      devDependencies: Record<string, string>;
+    };
+    expect(Object.keys(out.devDependencies)).toEqual([
+      "@types/node",
+      "Zeta",
+      "gato-cli",
+      "zod",
+    ]);
+  });
+
+  it("an unsorted input is sorted on output", () => {
+    const input = JSON.stringify({
+      devDependencies: { zod: "^4", eslint: "^9" },
+    });
+    const out = JSON.parse(withCliDependency(input, "^0.2.0")) as {
+      devDependencies: Record<string, string>;
+    };
+    expect(Object.keys(out.devDependencies)).toEqual([
+      "eslint",
+      "gato-cli",
+      "zod",
+    ]);
+  });
+
+  it("missing devDependencies are created with gato-cli only", () => {
+    const input = JSON.stringify({
+      name: "acme",
+      dependencies: { next: "^16.0.0" },
+    });
+    const out = withCliDependency(input, "^0.2.0");
+    expect(JSON.parse(out)).toEqual({
+      name: "acme",
+      dependencies: { next: "^16.0.0" },
+      devDependencies: { "gato-cli": "^0.2.0" },
+    });
+    expect(out.endsWith("}\n")).toBe(true);
+    expect(out).toContain(
+      '\n  "devDependencies": {\n    "gato-cli": "^0.2.0"\n  }',
+    );
+  });
+
+  it("an existing gato-cli value is replaced", () => {
+    const input = JSON.stringify({
+      devDependencies: { "gato-cli": "^0.1.0", vitest: "^4" },
+    });
+    expect(
+      JSON.parse(withCliDependency(input, "file:/t/gato-cli-0.2.0.tgz")),
+    ).toEqual({
+      devDependencies: {
+        "gato-cli": "file:/t/gato-cli-0.2.0.tgz",
+        vitest: "^4",
+      },
+    });
+  });
+
+  it("dependencies and other fields are left as they were", () => {
+    const input = JSON.stringify({
+      name: "acme",
+      version: "0.1.0",
+      private: true,
+      dependencies: { zod: "^4", next: "^16.0.0" },
+      devDependencies: {},
+    });
+    const out = JSON.parse(withCliDependency(input, "^0.2.0")) as Record<
+      string,
+      unknown
+    >;
+    expect(out).toEqual({
+      name: "acme",
+      version: "0.1.0",
+      private: true,
+      dependencies: { zod: "^4", next: "^16.0.0" },
+      devDependencies: { "gato-cli": "^0.2.0" },
+    });
+    expect(Object.keys(out.dependencies as object)).toEqual(["zod", "next"]);
+    expect(Object.keys(out)).toEqual([
+      "name",
+      "version",
+      "private",
+      "dependencies",
+      "devDependencies",
+    ]);
+  });
+
+  const packageName = fc.stringMatching(/^[a-z][a-z0-9-]{0,9}$/);
+  const packageJson = fc.record({
+    name: packageName,
+    devDependencies: fc.dictionary(packageName, fc.constant("^1.0.0")),
+  });
+
+  test.prop([packageJson, fc.integer({ min: 0, max: 6 })])(
+    "null never changes the text",
+    (value, indent) => {
+      const input = JSON.stringify(value, null, indent);
+      expect(withCliDependency(input, null)).toBe(input);
+    },
+  );
+
+  test.prop([packageJson])(
+    "a value is set, keys ascend and output is two-space JSON with a newline",
+    (value) => {
+      const out = withCliDependency(JSON.stringify(value), "^0.2.0");
+      const parsed = JSON.parse(out) as {
+        name: string;
+        devDependencies: Record<string, string>;
+      };
+      expect(parsed.name).toBe(value.name);
+      expect(parsed.devDependencies["gato-cli"]).toBe("^0.2.0");
+      const keys = Object.keys(parsed.devDependencies);
+      for (let index = 1; index < keys.length; index += 1) {
+        expect((keys[index - 1] as string) < (keys[index] as string)).toBe(
+          true,
+        );
+      }
+      expect(out).toBe(`${JSON.stringify(parsed, null, 2)}\n`);
     },
   );
 });

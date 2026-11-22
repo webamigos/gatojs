@@ -22,6 +22,7 @@ import { readKitManifests } from "./kit/kit-config.js";
 import { resolveKitSource } from "./kit/source.js";
 import { readKitState } from "./manifest/kit-state.js";
 import {
+  cliDependency,
   createKitDir,
   kitSourceFromEnv,
   runMetaCommand,
@@ -122,9 +123,16 @@ async function main(argv: string[]): Promise<number> {
     return exitCode;
   }
   if (command === "create") {
-    const { kit, ...parsed } = parseCreateArgs(argv.slice(1));
+    const { kit, cliSource, ...parsed } = parseCreateArgs(argv.slice(1));
     await create({
       ...parsed,
+      cliSource: cliSource === null ? null : resolve(cliSource),
+      cliDependency: cliDependency({
+        name: identity.name,
+        version: identity.version,
+        cliSource,
+        cwd: process.cwd(),
+      }),
       kitDir: createKitDir({
         kitFlag: kit,
         name: identity.name,

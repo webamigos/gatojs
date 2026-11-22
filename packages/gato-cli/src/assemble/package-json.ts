@@ -6,6 +6,7 @@ type Dependencies = Record<string, string>;
 type PackageJson = Record<string, unknown>;
 
 const SECTIONS = ["dependencies", "devDependencies"] as const;
+const CLI_PACKAGE = "gato-cli";
 
 function sortedKeys(dependencies: Dependencies): Dependencies {
   return Object.fromEntries(
@@ -37,6 +38,19 @@ export function projectPackageJson(
   packageJson.dependencies = sumDependencies(manifests, "dependencies");
   packageJson.devDependencies = sumDependencies(manifests, "devDependencies");
   return serialize(packageJson);
+}
+
+export function withCliDependency(
+  packageJson: string,
+  value: string | null,
+): string {
+  if (value === null) {
+    return packageJson;
+  }
+  const parsed = JSON.parse(packageJson) as PackageJson;
+  const existing = (parsed.devDependencies ?? {}) as Dependencies;
+  parsed.devDependencies = sortedKeys({ ...existing, [CLI_PACKAGE]: value });
+  return serialize(parsed);
 }
 
 export function addDependencies(

@@ -11,6 +11,8 @@
     ".wa/kit.json",
     ".github/workflows/kit.yml",
     ".github/workflows/kit-mutation.yml",
+    ".github/workflows/packages.yml",
+    ".github/workflows/publish-packages.yml",
     ".github/workflows/release.yml",
     "prisma/migrations/.gitignore",
     "LICENSE",

@@ -19,7 +19,7 @@ export function usage(name: CliName): string {
     `Usage: ${name} <command> [options]`,
     "",
     "Commands:",
-    `  ${name} create <dir> [--modules <a,b>] [--locales <pl,en>] [--title <title>] [--admin-email <email>] [--setup] [--yes] [--no-install] [--no-git] [--kit <path>]`,
+    `  ${name} create <dir> [--modules <a,b>] [--locales <pl,en>] [--title <title>] [--admin-email <email>] [--setup] [--yes] [--no-install] [--no-git] [--kit <path>] [--cli-source <tarball>]`,
     `  ${name} add <module> [--kit <path|url>] [--no-install]`,
     `  ${name} remove <module> [--force] [--no-install]`,
     `  ${name} list [--kit <path|url>]`,
@@ -88,4 +88,16 @@ export function createKitDir(input: {
     throw new Error("gato create needs --kit <path to a GatoJS checkout>");
   }
   return resolve(input.bundleDir, "../..");
+}
+
+export function cliDependency(input: {
+  name: CliName;
+  version: string;
+  cliSource: string | null;
+  cwd: string;
+}): string | null {
+  if (input.cliSource !== null) {
+    return `file:${resolve(input.cwd, input.cliSource)}`;
+  }
+  return input.name === "gato" ? `^${input.version}` : null;
 }
