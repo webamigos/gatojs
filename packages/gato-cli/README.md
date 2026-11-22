@@ -124,7 +124,7 @@ the CLI's version.
 There is no publish job in CI. From a clean checkout of `main`:
 
 ```bash
-cd kit/cli
+cd packages/gato-cli
 npm version <patch|minor|major> --no-git-tag-version
 npm run build                     # updates .wa/bin/wa.mjs, which embeds the version
 ```
@@ -134,7 +134,7 @@ publishing: npm versions are immutable, and `npm unpublish` is limited to 72 hou
 version number.
 
 ```bash
-cd kit/cli
+cd packages/gato-cli
 npm ci
 npm publish --dry-run             # check the file list: dist/gato.mjs, README.md, LICENSE, NOTICE, package.json
 npm publish

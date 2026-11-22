@@ -44,7 +44,7 @@ Zweryfikowano z kodem: 734391b, 2026-11-04 (punkt „Usługi modułów” w [Us�
 - `prisma/schema/`
 - `kit/kit.json`
 - `kit/modules/`
-- `kit/cli/package.json`
+- `packages/gato-cli/package.json`
 - `.wa/kit.json`
 - `docker/`
 - `ci/`
@@ -154,7 +154,7 @@ flowchart LR
 | `prisma/schema/` | Schemat w wielu plikach: `base.prisma` (generator i źródło danych), `auth.prisma`, `organizations.prisma` oraz po jednym pliku na moduł (`api-keys.prisma`, `audit-logs.prisma`, `uploads.prisma`). | [03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#schemat) |
 | `scripts/` | `admin-create.ts` (`npm run admin:create`) i `mutation-gate.ts` (`npm run test:mutation:gate`), logika obu w `lib/`. | [04-auth-i-role.md](04-auth-i-role.md), [08-testy.md](08-testy.md), [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#bramka) |
 | `e2e/` | Testy Playwright i ich przygotowanie (`global-setup.ts`). | [08-testy.md](08-testy.md) |
-| `kit/cli/` | CLI `wa`: źródła, testy i własna bramka (`npm run verify --prefix kit/cli`). Bundel `.wa/bin/wa.mjs`, zapisany w repozytorium, powstaje przez `npm run build --prefix kit/cli`; projekt uruchamia go jako `npm run wa -- <komenda>`. | [16-cli-wa.md](16-cli-wa.md), [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bundel), [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#wa-generate) |
+| `packages/gato-cli/` | CLI `wa`: źródła, testy i własna bramka (`npm run verify --prefix packages/gato-cli`). Bundel `.wa/bin/wa.mjs`, zapisany w repozytorium, powstaje przez `npm run build --prefix packages/gato-cli`; projekt uruchamia go jako `npm run wa -- <komenda>`. | [16-cli-wa.md](16-cli-wa.md), [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bundel), [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#wa-generate) |
 | `kit/kit.json`, `kit/modules/` | Opis kitu (wersja, repozytorium, pliki tylko dla kitu, placeholdery, pliki generowane i zarządzane) i manifesty modułów kitu. Tylko w kicie, do projektu nie trafiają. | [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#kit-a-projekt) |
 | `kit/CLAUDE.md`, `kit/README.md` | Reguły pracy nad kitem i opis CLI dla użytkowników. | [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md) |
 | `.wa/kit.json` | Stan kitu: wersja i źródło kitu, projekt, języki, moduły kitu z manifestami i hashami plików oraz moduły projektu. | [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#kit-json) |

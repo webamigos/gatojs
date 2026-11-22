@@ -22,13 +22,13 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: kit/cli/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Install CLI dependencies
-        run: npm ci --prefix kit/cli
+      - name: Install dependencies (root and workspaces)
+        run: npm ci
 
       - name: Verify CLI
-        run: npm run verify --prefix kit/cli
+        run: npm run verify --prefix packages/gato-cli
 
       - name: Kit state and generated files are up to date
         run: npm run wa -- kit sync && npm run wa -- generate && git diff --exit-code
@@ -68,13 +68,13 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: kit/cli/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Install CLI dependencies
-        run: npm ci --prefix kit/cli
+      - name: Install dependencies (root and workspaces)
+        run: npm ci
 
       - name: Pack the CLI as npm would publish it
-        working-directory: kit/cli
+        working-directory: packages/gato-cli
         run: npm pack --pack-destination "$RUNNER_TEMP/pack"
 
       - name: Install the tarball into an empty prefix
@@ -88,7 +88,7 @@ jobs:
       - name: Reports the version from package.json, prints help, rejects an unknown command
         run: |
           set -euo pipefail
-          declared=$(node -p "require('./kit/cli/package.json').version")
+          declared=$(node -p "require('./packages/gato-cli/package.json').version")
           reported=$("$GATO" --version)
           if [ "$declared" != "$reported" ]; then
             echo "Packed CLI reports $reported, package.json says $declared." >&2
@@ -235,7 +235,7 @@ jobs:
       - name: Project module is registered without editing core tests
         working-directory: ${{ runner.temp }}/matrix-app
         run: |
-          cp -R "$GITHUB_WORKSPACE/kit/cli/src/__tests__/fixtures/project-module/." .
+          cp -R "$GITHUB_WORKSPACE/packages/gato-cli/src/__tests__/fixtures/project-module/." .
           node -e '
             const fs = require("node:fs");
             const state = JSON.parse(fs.readFileSync(".wa/kit.json", "utf8"));

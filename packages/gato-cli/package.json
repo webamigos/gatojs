@@ -21,14 +21,14 @@
     "scaffold",
     "modules"
   ],
-  "homepage": "https://github.com/webamigos/gatojs/tree/main/kit/cli#readme",
+  "homepage": "https://github.com/webamigos/gatojs/tree/main/packages/gato-cli#readme",
   "bugs": {
     "url": "https://github.com/webamigos/gatojs/issues"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/webamigos/gatojs.git",
-    "directory": "kit/cli"
+    "directory": "packages/gato-cli"
   },
   "publishConfig": {
     "access": "public"

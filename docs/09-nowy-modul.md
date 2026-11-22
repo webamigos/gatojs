@@ -14,8 +14,8 @@ Zweryfikowano z kodem: 25adbb8, 2026-10-28
 
 - `.wa/kit.json`
 - `.gitignore`
-- `kit/cli/src/manifest/schema.ts`
-- `kit/cli/src/generate/index.ts`
+- `packages/gato-cli/src/manifest/schema.ts`
+- `packages/gato-cli/src/generate/index.ts`
 - `prisma/schema/organizations.prisma`
 - `src/shared/lib/modules/define-module.ts`
 - `src/shared/lib/modules/nav.ts`
@@ -38,7 +38,7 @@ Tutorial dodaje do projektu klienta funkcję domenową: notatki organizacji. Pow
 
 Tutorial ma dwie części. Ten plik prowadzi przez kroki 1–6: rejestrację feature, schemat bazy, kontrakty i testy, które przed implementacją są czerwone. Kroki 7–9 (query, komenda, komponent, strona, bramki i commit) oraz how-to „Nowa funkcja w istniejącym module” są w [09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md).
 
-Kroki zostały wykonane na kopii kitu przygotowanej jak projekt klienta, aż przeszły `npm run verify` i testy integracyjne; kod w blokach pochodzi z tego przebiegu. Przebieg Strykera i jego kod wyjścia opisuje [krok 8](09b-implementacja-i-bramki.md#krok-8-stryker). Pełnych plików feature `notes` nie ma w repozytorium kitu: w `kit/cli/src/__tests__/fixtures/project-module/` leży tylko jego minimalny szkielet (definicja modułu, tłumaczenia i model `Note`), którego CI używa do sprawdzenia, że moduł projektu rejestruje się bez edycji testów rdzenia. Przy każdym pliku podany jest plik rdzenia, na którym się wzoruje. Komunikaty błędów i wyniki komend są dosłowne.
+Kroki zostały wykonane na kopii kitu przygotowanej jak projekt klienta, aż przeszły `npm run verify` i testy integracyjne; kod w blokach pochodzi z tego przebiegu. Przebieg Strykera i jego kod wyjścia opisuje [krok 8](09b-implementacja-i-bramki.md#krok-8-stryker). Pełnych plików feature `notes` nie ma w repozytorium kitu: w `packages/gato-cli/src/__tests__/fixtures/project-module/` leży tylko jego minimalny szkielet (definicja modułu, tłumaczenia i model `Note`), którego CI używa do sprawdzenia, że moduł projektu rejestruje się bez edycji testów rdzenia. Przy każdym pliku podany jest plik rdzenia, na którym się wzoruje. Komunikaty błędów i wyniki komend są dosłowne.
 
 Pojęcia, których używa tutorial:
 
@@ -207,7 +207,7 @@ export async function requireModuleAccess(
 
 `.wa/kit.json` ma dwie sekcje modułów. `modules` opisuje kod, który projekt dostał z kitu (wersje, hashe plików, aktualizacje). `projectModules` opisuje funkcje napisane w projekcie: wpis ma tylko `manifest`, bez własnej wersji i hashy plików, a `wa generate` czyta go tak samo jak moduły kitu ([D36](decyzje.md#d36)). Moduły projektu trafiają do rejestru po modułach kitu, alfabetycznie, a `wa kit sync` zachowuje je bez zmian.
 
-Dopisz do słownika `projectModules` wpis `notes`. Manifest musi przejść schemat `moduleManifestSchema` z `kit/cli/src/manifest/schema.ts`, a `wa generate` przy odczycie sprawdza jeszcze cztery reguły, inaczej przerwie pracę z komunikatem po polsku ([Referencja manifestu](02b-rejestr-i-generator.md#referencja-manifest)):
+Dopisz do słownika `projectModules` wpis `notes`. Manifest musi przejść schemat `moduleManifestSchema` z `packages/gato-cli/src/manifest/schema.ts`, a `wa generate` przy odczycie sprawdza jeszcze cztery reguły, inaczej przerwie pracę z komunikatem po polsku ([Referencja manifestu](02b-rejestr-i-generator.md#referencja-manifest)):
 
 - klucz wpisu jest równy `manifest.name`;
 - nazwa nie występuje jednocześnie w `modules` i w `projectModules`;

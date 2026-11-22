@@ -43,7 +43,7 @@ Bez `--no-git` projekt dostaje `git init` i pierwszy commit, więc `git` musi mi
 
 ## Komendy w projekcie
 
-Uruchamiane jako `npm run wa -- <komenda>` (bundel `.wa/bin/wa.mjs`). Ten sam CLI jest pakietem npm `gato-cli` (komenda `gato`): [kit/cli/README.md](cli/README.md).
+Uruchamiane jako `npm run wa -- <komenda>` (bundel `.wa/bin/wa.mjs`). Ten sam CLI jest pakietem npm `gato-cli` (komenda `gato`): [packages/gato-cli/README.md](../packages/gato-cli/README.md).
 
 Źródło kitu dla `add`, `list` i `update` (`--kit` albo zmienna `GATO_KIT_SOURCE`, dawniej `WA_KIT_SOURCE`, która nadal działa) to `https://...`, `ssh://...`, `file://...`, `git@...` albo ścieżka lokalna.
 
@@ -72,10 +72,10 @@ Po `add`, `remove` i `update` może się zmienić schemat bazy; migrację trzeba
 
 Szczegóły: `docs/16b-rozwoj-kitu.md` w repozytorium kitu (manifesty, `wa kit sync`, własność plików, bundel, bramka, CI i wydanie).
 
-- Bramka CLI: `npm run verify --prefix kit/cli` (lint → typecheck → testy → build bundla). W CI: job `cli` w `.github/workflows/kit.yml`.
-- Po zmianie w `kit/cli/src` zbuduj bundel (`npm run build --prefix kit/cli`) i zacommituj `.wa/bin/wa.mjs` razem ze zmianą; CI sprawdza, że bundel jest aktualny.
+- Bramka CLI: `npm run verify --prefix packages/gato-cli` (lint → typecheck → testy → build bundla). W CI: job `cli` w `.github/workflows/kit.yml`.
+- Po zmianie w `packages/gato-cli/src` zbuduj bundel (`npm run build --prefix packages/gato-cli`) i zacommituj `.wa/bin/wa.mjs` razem ze zmianą; CI sprawdza, że bundel jest aktualny.
 - Po zmianie manifestów modułów (`kit/modules/*.json`) albo `kit/kit.json` uruchom `npm run wa -- kit sync`, żeby odświeżyć `.wa/kit.json`.
-- Test własności plików (`kit/cli/src/kit/__tests__/ownership.test.ts`) pilnuje, że każdy plik repozytorium należy do dokładnie jednego modułu albo do `kitOnly`. Nowy plik dopisz do manifestu odpowiedniego modułu.
+- Test własności plików (`packages/gato-cli/src/kit/__tests__/ownership.test.ts`) pilnuje, że każdy plik repozytorium należy do dokładnie jednego modułu albo do `kitOnly`. Nowy plik dopisz do manifestu odpowiedniego modułu.
 - Zmieniasz pliki modułu: podbij `version` w jego manifeście. Wersja kitu (`kit/kit.json`) wyznacza tag.
 - Job `assemble` w `.github/workflows/kit.yml` składa projekt z kitu dla każdej kombinacji modułów (macierz `combo`), uruchamia w nim `verify`, testy integracyjne (dla kombinacji z `uploads` po uruchomieniu MinIO i utworzeniu bucketu) i budowę obrazu Dockera (kombinacje `core` i `all`) oraz sprawdza rejestrację modułu projektu. Macierz: `core`, `audit-logs`, `api-keys`, `uploads` i `all` (wszystkie moduły). Nowy moduł kitu dopisz do macierzy i do kombinacji `all`.
 - Tag `v<version>` po zmergowaniu zmiany na `main` ustawia człowiek.
