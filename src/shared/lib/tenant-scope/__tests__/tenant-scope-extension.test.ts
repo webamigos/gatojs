@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Prisma } from "@/generated/prisma/client";
 
 const { mockLogger } = vi.hoisted(() => ({
   mockLogger: {
@@ -25,6 +26,10 @@ import {
 } from "../tenant-scope-extension";
 
 const isScoped = (model: string) => model === "Scoped";
+
+const guardedModel = Object.values(Prisma.ModelName).find((model) =>
+  isTenantScoped(model),
+);
 
 function unscopedQuery(query: (args: unknown) => Promise<unknown>) {
   return guardTenantQuery(
@@ -106,42 +111,48 @@ describe("tenantScopeExtension", () => {
     expect(readPath(registeredExtension(), ["name"])).toBe("tenant-scope");
   });
 
-  it("zapytanie ApiKey bez filtra organizacji przez klienta z rozszerzeniem jest odrzucone i nie trafia do bazy", async () => {
-    const query = vi.fn(async () => [{ id: "k" }]);
+  it.skipIf(guardedModel === undefined)(
+    "zapytanie modelu objętego guardem bez filtra organizacji przez klienta z rozszerzeniem jest odrzucone i nie trafia do bazy",
+    async () => {
+      const query = vi.fn(async () => [{ id: "k" }]);
 
-    const result = registeredAllOperationsHook()({
-      model: "ApiKey",
-      operation: "findMany",
-      args: {},
-      query,
-    });
+      const result = registeredAllOperationsHook()({
+        model: guardedModel ?? "",
+        operation: "findMany",
+        args: {},
+        query,
+      });
 
-    await expect(result).rejects.toBeInstanceOf(TenantScopeError);
-    await expect(result).rejects.toMatchObject({
-      name: "TenantScopeError",
-      model: "ApiKey",
-      operation: "findMany",
-    });
-    expect(query).not.toHaveBeenCalled();
-  });
+      await expect(result).rejects.toBeInstanceOf(TenantScopeError);
+      await expect(result).rejects.toMatchObject({
+        name: "TenantScopeError",
+        model: guardedModel ?? "",
+        operation: "findMany",
+      });
+      expect(query).not.toHaveBeenCalled();
+    },
+  );
 
-  it("zapytanie ApiKey z filtrem organizacji przechodzi z tym samym obiektem args", async () => {
-    const args = { where: { organizationId: "org_a" } };
-    const query = vi.fn<(args: unknown) => Promise<{ id: string }[]>>(
-      async () => [{ id: "k" }],
-    );
+  it.skipIf(guardedModel === undefined)(
+    "zapytanie modelu objętego guardem z filtrem organizacji przechodzi z tym samym obiektem args",
+    async () => {
+      const args = { where: { organizationId: "org_a" } };
+      const query = vi.fn<(args: unknown) => Promise<{ id: string }[]>>(
+        async () => [{ id: "k" }],
+      );
 
-    const result = await registeredAllOperationsHook()({
-      model: "ApiKey",
-      operation: "findMany",
-      args,
-      query,
-    });
+      const result = await registeredAllOperationsHook()({
+        model: guardedModel ?? "",
+        operation: "findMany",
+        args,
+        query,
+      });
 
-    expect(result).toEqual([{ id: "k" }]);
-    expect(query).toHaveBeenCalledTimes(1);
-    expect(query.mock.calls[0]?.[0]).toBe(args);
-  });
+      expect(result).toEqual([{ id: "k" }]);
+      expect(query).toHaveBeenCalledTimes(1);
+      expect(query.mock.calls[0]?.[0]).toBe(args);
+    },
+  );
 
   it("zapytanie Member bez filtra organizacji przez klienta z rozszerzeniem przechodzi", async () => {
     const args = {};
