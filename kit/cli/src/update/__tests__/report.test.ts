@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { planReport } from "../report.js";
+import type { PlanAction, PlannedFile } from "../plan.js";
 
 function warningFor(count: number): string | undefined {
   const lines = planReport({
@@ -52,6 +53,39 @@ describe("planReport: linia Uwaga", () => {
       "Plan aktualizacji wa-kit 0.1.0 → 0.2.0 (bez zmian w projekcie)",
       "  bez zmian w plikach",
       "Uwaga: 2 pliki różnią się od v0.1.0 z tagu; potraktowano je jak zmienione w projekcie",
+    ]);
+  });
+});
+
+function planned(path: string, action: PlanAction): PlannedFile {
+  return { path, action, reason: null, content: null, mode: null };
+}
+
+describe("planReport: kolejność linii", () => {
+  it("pliki jednej akcji podane nie po kolei trafiają do raportu posortowane po ścieżce w porządku punktów kodowych", () => {
+    expect(
+      planReport({
+        plan: {
+          files: [
+            planned("src/z.ts", "dodano"),
+            planned("src/y.ts", "zaktualizowano"),
+            planned("src/a.ts", "dodano"),
+            planned("src/c.ts", "zaktualizowano"),
+            planned("src/B.ts", "dodano"),
+          ],
+          mismatchedBase: [],
+        },
+        from: "0.1.0",
+        to: "0.2.0",
+        dryRun: true,
+      }),
+    ).toEqual([
+      "Plan aktualizacji wa-kit 0.1.0 → 0.2.0 (bez zmian w projekcie)",
+      "  zaktualizowano src/c.ts",
+      "  zaktualizowano src/y.ts",
+      "  dodano         src/B.ts",
+      "  dodano         src/a.ts",
+      "  dodano         src/z.ts",
     ]);
   });
 });
