@@ -82,10 +82,10 @@
       "files": {}
     },
     "core": {
-      "version": "0.5.3",
+      "version": "0.5.4",
       "manifest": {
         "name": "core",
-        "version": "0.5.3",
+        "version": "0.5.4",
         "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
         "requires": [],
         "files": [
