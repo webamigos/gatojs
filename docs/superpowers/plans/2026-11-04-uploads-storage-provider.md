@@ -513,4 +513,4 @@ Uwaga dla recenzenta: po pierwszym warunku `resolveObjectPath` część „poza 
   - zmiany rdzenia osobno (D48, `Dockerfile`, `setup-env.ts`, `e2e/env.ts`);
   - propozycje wpisów `allowed` z uzasadnieniem;
   - niesprawdzone na żywym Railway: prawa zapisu do wolumenu i zachowanie po nieudanym healthchecku.
-- `superpowers:finishing-a-development-branch`. Push i PR tylko na prośbę Jakuba. Potem link do PR w zadaniu ClickUp [WA Kit · uploads: provider storage lokalny dysk albo S3](https://app.clickup.com/t/86bcxy1r3).
+- `superpowers:finishing-a-development-branch`. Push i PR tylko na prośbę Jakuba. Potem link do PR w zadaniu ClickUp „WA Kit · uploads: provider storage lokalny dysk albo S3”.
