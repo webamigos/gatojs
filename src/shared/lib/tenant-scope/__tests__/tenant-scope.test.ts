@@ -1017,4 +1017,10 @@ describe("TenantScopeError", () => {
     expect(error.model).toBe("Widget");
     expect(error.operation).toBe("findMany");
   });
+
+  it("komunikat wskazuje model, operację i sposób naprawy", () => {
+    expect(new TenantScopeError("ApiKey", "findMany").message).toBe(
+      "Zapytanie ApiKey.findMany bez filtra organizationId. Dodaj filtr organizacji albo użyj withoutTenantScope(powód, …).",
+    );
+  });
 });

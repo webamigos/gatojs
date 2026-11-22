@@ -20,6 +20,7 @@ import {
 import { TenantScopeError as DirectTenantScopeError } from "../tenant-scope";
 import {
   guardTenantQuery,
+  tenantScopeExtension,
   withoutTenantScope as directWithoutTenantScope,
 } from "../tenant-scope-extension";
 
@@ -44,6 +45,49 @@ function lazy<T>(run: () => Promise<T>): Promise<T> {
   return thenable as unknown as Promise<T>;
 }
 
+type AllOperationsHook = (params: {
+  model: string;
+  operation: string;
+  args: unknown;
+  query: (args: unknown) => Promise<unknown>;
+}) => Promise<unknown>;
+
+function readPath(value: unknown, path: string[]): unknown {
+  return path.reduce<unknown>(
+    (current, key) =>
+      typeof current === "object" && current !== null
+        ? (current as Record<string, unknown>)[key]
+        : undefined,
+    value,
+  );
+}
+
+function registeredExtension(): unknown {
+  let captured: unknown;
+  const fakeClient = {
+    $extends: (extension: unknown) => {
+      captured = extension;
+      return extension;
+    },
+  };
+  (tenantScopeExtension as unknown as (client: unknown) => unknown)(fakeClient);
+  return captured;
+}
+
+function registeredAllOperationsHook(): AllOperationsHook {
+  const hook = readPath(registeredExtension(), [
+    "query",
+    "$allModels",
+    "$allOperations",
+  ]);
+  if (typeof hook !== "function") {
+    throw new Error(
+      "rozszerzenie nie rejestruje query.$allModels.$allOperations",
+    );
+  }
+  return hook as AllOperationsHook;
+}
+
 beforeEach(() => {
   mockLogger.debug.mockReset();
   mockLogger.warn.mockReset();
@@ -54,6 +98,64 @@ describe("index tenant-scope", () => {
     expect(withoutTenantScope).toBe(directWithoutTenantScope);
     expect(TenantScopeError).toBe(DirectTenantScopeError);
     expect(isTenantScoped("Member")).toBe(false);
+  });
+});
+
+describe("tenantScopeExtension", () => {
+  it("rejestruje rozszerzenie o nazwie tenant-scope", () => {
+    expect(readPath(registeredExtension(), ["name"])).toBe("tenant-scope");
+  });
+
+  it("zapytanie ApiKey bez filtra organizacji przez klienta z rozszerzeniem jest odrzucone i nie trafia do bazy", async () => {
+    const query = vi.fn(async () => [{ id: "k" }]);
+
+    const result = registeredAllOperationsHook()({
+      model: "ApiKey",
+      operation: "findMany",
+      args: {},
+      query,
+    });
+
+    await expect(result).rejects.toBeInstanceOf(TenantScopeError);
+    await expect(result).rejects.toMatchObject({
+      name: "TenantScopeError",
+      model: "ApiKey",
+      operation: "findMany",
+    });
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it("zapytanie ApiKey z filtrem organizacji przechodzi z tym samym obiektem args", async () => {
+    const args = { where: { organizationId: "org_a" } };
+    const query = vi.fn<(args: unknown) => Promise<{ id: string }[]>>(
+      async () => [{ id: "k" }],
+    );
+
+    const result = await registeredAllOperationsHook()({
+      model: "ApiKey",
+      operation: "findMany",
+      args,
+      query,
+    });
+
+    expect(result).toEqual([{ id: "k" }]);
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0]?.[0]).toBe(args);
+  });
+
+  it("zapytanie Member bez filtra organizacji przez klienta z rozszerzeniem przechodzi", async () => {
+    const args = {};
+    const query = vi.fn<(args: unknown) => Promise<number>>(async () => 4);
+
+    const result = await registeredAllOperationsHook()({
+      model: "Member",
+      operation: "count",
+      args,
+      query,
+    });
+
+    expect(result).toBe(4);
+    expect(query.mock.calls[0]?.[0]).toBe(args);
   });
 });
 
@@ -188,11 +290,14 @@ describe("withoutTenantScope", () => {
 
     expect(result).toEqual([{ id: "a" }, { id: "b" }]);
     expect(query).toHaveBeenCalledTimes(1);
-    expect(mockLogger.debug).toHaveBeenCalledWith(expect.any(String), {
-      model: "Scoped",
-      operation: "findMany",
-      reason: "lookup by hash",
-    });
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      "Zapytanie bez filtra organizacji w withoutTenantScope",
+      {
+        model: "Scoped",
+        operation: "findMany",
+        reason: "lookup by hash",
+      },
+    );
   });
 
   it("zwraca wartość fn", async () => {
@@ -203,6 +308,18 @@ describe("withoutTenantScope", () => {
     const fn = vi.fn(async () => 1);
 
     await expect(withoutTenantScope("", fn)).rejects.toThrow();
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("pusty albo biały powód jest odrzucony komunikatem o wymaganym powodzie", async () => {
+    const fn = vi.fn(async () => 1);
+
+    await expect(withoutTenantScope("", fn)).rejects.toMatchObject({
+      message: "withoutTenantScope wymaga niepustego powodu",
+    });
+    await expect(withoutTenantScope(" \t", fn)).rejects.toMatchObject({
+      message: "withoutTenantScope wymaga niepustego powodu",
+    });
     expect(fn).not.toHaveBeenCalled();
   });
 
