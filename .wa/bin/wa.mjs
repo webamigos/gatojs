@@ -207,7 +207,7 @@ var require_lib = __commonJS({
 });
 
 // src/bin.ts
-import { dirname as dirname6, join as join11, resolve as resolve4 } from "node:path";
+import { dirname as dirname6, join as join11 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdtemp as mkdtemp2, rm as rm4 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -23359,8 +23359,76 @@ ${changed.map((file2) => `  ${file2}`).join("\n")}`
   return { removed: [module] };
 }
 
+// src/cli.ts
+import { resolve as resolve4 } from "node:path";
+var HELP_ALIASES = ["help", "--help", "-h"];
+var VERSION_ALIASES = ["version", "--version", "-v"];
+var COMMANDS = ["create", "add", "remove", "list", "generate"];
+function usage(name) {
+  return [
+    `Usage: ${name} <command> [options]`,
+    "",
+    "Commands:",
+    `  ${name} create <dir> [--modules <a,b>] [--locales <pl,en>] [--title <title>] [--admin-email <email>] [--setup] [--yes] [--no-install] [--no-git] [--kit <path>]`,
+    `  ${name} add <module> [--kit <path|url>] [--no-install]`,
+    `  ${name} remove <module> [--force] [--no-install]`,
+    `  ${name} list [--kit <path|url>]`,
+    `  ${name} generate`,
+    `  ${name} kit sync`,
+    `  ${name} help`,
+    `  ${name} version`,
+    "",
+    "add and list read the kit from --kit, then GATO_KIT_SOURCE (or WA_KIT_SOURCE),",
+    "then the kitRepo from .wa/kit.json at tag v<kitVersion>."
+  ].join("\n");
+}
+function isKnownCommand(argv) {
+  const [command, subcommand] = argv;
+  if (command === "kit") {
+    return subcommand === "sync";
+  }
+  return COMMANDS.includes(command);
+}
+function unknownCommandName(argv) {
+  return argv[0] === "kit" ? argv.slice(0, 2).join(" ") : argv[0];
+}
+function runMetaCommand(argv, identity2) {
+  const [command] = argv;
+  if (command === void 0) {
+    return { exitCode: 1, stdout: null, stderr: usage(identity2.name) };
+  }
+  if (HELP_ALIASES.includes(command)) {
+    return { exitCode: 0, stdout: usage(identity2.name), stderr: null };
+  }
+  if (VERSION_ALIASES.includes(command)) {
+    return { exitCode: 0, stdout: identity2.version, stderr: null };
+  }
+  if (isKnownCommand(argv)) {
+    return null;
+  }
+  return {
+    exitCode: 1,
+    stdout: null,
+    stderr: `Unknown command: ${unknownCommandName(argv)}
+
+${usage(identity2.name)}`
+  };
+}
+function kitSourceFromEnv(env) {
+  return env["GATO_KIT_SOURCE"] || env["WA_KIT_SOURCE"] || void 0;
+}
+function createKitDir(input2) {
+  if (input2.kitFlag !== null) {
+    return resolve4(input2.kitFlag);
+  }
+  if (input2.name === "gato") {
+    throw new Error("gato create needs --kit <path to a GatoJS checkout>");
+  }
+  return resolve4(input2.bundleDir, "../..");
+}
+
 // src/bin.ts
-var USAGE = "U\u017Cycie: wa generate | wa kit sync | wa create <katalog> [opcje] | wa add <modu\u0142> [--kit <\u015Bcie\u017Cka|url>] [--no-install] | wa remove <modu\u0142> [--force] [--no-install] | wa list [--kit <\u015Bcie\u017Cka|url>]";
+var identity = { name: "wa", version: "0.1.0" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);
@@ -23371,7 +23439,7 @@ async function listCommand(kit) {
     try {
       const kitDir = await resolveKitSource({
         kitFlag: kit,
-        envSource: process.env["WA_KIT_SOURCE"],
+        envSource: kitSourceFromEnv(process.env),
         state,
         runner: spawnRunner,
         tmpDir
@@ -23386,8 +23454,18 @@ async function listCommand(kit) {
   }
 }
 async function main(argv) {
-  const [command, subcommand] = argv;
-  if (command === "kit" && subcommand === "sync") {
+  const meta3 = runMetaCommand(argv, identity);
+  if (meta3 !== null) {
+    if (meta3.stdout !== null) {
+      console.log(meta3.stdout);
+    }
+    if (meta3.stderr !== null) {
+      console.error(meta3.stderr);
+    }
+    return meta3.exitCode;
+  }
+  const [command] = argv;
+  if (command === "kit") {
     const { changed: changed2 } = await kitSync(process.cwd());
     console.log(changed2 ? "Zaktualizowano .wa/kit.json" : "Bez zmian");
     return 0;
@@ -23398,7 +23476,7 @@ async function main(argv) {
       projectDir: process.cwd(),
       module,
       kitFlag: kit,
-      envSource: process.env["WA_KIT_SOURCE"],
+      envSource: kitSourceFromEnv(process.env),
       install,
       runner: spawnRunner,
       log: console.log,
@@ -23424,22 +23502,18 @@ async function main(argv) {
   }
   if (command === "create") {
     const { kit, ...parsed } = parseCreateArgs(argv.slice(1));
-    const defaultKit = resolve4(
-      dirname6(fileURLToPath(import.meta.url)),
-      "../.."
-    );
     await create({
       ...parsed,
-      kitDir: kit === null ? defaultKit : resolve4(kit),
+      kitDir: createKitDir({
+        kitFlag: kit,
+        name: identity.name,
+        bundleDir: dirname6(fileURLToPath(import.meta.url))
+      }),
       runner: spawnRunner,
       prompter: readlinePrompter,
       log: console.log
     });
     return 0;
-  }
-  if (command !== "generate") {
-    console.error(USAGE);
-    return 1;
   }
   const { changed } = await generate(process.cwd());
   if (changed.length === 0) {

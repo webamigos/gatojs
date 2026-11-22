@@ -17,6 +17,7 @@ export default defineConfig([
   },
   globalIgnores([
     "node_modules/**",
+    "dist/**",
     "reports/**",
     ".stryker-tmp/**",
     "src/__tests__/fixtures/**",
