@@ -56,6 +56,7 @@
     "vitest.integration.config.ts",
     "vitest.setup.ts",
     "src/__tests__/architecture/**",
+    "src/__tests__/env-example.test.ts",
     "src/__tests__/eslint-error-name.test.ts",
     "src/__tests__/instrumentation.test.ts",
     "src/__tests__/proxy-matcher.test.ts",
