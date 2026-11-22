@@ -8,20 +8,21 @@ npx create-gato-app my-app
 npm create gato-app@latest my-app
 ```
 
-You need Node.js 22 or newer and `git` (the kit's `wa create` lists the kit files with `git ls-files`).
+You need Node.js 22 or newer and `git` (`gato create` lists the kit files with `git ls-files`).
 
 ## What it does
 
-1. **Checks Node** against the kit's supported range (`>=22.0.0`). An unsupported Node stops the command before
+1. **Checks Node** against the supported range (`>=22`). An unsupported Node stops the command before
    anything is downloaded, with a message saying whether it is too old or too new. `--skip-install` (or `--no-install`)
    turns the refusal into a warning, because nothing is installed then. `--yes` does not bypass the check.
 2. **Picks the kit version:** `--kit-version <x.y.z>`, or the highest `v<x.y.z>` tag of `webamigos/gatojs`
    (GitHub tags API; prerelease and other tags are ignored).
 3. **Downloads the kit** tag tarball into a temporary directory and extracts it with the system `tar`. No clone, no git
    history.
-4. **Runs the kit's own `wa create`** from that tag (`node <kit>/.wa/bin/wa.mjs create <dir> … --kit <kit>`) with your
-   terminal attached, so its prompts and flags work exactly as documented for `wa create`. The exit code is
-   `wa create`'s.
+4. **Runs `gato create`** from the `gato-cli` package that `create-gato-app` depends on at an exact version
+   (`node <gato-cli>/dist/gato.mjs create <dir> … --kit <kit>`), with your terminal attached, so its prompts and flags
+   work exactly as documented for `gato create`. The exit code is `gato create`'s. The new project gets
+   `"gato-cli": "^<that version>"` in `devDependencies`. The kit's own `.wa/bin/wa.mjs` is not used.
 5. **Removes the temporary directory**, also when something fails.
 
 ## Flags
@@ -32,11 +33,11 @@ Flags of `create-gato-app` itself:
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `--kit-version <x.y.z>` | Kit version (tag `v<x.y.z>`). Default: the highest `v<x.y.z>` tag.                                                  |
 | `--kit <path>`          | Use a local kit checkout instead of downloading one (kit development, CI). Cannot be combined with `--kit-version`. |
-| `--skip-install`        | Write files only: passes `--no-install` to `wa create` and turns the Node refusal into a warning.                   |
+| `--skip-install`        | Write files only: passes `--no-install` to `gato create` and turns the Node refusal into a warning.                   |
 | `--help`, `-h`          | Print usage.                                                                                                        |
 | `--version`, `-v`       | Print the `create-gato-app` version.                                                                                |
 
-Every other argument goes to `wa create` unchanged, for example:
+Every other argument goes to `gato create` unchanged, for example:
 
 | Flag                    | Meaning                                                       |
 | ----------------------- | ------------------------------------------------------------- |
@@ -48,6 +49,7 @@ Every other argument goes to `wa create` unchanged, for example:
 | `--setup`               | After install: start the database, migrate, create the admin. |
 | `--no-install`          | Skip `npm install`.                                           |
 | `--no-git`              | Skip `git init` and the first commit.                         |
+| `--cli-source <tgz>`    | The project's `gato-cli` from a packed tarball (`file:`), for CI. |
 
 Examples:
 
@@ -76,24 +78,36 @@ the GitHub API are rate limited (60 per hour); on a 403 or 429, set a token or p
 
 ## Not yet
 
-This is a first, minimal version. Planned (see `docs/superpowers/specs/2026-11-21-gato-cli-design.md` in the kit
-repository):
+This version installs a project; it is not the full wizard yet. Planned (spec
+`docs/superpowers/specs/2026-11-21-gato-cli-design.md` §5–§7 in the GatoJS repository):
 
-- an interactive wizard (`@clack/prompts`) with module descriptions, storage provider questions and next steps;
-- generated secrets for module variables, `COMPOSE_PROJECT_NAME`, port probing, `--skip-docker`;
-- `gato-cli` as a project `devDependency` instead of the bundled `.wa/bin/wa.mjs`, and a `kitFormat` compatibility
-  check;
-- choosing the default version from GitHub Releases.
-
-The package lives in `kit/create-gato-app/` for now and moves to `packages/create-gato-app` together with `gato-cli`.
+- an interactive wizard (`@clack/prompts`) with module descriptions from the chosen kit version, locales, title, admin
+  email, and the storage provider for `uploads` (`local`, or `s3` with endpoint and keys);
+- validation and escaping of `--title` and `--admin-email`;
+- generated secrets for every manifest variable with a `generate` field (`secret-32`, `secret-64`);
+- `COMPOSE_PROJECT_NAME=<slug>-<6 random characters>` in `.env`, port probing before `docker compose up`, `--skip-docker`;
+- the default kit version from GitHub Releases filtered by `kitFormat`, and the `kitFormat` compatibility check;
+- next steps that list only what the wizard did not do.
 
 ## Development
 
 ```bash
-npm ci --prefix kit/create-gato-app
-npm run verify --prefix kit/create-gato-app      # lint, typecheck, unit tests, build
-npm run test:smoke --prefix kit/create-gato-app -- "$PWD"   # pack, install the tarball, create a project from this checkout
+npm ci                                              # in the repository root; this package is a workspace
+npm run verify --prefix packages/create-gato-app    # lint, typecheck, unit tests, build
+SMOKE_INSTALL=1 bash packages/create-gato-app/scripts/smoke-pack.sh "$PWD"
 ```
+
+The smoke script packs `gato-cli` and `create-gato-app`, installs both tarballs into an empty prefix, creates projects
+from this checkout (one with `--cli-source <gato-cli tarball>`, one without), and checks versions, the `gato-cli`
+tarball's file list and the exact pin. `SMOKE_INSTALL=1` also runs `npm install` in the project and checks that its
+`gato` is the packed one. CI runs the same script in `.github/workflows/packages.yml`.
+
+## Publishing
+
+`create-gato-app` depends on `gato-cli` at an exact version, which must equal `packages/gato-cli/package.json`
+(a unit test and CI check it). When both change, publish `gato-cli` first and wait until its staged version is
+approved and live; `publish-packages.yml` refuses to publish `create-gato-app` before that. The runbook is in
+`kit/CLAUDE.md` of the GatoJS repository.
 
 ## License
 

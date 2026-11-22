@@ -3,6 +3,10 @@
 Date: 2026-11-22. Source: `docs/superpowers/specs/2026-11-21-gato-cli-design.md` (sections 3, 5, 7, 9), modelled on
 Ragen's `create-ragen-app`. Package: `kit/create-gato-app/` (kit-only, own lockfile, not a workspace).
 
+**Status (2026-11-22):** done and moved to `packages/create-gato-app` (a workspace) by Task 6 of
+`2026-11-22-packages.md`. Since then it delegates to `gato create` of its pinned `gato-cli` dependency instead of the
+kit's `.wa/bin/wa.mjs`; Task 6 there supersedes Task 6 here.
+
 `npx create-gato-app <dir> [flags]` checks Node, resolves a kit version, downloads the tag tarball of
 `webamigos/gatojs` into a temp dir and delegates to `node <kit>/.wa/bin/wa.mjs create <dir> … --kit <kit>`.
 Out of scope: the wizard, secrets, port probing, `gato-cli`, `kitFormat`, moving to `packages/`.
