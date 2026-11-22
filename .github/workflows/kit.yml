@@ -75,7 +75,9 @@ jobs:
 
       - name: Pack the CLI as npm would publish it
         working-directory: packages/gato-cli
-        run: npm pack --pack-destination "$RUNNER_TEMP/pack"
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          npm pack --pack-destination "$RUNNER_TEMP/pack"
 
       - name: Install the tarball into an empty prefix
         run: |
