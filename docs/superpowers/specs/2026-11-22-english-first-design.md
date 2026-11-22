@@ -23,7 +23,7 @@ Date: 2026-11-22. Decided by Patryk: GatoJS is going to be an open-source framew
 
 1. **User-facing text goes through i18n, not English literals.** A server error message that reaches the UI today as a Polish literal becomes an error code (or i18n key) translated by the UI in the user's locale. Replacing `"Brak dostępu do organizacji"` with `"No access to the organization"` would only move the problem: a Polish user would then see English. Log messages and developer-facing errors become plain English.
 2. **Behaviour does not change.** Test titles, docs and messages are translated; assertions on literal user-visible text change only together with the i18n move in principle 1, with the expected value still a literal from the spec.
-3. **Anchors and references survive.** Every renamed doc keeps a redirect table (old file name → new file name) in `docs/README.md` for one release, and decision IDs stay the same (`D01`–`D49` keep their numbers in `docs/decisions.md`).
+3. **Anchors and references survive.** Every renamed doc keeps a redirect table (old file name → new file name) in `docs/README.md` for one release, and decision numbers stay the same: `D01`–`D52` become `docs/adrs/01-…` … `docs/adrs/52-…` (ADR-53, PR #27: new decisions are ADR files from 53).
 4. **History stays readable.** Translating the old working documents in `docs/superpowers/` costs more than it is worth. They move to `docs/archive/pl/` unchanged, with a note in English; new specs and plans live in `docs/superpowers/` in English.
 
 ## 4. Rename map for `docs/`
@@ -52,7 +52,7 @@ Date: 2026-11-22. Decided by Patryk: GatoJS is going to be an open-source framew
 | `14-modul-api-keys.md`, `14b-…-uzycie.md` | `14-api-keys-module.md`, `14b-api-keys-usage.md` |
 | `15-modul-uploads.md`, `15b-…-uzycie.md` | `15-uploads-module.md`, `15b-uploads-usage.md` |
 | `16-cli-wa.md`, `16b-rozwoj-kitu.md` | `16-cli.md`, `16b-developing-the-kit.md` |
-| `decyzje.md` | `decisions.md` |
+| `decyzje.md` | split into `adrs/01-…md` … `adrs/52-…md` (same numbers), index in `adrs/README.md` |
 | `znane-ograniczenia.md` | `known-limitations.md` |
 
 The `16-*` names avoid `wa`, because the CLI is renamed to `gato` by the gato spec (#25).
@@ -64,7 +64,7 @@ Each step is its own PR, so review stays readable and conflicts with other branc
 0. **Freeze window.** Agree with Kuba on a short window: merge or rebase #14 and #22 first, then run steps 1–3 back to back. Branches opened during the window rebase onto the result.
 1. **Agent instructions** (`AGENTS.md`, `CLAUDE.md`, `kit/CLAUDE.md`, `.claude/**`, `README.md`, `kit/README.md`). First, because agents writing the rest of the migration must read English rules. The architecture tests from the harness plan (`cited-paths-exist`, `documented-commands-exist`) guard the references.
 2. **Docs rename** (`git mv` per the table in section 4, plus link updates across the repo), no content change. A pure rename keeps `git log --follow` and review simple.
-3. **Docs translation**, one PR per numbered chapter group (01–04b, 05–08b, 09–12, 13–16b, `decisions.md`, `known-limitations.md`). Translators keep anchors (`<a id>`) in English and add the old Polish anchors as extra `<a id>` aliases for one release.
+3. **Docs translation**, one PR per numbered chapter group (01–04b, 05–08b, 09–12, 13–16b, the D01–D52 split into `docs/adrs/`, `known-limitations.md`). Translators keep anchors (`<a id>`) in English and add the old Polish anchors as extra `<a id>` aliases for one release.
 4. **Archive** `docs/superpowers/` working documents from before 2026-11-21 to `docs/archive/pl/`.
 5. **Code messages:** server errors returned to the UI become error codes with i18n keys in `pl` and `en`; CLI, env validation, log and hook messages become English literals. Test titles in the touched files are translated in the same PR.
 6. **Remaining test titles**, file by file, with no assertion changes.
@@ -84,4 +84,4 @@ Steps 1–4 are documentation only and can run in parallel workers after step 0.
 1. Should `en` become the default locale of a new project, with `pl` as an option in the wizard?
 2. Archive the old `docs/superpowers/` documents in the repo (`docs/archive/pl/`) or remove them from the public repo entirely (they contain internal names and ClickUp links; see the gato spec §10)?
 3. Do the docs stay in the repo after going public, or move to a separate docs site (gato spec, open question 3)? If they move, steps 2–3 should translate straight into the docs site.
-4. Who approves the translated decision log: is a careful machine translation reviewed by one person enough?
+4. Who approves the translated ADRs 01–52: is a careful machine translation reviewed by one person enough?
