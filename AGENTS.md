@@ -132,6 +132,10 @@ src/app/[locale]/(auth|app)
 - Bez zagnieżdżonych ternary (`no-nested-ternary`), bez cichych `catch {}`, bez `any`.
 - `name` klasy błędu ustawiaj napisem (`this.name = "KeyLimitError"` albo pole `name = "KeyLimitError"`); ESLint odrzuca
   `this.constructor.name`, `new.target.name` i `KeyLimitError.name`, bo build minifikuje nazwy klas.
+- Klasa dziedzicząca wprost po `Error` ma własne `name`: pole `name = "KeyLimitError"` albo `this.name = "KeyLimitError"`
+  jako osobna instrukcja konstruktora (nie w `if` ani w funkcji). ESLint zgłasza klasę bez niego poza testami, `e2e/`
+  i plikami `*.d.ts`. Własne selektory `no-restricted-syntax` dopisuj do `restrictedSyntax` w `eslint.config.mjs`,
+  bo obiekt konfiguracji dla tych plików powtarza tę listę.
 
 ### Auth
 
