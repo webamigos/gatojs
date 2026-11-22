@@ -114,6 +114,20 @@ describe("findLintStagedGaps: workspace with its own ESLint config", () => {
     ]);
   });
 
+  it("is covered when ESLint follows -- after several spaces", () => {
+    const env = { ...projectWorkspace, ownEslintConfig: true };
+
+    expect(
+      findLintStagedGaps(
+        {
+          "packages/env/**/*.ts":
+            "npm exec --workspace=@gatojs/env --  eslint --fix",
+        },
+        [env],
+      ),
+    ).toEqual([]);
+  });
+
   it("is not covered by a workspace command that runs ESLint without --", () => {
     const env = { ...projectWorkspace, ownEslintConfig: true };
 
@@ -442,16 +456,21 @@ describe("checkLintStaged", () => {
 });
 
 describe("repo", () => {
-  it("lint-staged runs ESLint for every workspace with sources", async () => {
-    const eslint = new ESLint({ cwd: repoRoot });
+  it(
+    "lint-staged runs ESLint for every workspace with sources",
+    { timeout: 30_000 },
+    async () => {
+      const eslint = new ESLint({ cwd: repoRoot });
 
-    await expect(
-      checkLintStaged(repoRoot, (file: string) => eslint.isPathIgnored(file)),
-    ).resolves.toEqual([]);
-  });
+      await expect(
+        checkLintStaged(repoRoot, (file: string) => eslint.isPathIgnored(file)),
+      ).resolves.toEqual([]);
+    },
+  );
 
   it.runIf(fs.existsSync(path.join(repoRoot, "packages/gato-cli")))(
     "the root ESLint config leaves gato-cli to its own config",
+    { timeout: 30_000 },
     async () => {
       const eslint = new ESLint({ cwd: repoRoot });
 

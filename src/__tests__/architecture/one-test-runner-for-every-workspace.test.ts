@@ -3,9 +3,10 @@ import { fc, test } from "@fast-check/vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   checkTestRunners,
+  compareCodePoint,
   findTestRunnerGaps,
   matchedByPackagesProject,
   PACKAGES_TEST_INCLUDE,
@@ -22,6 +23,27 @@ describe("TOOL_PACKAGES and PACKAGES_TEST_INCLUDE", () => {
 
   it("is the include of the root packages Vitest project", () => {
     expect(PACKAGES_TEST_INCLUDE).toBe("packages/*/src/**/*.test.ts");
+  });
+});
+
+describe("compareCodePoint", () => {
+  it.each([
+    ["a", "b", -1],
+    ["b", "a", 1],
+    ["a", "a", 0],
+    ["Z", "a", -1],
+  ])("compares %s with %s as %d", (a, b, expected) => {
+    expect(compareCodePoint(a, b)).toBe(expected);
+  });
+
+  test.prop([fc.string(), fc.string()])("is antisymmetric", (a, b) => {
+    expect(Math.sign(compareCodePoint(a, b))).toBe(
+      -Math.sign(compareCodePoint(b, a)),
+    );
+  });
+
+  test.prop([fc.string()])("compares a string with itself as 0", (a) => {
+    expect(compareCodePoint(a, a)).toBe(0);
   });
 });
 
@@ -209,6 +231,53 @@ describe("checkTestRunners", () => {
 
   it("accepts a repository without packages", () => {
     expect(checkTestRunners(root)).toEqual([]);
+  });
+
+  it("lists workspaces in code point order when readdir returns them reversed", () => {
+    write("packages/alpha/package.json", packageJson());
+    write("packages/zeta/package.json", packageJson());
+    const packagesDir = path.join(root, "packages");
+    const readdirSync = fs.readdirSync;
+    const spy = vi.spyOn(fs, "readdirSync").mockImplementation(((
+      dir: fs.PathLike,
+      options?: unknown,
+    ) => {
+      const entries = (
+        readdirSync as (dir: fs.PathLike, options?: unknown) => unknown[]
+      )(dir, options);
+      return dir === packagesDir ? [...entries].reverse() : entries;
+    }) as typeof fs.readdirSync);
+
+    try {
+      expect(workspaceDirs(root)).toEqual(["alpha", "zeta"]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("reports project packages in code point order when readdir returns them reversed", () => {
+    write("packages/alpha/package.json", packageJson({ test: "vitest" }));
+    write("packages/zeta/package.json", packageJson({ test: "vitest" }));
+    const packagesDir = path.join(root, "packages");
+    const readdirSync = fs.readdirSync;
+    const spy = vi.spyOn(fs, "readdirSync").mockImplementation(((
+      dir: fs.PathLike,
+      options?: unknown,
+    ) => {
+      const entries = (
+        readdirSync as (dir: fs.PathLike, options?: unknown) => unknown[]
+      )(dir, options);
+      return dir === packagesDir ? [...entries].reverse() : entries;
+    }) as typeof fs.readdirSync);
+
+    try {
+      expect(checkTestRunners(root)).toEqual([
+        "packages/alpha: project package declares its own test script",
+        "packages/zeta: project package declares its own test script",
+      ]);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("accepts a project package whose tests the root project includes", () => {
