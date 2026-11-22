@@ -1,0 +1,140 @@
+name: Publish GatoJS packages
+
+on:
+  push:
+    tags:
+      - "gato-cli@*"
+      - "create-gato-app@*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to confirm on npm after the staged version was approved, e.g. gato-cli@0.2.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-packages-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish ${{ github.ref_name }}
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install pinned npm (trusted publishing needs npm 11.5.1 or newer)
+        run: npm install -g "npm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
+
+      - name: Read the package and version from the tag
+        id: tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$TAG" =~ ^(gato-cli|create-gato-app)@([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "Tag $TAG is not <gato-cli|create-gato-app>@<x.y.z>." >&2
+            exit 1
+          fi
+          package="${BASH_REMATCH[1]}"
+          version="${BASH_REMATCH[2]}"
+          declared=$(node -p "require('./packages/$package/package.json').version")
+          if [ "$declared" != "$version" ]; then
+            echo "Tag $TAG does not match packages/$package/package.json ($declared)." >&2
+            exit 1
+          fi
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: create-gato-app needs its pinned gato-cli live on npm first
+        if: steps.tag.outputs.package == 'create-gato-app'
+        run: |
+          set -euo pipefail
+          pinned=$(node -p "require('./packages/create-gato-app/package.json').dependencies['gato-cli']")
+          workspace=$(node -p "require('./packages/gato-cli/package.json').version")
+          if [ "$pinned" != "$workspace" ]; then
+            echo "create-gato-app pins gato-cli $pinned, the workspace has $workspace." >&2
+            exit 1
+          fi
+          live=$(npm view "gato-cli@$pinned" version 2>/dev/null || true)
+          if [ "$live" != "$pinned" ]; then
+            echo "gato-cli $pinned is not live on npm. Push the tag gato-cli@$pinned, approve the staged" >&2
+            echo "version on npmjs.com, then re-run this workflow." >&2
+            exit 1
+          fi
+
+      - name: Install dependencies (root and workspaces)
+        run: npm ci
+
+      - name: Verify the package
+        env:
+          PACKAGE: ${{ steps.tag.outputs.package }}
+        run: npm run verify --prefix "packages/$PACKAGE"
+
+      - name: Publish with provenance (trusted publishing, no token)
+        working-directory: packages/${{ steps.tag.outputs.package }}
+        env:
+          PACKAGE: ${{ steps.tag.outputs.package }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$(npm view "$PACKAGE@$VERSION" version 2>/dev/null || true)" = "$VERSION" ]; then
+            echo "$PACKAGE@$VERSION is already on npm; nothing to publish."
+            exit 0
+          fi
+          npm publish --provenance --access public
+
+  confirm:
+    name: Confirm the release is live on npm
+    needs: publish
+    if: always() && (needs.publish.result == 'success' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Wait for the approved version and the latest dist-tag
+        env:
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          ATTEMPTS: ${{ github.event_name == 'workflow_dispatch' && '1' || '20' }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$TAG" =~ ^(gato-cli|create-gato-app)@([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "Tag $TAG is not <gato-cli|create-gato-app>@<x.y.z>." >&2
+            exit 1
+          fi
+          package="${BASH_REMATCH[1]}"
+          version="${BASH_REMATCH[2]}"
+          for attempt in $(seq 1 "$ATTEMPTS"); do
+            live=$(npm view "$package@$version" version 2>/dev/null || true)
+            latest=$(npm view "$package" dist-tags.latest 2>/dev/null || true)
+            if [ "$live" = "$version" ] && [ "$latest" = "$version" ]; then
+              echo "$package@$version is live and tagged latest."
+              exit 0
+            fi
+            echo "Attempt $attempt/$ATTEMPTS: version '${live:-none}', latest '${latest:-none}'."
+            if [ "$attempt" -lt "$ATTEMPTS" ]; then
+              sleep 30
+            fi
+          done
+          echo "$package@$version is not live on npm yet. With staged publishing, approve it on npmjs.com" >&2
+          echo "(Packages → $package → staged version $version → Approve), then re-run this job or run" >&2
+          echo "this workflow by hand with tag $TAG." >&2
+          exit 1
