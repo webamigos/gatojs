@@ -29,6 +29,10 @@ The getting-started guide is `docs/01-uruchomienie.md` (being translated).
 - Data access, auth, organizations and roles are covered by a mutation gate (`npm run test:mutation:task -- <files>`, `npm run test:mutation:gate`). Surviving mutants need a test or a justified `allowed` entry, which a maintainer approves.
 - Changes to kit files bump the owning module's `version` in `kit/modules/<module>.json`, followed by `npm run wa -- kit sync`.
 
+## Code review
+
+You do not need CodeRabbit ([ADR-55](docs/adrs/55-code-review-does-not-depend-on-coderabbit.md)). Review your own change against [`.claude/skills/wa-code-review/SKILL.md`](.claude/skills/wa-code-review/SKILL.md), the checklist of what `npm run verify` cannot check (organization scoping, service mode, generated files, tests, i18n), and tick the PR template. In Claude Code the same checklist runs as the `wa-code-review` skill. If CodeRabbit is installed on the repository it comments on your pull request; treat its comments like any reviewer's. A pull request merges on the required checks and a maintainer's approval.
+
 ## Reporting bugs and security issues
 
 - Bugs and feature requests: GitHub issues, using the templates.

@@ -32,3 +32,4 @@ An ADR is not edited after it is accepted, except to fix a mistake or to add "Su
 | --- | --- | --- |
 | [53](53-decisions-are-adrs-and-lessons-are-a-catalog.md) | Decisions are ADR files; gotchas go to a lessons catalog | Accepted |
 | [54](54-kit-releases-are-cut-by-semantic-release.md) | Kit releases are cut by semantic-release from Conventional Commits on `main` | Accepted |
+| [55](55-code-review-does-not-depend-on-coderabbit.md) | Code review does not depend on CodeRabbit | Accepted |
