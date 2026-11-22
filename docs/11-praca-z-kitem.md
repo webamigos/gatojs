@@ -5,11 +5,12 @@ Po przeczytaniu będziesz wiedzieć:
 - którą zmianę zostawić w projekcie, a którą wysłać jako pull request do repozytorium kitu `webamigos/wa-kit`, i jak to zrobić krok po kroku;
 - co sprawdzają hooki przy `git commit`, bramka `npm run verify` i CI oraz jak napisać wiadomość commitu, którą przyjmie commitlint;
 - po co są dwa pliki instrukcji dla agentów AI, `CLAUDE.md` i `AGENTS.md`, i co zrobić, gdy `next dev` dopisze blok do `AGENTS.md`;
-- co blokują hooki Claude Code z `.claude/settings.json` i do czego służą agenci z `.claude/agents/`;
+- co blokują hooki Claude Code z `.claude/settings.json`, na które komendy agent nie pyta o zgodę, do czego służą agenci z `.claude/agents/` i skille z `.claude/skills/`;
+- czym jest Task Router w `AGENTS.md`;
 - jak przebiega praca według procesu superpowers i gdzie leżą jej dokumenty;
 - których plików nie edytuje się ręcznie i co uruchomić po zmianie, od której zależą.
 
-Zweryfikowano z kodem: 25adbb8, 2026-10-28
+Zweryfikowano z kodem: 8c9f5eb, 2026-11-21 (Task Router, uprawnienia, skille); pozostałe sekcje: 25adbb8, 2026-10-28
 
 Źródła:
 
@@ -20,6 +21,7 @@ Zweryfikowano z kodem: 25adbb8, 2026-10-28
 - `.claude/hooks/protect-tests.mjs`
 - `.claude/agents/test-writer.md`
 - `.claude/agents/test-reviewer.md`
+- `.claude/skills/wa-code-review/SKILL.md`, `.claude/skills/wa-upgrade-dependency/SKILL.md`, `.claude/skills/wa-new-module/SKILL.md`
 - `.husky/pre-commit`
 - `.husky/commit-msg`
 - `.lintstagedrc.json`
@@ -43,7 +45,7 @@ Zweryfikowano z kodem: 25adbb8, 2026-10-28
 - `kit/cli/src/generate/registry.ts`
 - `docs/superpowers/`
 - `node_modules/next/dist/server/lib/generate-agent-files.js`, `node_modules/next/dist/server/lib/app-info-log.js`, `node_modules/next/dist/server/lib/start-server.js` (Next.js 16.3.8)
-- dokumentacja Claude Code: [hooki](https://code.claude.com/docs/en/hooks) i [pliki instrukcji](https://code.claude.com/docs/en/memory)
+- dokumentacja Claude Code: [hooki](https://code.claude.com/docs/en/hooks), [pliki instrukcji](https://code.claude.com/docs/en/memory), [uprawnienia](https://code.claude.com/docs/en/permissions) i [skille](https://code.claude.com/docs/en/skills)
 
 Ten plik opisuje pracę wokół kodu: dokąd trafia zmiana, przez jakie kontrole przechodzi, jak współpracować z agentami AI i jak wygląda proces, w którym powstaje kit. Dotyczy repozytorium kitu i projektów klientów, bo projekt powstaje z kitu (`wa create`) i ma te same pliki konfiguracji ([D39](decyzje.md#d39), [D38](decyzje.md#d38)). Reguły są w [CLAUDE.md](../CLAUDE.md) i [AGENTS.md](../AGENTS.md). Ten plik je wyjaśnia i podaje powody, ale ich nie przepisuje. Dodaje tylko kilka praktyk oznaczonych słowem **Zalecenie**: tych `AGENTS.md` nie zawiera i nic ich nie sprawdza.
 
@@ -271,7 +273,7 @@ Czasy przebiegów są w [08-testy.md](08-testy.md#czas). Pierwszy `verify` po do
 
 ## Praca z agentami AI
 
-Repozytorium jest przygotowane do pracy z agentami AI: instrukcje są w `CLAUDE.md` i `AGENTS.md`, hooki i definicje agentów w `.claude/`, a pull requesty recenzuje CodeRabbit. Hooki i agenci testów działają tylko w Claude Code. Inne narzędzia dostają tylko instrukcje, więc reguły pilnują w nich CI i recenzja.
+Repozytorium jest przygotowane do pracy z agentami AI: instrukcje są w `CLAUDE.md` i `AGENTS.md`, hooki i definicje agentów w `.claude/`, a pull requesty może dodatkowo recenzować CodeRabbit, jeśli jest zainstalowany. CodeRabbit nie jest bramką: recenzję bez niego robi się według `.claude/skills/wa-code-review/SKILL.md` ([ADR-55](adrs/55-code-review-does-not-depend-on-coderabbit.md)). Hooki i agenci testów działają tylko w Claude Code. Inne narzędzia dostają tylko instrukcje, więc reguły pilnują w nich CI i recenzja.
 
 <a id="claude-agents-md"></a>
 
@@ -306,6 +308,7 @@ Gdzie dokumentacja wyjaśnia sekcje `AGENTS.md`:
 | Sekcja `AGENTS.md` | Wyjaśnienie |
 | --- | --- |
 | Co to jest, Kolejność priorytetów | [Zasady kitu](02-architektura.md#zasady-kitu), [Zmiany w projekcie a poprawki do kitu](#projekt-a-kit) |
+| Task Router | [Task Router i skille](#task-router) |
 | Komendy | [01-uruchomienie.md](01-uruchomienie.md), [komendy testów](08-testy.md#referencja-komendy) |
 | Dane i organizacje | [03-dane-i-organizacje.md](03-dane-i-organizacje.md), [04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md) |
 | Bez komentarzy w kodzie | [Komentarze](06-wzorce-kodu.md#komentarze), [D23](decyzje.md#d23) |
@@ -335,7 +338,7 @@ Co zrobić: `AGENTS.md` pochodzi z kitu, a `AGENTS.md` kitu tego bloku nie zawie
 
 ### Hooki Claude Code
 
-`.claude/settings.json` rejestruje dwa hooki. Plik jest w repozytorium, więc hooki działają u każdego, kto otworzy repozytorium kitu albo projekt w Claude Code.
+`.claude/settings.json` rejestruje dwa hooki i listę komend, na które agent nie pyta o zgodę ([Uprawnienia](#uprawnienia)). Plik jest w repozytorium, więc hooki działają u każdego, kto otworzy repozytorium kitu albo projekt w Claude Code. Poniżej plik bez sekcji `permissions`.
 
 `.claude/settings.json`
 
@@ -398,11 +401,54 @@ Hooki są kodem kitu, więc ich zmiana idzie przez pull request do kitu, razem z
 
 Rolę obu w przebiegu zadania i ich znane braki opisują [Role](08b-testy-adwersarialne.md#role) i [Przebieg zadania](08b-testy-adwersarialne.md#przebieg) w 08b oraz [Mutacje](09b-implementacja-i-bramki.md#krok-8-stryker) w 09b. Znane braki to komenda testów w `test-writer`, która pomija testy integracyjne (orkiestrator podaje wtedy `npm run test:integration -- <pliki>`), i brak w `test-reviewer` reguły dla kodu wyjścia 1 z progu `break`. W innym narzędziu niż Claude Code rozdzielenie testera i implementera zapewnia człowiek, który prowadzi pracę.
 
+<a id="task-router"></a>
+
+### Task Router i skille
+
+**Task Router** to sekcja `AGENTS.md` z tabelą „zadanie → gdzie patrzeć”. Każdy wiersz wskazuje plik repozytorium, dokument w repozytorium kitu albo skill. Agent zaczyna od wiersza swojego zadania zamiast szukać odsyłaczy po całym pliku. Ścieżki `docs/…` w tabeli i w skillach dotyczą repozytorium `webamigos/wa-kit`, bo `docs/` należy do `kitOnly` i nie trafia do projektu. Wiersze modułów kitu (`uploads`, `api-keys`, `audit-logs`) wskazują tylko dokumentację, a nie pliki modułu, bo projekt bez modułu tych plików nie ma.
+
+Rozmiar `AGENTS.md` ma znaczenie: Codex ucina instrukcje powyżej `project_doc_max_bytes` (32 KiB) bez ostrzeżenia. Nowy wiersz routera zastępuje odsyłacz w innej sekcji, a nie go dubluje.
+
+**Skill** to katalog w `.claude/skills/<nazwa>/` z plikiem `SKILL.md`: nagłówek z polami `name` i `description` (kiedy użyć, z wyzwalaczami po polsku i angielsku), a pod nim instrukcja. Claude Code wczytuje skill, gdy zadanie pasuje do `description`, albo na polecenie `/<nazwa>`. Inne narzędzia nie znają tego formatu, więc dostają skille tylko przez odsyłacze w routerze, jako zwykłe pliki Markdown.
+
+| Skill | Kiedy | Co zawiera |
+| --- | --- | --- |
+| `wa-code-review` | Przed oddaniem pracy, przed commitem, przy pull requeście. | Najpierw `npm run verify`, potem niezmienniki, których bramka nie sprawdzi: filtr `organizationId` i guardy, kontrakt trybu serwisowego, `withoutTenantScope` tylko z powodem, pliki generowane i regiony, granica modułu i rdzenia, testy pisane przez innego agenta, wpisy `allowed` tylko od człowieka, i18n w każdym języku, brak komentarzy. |
+| `wa-upgrade-dependency` | Podbicie zależności npm, alert `npm audit`. | Kolejność: changelog, podbicie, `npm run verify`, testy integracyjne, e2e. Osobne kroki dla better-auth i Prismy (tabele, migracje, `schemaRelations`, lista `ADMIN_TARGET_PATHS`) i dla Next.js (codemod). Podbicie w kicie (manifest właściciela, `wa kit sync`) a w projekcie. |
+| `wa-new-module` | Nowa funkcja projektu albo moduł kitu. | Wybór `projectModules` albo modułu kitu, kroki tutorialu [09](09-nowy-modul.md) i [09b](09b-implementacja-i-bramki.md) w skrócie, pułapki (`schemaRelations` zamiast `prisma format`, `npm run db:generate` po migracji). |
+
+Skille są plikami rdzenia (`.claude/skills/**` w `kit/modules/core.json`), więc trafiają do projektu przez `wa create`, a ich zmiana idzie przez pull request do kitu ([D52](decyzje.md#d52)). Fakty w skillach muszą zgadzać się z kodem tak samo jak `AGENTS.md`: zmiana reguły to także zmiana skilla, który ją cytuje.
+
+<a id="uprawnienia"></a>
+
+### Uprawnienia
+
+`permissions.allow` w `.claude/settings.json` wymienia komendy, które Claude Code uruchamia bez pytania o zgodę: bramki i komendy tylko do odczytu.
+
+| Reguła | Komendy |
+| --- | --- |
+| `Bash(npm run verify)`, `Bash(npm run lint)`, `Bash(npm run typecheck)`, `Bash(npx tsc --noEmit)` | Bramka i jej części, bez argumentów. |
+| `Bash(npm test)`, `Bash(npm run test)`, `Bash(npm run test:hooks)`, `Bash(npm run test:mutation:gate)` | Testy jednostkowe, testy hooków i bramka mutacji, bez argumentów. |
+| `Bash(npm run wa -- generate)` | Odświeżenie plików generowanych. |
+| `Bash(git status)`, `Bash(git status *)`, `Bash(git diff *)`, `Bash(git log *)`, `Bash(git show *)` | Odczyt stanu repozytorium. |
+
+Lista ma tylko dokładne reguły dla komend testowych. Reguła z końcowym `*` przyjmuje dowolne argumenty, więc `Bash(npm test *)` albo `Bash(npx vitest run *)` przepuściłyby `npm test -- -c vitest.integration.config.ts`, a konfiguracja integracyjna woła `resetDatabase()` i czyści bazę `_test`. Z tego samego powodu na liście nie ma `test:integration`, `test:mutation:integration` (Postgres) ani `test:mutation` i `test:mutation:task` (argumenty przekazywane do Strykera mogą wskazać konfigurację integracyjną).
+
+Składnia według [dokumentacji uprawnień](https://code.claude.com/docs/en/permissions): reguła bez `*` pasuje tylko do dokładnie tej komendy, a spacja przed końcowym `*` jest częścią reguły. `Bash(npm run test:mutation *)` pasuje więc do `npm run test:mutation` i `npm run test:mutation -- …`, ale nie do `npm run test:mutation:task`, dlatego każdy skrypt testów ma własną regułę. Zapis `:*` na końcu (`Bash(npm run test:*)`) znaczy to samo co ` *`, czyli nie obejmuje skryptów `test:<nazwa>`. Komenda złożona (`&&`, `;`, `|`) przechodzi bez pytania tylko wtedy, gdy każda jej część pasuje do reguły.
+
+Czego lista celowo nie zawiera:
+
+- `npm run test:e2e`, `test:integration`, `test:mutation:integration`: piszą do bazy; reset bazy e2e wymaga zgody użytkownika ([Pułapki przy pracy z agentem](#pulapki-agentow));
+- `npm run test:watch`: proces nie kończy się sam;
+- komend zapisujących do bazy poza bazą testową (`npx prisma migrate`, `npm run admin:create`), instalujących (`npm install`), usuwających (`rm`), zmieniających historię albo zdalne repozytorium (`git reset`, `git push`) i `docker`.
+
+Własne reguły zapisuj w `.claude/settings.local.json` (Claude Code dopisuje tam odpowiedzi „nie pytaj ponownie”), a nie w `.claude/settings.json`, który pochodzi z kitu.
+
 <a id="coderabbit"></a>
 
 ### CodeRabbit
 
-`.coderabbit.yaml` konfiguruje CodeRabbit, usługę, która recenzuje pull requesty na GitHubie przy pomocy AI. Plik działa tylko wtedy, gdy aplikacja CodeRabbit jest zainstalowana dla repozytorium. Z samego repozytorium tego nie widać.
+`.coderabbit.yaml` konfiguruje CodeRabbit, usługę, która recenzuje pull requesty na GitHubie przy pomocy AI. Plik działa tylko wtedy, gdy aplikacja CodeRabbit jest zainstalowana dla repozytorium. Z samego repozytorium tego nie widać. CodeRabbit jest opcjonalny: nie jest wymaganym checkiem w regule `main`, a recenzja bez niego idzie według checklisty `wa-code-review` ([ADR-55](adrs/55-code-review-does-not-depend-on-coderabbit.md)).
 
 | Ustawienie | Wartość | Skutek |
 | --- | --- | --- |
@@ -429,7 +475,7 @@ Poza opisanymi wyżej (blok w `AGENTS.md`, zapis przez powłokę, braki definicj
 
 ## Proces superpowers
 
-superpowers to wtyczka Claude Code z zestawem umiejętności (skills), czyli instrukcji, które agent wczytuje do określonego rodzaju pracy. Każdy instaluje ją u siebie, a repozytorium jej nie konfiguruje: `.claude/settings.json` zawiera tylko hooki. Kit powstaje według tego procesu, a repozytorium dopasowuje go regułami z `AGENTS.md`.
+superpowers to wtyczka Claude Code z zestawem umiejętności (skills), czyli instrukcji, które agent wczytuje do określonego rodzaju pracy. Każdy instaluje ją u siebie, a repozytorium jej nie konfiguruje: `.claude/settings.json` zawiera tylko hooki i uprawnienia, a skille projektu z `.claude/skills/` jej nie zastępują. Kit powstaje według tego procesu, a repozytorium dopasowuje go regułami z `AGENTS.md`.
 
 ### Przebieg
 

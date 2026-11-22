@@ -1,5 +1,5 @@
 {
-  "name": "@wa-kit/cli",
+  "name": "gato-cli",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -29,6 +29,7 @@
     "vitest": "^4.1.2"
   },
   "dependencies": {
+    "@inquirer/checkbox": "^5.2.8",
     "zod": "^4.3.6"
   }
 }

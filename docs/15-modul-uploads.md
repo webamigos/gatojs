@@ -9,7 +9,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jaki kontrakt ma cel uploadu (`uploadPurposes`), komponent `<FileUpload>` i komenda `deleteUploadCommand` oraz co się dzieje bez modułu;
 - skąd biorą się osierocone pliki w magazynie i kiedy moduł cofa zapisany obiekt.
 
-Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wersja `uploads` w [Instalacji i usunięciu](#instalacja) i [Manifeście i definicji modułu](#manifest), nazwa wyjątku w [Ochronie przed wyjściem poza katalog](#path-traversal)); pozostałe sekcje: 6c05f1f, 2026-11-05
+Zweryfikowano z kodem: 2c83429, 2026-11-21 (guard organizacji w [Pobieraniu](#get)); 206ca2e, 2026-11-10 (wersja `uploads` w [Instalacji i usunięciu](#instalacja) i [Manifeście i definicji modułu](#manifest), nazwa wyjątku w [Ochronie przed wyjściem poza katalog](#path-traversal)); pozostałe sekcje: 6c05f1f, 2026-11-05
 
 Źródła:
 
@@ -351,7 +351,7 @@ Na zbudowanym serwerze (sprawdzone przez `curl`): żądanie z `Transfer-Encoding
 `src/app/api/uploads/[id]/route.ts` woła `readUploadForDownload(id)` (`services/read-upload.ts`):
 
 1. `id`, które nie jest UUID, daje 404 bez zapytania do bazy.
-2. Brak rekordu daje 404.
+2. Brak rekordu daje 404. Rekord jest czytany po samym `id` w `withoutTenantScope("upload lookup before visibility check", …)`, bo plik publiczny czyta każdy, a widoczność pliku organizacji sprawdza dopiero krok 3. Bez zwolnienia guard w runtime odrzuciłby to zapytanie `TenantScopeError` ([03](03-dane-i-organizacje.md#guard-w-runtime), [D51](decyzje.md#d51)).
 3. Plik `ORGANIZATION`: brak sesji, sesja bez aktywnej organizacji, inna aktywna organizacja albo usunięte członkostwo dają 404, tak samo jak nieistniejący plik, więc odpowiedź nie zdradza, że plik istnieje. Kontekst bierze `getOrgContext()` z sesją czytaną z bazy (`disableCookieCache: true`), więc usunięcie członkostwa działa od następnego żądania. Superadmin w trybie serwisowym czyta pliki organizacji, w której jest.
 4. Plik `PUBLIC` czyta każdy, bez sesji i z dowolną aktywną organizacją.
 5. Brak obiektu w magazynie daje 404: przy `s3` błąd `NoSuchKey`, przy `local` brak pliku ([Provider storage](#provider-local)). Inny błąd magazynu daje 500.

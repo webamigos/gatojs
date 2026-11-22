@@ -1,6 +1,6 @@
 {
   "name": "api-keys",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Klucze API organizacji: model ApiKey, sekret z pepperem i zakresy",
   "requires": [],
   "files": [

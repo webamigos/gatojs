@@ -1,0 +1,18 @@
+# GitHub applies the last matching pattern, so specific paths come last.
+
+*                                   @patrykomiotek @KubaSzewczyk
+
+/.github/workflows/                 @patrykomiotek @KubaSzewczyk
+/Dockerfile                         @patrykomiotek @KubaSzewczyk
+/prisma/                            @patrykomiotek @KubaSzewczyk
+
+/src/shared/lib/auth/               @patrykomiotek @KubaSzewczyk
+/src/shared/lib/tenant-scope/       @patrykomiotek @KubaSzewczyk
+/src/features/auth/services/        @patrykomiotek @KubaSzewczyk
+/src/features/organizations/services/ @patrykomiotek @KubaSzewczyk
+/mutation-gate.json                 @patrykomiotek @KubaSzewczyk
+
+/LICENSE                            @patrykomiotek
+/NOTICE                             @patrykomiotek
+/SECURITY.md                        @patrykomiotek
+/.github/CODEOWNERS                 @patrykomiotek

@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - gdzie znaleźć opis dziennika zdarzeń, plików i tras z kluczem API we własnej funkcji, gdy projekt ma moduły `audit-logs`, `uploads` albo `api-keys` ([dziennik](#dziennik-zdarzen), [pliki](#pliki-w-funkcji-projektu), [trasy API](#trasy-api));
 - co zacommitować i jak dodać kolejną funkcję do feature, który już jest w rejestrze.
 
-Zweryfikowano z kodem: 734391b, 2026-11-04 (sekcja [Pliki w funkcji projektu](#pliki-w-funkcji-projektu)); pozostałe sekcje: 0b5c91d, 2026-10-29
+Zweryfikowano z kodem: 2c83429, 2026-11-21 (guard organizacji w [Query](#query) i ręczne wywrócenie testu izolacji w [Testach integracyjnych](#krok-8-integracja)); 734391b, 2026-11-04 (sekcja [Pliki w funkcji projektu](#pliki-w-funkcji-projektu)); pozostałe sekcje: 0b5c91d, 2026-10-29
 
 Źródła:
 
@@ -73,6 +73,8 @@ export async function listNotesQuery(): Promise<NoteListItem[]> {
 ```
 
 Query ma własny guard, chociaż strona wywołuje wcześniej `requireModuleAccess`: może je zaimportować inna strona, a test architektury wymaga guardu w każdym eksporcie z `services/queries/` ([Wiele wywołań w jednym żądaniu](03-dane-i-organizacje.md#wiele-wywolan)). Plik nie ma `"use server"`, więc nie jest endpointem i w trybie serwisowym odczyt nie wymaga potwierdzenia.
+
+Model `Note` ma pole `organizationId`, więc guard organizacji w runtime obejmuje go bez zmiany rdzenia: `prisma.note.findMany()` bez filtra organizacji kończy się błędem `TenantScopeError`. To samo dotyczy komendy (`create` wymaga `data.organizationId`, `update` i `delete` filtra w `where`). Odczyt między organizacjami, na przykład po publicznym identyfikatorze przed sprawdzeniem dostępu, opakowuje się w `withoutTenantScope(reason, …)` z `@/shared/lib/tenant-scope` ([Guard w runtime](03-dane-i-organizacje.md#guard-w-runtime)).
 
 <a id="komenda"></a>
 
@@ -295,7 +297,7 @@ Wynik: `Test Files  2 passed (2)` i `Tests  45 passed (45)` (38 testów rdzenia 
 
 Tabela `notes` nie jest na liście `TABLES` w `src/test/integration/database.ts`, ale `resetDatabase()` i tak ją czyści, bo ma klucz obcy do `organizations`, a `TRUNCATE … CASCADE` czyści też tabele z kluczami do czyszczonych tabel ([Czyszczenie tabel feature](08-testy.md#izolacja-czyszczenie)). Po przebiegu w bazie zostały tylko 3 notatki z ostatniego `beforeEach`, a ręczne wykonanie tej samej instrukcji wypisało `NOTICE:  truncate cascades to table "notes"`. Tabelę feature bez klucza obcego do tabel rdzenia czyścisz w `beforeEach` sam.
 
-Sprawdź ręcznie, że test izolacji umie się wywrócić: usuń na chwilę `organizationId` z `where` w query i uruchom test ([Jak go zbudować](08-testy.md#izolacja), punkt 6). Przebieg tutorialu działał na kopii kitu z `4a6ffcb`, w której konfiguracja integracyjna Strykera mutowała tylko pliki rdzenia. Od commita `04ce5d3` jej lista `mutate` obejmuje `src/features/*/services/**/*.ts`, więc `npm run test:mutation:integration` mutuje też query i komendę `notes` pod ich testem izolacji ([Dwie konfiguracje](08b-testy-adwersarialne.md#stryker)); tego przebiegu tutorial nie uruchamiał.
+Sprawdź ręcznie, że test izolacji umie się wywrócić: zamień na chwilę `organizationId` w `where` query na identyfikator drugiej organizacji i uruchom test ([Jak go zbudować](08-testy.md#izolacja), punkt 6). Samo usunięcie filtra wywraca test już na guardzie organizacji (`TenantScopeError`), a nie na asercji izolacji ([Guard w runtime](03-dane-i-organizacje.md#guard-w-runtime)). Przebieg tutorialu działał na kopii kitu z `4a6ffcb`, w której konfiguracja integracyjna Strykera mutowała tylko pliki rdzenia. Od commita `04ce5d3` jej lista `mutate` obejmuje `src/features/*/services/**/*.ts`, więc `npm run test:mutation:integration` mutuje też query i komendę `notes` pod ich testem izolacji ([Dwie konfiguracje](08b-testy-adwersarialne.md#stryker)); tego przebiegu tutorial nie uruchamiał.
 
 <a id="krok-8-stryker"></a>
 

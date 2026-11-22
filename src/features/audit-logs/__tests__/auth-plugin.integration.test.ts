@@ -8,6 +8,7 @@ vi.mock("@/shared/lib/mailer", () => ({
 
 import { auth } from "@/shared/lib/auth";
 import { prisma } from "@/shared/lib/prisma";
+import { withoutTenantScope } from "@/shared/lib/tenant-scope";
 import {
   createOrganization,
   createInvitation,
@@ -93,7 +94,9 @@ describe("plugin audit-logs na prawdziwym better-auth", () => {
         body: { email: "nowy@a.example", role: "nieistniejaca" as "member" },
       }),
     ).rejects.toThrow();
-    expect(await prisma.auditLog.count()).toBe(0);
+    expect(
+      await withoutTenantScope("test assertion", () => prisma.auditLog.count()),
+    ).toBe(0);
   });
 
   it("zmiana roli zapisuje poprzednią rolę odczytaną przed zmianą", async () => {
@@ -125,9 +128,11 @@ describe("plugin audit-logs na prawdziwym better-auth", () => {
       headers: world.headersA,
       body: { memberIdOrEmail: memberRow.id },
     });
-    const rows = await prisma.auditLog.findMany({
-      where: { action: "member.removed" },
-    });
+    const rows = await withoutTenantScope("test assertion", () =>
+      prisma.auditLog.findMany({
+        where: { action: "member.removed" },
+      }),
+    );
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       organizationId: world.orgA.id,
@@ -146,7 +151,9 @@ describe("plugin audit-logs na prawdziwym better-auth", () => {
       headers: world.headersA,
       body: { invitationId: invitation.id },
     });
-    const rows = await prisma.auditLog.findMany();
+    const rows = await withoutTenantScope("test assertion", () =>
+      prisma.auditLog.findMany(),
+    );
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       organizationId: world.orgA.id,
@@ -173,7 +180,9 @@ describe("plugin audit-logs na prawdziwym better-auth", () => {
       headers: await headersFor(daveSession.id),
       body: { invitationId: invitation.id },
     });
-    const rows = await prisma.auditLog.findMany();
+    const rows = await withoutTenantScope("test assertion", () =>
+      prisma.auditLog.findMany(),
+    );
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       organizationId: world.orgA.id,
@@ -188,6 +197,8 @@ describe("plugin audit-logs na prawdziwym better-auth", () => {
     await auth.api.listOrganizations({ headers: world.headersA });
     await auth.api.getFullOrganization({ headers: world.headersA });
     await auth.api.listInvitations({ headers: world.headersA });
-    expect(await prisma.auditLog.count()).toBe(0);
+    expect(
+      await withoutTenantScope("test assertion", () => prisma.auditLog.count()),
+    ).toBe(0);
   });
 });
