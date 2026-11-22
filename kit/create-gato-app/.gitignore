@@ -1,0 +1,5 @@
+dist/
+node_modules/
+reports/
+.stryker-tmp/
+*.tgz
