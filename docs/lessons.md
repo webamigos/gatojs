@@ -35,3 +35,9 @@ After a nontrivial correction or a non-obvious gotcha:
 - [Prisma 7 refuses `db push --force-reset` from an AI agent until the user's own consent text is passed in an environment variable](lessons/prisma-refuses-a-database-reset-from-an-agent.md)
 - [Parallel worktrees collide on e2e ports, the uploads directory and database containers unless each one gets its own](lessons/parallel-worktrees-need-their-own-ports-and-dirs.md)
 - [`kit/cli` tests that touch git and the filesystem time out at 5 seconds when the machine is busy; rerun before debugging](lessons/cli-tests-time-out-under-heavy-load.md)
+
+### dependencies
+
+- [A caret range like `^1.6.26` can already resolve to 1.7.x, so read the lockfile to learn which version actually runs](lessons/a-caret-range-already-runs-the-next-minor.md)
+- [Since better-auth 1.7.3 a schema mismatch rejects sign-in at runtime, in production too; a plugin with tables fails at login, not at build](lessons/better-auth-checks-the-prisma-schema-at-startup.md)
+- [The pinned npm rewrites unrelated lockfile entries (it drops `libc` from `@next/swc-linux-*`); restore them to keep the diff about your change](lessons/pinned-npm-drops-libc-fields-from-the-lockfile.md)
