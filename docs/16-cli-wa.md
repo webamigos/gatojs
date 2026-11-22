@@ -10,7 +10,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak CLI traktuje moduły projektu (`projectModules`);
 - co znaczy każdy komunikat CLI.
 
-Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wersja `uploads` w sekcji [Po `wa add`](#add-po)); 6c05f1f, 2026-11-05; cdf13ba, 2026-11-03 (sekcja [`wa update`](#wa-update) i miejsca, które się do niej odwołują)
+Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wersja `uploads` w sekcji [Po `wa add`](#add-po)); 6c05f1f, 2026-11-05; cdf13ba, 2026-11-03 (sekcja [`wa update`](#wa-update) i miejsca, które się do niej odwołują; symlinki w krokach 10 i 12 oraz w komunikatach: 2026-11-22)
 
 Źródła:
 
@@ -536,9 +536,9 @@ Wszystkie kontrole i całe scalanie idą w pamięci, przed pierwszym zapisem.
 7. **Pobranie wersji docelowej i bazowej:** `git -c advice.detachedHead=false clone --depth 1 --branch v<wersja> --quiet` (dla ścieżki lokalnej bez `--depth 1`) do katalogu tymczasowego `wa-update-…`, który znika po komendzie, także po błędzie. Brak tagu: `Nie udało się pobrać wa-kit v<wersja> z <źródło>. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`, a nad nim linia gita (sprawdzone; przy polskich ustawieniach `fatal: Nie znaleziono zdalnej gałęzi v0.4.0 w repozytorium origin`). Tag z inną `version` w `kit/kit.json`: `Kit w <klon> ma wersję <x>, oczekiwano <wersja>`. Bundel projektu klonuje tu wersję docelową i przekazuje pracę ([wyżej](#update-delegacja)); proces potomny powtarza kroki 2–5 i klonuje wersję bazową `v<kitVersion>`.
 8. **Odczyt obu wersji**, najpierw bazowej (`readKitSnapshot` w `kit/cli/src/update/snapshot.ts`): `kit/kit.json` i manifesty (błąd schematu to surowy błąd Zod), potem moduły. Każdy moduł kitu z `.wa/kit.json` musi istnieć w obu wersjach: `Moduł <x> nie istnieje w wa-kit <wersja>` (moduł usunięty albo przemianowany w kicie wymaga ręcznej decyzji). Kit wskazany przez `--from-kit` w innej wersji niż docelowa: `Kit docelowy ma wersję <x>, oczekiwano <wersja>`.
 9. **`requires`** modułów w wersji docelowej muszą być zainstalowane: `Moduł <x> w wa-kit <wersja> wymaga niezainstalowanych modułów: <lista>`. Komenda nie dodaje modułów sama. Brakujący moduł, który istnieje w wersji kitu projektu, doda `wa add`; moduł nowy dopiero w wersji docelowej nie ma ścieżki w CLI ([znane ograniczenia](znane-ograniczenia.md#cli-male)). `projectModules` zostają bez zmian, a ich `requires` sprawdza odczyt `.wa/kit.json` jak w każdej komendzie.
-10. **Plan dla każdego pliku** ([niżej](#update-plan)), razem ze scaleniem treści. Ścieżka, która po rozwiązaniu symlinków wychodzi poza projekt, daje `Ścieżka poza projektem: <ścieżka>`; błąd `git merge-file` daje `git merge-file: <komunikat gita>`.
+10. **Plan dla każdego pliku** ([niżej](#update-plan)), razem ze scaleniem treści. Ścieżka, która po rozwiązaniu symlinków wychodzi poza projekt, daje `Ścieżka poza projektem: <ścieżka>`; wiszący symlink jest rozwiązywany względem swojego katalogu, więc link do nieistniejącego pliku poza projektem też daje ten błąd (`insideProject` w `kit/cli/src/commands/remove.ts`, testy w `inside-project.test.ts`); błąd `git merge-file` daje `git merge-file: <komunikat gita>`.
 11. **`--dry-run`:** wypisanie planu i kod 0.
-12. **Zapis** plików według planu, potem `.wa/kit.json` ([Co zapisuje](#update-zapis)). Błąd zapisu cofa zmiany ([Cofanie](#update-cofanie)).
+12. **Zapis** plików według planu, potem `.wa/kit.json`. Przed pierwszym zapisem każdy cel (pliki do zapisania albo usunięcia, `.wa/kit.json`, pliki generowane i pliki z regionami) nie może mieć symlinku w żadnym członie ścieżki pod katalogiem projektu (`lstat`), także gdy link prowadzi do innego pliku projektu: `Dowiązanie symboliczne na ścieżce zapisu: <ścieżka>`, bez zmian w projekcie (`writableInsideProject` w `kit/cli/src/commands/update.ts`). Symlink na pliku, którego aktualizacja nie zapisuje, nie przeszkadza ([Co zapisuje](#update-zapis)). Błąd zapisu cofa zmiany ([Cofanie](#update-cofanie)).
 13. **Bez konfliktów:** `wa generate` w procesie, podpowiedzi ([Po `wa update`](#update-po)) i `npm install` (bez `--no-install`). **Z konfliktami:** wszystkie trzy pominięte ([Konflikty](#update-konflikty)).
 
 <a id="update-plan"></a>
@@ -642,7 +642,7 @@ Po konfliktach:
 1. Rozwiąż markery w plikach z linią `konflikt` i zdecyduj o plikach `do decyzji` (usuń je, zostaw jako kod projektu albo przenieś zmiany).
 2. `npm run wa -- generate`, potem `npm install`.
 3. Migracja i zmienne, jak w [Po `wa update`](#update-po).
-4. Commit. Cofnięcie całości przed commitem: `git restore . && git clean -fd`; pojedynczy plik: `git restore <plik>`. `git clean -fd` nie usuwa plików ignorowanych przez `.gitignore` (na przykład `node_modules` po `npm install`), więc po cofnięciu uruchom jeszcze `npm install`, żeby zależności zgadzały się z przywróconym `package-lock.json`.
+4. Commit. Cofnięcie całości przed commitem: `git restore . && git clean -fd`; pojedynczy plik: `git restore <plik>`. `git clean -fd` nie usuwa plików ignorowanych przez `.gitignore` (na przykład `node_modules` po `npm install` albo nowego pliku kitu, który pasuje do `.gitignore` projektu; takie pliki pokaże `git status --ignored`, usuń je ręcznie), więc po cofnięciu uruchom jeszcze `npm install`, żeby zależności zgadzały się z przywróconym `package-lock.json`.
 
 <a id="update-zapis"></a>
 
@@ -806,12 +806,14 @@ Każdy komunikat z tej tabeli trafia na stderr i kończy komendę kodem 1. Komun
 | `update` | `--from-kit` wskazuje kit w innej wersji | `Kit docelowy ma wersję <x>, oczekiwano <wersja>` |
 | `update` | zainstalowany moduł kitu nie istnieje w wersji bazowej albo docelowej | `Moduł <x> nie istnieje w wa-kit <wersja>` |
 | `update` | niespełnione `requires` w wersji docelowej | `Moduł <x> w wa-kit <wersja> wymaga niezainstalowanych modułów: <lista>` |
-| `update` | ścieżka z planu wychodzi poza projekt | `Ścieżka poza projektem: <ścieżka>` |
+| `update` | ścieżka z planu, `.wa/kit.json`, plik generowany albo plik z regionem wychodzi poza projekt (także przez wiszący symlink) | `Ścieżka poza projektem: <ścieżka>` |
+| `update` | symlink w ścieżce celu zapisu, także wskazujący plik w projekcie (bez `--dry-run`) | `Dowiązanie symboliczne na ścieżce zapisu: <ścieżka>` (sprawdzone) |
 | `update` | błąd `git merge-file` inny niż konflikt | `git merge-file: <komunikat gita>` |
 | `update` | błąd zapisu | pierwotny błąd (zwykle surowy błąd Node) i druga linia `Sprawdź git status; całość cofa: git restore . && git clean -fd`; przed nim ewentualne linie `Nie udało się posprzątać: …` |
 | `update` | błąd `wa generate` | `Zaktualizowano do wa-kit <wersja>, ale wa generate się nie powiódł. Uruchom: npm run wa -- generate` |
 | `update` | błąd `npm install` | `Zaktualizowano do wa-kit <wersja>, ale npm install się nie powiódł. Uruchom: npm install` |
-| `update` | błąd procesu bundla wersji docelowej | brak własnego komunikatu: błąd wypisał proces potomny |
+| `update` | proces bundla wersji docelowej zakończył się błędem | brak własnego komunikatu: błąd wypisał proces potomny |
+| `update` | proces bundla wersji docelowej nie wystartował (na przykład `spawn node ENOENT`) | `Nie udało się uruchomić bundla wa-kit <wersja>: <komunikat Node>` |
 
 Linie, które nie kończą komendy błędem (stdout):
 
