@@ -15,6 +15,6 @@ topics: ['prisma', 'e2e', 'database', 'agents', 'consent']
 - An unattended run stops at the first e2e step until a human answers.
 - An agent must not invent the consent text: it has to come verbatim from the user, for a named database.
 
-**Rule**: Ask the user before the first e2e run, naming the database (for example `wa_app_e2e` on `localhost:5452`) and saying that its data is deleted. Pass their exact message in `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION`. The consent covers that database only.
+**Rule**: Before each e2e run, ask the user for consent, naming the database (for example `wa_app_e2e` on `localhost:5452`) and saying that its data is deleted. Pass their exact message in `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION` for that run only. The consent covers that database and that run only.
 
 **Applies to**: `npm run test:e2e`, `e2e/global-setup.ts`, any `prisma db push --force-reset` or `migrate reset` run by an agent.

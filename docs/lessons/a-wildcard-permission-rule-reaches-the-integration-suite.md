@@ -17,4 +17,4 @@ topics: ['claude-code', 'permissions', 'agents', 'database']
 
 **Rule**: Allow test commands only as exact rules with no trailing `*`. Keep every command that can reach a database (`test:integration`, `test:mutation:integration`, `test:e2e`) and every command whose arguments can select a config (`test:mutation`, `test:mutation:task`) off the list.
 
-**Applies to**: `.claude/settings.json`, `docs/11-praca-z-kitem.md#uprawnienia`.
+**Applies to**: `.claude/settings.json` and the "Uprawnienia" section of `docs/11-praca-z-kitem.md` (added with harness phase 1, PR #29).

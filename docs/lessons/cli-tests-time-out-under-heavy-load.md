@@ -15,6 +15,6 @@ topics: ['kit-cli', 'vitest', 'timeouts', 'load']
 - Timeouts move between runs and files, so they look like real failures in whatever the task touched.
 - An agent may raise timeouts or change tests to make them pass.
 
-**Rule**: When different tests time out on each run and the load is high (`uptime`), rerun the failing files alone. If they pass, it is load, not a regression: say so in the report and do not change the tests or the timeout.
+**Rule**: When different tests time out on each run and the load is high (`uptime`), rerun the failing files alone. A pass in isolation is evidence of load, not proof: a test can also fail only alongside others that share git or filesystem state. Report it as "likely load", do not change the tests or the timeout, and rerun the full suite at normal load before ruling out a regression.
 
 **Applies to**: `kit/cli` tests, `npm run verify`, parallel workers.
