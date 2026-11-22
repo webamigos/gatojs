@@ -14,6 +14,9 @@ Zasady dla plików tylko kitu (`kit/`). Nie trafiają do projektów (`.dockerign
 - Po każdej zmianie w `kit/cli/src` uruchom `npm run build --prefix kit/cli` i zacommituj `.wa/bin/wa.mjs` razem ze zmianą.
 - Projekt uruchamia CLI jako `npm run wa -- <komenda>` (`node .wa/bin/wa.mjs`), bez budowania.
 - CI sprawdza `git diff --exit-code -- .wa/bin/wa.mjs`: nieaktualny bundel zatrzymuje job.
+- Ten sam build tworzy `kit/cli/dist/gato.mjs` (pakiet npm `gato-cli`, komenda `gato`; nie commitujemy go). Bundle różnią się
+  tylko nazwą komendy; wersja z `kit/cli/package.json` jest wbudowana w oba. Job `cli-package` w `kit.yml` pakuje CLI
+  (`npm pack`) i uruchamia `gato` z tarballa. Publikacja: `kit/cli/README.md` („Publishing”).
 
 ## Moduły i manifest
 
