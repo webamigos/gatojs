@@ -3,6 +3,7 @@ import {
   lstat,
   readFile,
   readdir,
+  readlink,
   realpath,
   rm,
   rmdir,
@@ -58,6 +59,17 @@ function assertRemovable(state: KitState, module: string): void {
   }
 }
 
+async function readLinkIfSymlink(path: string): Promise<string | null> {
+  try {
+    return await readlink(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
 async function realpathOfDeepestAncestor(path: string): Promise<string> {
   let current = path;
   for (;;) {
@@ -66,6 +78,12 @@ async function realpathOfDeepestAncestor(path: string): Promise<string> {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         throw error;
+      }
+      const linkTarget = await readLinkIfSymlink(current);
+      if (linkTarget !== null) {
+        return realpathOfDeepestAncestor(
+          join(resolve(dirname(current), linkTarget), relative(current, path)),
+        );
       }
       current = dirname(current);
     }
