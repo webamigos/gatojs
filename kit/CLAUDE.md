@@ -8,6 +8,8 @@ Zasady dla plików tylko kitu (`kit/`). Nie trafiają do projektów (`.dockerign
 - Instalacja: `npm ci --prefix kit/cli` (osobny `kit/cli/package-lock.json`, instaluj przez `npx -y npm@11.21.1 install`).
 - Mutacje CLI: `npm run test:mutation:task --prefix kit/cli -- <pliki>` i `npm run test:mutation:gate --prefix kit/cli`;
   wpisy do `kit/cli/mutation-gate.json` dopisuje człowiek.
+- `kit/create-gato-app` (pakiet npm, osobny `package-lock.json`, nie workspace): `npm run verify --prefix kit/create-gato-app`
+  i `npm run test:smoke --prefix kit/create-gato-app -- "$PWD"`; w CI job `create-gato-app` w `.github/workflows/kit.yml`.
 
 ## Bundel CLI
 
