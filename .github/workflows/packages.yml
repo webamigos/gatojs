@@ -88,14 +88,13 @@ jobs:
           npm init -y >/dev/null
           npm install --no-audit --no-fund "$RUNNER_TEMP"/pack/*.tgz
 
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 20
-
       - name: Node 20 is refused before anything is downloaded
         run: |
           set -uo pipefail
-          output=$(node "$RUNNER_TEMP/prefix/node_modules/create-gato-app/dist/index.js" "$RUNNER_TEMP/old-node-app" --yes 2>&1)
+          mkdir -p "$RUNNER_TEMP/work"
+          output=$(docker run --rm \
+            -v "$RUNNER_TEMP/prefix:/prefix:ro" -v "$RUNNER_TEMP/work:/work" -w /work \
+            node:20-slim node /prefix/node_modules/create-gato-app/dist/index.js /work/old-node-app --yes 2>&1)
           status=$?
           echo "$output"
           if [ "$status" -eq 0 ]; then
@@ -106,7 +105,7 @@ jobs:
             echo "The refusal does not say the Node version is too old." >&2
             exit 1
           fi
-          if [ -e "$RUNNER_TEMP/old-node-app" ]; then
+          if [ -e "$RUNNER_TEMP/work/old-node-app" ]; then
             echo "The refused run created the project directory." >&2
             exit 1
           fi
