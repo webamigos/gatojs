@@ -96,7 +96,7 @@ Each step is a PR with the usual process; steps 1–3 change core or module code
 ## 7. Decisions to record
 
 - ADR: production mail requires a configured provider or an explicit `console`, not Resend specifically (replaces the production rule in D48's consequences).
-- ADR: the kit's build and runtime make no outbound calls except to configured endpoints, enforced by architecture tests and the egress check.
+- ADR: at runtime the app makes no outbound calls except to configured endpoints (enforced by the egress check); the build fetches only npm packages and base images, nothing else such as fonts (enforced by architecture tests).
 
 ## 8. Decisions (Patryk, 2026-11-22: follow Ragen where possible)
 
