@@ -43,9 +43,9 @@ Bez `--no-git` projekt dostaje `git init` i pierwszy commit, więc `git` musi mi
 
 ## Komendy w projekcie
 
-Uruchamiane jako `npm run wa -- <komenda>` (bundel `.wa/bin/wa.mjs`).
+Uruchamiane jako `npm run wa -- <komenda>` (bundel `.wa/bin/wa.mjs`). Ten sam CLI jest pakietem npm `gato-cli` (komenda `gato`): [kit/cli/README.md](cli/README.md).
 
-Źródło kitu dla `add`, `list` i `update` (`--kit` albo zmienna `WA_KIT_SOURCE`) to `https://...`, `ssh://...`, `file://...`, `git@...` albo ścieżka lokalna.
+Źródło kitu dla `add`, `list` i `update` (`--kit` albo zmienna `GATO_KIT_SOURCE`, dawniej `WA_KIT_SOURCE`, która nadal działa) to `https://...`, `ssh://...`, `file://...`, `git@...` albo ścieżka lokalna.
 
 - `wa list [--kit <źródło>]`: moduły zainstalowane, dostępne w kicie i moduły projektu.
 - `wa add <moduł> [--kit <źródło>] [--no-install]`: kopiuje pliki modułu i jego zależności, dopisuje zależności npm i uruchamia `wa generate`.
