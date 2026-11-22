@@ -61,7 +61,7 @@ const { mockPrisma, mockEnv, mockMailer } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/shared/lib/env", () => ({ env: mockEnv }));
+vi.mock("@/env", () => ({ env: mockEnv }));
 vi.mock("@/shared/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/shared/lib/mailer", () => mockMailer);
 

@@ -299,6 +299,7 @@ describe("generate", () => {
       [
         HEADER,
         'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
         'import authModule from "@/features/auth/module";',
         'import demoModule from "@/features/demo/module";',
         'import notesModule from "@/features/notes/module";',
@@ -309,6 +310,7 @@ describe("generate", () => {
         "export const moduleEnvSchemas = [demoEnvSchema];",
         "export const authPlugins = [authAuthPlugin];",
         "export const auditSinks: never[] = [];",
+        "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
         "",

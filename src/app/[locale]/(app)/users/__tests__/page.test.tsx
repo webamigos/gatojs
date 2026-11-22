@@ -18,7 +18,7 @@ const {
 }));
 
 vi.mock("next-intl/server", () => ({ setRequestLocale: vi.fn() }));
-vi.mock("@/shared/lib/env", () => ({ env: mockEnv }));
+vi.mock("@/env", () => ({ env: mockEnv }));
 vi.mock("@/shared/lib/auth/require-module-access", () => ({
   requireModuleAccess: mockRequireModuleAccess,
 }));

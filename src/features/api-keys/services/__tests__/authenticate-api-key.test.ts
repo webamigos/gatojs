@@ -14,7 +14,7 @@ const { mockFindUnique, mockUpdate, mockEnv, mockLogger, mockKnownScopes } =
     mockKnownScopes: vi.fn(),
   }));
 
-vi.mock("@/shared/lib/env", () => ({ env: mockEnv }));
+vi.mock("@/env", () => ({ env: mockEnv }));
 vi.mock("@/shared/lib/logger", () => ({ logger: mockLogger }));
 vi.mock("@/shared/lib/prisma", () => ({
   prisma: { apiKey: { findUnique: mockFindUnique, update: mockUpdate } },

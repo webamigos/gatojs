@@ -12,7 +12,7 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
     },
   };
 });
-vi.mock("@/shared/lib/env", () => ({
+vi.mock("@/env", () => ({
   env: {
     STORAGE_PROVIDER: "s3",
     S3_ENDPOINT: "http://localhost:9100",
