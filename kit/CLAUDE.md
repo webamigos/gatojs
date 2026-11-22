@@ -29,3 +29,23 @@ Zasady dla plików tylko kitu (`kit/`). Nie trafiają do projektów (`.dockerign
 - Fixture modułu projektu (`kit/cli/src/__tests__/fixtures/project-module/`) jest używane przez `assemble`; zmiana kontraktu `projectModules` wymaga jego aktualizacji.
 - Wydanie: podbij `version` zmienionych modułów, uruchom `npm run wa -- kit sync`, zmerguj do `main`; tag `v<version>` ustawia człowiek.
 - Opis dla użytkowników CLI: `kit/README.md`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues of `webamigos/wa-kit` (`gh` CLI). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` at the root (created lazily), decisions as ADR files in `docs/adrs/` (new ones from ADR-53; D01–D52 stay in `docs/decyzje.md` until the English migration). See `docs/agents/domain.md`.
+
+## Decisions and lessons
+
+- A new decision is an ADR file in `docs/adrs/NN-<decision-as-a-title>.md`, in English, from `docs/adrs/TEMPLATE.md`, with the next free number (from 53). Format and numbering: `docs/adrs/README.md`. Do not append new entries to `docs/decyzje.md`.
+- Before nontrivial work, skim the titles in `docs/lessons.md` for the area you touch and read the matching lessons.
+- After a nontrivial correction or a non-obvious gotcha, add or extend a lesson in `docs/lessons/` and its line in `docs/lessons.md` (format in that file).
