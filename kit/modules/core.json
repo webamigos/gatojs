@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
   "requires": [],
   "files": [
@@ -39,6 +39,7 @@
     "next.config.ts",
     "package-lock.json",
     "package.json",
+    "packages/env/**",
     "playwright.config.ts",
     "postcss.config.mjs",
     "prisma.config.ts",
@@ -75,6 +76,7 @@
     "src/app/[locale]/accept-invitation/**",
     "src/app/[locale]/no-organization/**",
     "src/components/ui/**",
+    "src/env.ts",
     "src/features/account/**",
     "src/features/auth/**",
     "src/features/dashboard/**",

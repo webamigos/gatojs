@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/routing";
-import { env } from "@/shared/lib/env";
+import { env } from "@/env";
 import {
   getOrgContext,
   NoOrganizationError,
