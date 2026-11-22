@@ -23484,7 +23484,6 @@ import { execFile as execFile3 } from "node:child_process";
 import { existsSync as existsSync3 } from "node:fs";
 import {
   chmod as chmod3,
-  lstat as lstat3,
   mkdir as mkdir5,
   mkdtemp as mkdtemp3,
   readFile as readFile10,
@@ -23870,26 +23869,12 @@ async function readIfExists2(path2) {
     throw error62;
   }
 }
-async function isSymlink(path2) {
-  try {
-    return (await lstat3(path2)).isSymbolicLink();
-  } catch (error62) {
-    if (error62.code === "ENOENT") {
-      return null;
-    }
-    throw error62;
-  }
-}
 async function writableInsideProject(projectDir, file2) {
   const absolute = await insideProject(projectDir, file2);
   let current = projectDir;
   for (const segment of relative2(projectDir, absolute).split(sep2)) {
     current = join12(current, segment);
-    const link = await isSymlink(current);
-    if (link === null) {
-      break;
-    }
-    if (link) {
+    if ((await lstatIfExists(current))?.isSymbolicLink()) {
       throw new Error(`Dowi\u0105zanie symboliczne na \u015Bcie\u017Cce zapisu: ${file2}`);
     }
   }

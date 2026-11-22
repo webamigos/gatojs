@@ -131,7 +131,7 @@ async function changedFiles(
   return changed.sort(compareCodePoint);
 }
 
-async function lstatIfExists(path: string): Promise<Stats | null> {
+export async function lstatIfExists(path: string): Promise<Stats | null> {
   try {
     return await lstat(path);
   } catch (error) {

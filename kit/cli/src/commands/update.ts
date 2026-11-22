@@ -2,7 +2,6 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import {
   chmod,
-  lstat,
   mkdir,
   mkdtemp,
   readFile,
@@ -35,7 +34,7 @@ import { readKitSnapshot } from "../update/snapshot.js";
 import type { KitSnapshot } from "../update/snapshot.js";
 import { compareVersions } from "../update/version.js";
 import { missingDirectories } from "./add.js";
-import { insideProject, removeEmptyParents } from "./remove.js";
+import { insideProject, lstatIfExists, removeEmptyParents } from "./remove.js";
 
 export type UpdateOptions = {
   projectDir: string;
@@ -123,17 +122,6 @@ async function readIfExists(path: string): Promise<Buffer | null> {
   }
 }
 
-async function isSymlink(path: string): Promise<boolean | null> {
-  try {
-    return (await lstat(path)).isSymbolicLink();
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return null;
-    }
-    throw error;
-  }
-}
-
 async function writableInsideProject(
   projectDir: string,
   file: string,
@@ -142,11 +130,7 @@ async function writableInsideProject(
   let current = projectDir;
   for (const segment of relative(projectDir, absolute).split(sep)) {
     current = join(current, segment);
-    const link = await isSymlink(current);
-    if (link === null) {
-      break;
-    }
-    if (link) {
+    if ((await lstatIfExists(current))?.isSymbolicLink()) {
       throw new Error(`Dowiązanie symboliczne na ścieżce zapisu: ${file}`);
     }
   }
