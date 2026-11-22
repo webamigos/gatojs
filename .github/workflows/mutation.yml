@@ -32,7 +32,7 @@ jobs:
     env:
       INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wa_app_test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
