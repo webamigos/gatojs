@@ -54,7 +54,7 @@ A project package is plain code in the project, exactly like `src/shared/lib/*` 
 ### 3.2 Quality gates
 
 - `tsconfig.json` and `eslint.config.mjs` stop ignoring `packages/**`. Each package has `typecheck`, `test` and `lint` scripts; `turbo run test typecheck lint` (already in `npm run verify`) runs them.
-- `vitest.config.ts` includes `packages/*/src/**/__tests__/**`, or each package runs its own Vitest; the plan picks one and an architecture test keeps every package covered (Ragen's `one-test-runner-for-every-workspace`).
+- **One root Vitest with projects, as in Ragen:** `vitest.config.ts` gets `test.projects`: `app` (today's `src/**` and `scripts/**` tests, jsdom setup unchanged) and `packages` (`packages/*/src/**/*.test.ts`, node environment). Project packages have no test runner or `test` script of their own; tool packages keep their own runner (`gato-cli` today runs Vitest with its own Stryker setup, which stays). `npm test` and Stryker keep one entry point. An architecture test (Ragen's `one-test-runner-for-every-workspace`) fails when a project package has tests the root config does not include, or declares its own `test` script.
 - Stryker `mutate` covers `packages/*/src/**/*.ts` (minus tests). `packages/crypto/src/` is added to `mutation-gate.json` `critical`.
 - lint-staged runs ESLint per workspace; an architecture test keeps the list complete (Ragen's `lint-staged-covers-every-workspace`).
 - The kit's `assemble` job keeps proving that a project with any module set builds, tests and runs `docker build`.
@@ -75,11 +75,16 @@ A project package is plain code in the project, exactly like `src/shared/lib/*` 
 
 From Ragen's `env`, only the generic parts:
 
-- `parseEnv(schema, source)` returning all issues at once and a report (today `checkEnv` + `formatEnvReport` in `src/shared/lib/env.ts`, D48), so modules and future apps validate the same way;
+- the whole env layer moves into the package, as in Ragen, and **`src/shared/lib/env.ts` is removed**:
+  - `coreEnvSchema` (today's schema in `src/shared/lib/env.ts`, rewritten with the fragments below);
+  - `checkEnv`, `formatEnvReport`, `parseEnv` and `verifyEnvOnStartup` (D48), returning every issue at once;
+  - `createEnv(moduleSchemas)`, which returns the lazy, validated `env` object for the core schema merged with module schemas;
 - fragments: `httpUrl()` (rejects a scheme-less URL: `z.url()` accepts `localhost:4318`, checked on 2026-11-21, so `S3_ENDPOINT` and `OTEL_EXPORTER_OTLP_ENDPOINT` accept a typo today), `blankAsUndefined()` (empty or whitespace-only means unset; today `optionalString` handles only `""`), `flag()`;
 - rules: `allOrNone(names)`, `requiredForProvider(providerVar, value, names)`.
 
-`src/shared/lib/env.ts` keeps the kit's schema and imports these; module `env.ts` files can use them. Ragen's `defineConfig`, provider seams and config groups are Ragen-specific and stay out.
+- The package cannot import the app's generated registry, so the binding lives in the generated file: `wa generate` writes `export const env = createEnv(moduleEnvSchemas)` into `src/modules.generated.ts` (server registry). Code imports `env` from there, or through a stable re-export `@/env` that the generator also writes; every import of `@/shared/lib/env` is migrated.
+- Module `env.ts` files build their schemas from the package's fragments and rules.
+- Ragen's `defineConfig`, provider seams and config groups are Ragen-specific and stay out; the mail and storage provider rules of the self-hosting spec (#59) are written with `requiredForProvider`.
 
 ### 4.3 `packages/observability` (project, owned by `core`)
 
@@ -90,7 +95,8 @@ From Ragen's `env`, only the generic parts:
 
 ### 4.4 `packages/crypto` and an `encryption` module
 
-- `packages/crypto` (owned by the new `encryption` module, so a project without it carries nothing): Ragen's `envelope.ts` (AES-256-GCM, format `base64(IV[12] ‖ ciphertext ‖ tag[16])`, pinned by a fixed test vector), `parseMasterKey` (hex or base64, 32 bytes), the `KeyProvider` interface with `LocalKeyProvider`, `KmsKeyProvider` (AWS) and `ScalewayKeyProvider`, `probeEncryptionProvider` and `assertEncryptionAvailable`. Ragen's thread, owner-key and MCP-service code is Ragen-specific and stays out.
+- `packages/crypto` (owned by the new `encryption` module, so a project without it carries nothing): Ragen's `envelope.ts` (AES-256-GCM, format `base64(IV[12] ‖ ciphertext ‖ tag[16])`, pinned by a fixed test vector), `parseMasterKey` (hex or base64, 32 bytes), the `KeyProvider` interface, `probeEncryptionProvider` and `assertEncryptionAvailable`. Ragen's thread, owner-key and MCP-service code is Ragen-specific and stays out.
+- **Key providers, decided:** the first version ships `local` only (`ENCRYPTION_PROVIDER=local`, a master key in `ENCRYPTION_MASTER_KEY` wrapping per-organization data keys). It needs no external service, so it works self-hosted (#59) and on Railway, which has no KMS. `aws-kms` and `scaleway-kms` come in a follow-up step behind the same `KeyProvider` interface, ported from Ragen with their tests, when a project needs a managed KMS; their SDKs (`@aws-sdk/client-kms`) are then the module's dependencies only for that variant.
 - The `encryption` module adds env (`ENCRYPTION_PROVIDER`, `ENCRYPTION_MASTER_KEY`, provider credentials) with `requiredForProvider` rules from `packages/env`, a startup probe, and a small API for modules: `encryptForOrganization(organizationId, plaintext)` / `decrypt…` with a per-organization data key stored encrypted.
 - Security-critical: `packages/crypto/src/` and the module's services are in `mutation-gate.json` `critical`.
 
@@ -115,9 +121,9 @@ Each step is a PR with the usual process (test-writer before the implementer, mu
 - Publishing project packages to npm. They are copied into projects (D39); publishing them would be the extensibility spec's variant B (#26).
 - Ragen's `connector-guard` (SSRF-safe fetch) and `storage` (the `uploads` module already has its providers).
 
-## 7. Open questions
+## 7. Decisions (Patryk, 2026-11-22)
 
-1. Project packages under `@gatojs/*` names, or unscoped local names (`env`, `observability`)? The scope reads well in imports and avoids clashes with npm packages, but suggests they are published.
-2. Should `packages/env` replace `src/shared/lib/env.ts` entirely (the kit schema moves into the package), or only provide fragments and parsing as proposed?
-3. Which key providers does the first `encryption` module need: local only, or also Scaleway and AWS KMS (both exist in Ragen)? The kit deploys to Railway, which has no KMS of its own.
-4. One Vitest run for the whole repo, or one per package (faster feedback, but more config)?
+1. Project packages are named `@gatojs/<name>` (`private: true`, not published).
+2. `@gatojs/env` replaces `src/shared/lib/env.ts` entirely, as in Ragen (section 4.2).
+3. Key providers: `local` first, `aws-kms` and `scaleway-kms` as a follow-up (section 4.4).
+4. Tests: one root Vitest with `app` and `packages` projects, as in Ragen; project packages have no runner of their own (section 3.2).
