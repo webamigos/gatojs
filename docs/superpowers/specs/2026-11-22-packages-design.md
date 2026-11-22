@@ -31,7 +31,7 @@ Nothing in the repo can hold a package today: the `Dockerfile` copies only the r
 
 A project package is plain code in the project, exactly like `src/shared/lib/*` today (D39): a project can read and change it, and hashes in `.wa/kit.json` track it. The package boundary adds what a folder does not: its own `package.json` dependencies, its own tests and typecheck, and an import name (`@gatojs/env`) that does not depend on the app's path aliases.
 
-## 3. Workspace infrastructure (ADR-55, replaces D29 and the "no npm" part of D28)
+## 3. Workspace infrastructure (ADR-56, replaces D29 and the "no npm" part of D28)
 
 ### 3.1 Install and build
 
@@ -106,7 +106,7 @@ Ragen's base rules that fit the kit (`eqeqeq`, `no-console`, `consistent-type-im
 
 ## 5. Order of work
 
-1. **Infrastructure** (ADR-55): Dockerfile region and generator support, tsconfig/ESLint/Vitest/Stryker/turbo changes, architecture tests, manifest ownership of packages, `kitFormat` bump. Proven with an empty probe package that is removed before merge, or with step 2.
+1. **Infrastructure** (ADR-56): Dockerfile region and generator support, tsconfig/ESLint/Vitest/Stryker/turbo changes, architecture tests, manifest ownership of packages, `kitFormat` bump. Proven with an empty probe package that is removed before merge, or with step 2.
 2. **Move the tools** to `packages/gato-cli` and `packages/create-gato-app` (no behaviour change). The current `gato-cli` and `create-gato-app` workers' branches are rebased onto this.
 3. **`packages/env`** and its use in `src/shared/lib/env.ts` and the `uploads` env (`S3_ENDPOINT` through `httpUrl`).
 4. **`packages/observability`**, the logger move and tracing in `instrumentation.ts`.
