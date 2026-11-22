@@ -99,6 +99,30 @@ describe("findDockerfileWorkspaceGaps", () => {
     expect(findDockerfileWorkspaceGaps(GONE_LINE, [])).toEqual(["extra: gone"]);
   });
 
+  it("does not accept a COPY line that does not start the line", () => {
+    expect(
+      findDockerfileWorkspaceGaps(
+        "# COPY packages/env/package.json ./packages/env/package.json",
+        ["env"],
+      ),
+    ).toEqual([
+      "missing: env",
+      "unexpected line: # COPY packages/env/package.json ./packages/env/package.json",
+    ]);
+  });
+
+  it("does not accept a COPY line with trailing arguments", () => {
+    expect(
+      findDockerfileWorkspaceGaps(
+        "COPY packages/env/package.json ./packages/env/package.json ./extra",
+        ["env"],
+      ),
+    ).toEqual([
+      "missing: env",
+      "unexpected line: COPY packages/env/package.json ./packages/env/package.json ./extra",
+    ]);
+  });
+
   it("accepts a region that matches the workspaces", () => {
     expect(
       findDockerfileWorkspaceGaps(`${ENV_LINE}\n${GONE_LINE}`, ["env", "gone"]),

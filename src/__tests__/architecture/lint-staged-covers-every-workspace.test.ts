@@ -339,6 +339,20 @@ describe("checkLintStaged", () => {
     ]);
   });
 
+  it("asks about the first source file by code point, not by walk order", async () => {
+    lintstaged(ROOT_ENTRY);
+    write("packages/env/package.json", JSON.stringify({ name: "@gatojs/env" }));
+    write("packages/env/src/x.ts", "export {};\n");
+    write("packages/env/src-a/y.ts", "export {};\n");
+    const first = path.join(root, "packages/env/src-a/y.ts");
+
+    await expect(
+      checkLintStaged(root, async (file: string) => file === first),
+    ).resolves.toEqual([
+      "packages/env: ignored by the root ESLint config and has no eslint.config of its own",
+    ]);
+  });
+
   it("uses the package name from package.json for a workspace with its own config", async () => {
     lintstaged({
       ...ROOT_ENTRY,

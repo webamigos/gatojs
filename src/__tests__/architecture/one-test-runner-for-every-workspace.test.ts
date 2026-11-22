@@ -37,9 +37,9 @@ describe("compareCodePoint", () => {
   });
 
   test.prop([fc.string(), fc.string()])("is antisymmetric", (a, b) => {
-    expect(Math.sign(compareCodePoint(a, b))).toBe(
-      -Math.sign(compareCodePoint(b, a)),
-    );
+    expect(
+      Math.sign(compareCodePoint(a, b)) + Math.sign(compareCodePoint(b, a)),
+    ).toBe(0);
   });
 
   test.prop([fc.string()])("compares a string with itself as 0", (a) => {
