@@ -21843,6 +21843,8 @@ function deepMerge(...objects) {
   const output2 = {};
   for (const obj of objects) {
     for (const [key, value] of Object.entries(obj)) {
+      if (value === void 0)
+        continue;
       const prevValue = output2[key];
       output2[key] = isPlainObject2(prevValue) && isPlainObject2(value) ? deepMerge(prevValue, value) : value;
     }
@@ -22365,7 +22367,7 @@ function usePagination({ items, active, renderItem, pageSize, loop = true }) {
 import * as readline2 from "node:readline";
 import { AsyncResource as AsyncResource3 } from "node:async_hooks";
 
-// node_modules/@inquirer/type/dist/utils.js
+// node_modules/@inquirer/core/node_modules/@inquirer/type/dist/utils.js
 function withResolver() {
   let resolve5;
   let reject;
