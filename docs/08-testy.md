@@ -56,7 +56,7 @@ Każdy rodzaj testu zastępuje inną część systemu, więc każdy łapie inne 
 | Hooki Claude Code | Funkcje i skrypty hooków z `.claude/hooks/`, także uruchamiane jako osobne procesy. | `.claude/hooks/*.test.mjs` | `npm run test:hooks` | nie | tak |
 | Mutacyjne (Stryker) | Testy jednostkowe albo integracyjne uruchamiane na kodzie z celowo wstrzykniętymi błędami ([08b](08b-testy-adwersarialne.md#stryker)). | konfiguracja w katalogu głównym | `npm run test:mutation` i pokrewne | integracyjny: `_test`, czyści | nie |
 
-`npm run verify` to bramka `verify`, którą uruchamiasz przed oddaniem pracy: lint, typecheck, `npm test`, build, `turbo run test typecheck` (workspace `packages/*`, który jest pusty, bo CLI ma własną bramkę: `npm run verify --prefix packages/gato-cli`) oraz testy hooków. Testów integracyjnych, e2e i mutacyjnych nie uruchamia, bo wymagają bazy albo przeglądarki, a pełny przebieg mutacyjny trwa około godziny (2026-11-02, 8 rdzeni, bez cache przyrostowego: unitowy 38 minut, integracyjny 20 minut). Integracyjne i e2e działają w osobnych jobach CI, a mutacyjne tylko lokalnie albo po ręcznym uruchomieniu workflowu ([CI](#ci)), więc przed oddaniem zmiany w query, komendzie albo przepływie logowania uruchom je sam.
+`npm run verify` to bramka `verify`, którą uruchamiasz przed oddaniem pracy: lint, typecheck, `npm test`, build, `turbo run test typecheck lint` (skrypty pakietów w workspace `packages/*`; w repozytorium GatoJS to pakiet narzędzia `packages/gato-cli`, którego pełna bramka to `npm run verify --prefix packages/gato-cli`) oraz testy hooków. Testów integracyjnych, e2e i mutacyjnych nie uruchamia, bo wymagają bazy albo przeglądarki, a pełny przebieg mutacyjny trwa około godziny (2026-11-02, 8 rdzeni, bez cache przyrostowego: unitowy 38 minut, integracyjny 20 minut). Integracyjne i e2e działają w osobnych jobach CI, a mutacyjne tylko lokalnie albo po ręcznym uruchomieniu workflowu ([CI](#ci)), więc przed oddaniem zmiany w query, komendzie albo przepływie logowania uruchom je sam.
 
 <a id="jednostkowe"></a>
 
@@ -64,9 +64,9 @@ Każdy rodzaj testu zastępuje inną część systemu, więc każdy łapie inne 
 
 `npm test` uruchamia Vitest z `vitest.config.ts`. Najważniejsze ustawienia:
 
-- **Środowisko `jsdom`** dla wszystkich plików, żeby testy komponentów mogły renderować React. Plik, który potrzebuje czystego Node, zaczyna się od dyrektywy `// @vitest-environment node` (tak robi test architektury).
+- **Środowisko `jsdom`** dla plików projektu `app`, żeby testy komponentów mogły renderować React. Plik, który potrzebuje czystego Node, zaczyna się od dyrektywy `// @vitest-environment node` (tak robi test architektury).
 - **`vitest.setup.ts`** dodaje matchery Testing Library dla DOM (na przykład `toBeInTheDocument`) i wczytuje `.env.local` oraz `.env` przez dotenv. Testy widzą więc `DATABASE_URL` z `.env`, ale z bazą się nie łączą, bo Prisma jest w nich zastąpiona. W procesach Strykera (ze zmienną `STRYKER_MUTATOR_WORKER`) ustawia też stały seed testów właściwości ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#seed)).
-- **Pliki:** `src/**/*.test.ts`, `src/**/*.test.tsx`, `scripts/**/*.test.ts` i `e2e/**/*.test.ts`. Pominięte są `*.integration.test.ts`, `packages/**` (CLI ma własną konfigurację), `kit/**`, `docs/**`, `.superpowers/**` i `.stryker-tmp/**` (kopie projektu robione przez Strykera).
+- **Pliki:** projekt Vitest `app` obejmuje `src/**/*.test.ts`, `src/**/*.test.tsx`, `scripts/**/*.test.ts` i `e2e/**/*.test.ts`, a projekt `packages` (środowisko `node`) testy pakietów projektu `packages/*/src/**/*.test.ts` bez pakietów narzędzi `packages/gato-cli` i `packages/create-gato-app`, które mają własną konfigurację ([ADR-56](adrs/56-workspace-packages-replace-d29.md)). Pominięte są `*.integration.test.ts`, `packages/**` (w projekcie `app`), `kit/**`, `docs/**`, `.superpowers/**` i `.stryker-tmp/**` (kopie projektu robione przez Strykera).
 - **`globals: true`** udostępnia `describe`, `it` i `expect` bez importu, a **`clearMocks: true`** czyści historię wywołań mocków przed każdym testem.
 - **Alias `server-only`** wskazuje pusty plik `empty.js` z pakietu `server-only`, więc pliki serwerowe z `import "server-only"` dają się zaimportować w teście.
 
@@ -521,7 +521,7 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 | `npm run test:mutation:task -- <pliki>` | `stryker run --force --mutate` | nie | nie | nie |
 | `npm run test:mutation:integration` | `stryker run stryker.integration.config.json` | `_test`, czyści | nie | `mutation.yml`, tylko ręcznie |
 | `npm run test:mutation:gate` | `tsx scripts/mutation-gate.ts` | nie | nie | `mutation.yml`, tylko ręcznie |
-| `npm run verify` | `npm run lint && npm run typecheck && npm test && npm run build && turbo run test typecheck && npm run test:hooks` | nie | — | `ci.yml`, `verify` |
+| `npm run verify` | `npm run lint && npm run typecheck && npm test && npm run build && turbo run test typecheck lint && npm run test:hooks` | nie | — | `ci.yml`, `verify` |
 
 <a id="referencja-pliki"></a>
 

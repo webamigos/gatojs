@@ -226,10 +226,14 @@ Konfiguracja lint-staged:
 ```json
 {
   "*.{js,jsx,ts,tsx,mts,cts}": ["eslint --fix"],
-  "*.{json,js,ts,jsx,tsx,mts,cts,html}": ["prettier --write --ignore-unknown"]
+  "*.{json,js,ts,jsx,tsx,mts,cts,html}": ["prettier --write --ignore-unknown"],
+  "packages/gato-cli/**/*.{js,mjs,cjs,ts,mts,cts}": [
+    "npm exec --workspace=gato-cli -- eslint --fix"
+  ]
 }
 ```
 
+- Pakiet z własnym `eslint.config.*` (w repozytorium GatoJS `packages/gato-cli`) ma osobny wpis, który uruchamia ESLint w jego katalogu, bo ESLint 9 czyta konfigurację z katalogu roboczego, a główna konfiguracja ten pakiet pomija. Test architektury `lint-staged-covers-every-workspace` pilnuje, żeby każdy workspace z plikami źródłowymi był lintowany ([ADR-56](adrs/56-workspace-packages-replace-d29.md)).
 - lint-staged działa tylko na plikach dodanych do commitu (`git add`), więc commit nie poprawia reszty repozytorium.
 - `eslint --fix` poprawia to, co da się poprawić automatycznie. Błąd, którego nie naprawi, przerywa commit. Poprawki ESLint i Prettiera trafiają do commitu.
 - Wzorce nie obejmują plików z rozszerzeniem `mjs` i `cjs` ani plików Markdown, YAML i CSS. Takich plików commit nie poprawia ani nie formatuje.
@@ -248,7 +252,7 @@ Konfiguracja lint-staged:
 `package.json`
 
 ```json
-"verify": "npm run lint && npm run typecheck && npm test && npm run build && turbo run test typecheck && npm run test:hooks",
+"verify": "npm run lint && npm run typecheck && npm test && npm run build && turbo run test typecheck lint && npm run test:hooks",
 ```
 
 | Krok | Komenda | Co sprawdza |
@@ -257,7 +261,7 @@ Konfiguracja lint-staged:
 | `npm run typecheck` | `tsc --noEmit` | Typy aplikacji. |
 | `npm test` | `vitest run` | Testy jednostkowe i komponentowe, w tym test architektury ([D24](decyzje.md#d24)). |
 | `npm run build` | `next build` | Build produkcyjny. |
-| `turbo run test typecheck` | Skrypty `test` i `typecheck` pakietów w workspace `packages/*`. | Nic, bo katalog `packages/` jest pusty (CLI leży w `packages/gato-cli` i ma własną bramkę `npm run verify --prefix packages/gato-cli`, [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli)). Zadania w `turbo.json` mają `dependsOn: ["^build"]`. |
+| `turbo run test typecheck lint` | Skrypty `test`, `typecheck` i `lint` pakietów w workspace `packages/*`. | W projekcie bez pakietów nic. W repozytorium GatoJS testy, typecheck i lint pakietu narzędzia `packages/gato-cli` (jego pełna bramka to `npm run verify --prefix packages/gato-cli`, [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli)). Pakiety projektu nie mają skryptu `test`: ich testy uruchamia projekt `packages` w `vitest.config.ts` ([ADR-56](adrs/56-workspace-packages-replace-d29.md)). Zadania w `turbo.json` mają `dependsOn: ["^build"]`. |
 | `npm run test:hooks` | `node --test` na plikach `.claude/hooks/*.test.mjs`. | Hooki Claude Code ([Hooki](#hooki)). |
 
 Kroki są połączone `&&`, więc łańcuch kończy się na pierwszym błędzie i kolejne kroki się nie wykonują. `verify` nie uruchamia testów integracyjnych, e2e ani mutacyjnych, bo wymagają bazy albo przeglądarki albo trwają długo ([08-testy.md](08-testy.md#rodzaje)). Nie sprawdza też aktualności plików generowanych, formatowania ani wiadomości commitów. Job `verify` w CI przed `npm run verify` uruchamia generator i porównuje wynik z repozytorium. **Zalecenie:** zrób to samo lokalnie i sprawdź, że generator wypisuje `Bez zmian`:

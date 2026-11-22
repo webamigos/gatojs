@@ -299,7 +299,7 @@ const FEATURE_GLOB = /^src\/features\/([^/*]+)\//;
 
 ### Regiony `wa:*`
 
-Region to fragment pliku między linią z `wa:<marker>:start` a linią z `wa:<marker>:end`. Generator zastępuje wszystko między tymi liniami, a same linie z markerami zostawia. Składnię komentarza (`//` albo `#`) wyznacza plik, a generator szuka tylko tekstu markera. Sześć regionów, z czterema różnymi markerami, wymienia stała `regionTargets`:
+Region to fragment pliku między linią z `wa:<marker>:start` a linią z `wa:<marker>:end`. Generator zastępuje wszystko między tymi liniami, a same linie z markerami zostawia. Składnię komentarza (`//` albo `#`) wyznacza plik, a generator szuka tylko tekstu markera. Siedem regionów, z pięcioma różnymi markerami, wymienia stała `regionTargets`:
 
 `packages/gato-cli/src/generate/targets.ts`
 
@@ -327,6 +327,7 @@ export const regionTargets: RegionTarget[] = [
     marker: "ci-integration",
     body: ciStepsBody,
   },
+  { file: "Dockerfile", marker: "workspaces", body: workspacesBody },
 ];
 ```
 
@@ -338,6 +339,7 @@ export const regionTargets: RegionTarget[] = [
 | `docker-compose.yml` (pod `services:`) | `# wa:services:start`, `# wa:services:end` | Treść pliku wskazanego w `compose`, bez końcowych pustych linii, z każdą niepustą linią wciętą o dwie spacje. Pliki kolejnych modułów następują bez pustej linii. | `compose` (ścieżka względem katalogu projektu) |
 | `.github/workflows/ci.yml` (w jobie `integration`, przed krokiem „Integration tests”) | `# wa:ci-integration:start`, `# wa:ci-integration:end` | Treść pliku wskazanego w `ciSteps`, czyli lista kroków GitHub Actions, bez końcowych pustych linii, z każdą niepustą linią wciętą o sześć spacji. Fragmenty kolejnych modułów rozdziela pusta linia ([D45](decyzje.md#d45)). | `ciSteps` (ścieżka względem katalogu projektu) |
 | `.github/workflows/mutation.yml` (w jobie `stryker`, przed krokiem „Run Stryker (integration)”) | `# wa:ci-integration:start`, `# wa:ci-integration:end` | To samo co w `ci.yml`. | `ciSteps` |
+| `Dockerfile` (w etapie `deps`, między `COPY package.json package-lock.json ./` a `RUN npm ci`) | `# wa:workspaces:start`, `# wa:workspaces:end` | Linia `COPY packages/<nazwa>/package.json ./packages/<nazwa>/package.json` dla każdego katalogu `packages/<nazwa>` z plikiem `package.json`, w kolejności punktów kodowych. Bez pakietów region jest pusty. W repozytorium GatoJS region wymienia `gato-cli`; w projekcie go nie ma, bo pakiety narzędzi są na liście `kitOnly` ([ADR-56](adrs/56-workspace-packages-replace-d29.md)). | brak: katalogi `packages/*` projektu |
 
 Zmiennych modułu `core` region w `.env.example` nie obejmuje, bo są wpisane w ten plik na stałe; placeholderów w przykładach `core` generator też nie podmienia. Relacja z innym modelem niż `User` i `Organization` nie trafia do żadnego regionu i generator tego nie zgłasza. Moduły projektu wypełniają regiony tak samo jak moduły kitu.
 
