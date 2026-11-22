@@ -27,8 +27,11 @@ After a nontrivial correction or a non-obvious gotcha:
 
 - [A Mac that goes to sleep stops every local Orca worker; the screen turning off is harmless, system sleep is not](lessons/a-sleeping-mac-stops-orca-workers.md)
 - [A Claude Code permission rule ending in `*` accepts any arguments, so `npm test *` also allows the integration config that truncates the test database](lessons/a-wildcard-permission-rule-reaches-the-integration-suite.md)
+- [The commit hook's lint-staged backs up into the git stash, which every worktree of the repo shares](lessons/lint-staged-stashes-into-the-shared-git-stack.md)
 
 ### testing
 
 - [`smtp://localhost` takes about 17 seconds per mail on macOS, so an e2e step that sends mail times out; use `127.0.0.1`](lessons/smtp-localhost-is-slow-on-macos.md)
 - [Prisma 7 refuses `db push --force-reset` from an AI agent until the user's own consent text is passed in an environment variable](lessons/prisma-refuses-a-database-reset-from-an-agent.md)
+- [Parallel worktrees collide on e2e ports, the uploads directory and database containers unless each one gets its own](lessons/parallel-worktrees-need-their-own-ports-and-dirs.md)
+- [`kit/cli` tests that touch git and the filesystem time out at 5 seconds when the machine is busy; rerun before debugging](lessons/cli-tests-time-out-under-heavy-load.md)
