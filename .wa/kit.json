@@ -93,6 +93,7 @@
           ".claude/agents/test-writer.md",
           ".claude/hooks/**",
           ".claude/settings.json",
+          ".claude/skills/**",
           ".coderabbit.yaml",
           ".dockerignore",
           ".editorconfig",
