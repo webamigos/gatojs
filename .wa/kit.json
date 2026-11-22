@@ -11,10 +11,10 @@
   ],
   "modules": {
     "api-keys": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "manifest": {
         "name": "api-keys",
-        "version": "0.1.0",
+        "version": "0.1.1",
         "description": "Klucze API organizacji: model ApiKey, sekret z pepperem i zakresy",
         "requires": [],
         "files": [
@@ -82,10 +82,10 @@
       "files": {}
     },
     "core": {
-      "version": "0.5.3",
+      "version": "0.6.0",
       "manifest": {
         "name": "core",
-        "version": "0.5.3",
+        "version": "0.6.0",
         "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
         "requires": [],
         "files": [
@@ -249,10 +249,10 @@
       "files": {}
     },
     "uploads": {
-      "version": "0.2.2",
+      "version": "0.2.3",
       "manifest": {
         "name": "uploads",
-        "version": "0.2.2",
+        "version": "0.2.3",
         "description": "Pliki organizacji na dysku albo w magazynie S3",
         "requires": [],
         "files": [
