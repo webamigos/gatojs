@@ -62,7 +62,7 @@ jobs:
         run: echo "PLAYWRIGHT_VERSION=$(node -p 'require("./node_modules/@playwright/test/package.json").version')" >> "$GITHUB_ENV"
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright

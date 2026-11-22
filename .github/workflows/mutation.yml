@@ -45,7 +45,7 @@ jobs:
         run: npm ci
 
       - name: Restore incremental reports
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             reports/stryker-incremental.json
