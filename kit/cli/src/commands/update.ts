@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import {
   chmod,
+  lstat,
   mkdir,
   mkdtemp,
   readFile,
@@ -10,7 +11,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import type { UpdateArgs } from "../args.js";
 import { fileHash } from "../assemble/hash.js";
@@ -120,6 +121,36 @@ async function readIfExists(path: string): Promise<Buffer | null> {
     }
     throw error;
   }
+}
+
+async function isSymlink(path: string): Promise<boolean | null> {
+  try {
+    return (await lstat(path)).isSymbolicLink();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function writableInsideProject(
+  projectDir: string,
+  file: string,
+): Promise<string> {
+  const absolute = await insideProject(projectDir, file);
+  let current = projectDir;
+  for (const segment of relative(projectDir, absolute).split(sep)) {
+    current = join(current, segment);
+    const link = await isSymlink(current);
+    if (link === null) {
+      break;
+    }
+    if (link) {
+      throw new Error(`Dowiązanie symboliczne na ścieżce zapisu: ${file}`);
+    }
+  }
+  return absolute;
 }
 
 type Original = { path: string; content: Buffer; mode: number };
@@ -325,13 +356,15 @@ export async function update(
     ...target.config.generatedFiles,
     ...REGION_FILES,
   ]) {
-    await insideProject(projectDir, path);
+    await writableInsideProject(projectDir, path);
   }
   const writes: Write[] = [];
   for (const file of plan.files) {
-    const absolute = await insideProject(projectDir, file.path);
     if (file.content || file.action === "usunięto") {
-      writes.push({ file, absolute });
+      writes.push({
+        file,
+        absolute: await writableInsideProject(projectDir, file.path),
+      });
     }
   }
   const undecided = new Set(

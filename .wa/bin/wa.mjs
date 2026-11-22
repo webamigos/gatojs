@@ -22470,13 +22470,13 @@ import { AsyncResource as AsyncResource3 } from "node:async_hooks";
 
 // node_modules/@inquirer/type/dist/utils.js
 function withResolver() {
-  let resolve5;
+  let resolve6;
   let reject;
   const promise2 = new Promise((res, rej) => {
-    resolve5 = res;
+    resolve6 = res;
     reject = rej;
   });
-  return { promise: promise2, resolve: resolve5, reject };
+  return { promise: promise2, resolve: resolve6, reject };
 }
 
 // node_modules/@inquirer/core/dist/lib/create-prompt.js
@@ -22855,7 +22855,7 @@ function createPrompt(view) {
     });
     output2.mute();
     const screen = new ScreenManager(rl);
-    const { promise: promise2, resolve: resolve5, reject } = withResolver();
+    const { promise: promise2, resolve: resolve6, reject } = withResolver();
     return withHooks(rl, (cycle) => {
       const clearEffects = AsyncResource3.bind(() => effectScheduler.clearAll());
       const settlePrompt = (settle2) => {
@@ -22866,7 +22866,7 @@ function createPrompt(view) {
           reject(error62);
         }
       };
-      const resolvePrompt = (value) => settlePrompt(() => resolve5(value));
+      const resolvePrompt = (value) => settlePrompt(() => resolve6(value));
       const rejectPrompt = (error62) => settlePrompt(() => reject(error62));
       const promptPromise = Object.assign(promise2.finally(() => {
         cleanups.forEach((cleanup) => cleanup());
@@ -23314,6 +23314,7 @@ import {
   lstat as lstat2,
   readFile as readFile9,
   readdir as readdir3,
+  readlink,
   realpath,
   rm as rm3,
   rmdir as rmdir2,
@@ -23343,6 +23344,16 @@ function assertRemovable(state, module) {
     );
   }
 }
+async function readLinkIfSymlink(path2) {
+  try {
+    return await readlink(path2);
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      return null;
+    }
+    throw error62;
+  }
+}
 async function realpathOfDeepestAncestor(path2) {
   let current = path2;
   for (; ; ) {
@@ -23351,6 +23362,12 @@ async function realpathOfDeepestAncestor(path2) {
     } catch (error62) {
       if (error62.code !== "ENOENT") {
         throw error62;
+      }
+      const linkTarget = await readLinkIfSymlink(current);
+      if (linkTarget !== null) {
+        return realpathOfDeepestAncestor(
+          join10(resolve3(dirname5(current), linkTarget), relative(current, path2))
+        );
       }
       current = dirname5(current);
     }
@@ -23467,6 +23484,7 @@ import { execFile as execFile3 } from "node:child_process";
 import { existsSync as existsSync3 } from "node:fs";
 import {
   chmod as chmod3,
+  lstat as lstat3,
   mkdir as mkdir5,
   mkdtemp as mkdtemp3,
   readFile as readFile10,
@@ -23475,7 +23493,7 @@ import {
   stat as stat3,
   writeFile as writeFile8
 } from "node:fs/promises";
-import { dirname as dirname6, join as join12, resolve as resolve4 } from "node:path";
+import { dirname as dirname6, join as join12, relative as relative2, resolve as resolve4, sep as sep2 } from "node:path";
 import { promisify as promisify3 } from "node:util";
 
 // src/update/merge.ts
@@ -23486,8 +23504,8 @@ import { join as join11 } from "node:path";
 import { promisify as promisify2 } from "node:util";
 var run2 = promisify2(execFile2);
 var MAX_CONFLICT_EXIT_CODE = 127;
-function prepareSides(path, sides) {
-  if (!REGION_FILES.includes(path)) {
+function prepareSides(path2, sides) {
+  if (!REGION_FILES.includes(path2)) {
     return sides;
   }
   const strip = (content) => Buffer.from(stripRegions(content.toString("utf8")));
@@ -23550,33 +23568,33 @@ async function mergeFile(input2) {
 // src/update/plan.ts
 var MANAGED = "managed";
 var UNCHANGED = { file: null, mismatchedBase: false };
-function planned(path, action, fields = {}) {
-  return { path, action, reason: null, content: null, mode: null, ...fields };
+function planned(path2, action, fields = {}) {
+  return { path: path2, action, reason: null, content: null, mode: null, ...fields };
 }
-function undecided(path, reason) {
-  return planned(path, "do decyzji", { reason });
+function undecided(path2, reason) {
+  return planned(path2, "do decyzji", { reason });
 }
-async function decideAdded(path, kit, input2) {
-  const project = await input2.readProject(path);
+async function decideAdded(path2, kit, input2) {
+  const project = await input2.readProject(path2);
   if (!project) {
     return {
-      file: planned(path, "dodano", { content: kit.content, mode: kit.mode }),
+      file: planned(path2, "dodano", { content: kit.content, mode: kit.mode }),
       mismatchedBase: false
     };
   }
-  if (contentHash(path, project) === contentHash(path, kit.content)) {
+  if (contentHash(path2, project) === contentHash(path2, kit.content)) {
     return UNCHANGED;
   }
   return {
-    file: planned(path, "konflikt", {
+    file: planned(path2, "konflikt", {
       reason: "plik projektu na \u015Bcie\u017Cce nowego pliku kitu"
     }),
     mismatchedBase: false
   };
 }
-async function mergeChanged(path, base, project, kit, input2) {
+async function mergeChanged(path2, base, project, kit, input2) {
   const merged = await mergeFile({
-    path,
+    path: path2,
     base,
     ours: project,
     theirs: kit.content,
@@ -23587,59 +23605,59 @@ async function mergeChanged(path, base, project, kit, input2) {
     }
   });
   if ("binary" in merged) {
-    return planned(path, "konflikt", {
+    return planned(path2, "konflikt", {
       reason: "plik binarny zmieniony w projekcie i w kicie"
     });
   }
   if (merged.conflicts > 0) {
-    return planned(path, "konflikt", {
+    return planned(path2, "konflikt", {
       content: merged.content,
       mode: kit.mode
     });
   }
-  if (contentHash(path, merged.content) === contentHash(path, project)) {
+  if (contentHash(path2, merged.content) === contentHash(path2, project)) {
     return null;
   }
-  return planned(path, "scalono", { content: merged.content, mode: kit.mode });
+  return planned(path2, "scalono", { content: merged.content, mode: kit.mode });
 }
-async function decideExisting(path, base, kit, input2) {
-  const baseHash = contentHash(path, base.content);
-  const kitContentUnchanged = kit !== void 0 && contentHash(path, kit.content) === baseHash;
+async function decideExisting(path2, base, kit, input2) {
+  const baseHash = contentHash(path2, base.content);
+  const kitContentUnchanged = kit !== void 0 && contentHash(path2, kit.content) === baseHash;
   if (kitContentUnchanged && kit.mode === base.mode) {
     return UNCHANGED;
   }
-  const project = await input2.readProject(path);
+  const project = await input2.readProject(path2);
   if (!project) {
     if (!kit || kitContentUnchanged) {
       return UNCHANGED;
     }
     return {
-      file: undecided(path, "usuni\u0119ty w projekcie, zmieniony w kicie"),
+      file: undecided(path2, "usuni\u0119ty w projekcie, zmieniony w kicie"),
       mismatchedBase: false
     };
   }
-  const projectHash = contentHash(path, project);
-  const recordedHash = input2.recordedHashes[path];
+  const projectHash = contentHash(path2, project);
+  const recordedHash = input2.recordedHashes[path2];
   const recordedMatchesBase = recordedHash === void 0 || recordedHash === MANAGED || recordedHash === baseHash;
   const projectEqualsBase = projectHash === baseHash && recordedMatchesBase;
   const mismatchedBase = projectHash === recordedHash && recordedHash !== baseHash;
   if (!kit) {
-    const file3 = projectEqualsBase ? planned(path, "usuni\u0119to") : undecided(path, "zmieniony w projekcie, usuni\u0119ty w kicie");
+    const file3 = projectEqualsBase ? planned(path2, "usuni\u0119to") : undecided(path2, "zmieniony w projekcie, usuni\u0119ty w kicie");
     return { file: file3, mismatchedBase };
   }
   if (projectEqualsBase) {
     return {
-      file: planned(path, "zaktualizowano", {
+      file: planned(path2, "zaktualizowano", {
         content: kit.content,
         mode: kit.mode
       }),
       mismatchedBase
     };
   }
-  if (projectHash === contentHash(path, kit.content)) {
+  if (projectHash === contentHash(path2, kit.content)) {
     return UNCHANGED;
   }
-  const file2 = await mergeChanged(path, base.content, project, kit, input2);
+  const file2 = await mergeChanged(path2, base.content, project, kit, input2);
   if (!file2) {
     return UNCHANGED;
   }
@@ -23647,26 +23665,26 @@ async function decideExisting(path, base, kit, input2) {
 }
 async function planUpdate(input2) {
   const decisions = [];
-  for (const [path, base] of input2.base.files) {
+  for (const [path2, base] of input2.base.files) {
     decisions.push([
-      path,
-      await decideExisting(path, base, input2.target.files.get(path), input2)
+      path2,
+      await decideExisting(path2, base, input2.target.files.get(path2), input2)
     ]);
   }
-  for (const [path, kit] of input2.target.files) {
-    if (!input2.base.files.has(path)) {
-      decisions.push([path, await decideAdded(path, kit, input2)]);
+  for (const [path2, kit] of input2.target.files) {
+    if (!input2.base.files.has(path2)) {
+      decisions.push([path2, await decideAdded(path2, kit, input2)]);
     }
   }
   decisions.sort(([a], [b]) => compareCodePoint(a, b));
   const files = [];
   const mismatchedBase = [];
-  for (const [path, decision] of decisions) {
+  for (const [path2, decision] of decisions) {
     if (decision.file) {
       files.push(decision.file);
     }
     if (decision.mismatchedBase) {
-      mismatchedBase.push(path);
+      mismatchedBase.push(path2);
     }
   }
   return { files, mismatchedBase };
@@ -23713,9 +23731,9 @@ function planReport(input2) {
 }
 function schemaChanged(base, target) {
   const paths = /* @__PURE__ */ new Set([...base.files.keys(), ...target.files.keys()]);
-  return [...paths].filter((path) => path.startsWith(SCHEMA_PREFIX)).some((path) => {
-    const before = base.files.get(path)?.content;
-    const after = target.files.get(path)?.content;
+  return [...paths].filter((path2) => path2.startsWith(SCHEMA_PREFIX)).some((path2) => {
+    const before = base.files.get(path2)?.content;
+    const after = target.files.get(path2)?.content;
     return !before || !after || !before.equals(after);
   });
 }
@@ -23842,15 +23860,40 @@ function assertRequirementsInstalled(state, target) {
     }
   }
 }
-async function readIfExists2(path) {
+async function readIfExists2(path2) {
   try {
-    return await readFile10(path);
+    return await readFile10(path2);
   } catch (error62) {
     if (error62.code === "ENOENT") {
       return null;
     }
     throw error62;
   }
+}
+async function isSymlink(path2) {
+  try {
+    return (await lstat3(path2)).isSymbolicLink();
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      return null;
+    }
+    throw error62;
+  }
+}
+async function writableInsideProject(projectDir, file2) {
+  const absolute = await insideProject(projectDir, file2);
+  let current = projectDir;
+  for (const segment of relative2(projectDir, absolute).split(sep2)) {
+    current = join12(current, segment);
+    const link = await isSymlink(current);
+    if (link === null) {
+      break;
+    }
+    if (link) {
+      throw new Error(`Dowi\u0105zanie symboliczne na \u015Bcie\u017Cce zapisu: ${file2}`);
+    }
+  }
+  return absolute;
 }
 async function rememberOriginal(absolute) {
   const content = await readIfExists2(absolute);
@@ -23914,15 +23957,15 @@ function nextState(state, target, undecided2) {
   const modules = Object.fromEntries(
     target.manifests.map((manifest) => {
       const managed = Object.entries(state.modules[manifest.name].files).filter(
-        ([path, hash2]) => hash2 === MANAGED2 && target.config.managedFiles.includes(path)
+        ([path2, hash2]) => hash2 === MANAGED2 && target.config.managedFiles.includes(path2)
       );
       const files = Object.fromEntries([
         ...managed,
-        ...moduleFiles(manifest, paths).filter((path) => !undecided2.has(path)).map((path) => [
-          path,
+        ...moduleFiles(manifest, paths).filter((path2) => !undecided2.has(path2)).map((path2) => [
+          path2,
           fileHash(
-            path,
-            target.files.get(path).content,
+            path2,
+            target.files.get(path2).content,
             target.config
           )
         ])
@@ -24000,7 +24043,7 @@ async function update(options) {
     base,
     target,
     recordedHashes,
-    readProject: async (path) => readIfExists2(await insideProject(projectDir, path))
+    readProject: async (path2) => readIfExists2(await insideProject(projectDir, path2))
   });
   const report = planReport({
     plan,
@@ -24012,18 +24055,20 @@ async function update(options) {
     report.forEach((line) => log(line));
     return { exitCode: 0 };
   }
-  for (const path of [
+  for (const path2 of [
     KIT_STATE_PATH,
     ...target.config.generatedFiles,
     ...REGION_FILES
   ]) {
-    await insideProject(projectDir, path);
+    await writableInsideProject(projectDir, path2);
   }
   const writes = [];
   for (const file2 of plan.files) {
-    const absolute = await insideProject(projectDir, file2.path);
     if (file2.content || file2.action === "usuni\u0119to") {
-      writes.push({ file: file2, absolute });
+      writes.push({
+        file: file2,
+        absolute: await writableInsideProject(projectDir, file2.path)
+      });
     }
   }
   const undecided2 = new Set(

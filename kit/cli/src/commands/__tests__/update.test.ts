@@ -4,8 +4,12 @@ import { existsSync } from "node:fs";
 import {
   chmod,
   cp,
+  lstat,
   mkdir,
+  readdir,
   readFile,
+  readlink,
+  rename,
   rm,
   stat,
   symlink,
@@ -139,6 +143,30 @@ function run(
     runner,
     log,
   });
+}
+
+async function snapshotTree(dir: string): Promise<Record<string, string>> {
+  const snapshot: Record<string, string> = {};
+  async function walk(relative: string): Promise<void> {
+    const entries = await readdir(join(dir, relative), { withFileTypes: true });
+    for (const entry of entries) {
+      if (IGNORE.includes(entry.name)) continue;
+      const path = relative === "" ? entry.name : `${relative}/${entry.name}`;
+      if (entry.isSymbolicLink()) {
+        snapshot[path] = `-> ${await readlink(join(dir, path))}`;
+      } else if (entry.isDirectory()) {
+        await walk(path);
+      } else {
+        snapshot[path] = await readFile(join(dir, path), "utf8");
+      }
+    }
+  }
+  await walk("");
+  return snapshot;
+}
+
+async function isLink(dir: string, path: string): Promise<boolean> {
+  return (await lstat(join(dir, path))).isSymbolicLink();
 }
 
 async function read(dir: string, path: string): Promise<string> {
@@ -1098,6 +1126,261 @@ describe("update: kontrole przed zapisem", () => {
 
     expect(await readFile(outside, "utf8")).toBe(outsideBefore);
     expect(await read(setup.dir, AUTH_MODULE)).toBe(authBefore);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  const SHARED = "src/features/auth/shared.ts";
+  const NEW_FILE = "src/shared/lib/rate-limit.ts";
+  const addRateLimit = async (kitDir: string) => {
+    await put(kitDir, NEW_FILE, "export const limit = 10;\n");
+  };
+
+  it("plik zmieniany przez kit jest dowiązaniem do innego pliku projektu: błąd dowiązania, cel i dowiązanie bez zmian, runner niewołany", async () => {
+    let sharedBefore = "";
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        sharedBefore = await read(dir, AUTH_MODULE);
+        await writeFile(join(dir, SHARED), sharedBefore);
+        await rm(join(dir, AUTH_MODULE));
+        await symlink("shared.ts", join(dir, AUTH_MODULE));
+      },
+    });
+    const before = await snapshotTree(setup.dir);
+
+    await expect(run(setup)).rejects.toThrow(
+      "Dowiązanie symboliczne na ścieżce zapisu: src/features/auth/module.ts",
+    );
+
+    expect(await read(setup.dir, SHARED)).toBe(sharedBefore);
+    expect(await isLink(setup.dir, AUTH_MODULE)).toBe(true);
+    expect(await snapshotTree(setup.dir)).toEqual(before);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("plik usuwany przez kit jest dowiązaniem do innego pliku projektu: błąd dowiązania, cel i dowiązanie zostają", async () => {
+    let sharedBefore = "";
+    const setup = await prepare({
+      kit: async (kitDir) => {
+        await rm(join(kitDir, AUTH_MODULE));
+      },
+      project: async (dir) => {
+        sharedBefore = await read(dir, AUTH_MODULE);
+        await writeFile(join(dir, SHARED), sharedBefore);
+        await rm(join(dir, AUTH_MODULE));
+        await symlink("shared.ts", join(dir, AUTH_MODULE));
+      },
+    });
+    const before = await snapshotTree(setup.dir);
+
+    await expect(run(setup)).rejects.toThrow(
+      "Dowiązanie symboliczne na ścieżce zapisu: src/features/auth/module.ts",
+    );
+
+    expect(await read(setup.dir, SHARED)).toBe(sharedBefore);
+    expect(await isLink(setup.dir, AUTH_MODULE)).toBe(true);
+    expect(await snapshotTree(setup.dir)).toEqual(before);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it(".wa/kit.json jako dowiązanie do pliku w projekcie: błąd dowiązania, cel bez zmian", async () => {
+    let stateBefore = "";
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        stateBefore = await read(dir, ".wa/kit.json");
+        await writeFile(join(dir, ".wa/state.json"), stateBefore);
+        await rm(join(dir, ".wa/kit.json"));
+        await symlink("state.json", join(dir, ".wa/kit.json"));
+      },
+    });
+    const before = await snapshotTree(setup.dir);
+
+    await expect(run(setup)).rejects.toThrow(
+      "Dowiązanie symboliczne na ścieżce zapisu: .wa/kit.json",
+    );
+
+    expect(await read(setup.dir, ".wa/state.json")).toBe(stateBefore);
+    expect(await isLink(setup.dir, ".wa/kit.json")).toBe(true);
+    expect(await snapshotTree(setup.dir)).toEqual(before);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("src/modules.generated.ts jako dowiązanie do pliku w projekcie: błąd dowiązania, cel bez zmian", async () => {
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        await writeFile(join(dir, "src/registry.ts"), STALE_REGISTRY);
+        await rm(join(dir, "src/modules.generated.ts"));
+        await symlink("registry.ts", join(dir, "src/modules.generated.ts"));
+      },
+    });
+    const before = await snapshotTree(setup.dir);
+
+    await expect(run(setup)).rejects.toThrow(
+      "Dowiązanie symboliczne na ścieżce zapisu: src/modules.generated.ts",
+    );
+
+    expect(await read(setup.dir, "src/registry.ts")).toBe(STALE_REGISTRY);
+    expect(await snapshotTree(setup.dir)).toEqual(before);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("docker-compose.yml z regionem jako dowiązanie do pliku w projekcie, kit go nie zmienia: błąd dowiązania, cel bez zmian", async () => {
+    let composeBefore = "";
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        composeBefore = await read(dir, "docker-compose.yml");
+        await writeFile(join(dir, "compose.local.yml"), composeBefore);
+        await rm(join(dir, "docker-compose.yml"));
+        await symlink("compose.local.yml", join(dir, "docker-compose.yml"));
+      },
+    });
+    const before = await snapshotTree(setup.dir);
+
+    await expect(run(setup)).rejects.toThrow(
+      "Dowiązanie symboliczne na ścieżce zapisu: docker-compose.yml",
+    );
+
+    expect(await read(setup.dir, "compose.local.yml")).toBe(composeBefore);
+    expect(await snapshotTree(setup.dir)).toEqual(before);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it(".env.example z regionem jako dowiązanie do pliku w projekcie, kit go nie zmienia: błąd dowiązania", async () => {
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        await writeFile(
+          join(dir, "env.local.example"),
+          await read(dir, ".env.example"),
+        );
+        await rm(join(dir, ".env.example"));
+        await symlink("env.local.example", join(dir, ".env.example"));
+      },
+    });
+    const before = await snapshotTree(setup.dir);
+
+    await expect(run(setup)).rejects.toThrow(
+      "Dowiązanie symboliczne na ścieżce zapisu: .env.example",
+    );
+
+    expect(await snapshotTree(setup.dir)).toEqual(before);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("katalog nadrzędny pliku zmienianego przez kit jest dowiązaniem do katalogu w projekcie: błąd dowiązania, katalog docelowy bez zmian", async () => {
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        await rename(
+          join(dir, "src/features/auth"),
+          join(dir, "src/features/auth-real"),
+        );
+        await symlink("auth-real", join(dir, "src/features/auth"));
+      },
+    });
+    const before = await snapshotTree(setup.dir);
+    const moduleBefore = await read(
+      setup.dir,
+      "src/features/auth-real/module.ts",
+    );
+
+    await expect(run(setup)).rejects.toThrow(
+      "Dowiązanie symboliczne na ścieżce zapisu: src/features/auth/module.ts",
+    );
+
+    expect(await read(setup.dir, "src/features/auth-real/module.ts")).toBe(
+      moduleBefore,
+    );
+    expect(await isLink(setup.dir, "src/features/auth")).toBe(true);
+    expect(await snapshotTree(setup.dir)).toEqual(before);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("nowy plik kitu, a w projekcie na jego ścieżce wiszące dowiązanie poza projekt: błąd ścieżki, nic nie powstaje poza projektem", async () => {
+    const outside = await makeTempDir("wa-kit-outside-");
+    const setup = await prepare({
+      kit: addRateLimit,
+      project: async (dir) => {
+        await mkdir(join(dir, "src/shared/lib"), { recursive: true });
+        await symlink(join(outside, "missing.ts"), join(dir, NEW_FILE));
+      },
+    });
+    const outsideBefore = await snapshotTree(outside);
+    const before = await snapshotTree(setup.dir);
+
+    await expect(run(setup)).rejects.toThrow(
+      "Ścieżka poza projektem: src/shared/lib/rate-limit.ts",
+    );
+
+    expect(await snapshotTree(outside)).toEqual(outsideBefore);
+    expect(existsSync(join(outside, "missing.ts"))).toBe(false);
+    expect(await snapshotTree(setup.dir)).toEqual(before);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("nowy plik kitu, a w projekcie na jego ścieżce wiszące dowiązanie do brakującego pliku w projekcie: błąd dowiązania, cel nie powstaje", async () => {
+    const setup = await prepare({
+      kit: addRateLimit,
+      project: async (dir) => {
+        await mkdir(join(dir, "src/shared/lib"), { recursive: true });
+        await symlink("missing.ts", join(dir, NEW_FILE));
+      },
+    });
+    const before = await snapshotTree(setup.dir);
+
+    await expect(run(setup)).rejects.toThrow(
+      "Dowiązanie symboliczne na ścieżce zapisu: src/shared/lib/rate-limit.ts",
+    );
+
+    expect(existsSync(join(setup.dir, "src/shared/lib/missing.ts"))).toBe(
+      false,
+    );
+    expect(await snapshotTree(setup.dir)).toEqual(before);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("dowiązanie w projekcie na pliku rdzenia, którego kit nie zmienia: aktualizacja przechodzi, dowiązanie zostaje", async () => {
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        await mkdir(join(dir, "local"), { recursive: true });
+        await writeFile(
+          join(dir, "local/i18n-config.ts"),
+          await read(dir, "src/i18n/config.ts"),
+        );
+        await rm(join(dir, "src/i18n/config.ts"));
+        await symlink(
+          "../../local/i18n-config.ts",
+          join(dir, "src/i18n/config.ts"),
+        );
+      },
+    });
+
+    expect(await run(setup)).toEqual({ exitCode: 0 });
+
+    expect(await isLink(setup.dir, "src/i18n/config.ts")).toBe(true);
+    expect(await read(setup.dir, AUTH_MODULE)).toBe(
+      'export default { key: "auth", version: "v0.2.0" };\n',
+    );
+  });
+
+  it("--dry-run z plikiem zmienianym przez kit jako dowiązaniem: kod 0, projekt bez zmian, runner niewołany", async () => {
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        await writeFile(join(dir, SHARED), await read(dir, AUTH_MODULE));
+        await rm(join(dir, AUTH_MODULE));
+        await symlink("shared.ts", join(dir, AUTH_MODULE));
+      },
+    });
+    const before = await snapshotTree(setup.dir);
+
+    expect(await run(setup, { dryRun: true })).toEqual({ exitCode: 0 });
+
+    expect(await snapshotTree(setup.dir)).toEqual(before);
     expect(runner).not.toHaveBeenCalled();
   });
 });
