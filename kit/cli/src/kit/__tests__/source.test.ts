@@ -1,4 +1,7 @@
-import { join } from "node:path";
+import { execFile } from "node:child_process";
+import { readFile, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   makeKitRepo,
@@ -8,7 +11,13 @@ import {
 import type { KitState } from "../../manifest/schema.js";
 import { spawnRunner } from "../../process/runner.js";
 import type { Runner } from "../../process/runner.js";
-import { resolveKitSource } from "../source.js";
+import {
+  cloneKitVersion,
+  kitSourceLocation,
+  resolveKitSource,
+} from "../source.js";
+
+const git = promisify(execFile);
 
 const baseState: KitState = {
   kitVersion: "0.1.0",
@@ -136,6 +145,8 @@ describe("resolveKitSource", () => {
     expect(runner).toHaveBeenCalledWith(
       "git",
       [
+        "-c",
+        "advice.detachedHead=false",
         "clone",
         "--depth",
         "1",
@@ -162,6 +173,8 @@ describe("resolveKitSource", () => {
     expect(runner).toHaveBeenCalledWith(
       "git",
       [
+        "-c",
+        "advice.detachedHead=false",
         "clone",
         "--depth",
         "1",
@@ -253,6 +266,8 @@ describe("resolveKitSource", () => {
       expect(runner).toHaveBeenCalledWith(
         "git",
         [
+          "-c",
+          "advice.detachedHead=false",
           "clone",
           "--depth",
           "1",
@@ -307,6 +322,23 @@ describe("resolveKitSource", () => {
     );
   });
 
+  it("błąd klonowania zachowuje błąd runnera jako cause", async () => {
+    const failure = new Error("fatal: repository not found");
+    runner.mockRejectedValueOnce(failure);
+    const error: unknown = await resolveKitSource({
+      kitFlag: "https://example.com/org/wa-kit.git",
+      envSource: undefined,
+      state: baseState,
+      runner,
+      tmpDir,
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain(
+      "Nie udało się pobrać wa-kit v0.1.0 z https://example.com/org/wa-kit.git.",
+    );
+    expect((error as Error).cause).toBe(failure);
+  });
+
   it("nieistniejące repo przez prawdziwy git kończy się podpowiedzią gh auth status i --kit", async () => {
     await expect(
       resolveKitSource({
@@ -319,5 +351,259 @@ describe("resolveKitSource", () => {
     ).rejects.toThrow(
       "Nie udało się pobrać wa-kit v0.1.0 z file:///nie/istnieje.git. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>",
     );
+  });
+});
+
+async function setKitVersion(dir: string, version: string): Promise<void> {
+  const path = join(dir, "kit/kit.json");
+  const config = JSON.parse(await readFile(path, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  await writeFile(path, JSON.stringify({ ...config, version }, null, 2));
+}
+
+async function commitAndTag(dir: string, tag: string): Promise<void> {
+  await git("git", ["-C", dir, "add", "-A"]);
+  await git("git", ["-C", dir, "commit", "-q", "-m", tag]);
+  await git("git", ["-C", dir, "tag", "-a", tag, "-m", tag]);
+}
+
+async function makeTaggedRepo(): Promise<string> {
+  const dir = await makeKitRepo("kit");
+  await writeFile(join(dir, "marker.txt"), "z tagu v0.1.0");
+  await commitAndTag(dir, "v0.1.0");
+  await setKitVersion(dir, "0.2.0");
+  await writeFile(join(dir, "marker.txt"), "z tagu v0.2.0");
+  await commitAndTag(dir, "v0.2.0");
+  await writeFile(join(dir, "marker.txt"), "zmiana w drzewie roboczym");
+  await setKitVersion(dir, "0.9.0");
+  return dir;
+}
+
+describe("cloneKitVersion", () => {
+  it("klon lokalnego repozytorium na v0.1.0 ma kit.json 0.1.0 i treść z tagu, a nie z drzewa roboczego", async () => {
+    const repo = await makeTaggedRepo();
+    const cloned = await cloneKitVersion({
+      source: repo,
+      version: "0.1.0",
+      runner: spawnRunner,
+      tmpDir,
+      name: "stary",
+    });
+    expect(cloned).toBe(join(tmpDir, "stary"));
+    const config = JSON.parse(
+      await readFile(join(cloned, "kit/kit.json"), "utf8"),
+    ) as { version: string };
+    expect(config.version).toBe("0.1.0");
+    expect(await readFile(join(cloned, "marker.txt"), "utf8")).toBe(
+      "z tagu v0.1.0",
+    );
+  });
+
+  it("klon na v0.2.0 bierze treść tagu v0.2.0", async () => {
+    const repo = await makeTaggedRepo();
+    const cloned = await cloneKitVersion({
+      source: repo,
+      version: "0.2.0",
+      runner: spawnRunner,
+      tmpDir,
+      name: "nowy",
+    });
+    expect(await readFile(join(cloned, "marker.txt"), "utf8")).toBe(
+      "z tagu v0.2.0",
+    );
+  });
+
+  it("nieistniejący tag kończy się komunikatem z wersją, źródłem i podpowiedzią", async () => {
+    const repo = await makeTaggedRepo();
+    await expect(
+      cloneKitVersion({
+        source: repo,
+        version: "9.9.9",
+        runner: spawnRunner,
+        tmpDir,
+        name: "brak",
+      }),
+    ).rejects.toThrow(
+      `Nie udało się pobrać wa-kit v9.9.9 z ${repo}. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`,
+    );
+  });
+
+  it("tag wskazujący kit w innej wersji kończy się błędem z katalogiem i obiema wersjami", async () => {
+    const repo = await makeTaggedRepo();
+    await git("git", ["-C", repo, "tag", "-a", "v0.3.0", "v0.2.0", "-m", "x"]);
+    await expect(
+      cloneKitVersion({
+        source: repo,
+        version: "0.3.0",
+        runner: spawnRunner,
+        tmpDir,
+        name: "zly",
+      }),
+    ).rejects.toThrow(
+      `Kit w ${join(tmpDir, "zly")} ma wersję 0.2.0, oczekiwano 0.3.0`,
+    );
+  });
+
+  it("runner dostaje płytki klon tagu wersji z -- przed źródłem i katalogiem tmpDir/name", async () => {
+    runner.mockRejectedValueOnce(new Error("stop"));
+    await expect(
+      cloneKitVersion({
+        source: "https://example.com/org/wa-kit.git",
+        version: "0.2.0",
+        runner,
+        tmpDir,
+        name: "wa-kit-nowy",
+      }),
+    ).rejects.toThrow(
+      "Nie udało się pobrać wa-kit v0.2.0 z https://example.com/org/wa-kit.git.",
+    );
+    expect(runner).toHaveBeenCalledTimes(1);
+    expect(runner).toHaveBeenCalledWith(
+      "git",
+      [
+        "-c",
+        "advice.detachedHead=false",
+        "clone",
+        "--depth",
+        "1",
+        "--branch",
+        "v0.2.0",
+        "--quiet",
+        "--",
+        "https://example.com/org/wa-kit.git",
+        join(tmpDir, "wa-kit-nowy"),
+      ],
+      expect.any(String),
+    );
+  });
+
+  it("błąd klonu wersji zachowuje błąd runnera jako cause", async () => {
+    const failure = new Error("fatal: Remote branch v0.2.0 not found");
+    runner.mockRejectedValueOnce(failure);
+    const error: unknown = await cloneKitVersion({
+      source: "/sciezka/do/kitu",
+      version: "0.2.0",
+      runner,
+      tmpDir,
+      name: "nowy",
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain(
+      "Nie udało się pobrać wa-kit v0.2.0 z /sciezka/do/kitu.",
+    );
+    expect((error as Error).cause).toBe(failure);
+  });
+
+  it("źródło file:// jest klonowane płytko", async () => {
+    runner.mockRejectedValueOnce(new Error("stop"));
+    await expect(
+      cloneKitVersion({
+        source: "file:///tmp/wa-kit.git",
+        version: "0.2.0",
+        runner,
+        tmpDir,
+        name: "plik",
+      }),
+    ).rejects.toThrow("Nie udało się pobrać wa-kit v0.2.0");
+    expect(runner.mock.calls[0]?.[1]).toEqual([
+      "-c",
+      "advice.detachedHead=false",
+      "clone",
+      "--depth",
+      "1",
+      "--branch",
+      "v0.2.0",
+      "--quiet",
+      "--",
+      "file:///tmp/wa-kit.git",
+      join(tmpDir, "plik"),
+    ]);
+  });
+
+  it("ścieżka lokalna też jest klonowana przez runner, a nie użyta wprost", async () => {
+    runner.mockRejectedValueOnce(new Error("stop"));
+    await expect(
+      cloneKitVersion({
+        source: "/sciezka/do/kitu",
+        version: "0.1.0",
+        runner,
+        tmpDir,
+        name: "lokalny",
+      }),
+    ).rejects.toThrow("Nie udało się pobrać wa-kit v0.1.0 z /sciezka/do/kitu.");
+    expect(runner.mock.calls[0]?.[1]).toEqual([
+      "-c",
+      "advice.detachedHead=false",
+      "clone",
+      "--branch",
+      "v0.1.0",
+      "--quiet",
+      "--",
+      "/sciezka/do/kitu",
+      join(tmpDir, "lokalny"),
+    ]);
+  });
+});
+
+describe("kitSourceLocation", () => {
+  it.each(["-x", "ext::sh", "ext::sh -c touch% /tmp/x"])(
+    "flaga --kit=%s jest odrzucona jako nieprawidłowe źródło",
+    (value) => {
+      expect(() =>
+        kitSourceLocation({
+          kitFlag: value,
+          envSource: undefined,
+          state: baseState,
+        }),
+      ).toThrow(`Nieprawidłowe źródło wa-kit: ${value}`);
+    },
+  );
+
+  it("WA_KIT_SOURCE zaczynające się od myślnika jest odrzucone", () => {
+    expect(() =>
+      kitSourceLocation({ kitFlag: null, envSource: "-x", state: baseState }),
+    ).toThrow("Nieprawidłowe źródło wa-kit: -x");
+  });
+
+  it("bez flagi i WA_KIT_SOURCE zwraca state.kitRepo", () => {
+    expect(
+      kitSourceLocation({
+        kitFlag: null,
+        envSource: undefined,
+        state: baseState,
+      }),
+    ).toBe("https://github.com/webamigos/wa-kit.git");
+  });
+
+  it("flaga ma pierwszeństwo przed WA_KIT_SOURCE", () => {
+    expect(
+      kitSourceLocation({
+        kitFlag: "git@github.com:flaga/wa-kit.git",
+        envSource: "https://example.com/env/wa-kit.git",
+        state: baseState,
+      }),
+    ).toBe("git@github.com:flaga/wa-kit.git");
+  });
+
+  it("WA_KIT_SOURCE ma pierwszeństwo przed state.kitRepo", () => {
+    expect(
+      kitSourceLocation({
+        kitFlag: null,
+        envSource: "https://example.com/env/wa-kit.git",
+        state: baseState,
+      }),
+    ).toBe("https://example.com/env/wa-kit.git");
+  });
+
+  it("względna ścieżka lokalna jest zwracana jako bezwzględna", () => {
+    expect(
+      kitSourceLocation({
+        kitFlag: "kit-lokalny",
+        envSource: undefined,
+        state: baseState,
+      }),
+    ).toBe(resolve("kit-lokalny"));
   });
 });

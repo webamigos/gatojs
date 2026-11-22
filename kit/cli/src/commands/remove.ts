@@ -3,6 +3,7 @@ import {
   lstat,
   readFile,
   readdir,
+  readlink,
   realpath,
   rm,
   rmdir,
@@ -58,6 +59,17 @@ function assertRemovable(state: KitState, module: string): void {
   }
 }
 
+async function readLinkIfSymlink(path: string): Promise<string | null> {
+  try {
+    return await readlink(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
 async function realpathOfDeepestAncestor(path: string): Promise<string> {
   let current = path;
   for (;;) {
@@ -67,12 +79,18 @@ async function realpathOfDeepestAncestor(path: string): Promise<string> {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         throw error;
       }
+      const linkTarget = await readLinkIfSymlink(current);
+      if (linkTarget !== null) {
+        return realpathOfDeepestAncestor(
+          join(resolve(dirname(current), linkTarget), relative(current, path)),
+        );
+      }
       current = dirname(current);
     }
   }
 }
 
-async function insideProject(
+export async function insideProject(
   projectDir: string,
   file: string,
 ): Promise<string> {
@@ -113,7 +131,7 @@ async function changedFiles(
   return changed.sort(compareCodePoint);
 }
 
-async function lstatIfExists(path: string): Promise<Stats | null> {
+export async function lstatIfExists(path: string): Promise<Stats | null> {
   try {
     return await lstat(path);
   } catch (error) {
@@ -124,7 +142,7 @@ async function lstatIfExists(path: string): Promise<Stats | null> {
   }
 }
 
-async function removeEmptyParents(
+export async function removeEmptyParents(
   projectDir: string,
   start: string,
 ): Promise<void> {

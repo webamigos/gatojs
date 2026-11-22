@@ -4,7 +4,7 @@ One file per decision: `docs/adrs/NN-kebab-case-title.md`, where the title state
 
 ## Numbering
 
-ADR numbers continue the kit's earlier decision log. Decisions `D01`–`D46` and `D48`–`D52` live in [`../decyzje.md`](../decyzje.md). `D47` (`wa update`) is recorded in PR #14; its number is reserved and it lands in `decyzje.md` with that PR. The English migration splits D01–D52 into `docs/adrs/01-…` … `docs/adrs/52-…` with the same numbers. New decisions start at **ADR-53**. A link to an old decision stays `decyzje.md#dNN` until then.
+ADR numbers continue the kit's earlier decision log. Decisions `D01`–`D52` live in [`../decyzje.md`](../decyzje.md); `D47` (`wa update`) landed there with PR #14. The English migration splits D01–D52 into `docs/adrs/01-…` … `docs/adrs/52-…` with the same numbers. New decisions start at **ADR-53**. A link to an old decision stays `decyzje.md#dNN` until then.
 
 Take the next free number when the ADR is written. Two branches can take the same number; the second one to merge renumbers its file and links before merging.
 

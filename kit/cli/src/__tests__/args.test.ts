@@ -4,6 +4,7 @@ import {
   parseCreateArgs,
   parseListArgs,
   parseRemoveArgs,
+  parseUpdateArgs,
 } from "../args.js";
 
 describe("parseCreateArgs", () => {
@@ -159,6 +160,104 @@ describe("parseRemoveArgs", () => {
   it("brak nazwy modułu zgłasza Podaj nazwę modułu", () => {
     expect(() => parseRemoveArgs([])).toThrow("Podaj nazwę modułu");
   });
+});
+
+describe("parseUpdateArgs", () => {
+  it("sama wersja dostaje wartości domyślne", () => {
+    expect(parseUpdateArgs(["0.2.0"])).toEqual({
+      version: "0.2.0",
+      kit: null,
+      fromKit: null,
+      dryRun: false,
+      install: true,
+    });
+  });
+
+  it("czyta --kit, --dry-run, --no-install i --from-kit", () => {
+    expect(
+      parseUpdateArgs([
+        "0.2.0",
+        "--kit",
+        "/k",
+        "--dry-run",
+        "--no-install",
+        "--from-kit",
+        "/c",
+      ]),
+    ).toEqual({
+      version: "0.2.0",
+      kit: "/k",
+      fromKit: "/c",
+      dryRun: true,
+      install: false,
+    });
+  });
+
+  it("--no-install bez innych opcji ustawia tylko install false", () => {
+    expect(parseUpdateArgs(["0.2.0", "--no-install"])).toEqual({
+      version: "0.2.0",
+      kit: null,
+      fromKit: null,
+      dryRun: false,
+      install: false,
+    });
+  });
+
+  it("--dry-run nie wyłącza instalacji", () => {
+    expect(parseUpdateArgs(["0.2.0", "--dry-run"]).install).toBe(true);
+  });
+
+  it("opcje przed wersją są czytane tak samo", () => {
+    expect(parseUpdateArgs(["--kit=/k", "1.10.3-rc.1"])).toEqual({
+      version: "1.10.3-rc.1",
+      kit: "/k",
+      fromKit: null,
+      dryRun: false,
+      install: true,
+    });
+  });
+
+  it("brak wersji zgłasza Podaj wersję kitu", () => {
+    expect(() => parseUpdateArgs([])).toThrow("Podaj wersję kitu");
+    expect(() => parseUpdateArgs(["--dry-run"])).toThrow("Podaj wersję kitu");
+  });
+
+  it("nadmiarowy argument zgłasza Nieoczekiwany argument", () => {
+    expect(messageOf(() => parseUpdateArgs(["0.2.0", "x"]))).toBe(
+      "Nieoczekiwany argument: x",
+    );
+  });
+
+  it.each([
+    [["0.2.0", "--kit="], "Opcja --kit wymaga wartości"],
+    [["0.2.0", "--kit", ""], "Opcja --kit wymaga wartości"],
+    [["0.2.0", "--kit"], "Opcja --kit wymaga wartości"],
+    [["0.2.0", "--from-kit="], "Opcja --from-kit wymaga wartości"],
+    [["0.2.0", "--from-kit"], "Opcja --from-kit wymaga wartości"],
+  ])("%j zgłasza %s", (argv, message) => {
+    expect(messageOf(() => parseUpdateArgs(argv))).toBe(message);
+  });
+
+  it("nieznana opcja zgłasza Nieznana opcja", () => {
+    expect(messageOf(() => parseUpdateArgs(["0.2.0", "--force"]))).toBe(
+      "Nieznana opcja: --force",
+    );
+  });
+
+  it("flaga z wartością jest odrzucana", () => {
+    expect(messageOf(() => parseUpdateArgs(["0.2.0", "--dry-run=1"]))).toBe(
+      "Opcja --dry-run nie przyjmuje wartości",
+    );
+  });
+
+  it.each(["v1", "v0.2.0", "0.2", "01.2.0"])(
+    "nieprawidłowa wersja %s zgłasza błąd parseVersion",
+    (value) => {
+      expect(messageOf(() => parseUpdateArgs([value]))).toBe(
+        `Nieprawidłowa wersja: ${value}; podaj na przykład 0.2.0`,
+      );
+    },
+  );
 });
 
 describe("parseListArgs", () => {

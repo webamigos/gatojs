@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - kiedy uruchomić generator i jak CI sprawdza, że pliki generowane są aktualne;
 - jak rozpoznać typowe błędy przy dodawaniu feature do rejestru i co znaczy każdy komunikat generatora.
 
-Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wersja `uploads` we fragmencie pliku w sekcji [`.wa/kit.json`](#kit-json)); a065725, 2026-11-13 (wersja `core` we fragmencie pliku w sekcji [`.wa/kit.json`](#kit-json)); pozostałe sekcje: 734391b, 2026-11-04
+Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wersja `uploads` we fragmencie pliku w sekcji [`.wa/kit.json`](#kit-json)); a065725 i 5f821d4 (`core` `0.6.0`), 2026-11-13 (wersja `core` we fragmencie pliku w sekcji [`.wa/kit.json`](#kit-json)); pozostałe sekcje: 734391b, 2026-11-04
 
 Źródła:
 
@@ -120,10 +120,10 @@ Plik opisuje, z jakich modułów kitu składa się projekt i jakie ma funkcje w�
   "modules": {
 // …
     "core": {
-      "version": "0.5.3",
+      "version": "0.6.0",
       "manifest": {
         "name": "core",
-        "version": "0.5.3",
+        "version": "0.6.0",
         "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
         "requires": [],
         "files": [

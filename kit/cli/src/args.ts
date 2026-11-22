@@ -1,4 +1,5 @@
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
+import { parseVersion } from "./update/version.js";
 
 export type Locale = "pl" | "en";
 
@@ -162,4 +163,33 @@ export function parseListArgs(argv: string[]): ListArgs {
   });
   assertMaxPositionals(positionals, 0);
   return { kit: optionalValue(values.kit, "--kit") };
+}
+
+export type UpdateArgs = {
+  version: string;
+  kit: string | null;
+  fromKit: string | null;
+  dryRun: boolean;
+  install: boolean;
+};
+
+export function parseUpdateArgs(argv: string[]): UpdateArgs {
+  const { values, positionals } = parseOptions(argv, {
+    kit: { type: "string" },
+    "from-kit": { type: "string" },
+    "dry-run": { type: "boolean", default: false },
+    "no-install": { type: "boolean", default: false },
+  });
+  const [version] = positionals;
+  if (version === undefined) {
+    throw new Error("Podaj wersję kitu");
+  }
+  assertMaxPositionals(positionals, 1);
+  return {
+    version: parseVersion(version),
+    kit: optionalValue(values.kit, "--kit"),
+    fromKit: optionalValue(values["from-kit"], "--from-kit"),
+    dryRun: values["dry-run"],
+    install: !values["no-install"],
+  };
 }

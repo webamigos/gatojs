@@ -88,7 +88,7 @@ Dlatego regułę, którą pilnuje tylko hook Claude Code albo hook git, sprawdza
 
 ### Dlaczego poprawki wracają do kitu
 
-Projekt dostaje kod kitu jako zwykły kod, a nie jako zależność, i może go zmieniać jak własny ([D39](decyzje.md#d39)). Żadne narzędzie nie przenosi poprawek z kitu do istniejącego projektu: CLI (`kit/cli/src/bin.ts`) ma `create`, `add`, `remove`, `list`, `generate` i `kit sync` ([16-cli-wa.md](16-cli-wa.md), `kit sync`: [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#kit-sync)). Pole `files` modułów w `.wa/kit.json` projektu przechowuje hashe skopiowanych plików, więc `wa remove` wie, które pliki zmieniono lokalnie, ale zmiany kitu po utworzeniu projektu trzeba przenieść ręcznie. Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
+Projekt dostaje kod kitu jako zwykły kod, a nie jako zależność, i może go zmieniać jak własny ([D39](decyzje.md#d39)). Poprawki z kitu przenosi do istniejącego projektu dopiero wydanie nowej wersji kitu i `wa update` w projekcie ([16-cli-wa.md](16-cli-wa.md#wa-update)): komenda scala zmiany kitu między tagami z lokalnymi zmianami projektu, a zmianę w tych samych liniach zostawia jako konflikt do ręcznego rozwiązania. Pole `files` modułów w `.wa/kit.json` projektu przechowuje hashe skopiowanych plików, więc `wa remove` i `wa update` wiedzą, które pliki zmieniono lokalnie. Co dokumentacja świadomie pomija, opisuje [README.md](README.md).
 
 Z tego wynika reguła z [CLAUDE.md](../CLAUDE.md#pochodzenie-kodu) i [AGENTS.md](../AGENTS.md#co-to-jest): zmiany specyficzne dla projektu robisz w projekcie, a poprawki, które przydadzą się innym projektom, wysyłasz jako pull request do `webamigos/wa-kit`. Powody:
 

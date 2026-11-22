@@ -662,7 +662,7 @@ describe("addFromSource", () => {
 
   function cloneFromKit(): Runner {
     return vi.fn<Runner>(async (command, args) => {
-      if (command === "git" && args[0] === "clone") {
+      if (command === "git" && args.includes("clone")) {
         await cp(kitDir, args[args.length - 1] as string, { recursive: true });
       }
     });
@@ -716,7 +716,9 @@ describe("addFromSource", () => {
     });
     expect(result.added).toEqual(["demo"]);
     const cloneArgs = vi.mocked(cloning).mock.calls[0]?.[1] ?? [];
-    expect(cloneArgs.slice(0, 8)).toEqual([
+    expect(cloneArgs.slice(0, 10)).toEqual([
+      "-c",
+      "advice.detachedHead=false",
       "clone",
       "--depth",
       "1",
@@ -726,8 +728,8 @@ describe("addFromSource", () => {
       "--",
       "https://example.com/org/wa-kit.git",
     ]);
-    expect(cloneArgs[8]?.startsWith(`${tmpRoot}/`)).toBe(true);
-    expect(cloneArgs[8]?.endsWith("/wa-kit")).toBe(true);
+    expect(cloneArgs[10]?.startsWith(`${tmpRoot}/`)).toBe(true);
+    expect(cloneArgs[10]?.endsWith("/wa-kit")).toBe(true);
     expect(await readdir(tmpRoot)).toEqual([]);
   });
 

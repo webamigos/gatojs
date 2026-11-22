@@ -14,34 +14,69 @@ function looksLikeTransport(source: string): boolean {
 }
 
 async function cloneKit(input: {
-  url: string;
+  source: string;
   version: string;
   runner: Runner;
   tmpDir: string;
+  name: string;
 }): Promise<string> {
-  const target = join(input.tmpDir, "wa-kit");
+  const target = join(input.tmpDir, input.name);
   try {
     await input.runner(
       "git",
       [
+        "-c",
+        "advice.detachedHead=false",
         "clone",
-        "--depth",
-        "1",
+        ...(isRemote(input.source) ? ["--depth", "1"] : []),
         "--branch",
         `v${input.version}`,
         "--quiet",
         "--",
-        input.url,
+        input.source,
         target,
       ],
       input.tmpDir,
     );
-  } catch {
+  } catch (error) {
     throw new Error(
-      `Nie udało się pobrać wa-kit v${input.version} z ${input.url}. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`,
+      `Nie udało się pobrać wa-kit v${input.version} z ${input.source}. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`,
+      { cause: error },
     );
   }
   return target;
+}
+
+export async function cloneKitVersion(input: {
+  source: string;
+  version: string;
+  runner: Runner;
+  tmpDir: string;
+  name: string;
+}): Promise<string> {
+  const target = await cloneKit(input);
+  const config = await readKitConfig(target);
+  if (config.version !== input.version) {
+    throw new Error(
+      `Kit w ${target} ma wersję ${config.version}, oczekiwano ${input.version}`,
+    );
+  }
+  return target;
+}
+
+export function kitSourceLocation(input: {
+  kitFlag: string | null;
+  envSource: string | undefined;
+  state: KitState;
+}): string {
+  const source = input.kitFlag ?? input.envSource ?? input.state.kitRepo;
+  if (
+    source.startsWith("-") ||
+    (!isRemote(source) && looksLikeTransport(source))
+  ) {
+    throw new Error(`Nieprawidłowe źródło wa-kit: ${source}`);
+  }
+  return isRemote(source) ? source : resolve(source);
 }
 
 export async function resolveKitSource(input: {
@@ -52,27 +87,22 @@ export async function resolveKitSource(input: {
   tmpDir: string;
 }): Promise<string> {
   const { state } = input;
-  const source = input.kitFlag ?? input.envSource ?? state.kitRepo;
-  if (
-    source.startsWith("-") ||
-    (!isRemote(source) && looksLikeTransport(source))
-  ) {
-    throw new Error(`Nieprawidłowe źródło wa-kit: ${source}`);
-  }
+  const source = kitSourceLocation(input);
   if (isRemote(source)) {
+    // WHY: dotychczasowy kontrakt nie sprawdza wersji zdalnego klonu; cloneKitVersion by to zmienił
     return cloneKit({
-      url: source,
+      source,
       version: state.kitVersion,
       runner: input.runner,
       tmpDir: input.tmpDir,
+      name: "wa-kit",
     });
   }
-  const kitDir = resolve(source);
-  const config = await readKitConfig(kitDir);
+  const config = await readKitConfig(source);
   if (config.version !== state.kitVersion) {
     throw new Error(
-      `Kit w ${kitDir} ma wersję ${config.version}, projekt używa ${state.kitVersion}`,
+      `Kit w ${source} ma wersję ${config.version}, projekt używa ${state.kitVersion}`,
     );
   }
-  return kitDir;
+  return source;
 }

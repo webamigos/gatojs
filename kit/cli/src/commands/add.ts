@@ -35,7 +35,10 @@ export type AddOptions = {
   log: (line: string) => void;
 };
 
-function missingDirectories(projectDir: string, files: string[]): string[] {
+export function missingDirectories(
+  projectDir: string,
+  files: string[],
+): string[] {
   const missing = new Set<string>();
   for (const file of files) {
     let directory = dirname(file);
