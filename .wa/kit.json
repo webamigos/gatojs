@@ -1,6 +1,6 @@
 {
   "kitVersion": "0.1.0",
-  "kitRepo": "https://github.com/webamigos/wa-kit.git",
+  "kitRepo": "https://github.com/webamigos/gatojs.git",
   "project": {
     "name": "WA App",
     "slug": "wa-app"
