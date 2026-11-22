@@ -229,6 +229,17 @@ describe("parseCliArgs", () => {
     expect(() => parseCliArgs(argv)).toThrow(/^Missing project directory/);
   });
 
+  it.each(["1.2.3", "100.0.0"])(
+    "--kit-version %s is kept as given",
+    (value) => {
+      expect(parseCliArgs(["my-app", "--kit-version", value])).toMatchObject({
+        kind: "create",
+        kitVersion: value,
+        passthrough: ["my-app"],
+      });
+    },
+  );
+
   it("a multi-digit --kit-version is kept whole", () => {
     expect(
       parseCliArgs(["my-app", "--kit-version", "10.20.300"]),

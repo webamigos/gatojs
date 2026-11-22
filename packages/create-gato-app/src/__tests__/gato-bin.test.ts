@@ -35,6 +35,7 @@ describe("gatoBinPath", () => {
     ["a null gato entry", { bin: { gato: null } }],
     ["a null bin", { bin: null }],
     ["null", null],
+    ["undefined", undefined],
     ["a string", "gato-cli"],
     ["an array", [{ bin: { gato: "dist/gato.mjs" } }]],
   ])("%s throws that gato-cli has no gato bin", (_label, packageJson) => {

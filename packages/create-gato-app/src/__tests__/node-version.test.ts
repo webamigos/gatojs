@@ -53,7 +53,7 @@ describe("enginesRange", () => {
 
 describe("parseNodeVersion", () => {
   it("parses a release version", () => {
-    expect(parseNodeVersion("v22.11.0")).toEqual({
+    expect(parseNodeVersion("v22.11.0")).toStrictEqual({
       major: 22,
       minor: 11,
       patch: 0,
@@ -103,6 +103,24 @@ describe("checkNodeVersion with default ranges", () => {
     expect(verdict.message).toContain(bare);
     expect(verdict.message).not.toContain("too new");
     expect(verdict.message).not.toContain("unsupported release line");
+  });
+
+  it("v21.7.3 refusal starts with the exact too old headline", () => {
+    const verdict = checkNodeVersion({ version: "v21.7.3", willInstall: true });
+    if (verdict.kind === "ok") throw new Error("expected a message");
+    expect(verdict.message.split("\n")[0]).toBe(
+      "Node 21.7.3 is too old: GatoJS needs Node >=22.",
+    );
+  });
+
+  it("a range start that is not x.y.z throws", () => {
+    expect(() =>
+      checkNodeVersion({
+        version: "v20.0.0",
+        willInstall: true,
+        ranges: [{ from: "22" }],
+      }),
+    ).toThrow("Invalid Node range start: 22");
   });
 
   it("a prerelease of the minimum release is refused", () => {
@@ -206,6 +224,21 @@ describe("checkNodeVersion with a gap between ranges", () => {
     if (verdict.kind === "ok") throw new Error("expected a message");
     expect(verdict.message).toContain("unsupported release line");
     expect(verdict.message).not.toContain("too old");
+    expect(verdict.message).not.toContain("too new");
+  });
+
+  it("v23.1.0 between two closed ranges is an unsupported release line, not too new", () => {
+    const verdict = checkNodeVersion({
+      version: "v23.1.0",
+      willInstall: true,
+      ranges: [
+        { from: "22.0.0", belowMajor: 23 },
+        { from: "24.0.0", belowMajor: 25 },
+      ],
+    });
+    expect(verdict.kind).toBe("refuse");
+    if (verdict.kind === "ok") throw new Error("expected a message");
+    expect(verdict.message).toContain("unsupported release line");
     expect(verdict.message).not.toContain("too new");
   });
 

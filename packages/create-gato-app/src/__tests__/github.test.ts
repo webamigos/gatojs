@@ -171,6 +171,17 @@ describe("fetchTagNames", () => {
     ]);
   });
 
+  it.each([
+    ["an object", { message: "Bad credentials" }],
+    ["a non-string name", [{ name: 1 }]],
+    ["a null entry", [null]],
+  ])("a tag page with %s is rejected", async (_label, body) => {
+    const { fetch } = fakeFetch({ [TAGS_PAGE_1]: jsonResponse(body) });
+    await expect(fetchTagNames({ fetch, token: null })).rejects.toThrow(
+      "GitHub returned an unexpected tag list",
+    );
+  });
+
   it("follows pages until one has fewer than 100 entries", async () => {
     const { fetch, requests } = fakeFetch({
       [TAGS_PAGE_1]: jsonResponse(tagPage("a", 100)),

@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
 type PackageJson = {
@@ -10,14 +11,16 @@ type PackageJson = {
   devDependencies?: Record<string, string>;
 };
 
-async function readPackageJson(relative: string): Promise<PackageJson> {
-  return JSON.parse(
-    await readFile(new URL(relative, import.meta.url), "utf8"),
-  ) as PackageJson;
+async function readPackageJson(path: string | URL): Promise<PackageJson> {
+  return JSON.parse(await readFile(path, "utf8")) as PackageJson;
 }
 
-const creator = () => readPackageJson("../../package.json");
-const gatoCli = () => readPackageJson("../../../gato-cli/package.json");
+const creator = () =>
+  readPackageJson(new URL("../../package.json", import.meta.url));
+const gatoCli = () =>
+  readPackageJson(
+    createRequire(import.meta.url).resolve("gato-cli/package.json"),
+  );
 
 describe("create-gato-app pins gato-cli", () => {
   it("depends on gato-cli 0.2.0 exactly", async () => {
