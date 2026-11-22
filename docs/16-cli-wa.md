@@ -81,6 +81,8 @@ KIT_DIR=$(mktemp -d) && git clone --depth 1 --branch v0.1.0 https://github.com/w
 
 `kit/README.md` nazywa tę linię `create-wa-app`; to nazwa w dokumentacji, nie osobny program. Zamiast `v0.1.0` podaj tag wersji, którą chcesz. Wymagany jest `git` z dostępem do `webamigos/wa-kit` i Node.js 22.
 
+Tag `v0.1.0` pyta o moduły i języki tekstem, po przecinku. Listę wyboru opisaną w sekcji [Pytania](#create-pytania) ma dopiero wydanie, które ją zawiera.
+
 `git clone` wypisuje przy tym ostrzeżenie i długą poradę (sprawdzone, `git` 2.56.0, `LC_ALL=C`):
 
 ```text
@@ -165,9 +167,11 @@ Wartości `--title` i `--admin-email` nie są walidowane ani escapowane (sprawdz
 
 ### Pytania
 
-Bez `--yes` CLI pyta po kolei o to, czego nie podano w opcjach: moduły (z listą modułów kitu i ich opisami), języki, nazwę wyświetlaną, email admina i, gdy jest instalacja, setup. Pytanie o setup pada także wtedy, gdy wszystkie pozostałe opcje są podane, bo `--setup` jest flagą bez wartości „nie”. W skrypcie albo w CI dodaj więc `--yes`.
+Bez `--yes` CLI pyta po kolei o to, czego nie podano w opcjach: moduły, języki, nazwę wyświetlaną, email admina i, gdy jest instalacja, setup. Pytanie o setup pada także wtedy, gdy wszystkie pozostałe opcje są podane, bo `--setup` jest flagą bez wartości „nie”. W skrypcie albo w CI dodaj więc `--yes`.
 
-Pytania czyta `readlinePrompter` (`kit/cli/src/process/prompter.ts`). Bez terminala (CI, przekierowane wejście) pierwsze pytanie kończy komendę błędem `Brak terminala: użyj --yes`, zanim powstanie katalog projektu (sprawdzone). Odpowiedzi `t`, `tak`, `y` i `yes`, bez względu na wielkość liter, oznaczają zgodę; pusta odpowiedź przyjmuje wartość domyślną. Zła odpowiedź na pytanie o języki kończy komendę błędem `--locales: …` bez ponownego pytania.
+Moduły i języki wybiera się z listy, tak jak w `create-next-app`. Strzałki przesuwają kursor, spacja zaznacza pozycję, `a` zaznacza wszystkie, `i` odwraca zaznaczenie, a Enter zatwierdza wybór. Lista modułów pokazuje moduły kitu z opisami, bez `core`, i na starcie nic nie ma zaznaczonego. Enter bez zaznaczenia oznacza sam rdzeń. Na liście języków `pl` i `en` są zaznaczone, a `pl` ma dopisek „(wymagany)” i nie da się go odznaczyć (sprawdzone w terminalu). Ponieważ nazwy wybiera się z listy, a nie wpisuje, błędy `Nieznany moduł: …` i `--locales: …` dotyczą tylko opcji `--modules` i `--locales`.
+
+Pytania obsługuje `readlinePrompter` (`kit/cli/src/process/prompter.ts`). Listę rysuje paczka `@inquirer/checkbox` zbudowana w bundel ([D28](decyzje.md#d28)), a pozostałe pytania czyta `node:readline`. Bez terminala (CI, przekierowane wejście) pierwsze pytanie kończy komendę błędem `Brak terminala: użyj --yes`, zanim powstanie katalog projektu (sprawdzone). Ctrl+C na liście kończy komendę błędem `Przerwano`, także zanim powstanie katalog (sprawdzone). Przy pytaniu o setup odpowiedzi `t`, `tak`, `y` i `yes`, bez względu na wielkość liter, oznaczają zgodę. Pusta odpowiedź na pytanie tekstowe przyjmuje wartość domyślną.
 
 <a id="create-przebieg"></a>
 

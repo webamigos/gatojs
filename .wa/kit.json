@@ -49,11 +49,11 @@
       "files": {}
     },
     "audit-logs": {
-      "version": "0.1.1",
+      "version": "0.1.2",
       "manifest": {
         "name": "audit-logs",
-        "version": "0.1.1",
-        "description": "Dziennik zdarzen organizacji: model AuditLog, sink i redakcja danych wrazliwych",
+        "version": "0.1.2",
+        "description": "Dziennik zdarzeń organizacji: model AuditLog, sink i redakcja danych wrażliwych",
         "requires": [],
         "files": [
           "prisma/schema/audit-logs.prisma",
