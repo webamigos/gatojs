@@ -5,6 +5,7 @@ import {
   readFile,
   rm,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -183,6 +184,24 @@ describe("workspacesBody", () => {
         "COPY packages/beta/package.json ./packages/beta/package.json",
       ].join("\n"),
     );
+  });
+
+  it("propagates a stat error other than ENOENT for a package.json", async () => {
+    const dir = await emptyDir();
+    await mkdir(join(dir, "packages/env"), { recursive: true });
+    await symlink(
+      join(dir, "packages/env/package.json"),
+      join(dir, "packages/env/package.json"),
+    );
+
+    await expect(body(dir)).rejects.toMatchObject({ code: "ELOOP" });
+  });
+
+  it("propagates a readdir error other than ENOENT for packages", async () => {
+    const dir = await emptyDir();
+    await put(dir, "packages", "not a directory\n");
+
+    await expect(body(dir)).rejects.toMatchObject({ code: "ENOTDIR" });
   });
 
   it("does not end with a newline", async () => {

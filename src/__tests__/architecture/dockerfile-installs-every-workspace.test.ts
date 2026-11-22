@@ -34,6 +34,31 @@ describe("dockerfileWorkspacesRegion", () => {
     ).toBe("");
   });
 
+  it("returns an empty string when the markers are the first two lines", () => {
+    expect(
+      dockerfileWorkspacesRegion("# wa:workspaces:start\n# wa:workspaces:end"),
+    ).toBe("");
+  });
+
+  it("returns null when the end marker comes before the start marker", () => {
+    expect(
+      dockerfileWorkspacesRegion(
+        `# wa:workspaces:end\n${ENV_LINE}\n# wa:workspaces:start\n`,
+      ),
+    ).toBeNull();
+  });
+
+  it("returns an empty string when both markers are on one line", () => {
+    expect(
+      dockerfileWorkspacesRegion(
+        "FROM base\n# wa:workspaces:start # wa:workspaces:end\nRUN npm ci\n",
+      ),
+    ).toBe("");
+    expect(
+      dockerfileWorkspacesRegion("# wa:workspaces:start # wa:workspaces:end"),
+    ).toBe("");
+  });
+
   it("recognises indented marker lines", () => {
     expect(
       dockerfileWorkspacesRegion(

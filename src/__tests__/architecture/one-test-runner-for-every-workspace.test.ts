@@ -249,6 +249,29 @@ describe("checkTestRunners", () => {
     ]);
   });
 
+  it("sorts reported test files by code point, not by walk order", () => {
+    write("packages/env/package.json", packageJson());
+    write("packages/env/test/x.test.ts", "");
+    write("packages/env/test-a/y.test.ts", "");
+
+    expect(checkTestRunners(root)).toEqual([
+      "packages/env/test-a/y.test.ts: not in the root packages Vitest project",
+      "packages/env/test/x.test.ts: not in the root packages Vitest project",
+    ]);
+  });
+
+  it("does not report a symlinked test file", () => {
+    write("packages/env/package.json", packageJson());
+    write("elsewhere/x.test.ts", "");
+    fs.mkdirSync(path.join(root, "packages/env/test"), { recursive: true });
+    fs.symlinkSync(
+      path.join(root, "elsewhere/x.test.ts"),
+      path.join(root, "packages/env/test/x.test.ts"),
+    );
+
+    expect(checkTestRunners(root)).toEqual([]);
+  });
+
   it("does not treat snapshots or look-alike names as test files", () => {
     write("packages/env/package.json", packageJson());
     write("packages/env/test/x.test.ts.snap", "");

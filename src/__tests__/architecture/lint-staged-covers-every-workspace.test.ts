@@ -114,6 +114,19 @@ describe("findLintStagedGaps: workspace with its own ESLint config", () => {
     ]);
   });
 
+  it("is not covered by a workspace command that runs ESLint without --", () => {
+    const env = { ...projectWorkspace, ownEslintConfig: true };
+
+    expect(
+      findLintStagedGaps(
+        { "packages/env/**/*.ts": "eslint --workspace=@gatojs/env --fix" },
+        [env],
+      ),
+    ).toEqual([
+      "packages/env: no lint-staged entry runs ESLint in workspace @gatojs/env",
+    ]);
+  });
+
   it("needs the package name, not the directory name, in the command", () => {
     const env = { ...projectWorkspace, ownEslintConfig: true };
 
@@ -180,6 +193,12 @@ describe("findLintStagedGaps: workspace linted by the root config", () => {
         projectWorkspace,
       ]),
     ).toEqual(["packages/env: no root lint-staged ESLint entry"]);
+  });
+
+  it("is covered by a root command with leading whitespace", () => {
+    expect(
+      findLintStagedGaps({ "*.ts": ["  eslint --fix"] }, [projectWorkspace]),
+    ).toEqual([]);
   });
 
   it("is not covered by a root entry without eslint", () => {
@@ -369,6 +388,21 @@ describe("checkLintStaged", () => {
     write("packages/docs/data.json", "{}\n");
 
     await expect(checkLintStaged(root, async () => true)).resolves.toEqual([]);
+  });
+
+  it("does not ask the ignore callback about a workspace without source files", async () => {
+    lintstaged({});
+    write("packages/docs/package.json", JSON.stringify({ name: "docs" }));
+    write("packages/docs/README.md", "readme\n");
+    const asked: string[] = [];
+
+    await expect(
+      checkLintStaged(root, async (file: string) => {
+        asked.push(file);
+        return true;
+      }),
+    ).resolves.toEqual([]);
+    expect(asked).toEqual([]);
   });
 
   it("skips sources under node_modules and dist", async () => {
