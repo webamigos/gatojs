@@ -237,11 +237,12 @@ describe("fileHash", () => {
     ).toBe("6a6e6599d88a9a8c7831b7de8a5451e9a2ccab385dafe8dfcf0a2db44894128c");
   });
 
-  it("REGION_FILES to dokladnie szesc plikow z regionami generatora", () => {
+  it("REGION_FILES to dokladnie siedem plikow z regionami generatora", () => {
     expect(REGION_FILES).toEqual([
       ".env.example",
       ".github/workflows/ci.yml",
       ".github/workflows/mutation.yml",
+      "Dockerfile",
       "docker-compose.yml",
       "prisma/schema/auth.prisma",
       "prisma/schema/organizations.prisma",

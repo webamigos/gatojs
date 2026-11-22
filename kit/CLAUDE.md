@@ -1,19 +1,23 @@
 # kit/CLAUDE.md
 
-Zasady dla plików tylko kitu (`kit/`). Nie trafiają do projektów (`.dockerignore`, własny workflow).
+Zasady dla plików tylko kitu (`kit/`, pakiety narzędzi `packages/gato-cli`). Nie trafiają do projektów (`.dockerignore`, własny workflow).
 
 ## Bramka kitu
 
-- `npm run verify --prefix kit/cli` (lint → typecheck → testy → build bundla); w CI job `cli` w `.github/workflows/kit.yml`.
-- Instalacja: `npm ci --prefix kit/cli` (osobny `kit/cli/package-lock.json`, instaluj przez `npx -y npm@11.21.1 install`).
-- Mutacje CLI: `npm run test:mutation:task --prefix kit/cli -- <pliki>` i `npm run test:mutation:gate --prefix kit/cli`;
-  wpisy do `kit/cli/mutation-gate.json` dopisuje człowiek.
+- `npm run verify --prefix packages/gato-cli` (lint → typecheck → testy → build bundla); w CI job `cli` w `.github/workflows/kit.yml`.
+- Instalacja: `npm ci` w korzeniu (CLI to workspace, wspólny `package-lock.json`); nowe zależności CLI:
+  `npx -y npm@11.21.1 install <pakiet> --workspace gato-cli`.
+- Mutacje CLI: `npm run test:mutation:task --prefix packages/gato-cli -- <pliki>` i `npm run test:mutation:gate --prefix packages/gato-cli`;
+  wpisy do `packages/gato-cli/mutation-gate.json` dopisuje człowiek.
 
 ## Bundel CLI
 
-- Po każdej zmianie w `kit/cli/src` uruchom `npm run build --prefix kit/cli` i zacommituj `.wa/bin/wa.mjs` razem ze zmianą.
+- Po każdej zmianie w `packages/gato-cli/src` uruchom `npm run build --prefix packages/gato-cli` i zacommituj `.wa/bin/wa.mjs` razem ze zmianą.
 - Projekt uruchamia CLI jako `npm run wa -- <komenda>` (`node .wa/bin/wa.mjs`), bez budowania.
 - CI sprawdza `git diff --exit-code -- .wa/bin/wa.mjs`: nieaktualny bundel zatrzymuje job.
+- Ten sam build tworzy `packages/gato-cli/dist/gato.mjs` (pakiet npm `gato-cli`, komenda `gato`; nie commitujemy go). Bundle różnią się
+  tylko nazwą komendy; wersja z `packages/gato-cli/package.json` jest wbudowana w oba. Job `cli-package` w `kit.yml` pakuje CLI
+  (`npm pack`) i uruchamia `gato` z tarballa. Publikacja: `packages/gato-cli/README.md` („Publishing”).
 
 ## Moduły i manifest
 
@@ -26,7 +30,7 @@ Zasady dla plików tylko kitu (`kit/`). Nie trafiają do projektów (`.dockerign
 ## Składanie i wydanie
 
 - Job `assemble` w `.github/workflows/kit.yml` składa projekt z kitu (`wa create`) dla każdej kombinacji modułów z macierzy `combo` i uruchamia w nim `verify`, testy integracyjne oraz `docker build`. Nowy moduł kitu dopisz do macierzy.
-- Fixture modułu projektu (`kit/cli/src/__tests__/fixtures/project-module/`) jest używane przez `assemble`; zmiana kontraktu `projectModules` wymaga jego aktualizacji.
+- Fixture modułu projektu (`packages/gato-cli/src/__tests__/fixtures/project-module/`) jest używane przez `assemble`; zmiana kontraktu `projectModules` wymaga jego aktualizacji.
 - Wydanie robi semantic-release (`.github/workflows/release.yml`, paczka `kit/release/`, [ADR-54](../docs/adrs/54-kit-releases-are-cut-by-semantic-release.md)) z Conventional Commits przy każdym pushu na `main`: `feat` → minor, `fix`/`perf` → patch, breaking poniżej 1.0 → minor, `[no release]` w temacie → bez wydania. Zapisuje wersję w `kit/kit.json`, uruchamia `kit sync`, commituje `chore(release): <wersja> [skip ci]` i ustawia tag `v<wersja>` na tym commicie.
 - `version` w `kit/kit.json` (i `kitVersion` w `.wa/kit.json`) zmienia tylko wydanie; nie edytuj ich ręcznie. `version` zmienionych modułów w `kit/modules/*.json` podbijasz ręcznie, potem `npm run wa -- kit sync`.
 - Paczka `kit/release/`: `npm ci --prefix kit/release`, testy `npm test --prefix kit/release` (job `release-scripts` w `kit.yml`). Nie dodawaj semantic-release do root `package.json`: trafiłby do projektów.

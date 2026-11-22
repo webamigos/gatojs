@@ -12,9 +12,9 @@ Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wersja `uploads` we fragmencie pliku
 
 Źródła:
 
-- `kit/cli/package.json`
-- `kit/cli/tsconfig.json`
-- `kit/cli/src/` (kod CLI, testy i fikstury; generator w `generate/`, schemat i odczyt stanu w `manifest/`, komunikat użycia w `bin.ts`)
+- `packages/gato-cli/package.json`
+- `packages/gato-cli/tsconfig.json`
+- `packages/gato-cli/src/` (kod CLI, testy i fikstury; generator w `generate/`, schemat i odczyt stanu w `manifest/`, komunikat użycia w `bin.ts`)
 - `kit/kit.json`
 - `kit/modules/core.json`, `kit/modules/audit-logs.json`, `kit/modules/api-keys.json`, `kit/modules/uploads.json`
 - `.wa/kit.json`
@@ -91,7 +91,7 @@ Każdy z plików, które generator czyta z feature, trafia do innej tablicy:
 - Co dzieje się z każdą tablicą, gdy modułu w projekcie nie ma, zbiera tabela [Szwy generowane](12-moduly-kitu.md#szwy-generowane) w 12. Deklaracje `auditActions`, `apiScopes` i `uploadPurposes`, które moduły czytają z `modules` i `clientModules`, opisuje [Punkty wejścia](12-moduly-kitu.md#punkty-wejscia).
 - Rejestr importuje pliki feature, a nie kopiuje ich treści. Zmiana wewnątrz `module.ts`, `env.ts` albo pliku tłumaczeń nie wymaga więc ponownego uruchomienia generatora. Wymaga go dopiero dodanie albo usunięcie takiego pliku.
 - Są dwa pliki, bo plik kliencki trafia do paczki przeglądarki (przez menu boczne i klienta better-auth), więc importuje tylko `module.ts` i `auth-client.ts`. Plik serwerowy importuje schematy env, pluginy serwerowe better-auth, ujścia audytu i loadery tłumaczeń, które w przeglądarce nie są potrzebne. Plik kliencki czyta też guard na serwerze, więc menu i guard zawsze widzą te same definicje.
-- Kolejność: najpierw feature modułu `core`, potem feature pozostałych modułów kitu w kolejności nazw modułów, a na końcu feature modułów projektu z `projectModules`, alfabetycznie (`registeredModules` w `kit/cli/src/manifest/kit-state.ts`). W obrębie modułu feature są ułożone według nazwy katalogu. Kolejność nie wpływa na menu, które sortuje po `order`.
+- Kolejność: najpierw feature modułu `core`, potem feature pozostałych modułów kitu w kolejności nazw modułów, a na końcu feature modułów projektu z `projectModules`, alfabetycznie (`registeredModules` w `packages/gato-cli/src/manifest/kit-state.ts`). W obrębie modułu feature są ułożone według nazwy katalogu. Kolejność nie wpływa na menu, które sortuje po `order`.
 
 Nazwa katalogu feature z tłumaczeniami musi pasować do wzorca `^[a-z][a-zA-Z0-9-]*$` (na przykład `my_feature` nie pasuje) i nie może być równa namespace rdzenia: `common`, `errors`, `sidebar` ani `serviceMode`. Inaczej `mergeMessages` z `src/i18n/merge-messages.ts` rzuca przy ładowaniu tłumaczeń błąd `Nieprawidłowy klucz namespace i18n: <key>` albo `Kolizja namespace i18n: <key>` i strona się nie wyrenderuje ([D27](decyzje.md#d27)).
 
@@ -211,7 +211,7 @@ Plik opisuje, z jakich modułów kitu składa się projekt i jakie ma funkcje w�
 - `env`, `schemaRelations`, `compose` i `ciSteps` wypełniają regiony `wa:*`. W kicie wypełniają je trzy moduły opcjonalne: relacje mają wszystkie trzy, zmienne `api-keys` i `uploads`, a usługi Dockera i kroki CI tylko `uploads`. Moduł `core` ma te pola puste.
 - `requires` generator czyta tylko u modułów projektu: `readKitState` sprawdza, że każdy wymagany moduł jest w `modules` albo w `projectModules` ([Komunikaty](#referencja-komunikaty)). Pól `version`, `description`, `dependencies`, `devDependencies` i `workspaces` generator nie używa; czyta je CLI przy składaniu i zmianie projektu ([16b](16b-rozwoj-kitu.md#manifesty)). Pełną listę z typami i wartościami domyślnymi podaje [Referencja](#referencja-manifest).
 
-`readKitState` w `kit/cli/src/manifest/kit-state.ts` sprawdza plik schematem Zod, a potem wpisy `projectModules`, i przy błędzie przerywa generator. Pól, których schemat nie zna, nie zgłasza: literówka w nazwie pola (na przykład `schemaRelation` zamiast `schemaRelations`) przechodzi bez błędu, a pole dostaje wartość domyślną.
+`readKitState` w `packages/gato-cli/src/manifest/kit-state.ts` sprawdza plik schematem Zod, a potem wpisy `projectModules`, i przy błędzie przerywa generator. Pól, których schemat nie zna, nie zgłasza: literówka w nazwie pola (na przykład `schemaRelation` zamiast `schemaRelations`) przechodzi bez błędu, a pole dostaje wartość domyślną.
 
 Feature, którego nie obejmuje żaden wzorzec w `.wa/kit.json`, nie trafia do rejestru: nie ma pozycji w menu, `requireModuleAccess` z jego kluczem kończy się 404, a jego tłumaczenia się nie ładują. Gdzie dopisać wzorzec, zależy od tego, czyj to feature:
 
@@ -230,7 +230,7 @@ Feature, którego nie obejmuje żaden wzorzec w `.wa/kit.json`, nie trafia do re
 npm run wa -- generate
 ```
 
-- `npm run wa -- generate` uruchamia skrypt `wa` z `package.json`, czyli `node .wa/bin/wa.mjs`, z argumentem `generate`. Plik `.wa/bin/wa.mjs` to bundel CLI (esbuild) zapisany w repozytorium, więc nie trzeba go budować na świeżym klonie. Po zmianie kodu CLI w `kit/cli/src` odśwież go przez `npm run build --prefix kit/cli` ([16b](16b-rozwoj-kitu.md#bundel)). Generator pracuje na katalogu bieżącym procesu (`process.cwd()` w `kit/cli/src/bin.ts`). npm uruchamia skrypt w katalogu najbliższego `package.json` nad bieżącym katalogiem, więc z katalogu głównego i z podkatalogów takich jak `src/` generator działa na całym repozytorium. W `kit/cli/` najbliższy jest `package.json` CLI, który nie ma skryptu `wa`, i komenda kończy się błędem npm.
+- `npm run wa -- generate` uruchamia skrypt `wa` z `package.json`, czyli `node .wa/bin/wa.mjs`, z argumentem `generate`. Plik `.wa/bin/wa.mjs` to bundel CLI (esbuild) zapisany w repozytorium, więc nie trzeba go budować na świeżym klonie. Po zmianie kodu CLI w `packages/gato-cli/src` odśwież go przez `npm run build --prefix packages/gato-cli` ([16b](16b-rozwoj-kitu.md#bundel)). Generator pracuje na katalogu bieżącym procesu (`process.cwd()` w `packages/gato-cli/src/bin.ts`). npm uruchamia skrypt w katalogu najbliższego `package.json` nad bieżącym katalogiem, więc z katalogu głównego i z podkatalogów takich jak `src/` generator działa na całym repozytorium. W `packages/gato-cli/` najbliższy jest `package.json` CLI, który nie ma skryptu `wa`, i komenda kończy się błędem npm.
 - Wynik to `Bez zmian` albo po jednej linii `zmieniono <plik>` dla każdego zapisanego pliku. Argumenty po `generate` są pomijane.
 - `wa create`, `wa add` i `wa remove` uruchamiają generator same na końcu swojej pracy ([16](16-cli-wa.md)). Po nich nie trzeba go uruchamiać ręcznie.
 
@@ -266,13 +266,13 @@ flowchart TD
     compare -->|"nie"| skip["plik bez zmian"]
 ```
 
-Wszystkie etapy są w `kit/cli/src/generate/index.ts` (`generate`), a funkcje pomocnicze w `kit/cli/src/manifest/kit-state.ts`, `kit/cli/src/generate/registry.ts` i `kit/cli/src/generate/targets.ts`.
+Wszystkie etapy są w `packages/gato-cli/src/generate/index.ts` (`generate`), a funkcje pomocnicze w `packages/gato-cli/src/manifest/kit-state.ts`, `packages/gato-cli/src/generate/registry.ts` i `packages/gato-cli/src/generate/targets.ts`.
 
 <a id="wykrywanie-feature"></a>
 
 ### Wykrywanie feature
 
-`kit/cli/src/generate/index.ts`
+`packages/gato-cli/src/generate/index.ts`
 
 ```ts
 const SERVER_REGISTRY = "src/modules.generated.ts";
@@ -299,9 +299,9 @@ const FEATURE_GLOB = /^src\/features\/([^/*]+)\//;
 
 ### Regiony `wa:*`
 
-Region to fragment pliku między linią z `wa:<marker>:start` a linią z `wa:<marker>:end`. Generator zastępuje wszystko między tymi liniami, a same linie z markerami zostawia. Składnię komentarza (`//` albo `#`) wyznacza plik, a generator szuka tylko tekstu markera. Sześć regionów, z czterema różnymi markerami, wymienia stała `regionTargets`:
+Region to fragment pliku między linią z `wa:<marker>:start` a linią z `wa:<marker>:end`. Generator zastępuje wszystko między tymi liniami, a same linie z markerami zostawia. Składnię komentarza (`//` albo `#`) wyznacza plik, a generator szuka tylko tekstu markera. Siedem regionów, z pięcioma różnymi markerami, wymienia stała `regionTargets`:
 
-`kit/cli/src/generate/targets.ts`
+`packages/gato-cli/src/generate/targets.ts`
 
 ```ts
 export const regionTargets: RegionTarget[] = [
@@ -327,6 +327,7 @@ export const regionTargets: RegionTarget[] = [
     marker: "ci-integration",
     body: ciStepsBody,
   },
+  { file: "Dockerfile", marker: "workspaces", body: workspacesBody },
 ];
 ```
 
@@ -338,12 +339,13 @@ export const regionTargets: RegionTarget[] = [
 | `docker-compose.yml` (pod `services:`) | `# wa:services:start`, `# wa:services:end` | Treść pliku wskazanego w `compose`, bez końcowych pustych linii, z każdą niepustą linią wciętą o dwie spacje. Pliki kolejnych modułów następują bez pustej linii. | `compose` (ścieżka względem katalogu projektu) |
 | `.github/workflows/ci.yml` (w jobie `integration`, przed krokiem „Integration tests”) | `# wa:ci-integration:start`, `# wa:ci-integration:end` | Treść pliku wskazanego w `ciSteps`, czyli lista kroków GitHub Actions, bez końcowych pustych linii, z każdą niepustą linią wciętą o sześć spacji. Fragmenty kolejnych modułów rozdziela pusta linia ([D45](decyzje.md#d45)). | `ciSteps` (ścieżka względem katalogu projektu) |
 | `.github/workflows/mutation.yml` (w jobie `stryker`, przed krokiem „Run Stryker (integration)”) | `# wa:ci-integration:start`, `# wa:ci-integration:end` | To samo co w `ci.yml`. | `ciSteps` |
+| `Dockerfile` (w etapie `deps`, między `COPY package.json package-lock.json ./` a `RUN npm ci`) | `# wa:workspaces:start`, `# wa:workspaces:end` | Linia `COPY packages/<nazwa>/package.json ./packages/<nazwa>/package.json` dla każdego katalogu `packages/<nazwa>` z plikiem `package.json`, w kolejności punktów kodowych. Bez pakietów region jest pusty. W repozytorium GatoJS region wymienia `gato-cli`; w projekcie go nie ma, bo pakiety narzędzi są na liście `kitOnly` ([ADR-56](adrs/56-workspace-packages-replace-d29.md)). | brak: katalogi `packages/*` projektu |
 
 Zmiennych modułu `core` region w `.env.example` nie obejmuje, bo są wpisane w ten plik na stałe; placeholderów w przykładach `core` generator też nie podmienia. Relacja z innym modelem niż `User` i `Organization` nie trafia do żadnego regionu i generator tego nie zgłasza. Moduły projektu wypełniają regiony tak samo jak moduły kitu.
 
 Generator czyta pliki z `compose` i `ciSteps` z katalogu projektu i kopiuje je bez zmian. Nazwa bucketu `wa-app-uploads` w `ci/uploads.integration-steps.yml` i `docker/uploads.compose.yml` zmienia się na slug projektu przy kopiowaniu tych plików przez `wa create` albo `wa add` (`placeholderFiles` w `kit/kit.json`, [16b](16b-rozwoj-kitu.md#placeholdery)), a nie w generatorze.
 
-Przykład z testu „generuje wszystkie cele” w `kit/cli/src/generate/__tests__/generate.test.ts`. Fikstura `minimal` ma moduł `demo` z polami manifestu jak w lewej kolumnie:
+Przykład z testu „generuje wszystkie cele” w `packages/gato-cli/src/generate/__tests__/generate.test.ts`. Fikstura `minimal` ma moduł `demo` z polami manifestu jak w lewej kolumnie:
 
 | Pole manifestu `demo` | Treść regionu po przebiegu |
 | --- | --- |
@@ -351,14 +353,14 @@ Przykład z testu „generuje wszystkie cele” w `kit/cli/src/generate/__tests_
 | `env: [{ name: "DEMO_TOKEN", example: "changeme" }]` | `wa:modules` w `.env.example`: linie `# demo` i `DEMO_TOKEN=changeme`. |
 | `compose: "src/features/demo/compose.yml"` | `wa:services` w `docker-compose.yml`: treść tego pliku (`demo:`, `image: demo:latest`, `ports:`), wcięta o dwie spacje. |
 
-Wcięcie i rozdzielanie fragmentów `ciSteps` sprawdzają testy z `describe("generate: region ci-integration")`, a region w `mutation.yml` testy z `describe("generate: region ci-integration w mutation.yml")` w `kit/cli/src/generate/__tests__/ci-steps.test.ts`.
+Wcięcie i rozdzielanie fragmentów `ciSteps` sprawdzają testy z `describe("generate: region ci-integration")`, a region w `mutation.yml` testy z `describe("generate: region ci-integration w mutation.yml")` w `packages/gato-cli/src/generate/__tests__/ci-steps.test.ts`.
 
 Reguły regionów:
 
-- W pliku musi być dokładnie jedna linia z markerem początku i jedna z markerem końca, a koniec musi być niżej niż początek, więc oba markery nie mogą stać w jednej linii. Treść regionu nie może zawierać markera tego samego regionu. Jeśli plik ma gdziekolwiek końce linii CRLF, cały wynik ma końce CRLF. Tego pilnuje `replaceRegion` w `kit/cli/src/generate/regions.ts`.
+- W pliku musi być dokładnie jedna linia z markerem początku i jedna z markerem końca, a koniec musi być niżej niż początek, więc oba markery nie mogą stać w jednej linii. Treść regionu nie może zawierać markera tego samego regionu. Jeśli plik ma gdziekolwiek końce linii CRLF, cały wynik ma końce CRLF. Tego pilnuje `replaceRegion` w `packages/gato-cli/src/generate/regions.ts`.
 - Plik docelowy, którego nie ma na dysku, jest pomijany bez błędu.
-- Plik docelowy bez żadnego z dwóch markerów jest pomijany, gdy region byłby pusty. Gdy któryś moduł ma dla niego treść, generator przerywa się błędem `brak regionu` i żaden plik się nie zmienia ([D45](decyzje.md#d45), testy z `describe("generate: plik bez markerów regionu")` w `ci-steps.test.ts`). Projekt, który usunął markery z `ci.yml`, działa więc bez modułów z `ciSteps`. `wa add uploads` skopiuje w nim pliki modułu, dopisze jego zależności do `package.json` i zapisze `.wa/kit.json`, a dopiero generator zakończy się błędem. Tych zmian `wa add` nie cofa. Po dodaniu markerów uruchom `npm run wa -- generate` i `npm install` (`kit/cli/src/commands/add.ts`, [16](16-cli-wa.md#add-cofanie)). Plik z jednym markerem z pary daje błąd `uszkodzony region` także przy pustej treści.
-- Brak pliku z pola `compose` albo `ciSteps` przerywa generator, gdy plik docelowy regionu istnieje (`composeBody`, `ciStepsBody`); bez pliku docelowego `renderRegionTarget` pomija region, zanim sięgnie po treść. Wszystkie te funkcje są w `kit/cli/src/generate/targets.ts`.
+- Plik docelowy bez żadnego z dwóch markerów jest pomijany, gdy region byłby pusty. Gdy któryś moduł ma dla niego treść, generator przerywa się błędem `brak regionu` i żaden plik się nie zmienia ([D45](decyzje.md#d45), testy z `describe("generate: plik bez markerów regionu")` w `ci-steps.test.ts`). Projekt, który usunął markery z `ci.yml`, działa więc bez modułów z `ciSteps`. `wa add uploads` skopiuje w nim pliki modułu, dopisze jego zależności do `package.json` i zapisze `.wa/kit.json`, a dopiero generator zakończy się błędem. Tych zmian `wa add` nie cofa. Po dodaniu markerów uruchom `npm run wa -- generate` i `npm install` (`packages/gato-cli/src/commands/add.ts`, [16](16-cli-wa.md#add-cofanie)). Plik z jednym markerem z pary daje błąd `uszkodzony region` także przy pustej treści.
+- Brak pliku z pola `compose` albo `ciSteps` przerywa generator, gdy plik docelowy regionu istnieje (`composeBody`, `ciStepsBody`); bez pliku docelowego `renderRegionTarget` pomija region, zanim sięgnie po treść. Wszystkie te funkcje są w `packages/gato-cli/src/generate/targets.ts`.
 
 Komunikaty błędów podaje [Referencja](#referencja-komunikaty).
 
@@ -378,7 +380,7 @@ Generator zapisuje tylko pliki, których treść różni się od wyniku, więc d
 
 Zarówno ręczna zmiana pliku generowanego albo regionu, jak i zmiana feature bez przebiegu generatora dają różnicę w ostatnim kroku, więc job pada przed `npm run verify`. `git diff` nie widzi plików nieśledzonych, ale wszystkie pliki, które zapisuje generator, są w repozytorium. Trzy pliki generowane są wpisane w `.prettierignore` i w `globalIgnores` w `eslint.config.mjs`, żeby `lint-staged` nie przeformatował ich przy commicie i nie rozjechał z wyjściem generatora ([D04](decyzje.md#d04)). Region `wa:ci-integration` leży w samym `ci.yml`, więc jego zmiana też wychodzi w tym kroku.
 
-Samo CLI ma własną bramkę (`npm run verify --prefix kit/cli`), uruchamianą w workflow kitu `.github/workflows/kit.yml` ([16b](16b-rozwoj-kitu.md#bramka-cli)). Root ESLint (`kit/**` w `globalIgnores`) i root Vitest (`kit/**` w `exclude` w `vitest.config.ts`) pomijają katalog `kit/`.
+Samo CLI ma własną bramkę (`npm run verify --prefix packages/gato-cli`), uruchamianą w workflow kitu `.github/workflows/kit.yml` ([16b](16b-rozwoj-kitu.md#bramka-cli)). Root ESLint (`kit/**` w `globalIgnores`) i root Vitest (`kit/**` w `exclude` w `vitest.config.ts`) pomijają katalog `kit/`.
 
 ### Objawy typowych błędów
 
@@ -387,7 +389,7 @@ Samo CLI ma własną bramkę (`npm run verify --prefix kit/cli`), uruchamianą w
 | Feature nie ma pozycji w menu, a jego strona zwraca 404. | Brak wzorca `src/features/<x>/...` w manifeście, wzorzec z `{}` albo `*` po `src/features/`, albo generator nie został uruchomiony. | Dodaj osobny wzorzec dla feature: w projekcie w `projectModules`, w kicie w `kit/modules/<nazwa>.json` i uruchom `npm run wa -- kit sync` ([wyżej](#kit-json)). Uruchom generator i sprawdź, czy `src/modules.client.generated.ts` importuje `@/features/<x>/module`. |
 | Pozycja w menu nie ma przetłumaczonej etykiety. | `key` w `module.ts` różni się od nazwy katalogu feature albo w `i18n/<locale>.json` brakuje klucza z `labelKey`. | Ustaw `key` równy nazwie katalogu ([D27](decyzje.md#d27)) i dodaj brakujący klucz. |
 | Cała wersja językowa (na przykład `/en/...`) zwraca 404. | Języka nie ma w `locales` w `.wa/kit.json`, więc nie ma go w `src/i18n/locales.generated.ts` ani w `routing.locales`, a `LocaleLayout` w `src/app/[locale]/layout.tsx` woła `notFound()`. | Dodaj język do `locales` i uruchom generator ([D33](decyzje.md#d33)). |
-| Tłumaczenia feature w jednym z języków projektu się nie ładują, choć plik `i18n/<język>.json` istnieje. | Plik dodano bez ponownego uruchomienia generatora, więc w `moduleMessages` nie ma jego loadera (`detectFeature` w `kit/cli/src/generate/index.ts`). | Uruchom generator i zacommituj wynik. |
+| Tłumaczenia feature w jednym z języków projektu się nie ładują, choć plik `i18n/<język>.json` istnieje. | Plik dodano bez ponownego uruchomienia generatora, więc w `moduleMessages` nie ma jego loadera (`detectFeature` w `packages/gato-cli/src/generate/index.ts`). | Uruchom generator i zacommituj wynik. |
 | Strona feature w języku domyślnym zwraca 404, a pod `/en/...` działa. | Trasa to `/api`, leży pod `/api/` albo zawiera kropkę, więc proxy jej nie obsługuje. | Zmień trasę ([Proxy i język](02-architektura.md#proxy)). |
 | CI pada na kroku „Generated files are up to date”. | Plik generowany albo region zmieniony ręcznie albo zmiana feature bez przebiegu generatora. | Uruchom generator i zacommituj wynik. |
 | Generator kończy się błędem. | Uszkodzony `.wa/kit.json`, błędny wpis w `projectModules`, brak albo uszkodzenie markera regionu (brak markerów: tylko gdy moduł ma treść dla regionu), brak pliku z `compose` albo `ciSteps` (gdy plik docelowy regionu istnieje). | Znajdź komunikat w [Referencji](#referencja-komunikaty). |
@@ -400,7 +402,7 @@ Samo CLI ma własną bramkę (`npm run verify --prefix kit/cli`), uruchamianą w
 
 ### `.wa/kit.json` i manifest modułu
 
-Schematy `kitStateSchema` i `moduleManifestSchema` z `kit/cli/src/manifest/schema.ts`. Kolumna „Generator” mówi, czy `wa generate` używa pola. Pola, których schemat nie zna, są pomijane bez błędu. Kto czyta pola manifestu poza generatorem, podaje [16b](16b-rozwoj-kitu.md#manifesty).
+Schematy `kitStateSchema` i `moduleManifestSchema` z `packages/gato-cli/src/manifest/schema.ts`. Kolumna „Generator” mówi, czy `wa generate` używa pola. Pola, których schemat nie zna, są pomijane bez błędu. Kto czyta pola manifestu poza generatorem, podaje [16b](16b-rozwoj-kitu.md#manifesty).
 
 `kitStateSchema` (cały plik):
 

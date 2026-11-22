@@ -14,11 +14,11 @@ Zweryfikowano z kodem: 6c05f1f, 2026-11-05
 
 - `kit/kit.json`
 - `kit/modules/core.json`, `kit/modules/audit-logs.json`, `kit/modules/api-keys.json`, `kit/modules/uploads.json`
-- `kit/cli/src/manifest/schema.ts`
-- `kit/cli/src/manifest/kit-state.ts`
-- `kit/cli/src/generate/index.ts`
-- `kit/cli/src/generate/registry.ts`
-- `kit/cli/src/generate/targets.ts`
+- `packages/gato-cli/src/manifest/schema.ts`
+- `packages/gato-cli/src/manifest/kit-state.ts`
+- `packages/gato-cli/src/generate/index.ts`
+- `packages/gato-cli/src/generate/registry.ts`
+- `packages/gato-cli/src/generate/targets.ts`
 - `src/modules.generated.ts`
 - `src/modules.client.generated.ts`
 - `src/i18n/locales.generated.ts`
@@ -152,7 +152,7 @@ Po każdej z tych komend schemat bazy się zmienia, więc migrację tworzy i com
 
 ### 3. Szwy generowane
 
-`wa generate` zapisuje trzy pliki i wypełnia cztery regiony ([02b](02b-rejestr-i-generator.md#wa-generate)). Generator rejestruje najpierw feature modułu `core`, potem modułów kitu w kolejności nazw, a na końcu modułów projektu (`registeredModules` w `kit/cli/src/manifest/kit-state.ts`). Feature trafia do tablicy wtedy, gdy ma odpowiedni plik.
+`wa generate` zapisuje trzy pliki i wypełnia cztery regiony ([02b](02b-rejestr-i-generator.md#wa-generate)). Generator rejestruje najpierw feature modułu `core`, potem modułów kitu w kolejności nazw, a na końcu modułów projektu (`registeredModules` w `packages/gato-cli/src/manifest/kit-state.ts`). Feature trafia do tablicy wtedy, gdy ma odpowiedni plik.
 
 | Szew | Plik feature, z którego powstaje | Kto w aplikacji czyta | Bez modułów opcjonalnych |
 | --- | --- | --- | --- |

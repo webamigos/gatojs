@@ -1,6 +1,7 @@
 version: 2
 
 updates:
+  # The root entry also updates the workspaces (packages/gato-cli): they share the root lockfile.
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -28,24 +29,6 @@ updates:
       # together with @opentelemetry/api, which better-auth also pins.
       - dependency-name: "@opentelemetry/*"
         update-types: [version-update:semver-minor]
-
-  - package-ecosystem: npm
-    directory: /kit/cli
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
-    labels:
-      - dependencies
-    commit-message:
-      prefix: chore
-      include: scope
-    groups:
-      cli:
-        update-types: [minor, patch]
-    ignore:
-      - dependency-name: "*"
-        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /

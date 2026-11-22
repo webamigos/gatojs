@@ -44,7 +44,7 @@ Sposoby egzekwowania różnią się siłą:
 - `zastąpiona przez Dxx`: decyzja przestała obowiązywać. Wpis zostaje w pliku z nowym statusem i jednym zdaniem o tym, co się zmieniło, a decyzja, która go zastąpiła, ma własny numer i mówi, co zmieniła. Pozostała treść zastąpionego wpisu jest zapisem historii i nie opisuje kodu.
 - Gdy w decyzji zmieniły się tylko fakty (na przykład lista plików generowanych albo miejsc w kodzie), wpis poprawia się w miejscu, bez nowego numeru.
 - Numery `D01`, `D02`… są stałe i nie są używane ponownie. Inne pliki linkują do wpisu przez kotwicę, na przykład `[D07](decyzje.md#d07)`, więc zmiana numeru zepsułaby linki. Odnośnik, który opisuje bieżący stan kodu, wskazuje decyzję obowiązującą, a nie zastąpioną.
-- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D52 bez luk: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), pozostałe obowiązują.
+- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D52 bez luk: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), D29 przez [ADR-56](adrs/56-workspace-packages-replace-d29.md), a D28 częściowo przez ADR-56; pozostałe obowiązują.
 - Nową decyzję dopisuje się na końcu z następnym wolnym numerem, kotwicą `<a id="dNN"></a>` i wszystkimi polami.
 - Jeden plik wystarcza, dopóki decyzje dopisuje jedna gałąź naraz. Gdy zaczną to robić równolegle różne gałęzie, dwie mogą dopisać ten sam następny numer; wtedy warto rozważyć osobne pliki `docs/decyzje/NNNN-*.md`.
 
@@ -116,8 +116,8 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 | [D25](#d25) | Testy adwersarialne | Jakość i proces | obowiązuje |
 | [D26](#d26) | Mutation testing i bramka plików krytycznych | Jakość i proces | obowiązuje |
 | [D27](#d27) | next-intl i namespace tłumaczeń feature | i18n | obowiązuje |
-| [D28](#d28) | CLI w `kit/cli`, commitowany bundel `.wa/bin/wa.mjs`, `git clone` tagu | CLI i składanie projektu | obowiązuje |
-| [D29](#d29) | Workspaces `packages/*` i `apps/*` statyczne i puste | CLI i składanie projektu | obowiązuje |
+| [D28](#d28) | CLI w `kit/cli`, commitowany bundel `.wa/bin/wa.mjs`, `git clone` tagu | CLI i składanie projektu | obowiązuje częściowo ([ADR-56](adrs/56-workspace-packages-replace-d29.md)) |
+| [D29](#d29) | Workspaces `packages/*` i `apps/*` statyczne i puste | CLI i składanie projektu | zastąpiona ([ADR-56](adrs/56-workspace-packages-replace-d29.md)) |
 | [D30](#d30) | Zależności npm mają właścicieli; przy konflikcie w `wa add` wygrywa wersja projektu | CLI i składanie projektu | obowiązuje |
 | [D31](#d31) | Hashe plików bez treści regionów; pliki zarządzane i generowane | CLI i składanie projektu | obowiązuje |
 | [D32](#d32) | Placeholdery jako dosłowna podmiana w `placeholderFiles` | CLI i składanie projektu | obowiązuje |
@@ -1010,6 +1010,8 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 
 **Status:** obowiązuje · **Data:** 2026-10-28 · **Kto zdecydował:** Jakub (decyzje D1 i D2 planu 2)
 
+**Częściowo zastąpiona przez [ADR-56](adrs/56-workspace-packages-replace-d29.md):** CLI jest workspace'em `packages/gato-cli` (pakiet narzędzia na liście `kitOnly`) bez własnego `package-lock.json`. Commitowany bundel `.wa/bin/wa.mjs` i dystrybucja kitu przez tag obowiązują dalej.
+
 **Kontekst.** Projekt ma powstawać z kitu jedną komendą i później dodawać moduły, a kit nie jest publikowany w żadnym rejestrze paczek. W planie 1 CLI było workspace'em npm w katalogu packages/cli (katalogu już nie ma): główny lockfile i `Dockerfile` (instrukcja `COPY` jego `package.json`) zależały od niego, więc projekt bez CLI miałby inny lockfile i nie zbudowałby obrazu Dockera (plan 2, D1).
 
 **Decyzja.**
@@ -1045,7 +1047,7 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 
 ## D29 · Workspaces `packages/*` i `apps/*` statyczne i puste
 
-**Status:** obowiązuje · **Data:** 2026-10-28 · **Kto zdecydował:** Jakub (decyzja D3 planu 2)
+**Status:** zastąpiona przez [ADR-56](adrs/56-workspace-packages-replace-d29.md) · **Data:** 2026-10-28 · **Kto zdecydował:** Jakub (decyzja D3 planu 2)
 
 **Kontekst.** Design doc §4.3 przewidywał, że pole `workspaces` w `package.json` projektu będzie generowane z modułów, które wnoszą własne pakiety (na przykład przyszły `worker` w `apps/worker`). Żaden moduł kitu takiego pakietu nie ma, a generowanie `package.json` oznaczałoby kolejny szew w pliku zarządzanym ([D31](#d31)).
 

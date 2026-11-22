@@ -8,7 +8,7 @@ function findRepoRoot(start: string): string {
   let dir = resolve(start);
   while (!(
     existsSync(join(dir, "kit/kit.json")) &&
-    existsSync(join(dir, "kit/cli/package.json"))
+    existsSync(join(dir, "packages/gato-cli/package.json"))
   )) {
     const parent = dirname(dir);
     if (parent === dir) throw new Error("Nie znaleziono korzenia repozytorium");

@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { compareCodePoint } from "../compare.js";
 import type { ModuleManifest } from "../manifest/schema.js";
@@ -88,6 +88,51 @@ async function ciStepsBody({
   return parts.join("\n\n");
 }
 
+async function isFile(file: string): Promise<boolean> {
+  try {
+    return (await stat(file)).isFile();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function packageDirectories(projectDir: string): Promise<string[]> {
+  const packagesDir = join(projectDir, "packages");
+  let entries;
+  try {
+    entries = await readdir(packagesDir, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+  const names: string[] = [];
+  for (const entry of entries) {
+    if (
+      entry.isDirectory() &&
+      (await isFile(join(packagesDir, entry.name, "package.json")))
+    ) {
+      names.push(entry.name);
+    }
+  }
+  return names.sort(compareCodePoint);
+}
+
+export async function workspacesBody({
+  projectDir,
+}: RegionContext): Promise<string> {
+  return (await packageDirectories(projectDir))
+    .map(
+      (name) =>
+        `COPY packages/${name}/package.json ./packages/${name}/package.json`,
+    )
+    .join("\n");
+}
+
 export const regionTargets: RegionTarget[] = [
   {
     file: "prisma/schema/auth.prisma",
@@ -111,6 +156,7 @@ export const regionTargets: RegionTarget[] = [
     marker: "ci-integration",
     body: ciStepsBody,
   },
+  { file: "Dockerfile", marker: "workspaces", body: workspacesBody },
 ];
 
 export const REGION_FILES: string[] = regionTargets

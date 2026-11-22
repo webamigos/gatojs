@@ -24,7 +24,7 @@ The getting-started guide is `docs/01-uruchomienie.md` (being translated).
 
 - Target `main`. Keep a pull request to one concern.
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) with a lowercase subject (`feat(core): …`, `fix(uploads): …`). Husky runs lint-staged and commitlint.
-- Run `npm run verify` before you open the pull request. For changes in `kit/cli`, also `npm run verify --prefix kit/cli`.
+- Run `npm run verify` before you open the pull request. For changes in `packages/gato-cli`, also `npm run verify --prefix packages/gato-cli`.
 - Add tests for every behaviour you change. A bug fix comes with a test that fails without the fix. Expected values are literals or come from a spec, never from the code under test.
 - Data access, auth, organizations and roles are covered by a mutation gate (`npm run test:mutation:task -- <files>`, `npm run test:mutation:gate`). Surviving mutants need a test or a justified `allowed` entry, which a maintainer approves.
 - Changes to kit files bump the owning module's `version` in `kit/modules/<module>.json`, followed by `npm run wa -- kit sync`.

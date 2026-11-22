@@ -1,0 +1,67 @@
+{
+  "name": "gato-cli",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Command line for GatoJS projects: create a project from the kit, add and remove modules, regenerate wiring",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "gato": "dist/gato.mjs"
+  },
+  "files": [
+    "dist/gato.mjs",
+    "NOTICE"
+  ],
+  "keywords": [
+    "gatojs",
+    "gato",
+    "nextjs",
+    "kit",
+    "cli",
+    "scaffold",
+    "modules"
+  ],
+  "homepage": "https://github.com/webamigos/gatojs/tree/main/packages/gato-cli#readme",
+  "bugs": {
+    "url": "https://github.com/webamigos/gatojs/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/webamigos/gatojs.git",
+    "directory": "packages/gato-cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "build": "npm run typecheck && node bundle.mjs",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build",
+    "test:mutation": "stryker run",
+    "test:mutation:task": "stryker run --force --mutate",
+    "test:mutation:gate": "tsx ../../scripts/mutation-gate.ts",
+    "lint": "eslint .",
+    "prepack": "cp ../../LICENSE ../../NOTICE . && npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@fast-check/vitest": "^0.5.0",
+    "@inquirer/checkbox": "^5.3.0",
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/typescript-checker": "^10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
+    "@types/node": "^22",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "fast-check": "^4.10.3",
+    "tsx": "^4.23.15",
+    "typescript": "^5",
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^4.1.2",
+    "zod": "^4.3.6"
+  }
+}

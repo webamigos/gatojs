@@ -97,7 +97,7 @@ describe("findMissingCitedPaths", () => {
   it("pomija docs/ i kit/, bo to katalogi tylko kitu", () => {
     expect(
       findMissingCitedPaths(
-        "`docs/08-testy.md`, [k](kit/modules/core.json) i `kit/cli/src/`",
+        "`docs/08-testy.md`, [k](kit/modules/core.json) i `packages/gato-cli/src/`",
         nothingExists,
       ),
     ).toEqual([]);

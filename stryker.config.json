@@ -14,7 +14,11 @@
     "src/i18n/**/*.ts",
     "src/app/api/**/*.ts",
     "scripts/lib/**/*.ts",
+    "packages/*/src/**/*.ts",
     "!**/__tests__/**",
+    "!**/*.test.ts",
+    "!packages/gato-cli/**",
+    "!packages/create-gato-app/**",
     "!src/shared/lib/prisma.ts",
     "!src/shared/lib/logger.ts"
   ],
