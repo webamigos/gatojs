@@ -1545,7 +1545,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 ## D46 · Kit wydawany tagiem `v<version>` ustawianym przez człowieka; projekt pobiera kit tylko w swojej wersji
 
-**Status:** obowiązuje · **Data:** 2026-10-30 · **Kto zdecydował:** reguła wydania: `kit/CLAUDE.md` (autora nie zapisano); Jakub (tag `v0.1.0` z adnotacją na `76ca2d7`, opublikowany na GitHubie 2026-10-30)
+**Status:** obowiązuje częściowo: wydanie i tag zastępuje [ADR-54](adrs/54-kit-releases-are-cut-by-semantic-release.md) (semantic-release na `main`); pobieranie kitu w wersji projektu obowiązuje · **Data:** 2026-10-30 · **Kto zdecydował:** reguła wydania: `kit/CLAUDE.md` (autora nie zapisano); Jakub (tag `v0.1.0` z adnotacją na `76ca2d7`, opublikowany na GitHubie 2026-10-30)
 
 **Kontekst.** `wa add` i `wa list` w projekcie potrzebują kitu w tej samej wersji, z której projekt powstał, bo kopiują pliki modułu obok skopiowanego wcześniej rdzenia. Kit nie ma rejestru paczek ([D28](#d28)), więc wersję wskazuje tag gita.
 
