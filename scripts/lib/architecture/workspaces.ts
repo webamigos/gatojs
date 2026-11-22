@@ -26,7 +26,7 @@ const ESLINT_CONFIG_FILES = [
   "eslint.config.cts",
 ];
 
-function compareCodePoint(a: string, b: string): number {
+export function compareCodePoint(a: string, b: string): number {
   if (a < b) {
     return -1;
   }
