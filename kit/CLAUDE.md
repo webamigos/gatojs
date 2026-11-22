@@ -42,4 +42,10 @@ Default roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human
 
 ### Domain docs
 
-Single-context: `GLOSSARY.md` at the root (created lazily), decisions in the `D<nn>` log in `docs/decyzje.md`, not in `docs/adr/`. See `docs/agents/domain.md`.
+Single-context: `GLOSSARY.md` at the root (created lazily), decisions as ADR files in `docs/adrs/` (new ones from ADR-53; D01–D52 stay in `docs/decyzje.md` until the English migration). See `docs/agents/domain.md`.
+
+## Decisions and lessons
+
+- A new decision is an ADR file in `docs/adrs/NN-<decision-as-a-title>.md`, in English, from `docs/adrs/TEMPLATE.md`, with the next free number (from 53). Format and numbering: `docs/adrs/README.md`. Do not append new entries to `docs/decyzje.md`.
+- Before nontrivial work, skim the titles in `docs/lessons.md` for the area you touch and read the matching lessons.
+- After a nontrivial correction or a non-obvious gotcha, add or extend a lesson in `docs/lessons/` and its line in `docs/lessons.md` (format in that file).
