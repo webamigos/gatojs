@@ -8,7 +8,7 @@ Thanks for your interest. GatoJS is a Next.js kit: a working application (core p
 
 - For anything larger than a small fix, open an issue first so we can agree on the approach.
 - Read [`AGENTS.md`](AGENTS.md) and [`CLAUDE.md`](CLAUDE.md). They are the rules for humans and AI agents alike: data access through `getOrgContext()` and an `organizationId` filter, the service mode contract, no code comments except `// WHY:`, no edits to generated files.
-- Kit-only rules (the CLI, manifests, releases) are in [`kit/CLAUDE.md`](kit/CLAUDE.md). Decisions are recorded in [`docs/decyzje.md`](docs/decyzje.md).
+- Kit-only rules (the CLI, manifests, releases) are in [`kit/CLAUDE.md`](kit/CLAUDE.md). New decisions are ADRs in [`docs/adrs/`](docs/adrs/README.md) (earlier ones in [`docs/decyzje.md`](docs/decyzje.md)); known gotchas are in [`docs/lessons.md`](docs/lessons.md).
 
 ## Development
 
