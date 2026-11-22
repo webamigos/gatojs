@@ -65,13 +65,13 @@ Each step is its own PR, so review stays readable and conflicts with other branc
 1. **Agent instructions** (`AGENTS.md`, `CLAUDE.md`, `kit/CLAUDE.md`, `.claude/**`, `README.md`, `kit/README.md`). First, because agents writing the rest of the migration must read English rules. The architecture tests from the harness plan (`cited-paths-exist`, `documented-commands-exist`) guard the references.
 2. **Docs rename** (`git mv` per the table in section 4, plus link updates across the repo), no content change. A pure rename keeps `git log --follow` and review simple.
 3. **Docs translation**, one PR per numbered chapter group (01–04b, 05–08b, 09–12, 13–16b, the D01–D52 split into `docs/adrs/`, `known-limitations.md`). Translators keep anchors (`<a id>`) in English and add the old Polish anchors as extra `<a id>` aliases for one release.
-4. **Archive** `docs/superpowers/` working documents from before 2026-11-21 to `docs/archive/pl/`.
+4. **Archive** `docs/superpowers/` working documents from before 2026-11-21 to `docs/archive/pl/`. The same PR updates every link to a moved file (including `docs/README.md`), so no reference points at the old path.
 5. **Code messages:** server errors returned to the UI become error codes with i18n keys in `pl` and `en`; CLI, env validation, log and hook messages become English literals. Test titles in the touched files are translated in the same PR.
 6. **Remaining test titles**, file by file, with no assertion changes.
-7. **`mutation-gate.json` reasons** translated (the human-approved entries keep their meaning; Patryk or Kuba approves the PR).
-8. **Guard:** an architecture test that fails on Polish diacritics outside `**/i18n/pl.json`, `src/app/messages/pl.json`, email `pl` templates and `docs/archive/pl/`.
+7. **`mutation-gate.json` reasons** translated (the human-approved entries keep their meaning; Patryk or Kuba approves the PR). When step 5 changes a message quoted in an entry's `original` field (for example the Polish messages in `kit/cli/src/manifest/schema.ts`), that `original` field changes in the same commit, otherwise the gate stops on a stale entry.
+8. **Guard:** an architecture test that fails on Polish diacritics outside `**/i18n/pl.json`, `src/app/messages/pl.json`, email `pl` templates and `docs/archive/pl/`. In test files it inspects only test titles (`describe`/`it`/`test` names), not assertions, because tests that render the `pl` locale legitimately assert Polish UI text (for example `Hasło` in the sign-up tests).
 
-Steps 1–4 are documentation only and can run in parallel workers after step 0. Steps 5–7 change code and follow the usual test-writer → implementer → test-reviewer process for step 5.
+Dependencies: step 1 is merged before any other step starts, so every worker reads English rules. Step 2 (rename) is merged before step 3 (translation) and step 4 (archive) start. Within step 3 the chapter PRs can run in parallel. Steps 5–7 change code and follow the usual test-writer → implementer → test-reviewer process for step 5; step 8 comes last.
 
 ## 6. Out of scope
 
