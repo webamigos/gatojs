@@ -123,6 +123,30 @@ describe("checkEnvExample", () => {
     expect(checkEnvExample(root)).toEqual([]);
   });
 
+  it("validates module variables too: a valid core without API_KEY_PEPPER reports that variable", () => {
+    writeEnvExample(
+      [
+        "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/wa",
+        `BETTER_AUTH_SECRET=${"s".repeat(32)}`,
+        "APP_URL=http://localhost:3000",
+        "EMAIL_FROM=WA App <noreply@example.com>",
+        "",
+      ].join("\n"),
+    );
+    expect(checkEnvExample(root)).toEqual([
+      expect.stringMatching(/^\.env\.example: API_KEY_PEPPER: \S/),
+    ]);
+  });
+
+  it("validates module variables too: STORAGE_PROVIDER=s3 without S3_BUCKET reports that variable", () => {
+    writeEnvExample(
+      `${withoutVariable(withoutVariable(realEnvExample, "STORAGE_PROVIDER"), "S3_BUCKET")}\nSTORAGE_PROVIDER=s3\nS3_ENDPOINT=http://localhost:9000\nS3_ACCESS_KEY_ID=k\nS3_SECRET_ACCESS_KEY=s\n`,
+    );
+    expect(checkEnvExample(root)).toEqual([
+      expect.stringMatching(/^\.env\.example: S3_BUCKET: \S/),
+    ]);
+  });
+
   it("zdejmuje cudzysłowy z wartości przed walidacją", () => {
     writeEnvExample(
       `${withoutVariable(realEnvExample, "APP_URL")}\nAPP_URL="http://localhost:3000"\n`,

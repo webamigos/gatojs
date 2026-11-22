@@ -69,6 +69,71 @@ describe("register: walidacja env przy starcie", () => {
     );
   });
 
+  function stubValidCoreEnv() {
+    vi.stubEnv("NEXT_RUNTIME", "nodejs");
+    vi.stubEnv("NEXT_PHASE", undefined);
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv(
+      "DATABASE_URL",
+      "postgresql://postgres:postgres@localhost:5432/wa",
+    );
+    vi.stubEnv("BETTER_AUTH_SECRET", "s".repeat(32));
+    vi.stubEnv("APP_URL", "http://localhost:3000");
+    vi.stubEnv("EMAIL_FROM", "WA App <noreply@example.com>");
+    vi.stubEnv("AUTH_PUBLIC_SIGNUP", "");
+    vi.stubEnv("MULTI_ORG", "");
+    vi.stubEnv("ADMIN_IMPERSONATION", "");
+    vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "");
+    vi.stubEnv("API_KEY_PEPPER", "p".repeat(32));
+    vi.stubEnv("STORAGE_PROVIDER", "local");
+    vi.stubEnv("STORAGE_LOCAL_PATH", undefined);
+  }
+
+  it("nodejs runtime with a valid core env but STORAGE_PROVIDER=s3 and no S3_* variables → module issues in the report and process.exit(1)", async () => {
+    stubValidCoreEnv();
+    vi.stubEnv("STORAGE_PROVIDER", "s3");
+    vi.stubEnv("S3_ENDPOINT", undefined);
+    vi.stubEnv("S3_ACCESS_KEY_ID", undefined);
+    vi.stubEnv("S3_SECRET_ACCESS_KEY", undefined);
+    vi.stubEnv("S3_BUCKET", undefined);
+    const output = spyOnStartupOutput();
+
+    await register();
+
+    expect(output.exit.mock.calls).toEqual([[1]]);
+    expect(output.error).toHaveBeenCalledTimes(1);
+    const [report] = output.error.mock.calls[0];
+    expect(report).toMatch(/^Nieprawidłowe zmienne środowiskowe \(4\):\n/);
+    expect(report).toContain("\n- S3_ENDPOINT: ");
+    expect(report).toContain("\n- S3_ACCESS_KEY_ID: ");
+    expect(report).toContain("\n- S3_SECRET_ACCESS_KEY: ");
+    expect(report).toContain("\n- S3_BUCKET: ");
+  });
+
+  it("nodejs runtime with a valid core env but no API_KEY_PEPPER → a single API_KEY_PEPPER issue and process.exit(1)", async () => {
+    stubValidCoreEnv();
+    vi.stubEnv("API_KEY_PEPPER", undefined);
+    const output = spyOnStartupOutput();
+
+    await register();
+
+    expect(output.exit.mock.calls).toEqual([[1]]);
+    expect(output.error).toHaveBeenCalledTimes(1);
+    expect(output.error.mock.calls[0][0]).toMatch(
+      /^Nieprawidłowe zmienne środowiskowe \(1\):\n- API_KEY_PEPPER: /,
+    );
+  });
+
+  it("nodejs runtime with a valid core and module env → no report and no exit", async () => {
+    stubValidCoreEnv();
+    const output = spyOnStartupOutput();
+
+    await register();
+
+    expect(output.exit).not.toHaveBeenCalled();
+    expect(output.error).not.toHaveBeenCalled();
+  });
+
   it("runtime edge → bez sprawdzenia, raportu i wyjścia", async () => {
     vi.stubEnv("NEXT_RUNTIME", "edge");
     vi.stubEnv("DATABASE_URL", "");
