@@ -24,6 +24,7 @@ describe("parseCreateArgs", () => {
       install: true,
       git: true,
       kit: null,
+      cliSource: null,
     });
   });
 
@@ -115,6 +116,67 @@ describe("parseCreateArgs", () => {
       target: "acme",
       yes: true,
     });
+  });
+});
+
+describe("parseCreateArgs --cli-source", () => {
+  it("without --cli-source cliSource is null", () => {
+    expect(parseCreateArgs(["app"]).cliSource).toBeNull();
+  });
+
+  it("--cli-source <path> sets cliSource and keeps the target", () => {
+    expect(
+      parseCreateArgs(["app", "--cli-source", "/t/gato-cli-0.2.0.tgz"]),
+    ).toEqual({
+      target: "app",
+      modules: null,
+      locales: null,
+      title: null,
+      adminEmail: null,
+      yes: false,
+      setup: false,
+      install: true,
+      git: true,
+      kit: null,
+      cliSource: "/t/gato-cli-0.2.0.tgz",
+    });
+  });
+
+  it("--cli-source=<path> sets cliSource", () => {
+    expect(
+      parseCreateArgs(["app", "--cli-source=pack/gato-cli-0.2.0.tgz"])
+        .cliSource,
+    ).toBe("pack/gato-cli-0.2.0.tgz");
+  });
+
+  it("--cli-source before the target does not take the target as its value", () => {
+    expect(parseCreateArgs(["--cli-source", "/t/x.tgz", "app"])).toMatchObject({
+      target: "app",
+      cliSource: "/t/x.tgz",
+    });
+  });
+
+  it("the --cli-source value alone is not a project directory", () => {
+    expect(() => parseCreateArgs(["--cli-source", "/t/x.tgz"])).toThrow(
+      "Podaj katalog projektu",
+    );
+  });
+
+  it("--cli-source does not change --kit", () => {
+    expect(
+      parseCreateArgs(["app", "--kit", "/k", "--cli-source", "/t/x.tgz"]),
+    ).toMatchObject({ kit: "/k", cliSource: "/t/x.tgz" });
+  });
+
+  it.each([
+    [["app", "--cli-source="]],
+    [["app", "--cli-source"]],
+    [["app", "--cli-source", ""]],
+    [["app", "--cli-source", "--yes"]],
+  ])("%j reports Opcja --cli-source wymaga wartości", (argv) => {
+    expect(messageOf(() => parseCreateArgs(argv))).toBe(
+      "Opcja --cli-source wymaga wartości",
+    );
   });
 });
 

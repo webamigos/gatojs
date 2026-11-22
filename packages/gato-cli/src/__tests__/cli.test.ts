@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { fc, test } from "@fast-check/vitest";
 import { describe, expect, it } from "vitest";
 import {
+  cliDependency,
   createKitDir,
   kitSourceFromEnv,
   runMetaCommand,
@@ -340,4 +341,106 @@ describe("createKitDir", () => {
       ).toThrow(/^gato create needs --kit <path to a GatoJS checkout>$/);
     },
   );
+});
+
+describe("cliDependency", () => {
+  it("gato without a source depends on the caret of its own version", () => {
+    expect(
+      cliDependency({
+        name: "gato",
+        version: "0.2.0",
+        cliSource: null,
+        cwd: "/w",
+      }),
+    ).toBe("^0.2.0");
+  });
+
+  it("gato uses its own version, not a fixed one", () => {
+    expect(
+      cliDependency({
+        name: "gato",
+        version: "1.10.3",
+        cliSource: null,
+        cwd: "/w",
+      }),
+    ).toBe("^1.10.3");
+  });
+
+  it("a relative source is resolved against cwd and prefixed with file:", () => {
+    expect(
+      cliDependency({
+        name: "gato",
+        version: "0.2.0",
+        cliSource: "pack/gato-cli-0.2.0.tgz",
+        cwd: "/w",
+      }),
+    ).toBe("file:/w/pack/gato-cli-0.2.0.tgz");
+  });
+
+  it("a relative source with .. is normalised against cwd", () => {
+    expect(
+      cliDependency({
+        name: "gato",
+        version: "0.2.0",
+        cliSource: "../pack/x.tgz",
+        cwd: "/w/app",
+      }),
+    ).toBe("file:/w/pack/x.tgz");
+  });
+
+  it("an absolute source is kept and prefixed with file:", () => {
+    expect(
+      cliDependency({
+        name: "gato",
+        version: "0.2.0",
+        cliSource: "/abs/x.tgz",
+        cwd: "/w",
+      }),
+    ).toBe("file:/abs/x.tgz");
+  });
+
+  it("wa without a source adds no dependency", () => {
+    expect(
+      cliDependency({
+        name: "wa",
+        version: "0.2.0",
+        cliSource: null,
+        cwd: "/w",
+      }),
+    ).toBeNull();
+  });
+
+  it("wa with a source depends on the resolved file", () => {
+    expect(
+      cliDependency({
+        name: "wa",
+        version: "0.2.0",
+        cliSource: "x.tgz",
+        cwd: "/w",
+      }),
+    ).toBe("file:/w/x.tgz");
+  });
+
+  it("wa with an absolute source depends on that file", () => {
+    expect(
+      cliDependency({
+        name: "wa",
+        version: "0.2.0",
+        cliSource: "/t/gato-cli-0.2.0.tgz",
+        cwd: "/w",
+      }),
+    ).toBe("file:/t/gato-cli-0.2.0.tgz");
+  });
+
+  const segment = fc.stringMatching(/^[a-z0-9][a-z0-9-]{0,7}$/);
+
+  test.prop([
+    fc.constantFrom("gato" as const, "wa" as const),
+    fc.array(segment, { minLength: 1, maxLength: 4 }),
+  ])("any absolute normalised source becomes file:<source>", (name, parts) => {
+    const source = `/${parts.join("/")}.tgz`;
+    expect(
+      cliDependency({ name, version: "0.2.0", cliSource: source, cwd: "/w" }),
+    ).toBe(`file:${source}`);
+  });
 });

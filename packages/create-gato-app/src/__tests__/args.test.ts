@@ -174,7 +174,7 @@ describe("parseCliArgs", () => {
     );
   });
 
-  it("wa create options are passed through unchanged and in order", () => {
+  it("gato create options are passed through unchanged and in order", () => {
     expect(
       parseCliArgs([
         "--yes",
@@ -239,7 +239,7 @@ describe("parseCliArgs", () => {
     });
   });
 
-  it("a trailing wa create option without a value is passed through as is", () => {
+  it("a trailing gato create option without a value is passed through as is", () => {
     const result = parseCliArgs(["my-app", "--title"]);
     expect(result).toEqual({
       kind: "create",
@@ -252,6 +252,71 @@ describe("parseCliArgs", () => {
     if (result.kind !== "create") throw new Error("expected create");
     expect(result.passthrough).toHaveLength(2);
     expect(result.passthrough).not.toContain(undefined);
+  });
+
+  it("--cli-source before the target does not take its value as the target", () => {
+    expect(parseCliArgs(["--cli-source", "/t/x.tgz", "my-app"])).toEqual({
+      kind: "create",
+      target: "my-app",
+      kitVersion: null,
+      kitPath: null,
+      install: true,
+      passthrough: ["--cli-source", "/t/x.tgz", "my-app"],
+    });
+  });
+
+  it("--cli-source after the target is passed through with its value", () => {
+    expect(
+      parseCliArgs([
+        "my-app",
+        "--cli-source",
+        "pack/gato-cli-0.2.0.tgz",
+        "--yes",
+      ]),
+    ).toMatchObject({
+      kind: "create",
+      target: "my-app",
+      passthrough: [
+        "my-app",
+        "--cli-source",
+        "pack/gato-cli-0.2.0.tgz",
+        "--yes",
+      ],
+    });
+  });
+
+  it("--cli-source=<path> passes through as one token", () => {
+    expect(parseCliArgs(["--cli-source=/t/x.tgz", "my-app"])).toMatchObject({
+      kind: "create",
+      target: "my-app",
+      passthrough: ["--cli-source=/t/x.tgz", "my-app"],
+    });
+  });
+
+  it.each([[["--cli-source", "/t/x.tgz"]], [["--cli-source", "my-app"]]])(
+    "%j has no project directory: the value is not a target",
+    (argv) => {
+      expect(() => parseCliArgs(argv)).toThrow(/^Missing project directory/);
+    },
+  );
+
+  it("--cli-source together with --kit keeps --kit out of passthrough", () => {
+    expect(
+      parseCliArgs([
+        "my-app",
+        "--kit",
+        "../gatojs",
+        "--cli-source",
+        "/t/x.tgz",
+      ]),
+    ).toEqual({
+      kind: "create",
+      target: "my-app",
+      kitVersion: null,
+      kitPath: "../gatojs",
+      install: true,
+      passthrough: ["my-app", "--cli-source", "/t/x.tgz"],
+    });
   });
 
   it("unknown flags pass through", () => {
@@ -269,5 +334,11 @@ describe("USAGE", () => {
     expect(USAGE).toContain("--kit-version");
     expect(USAGE).toMatch(/--kit(?!-)/);
     expect(USAGE).toContain("--skip-install");
+  });
+
+  it("names gato create as the delegate and documents --cli-source", () => {
+    expect(USAGE).toContain("gato create");
+    expect(USAGE).toContain("--cli-source");
+    expect(USAGE).not.toContain("wa create");
   });
 });

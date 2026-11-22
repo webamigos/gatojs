@@ -10,6 +10,7 @@ import { bytesResponse, jsonResponse, statusResponse } from "./fake-http.js";
 
 const SECRET = "ghp_SECRET_TOKEN_123";
 const NODE = "/usr/local/bin/node";
+const GATO = "/nm/gato-cli/dist/gato.mjs";
 const TAGS_PAGE_1 =
   "https://api.github.com/repos/webamigos/gatojs/tags?per_page=100&page=1";
 const API_TARBALL_010 =
@@ -102,6 +103,7 @@ function harness(options: {
     deps: {
       nodeVersion: options.nodeVersion ?? "v22.11.0",
       nodePath: NODE,
+      gatoBin: GATO,
       env: options.env ?? {},
       cwd: options.cwd ?? "/work",
       packageVersion: "9.8.7",
@@ -210,14 +212,7 @@ describe("run: Node check", () => {
     expect(h.spawnCalls).toEqual([
       {
         command: NODE,
-        args: [
-          "/k/.wa/bin/wa.mjs",
-          "create",
-          "app",
-          "--no-install",
-          "--kit",
-          "/k",
-        ],
+        args: [GATO, "create", "app", "--no-install", "--kit", "/k"],
         options: { cwd: "/work", stdio: "inherit" },
       },
     ]);
@@ -237,14 +232,7 @@ describe("run: local kit", () => {
       expect(h.spawnCalls).toEqual([
         {
           command: NODE,
-          args: [
-            "/kit/.wa/bin/wa.mjs",
-            "create",
-            "app",
-            "--yes",
-            "--kit",
-            "/kit",
-          ],
+          args: [GATO, "create", "app", "--yes", "--kit", "/kit"],
           options: { cwd: "/work", stdio: "inherit" },
         },
       ]);
@@ -254,8 +242,9 @@ describe("run: local kit", () => {
   it("resolves a relative --kit against a different cwd", async () => {
     const h = harness({ cwd: "/home/me/projects" });
     await run(["app", "--kit=gatojs"], h.deps);
+    expect(h.spawnCalls[0]).toMatchObject({ command: NODE });
     expect(h.spawnCalls[0]?.args).toEqual([
-      "/home/me/projects/gatojs/.wa/bin/wa.mjs",
+      GATO,
       "create",
       "app",
       "--kit",
@@ -287,14 +276,7 @@ describe("run: download", () => {
     ]);
     expect(h.spawnCalls[3]).toEqual({
       command: NODE,
-      args: [
-        `${tmp}/kit/.wa/bin/wa.mjs`,
-        "create",
-        "app",
-        "--yes",
-        "--kit",
-        `${tmp}/kit`,
-      ],
+      args: [GATO, "create", "app", "--yes", "--kit", `${tmp}/kit`],
       options: expect.objectContaining({ stdio: "inherit" }),
     });
     expect(h.removed).toEqual([tmp]);
@@ -432,5 +414,80 @@ describe("run: download", () => {
     expect(output(h)).not.toContain(SECRET);
     expect(h.spawnCalls).toEqual([]);
     expect(h.removed).toEqual(h.tempDirs);
+  });
+});
+
+describe("run: delegation to gato-cli", () => {
+  it("passes --cli-source through to gato create and keeps the target", async () => {
+    const h = harness({ cwd: "/work" });
+    await expect(
+      run(
+        [
+          "app",
+          "--kit",
+          "/k",
+          "--cli-source",
+          "/t/gato-cli-0.2.0.tgz",
+          "--yes",
+        ],
+        h.deps,
+      ),
+    ).resolves.toBe(0);
+    expect(h.spawnCalls).toEqual([
+      {
+        command: NODE,
+        args: [
+          GATO,
+          "create",
+          "app",
+          "--cli-source",
+          "/t/gato-cli-0.2.0.tgz",
+          "--yes",
+          "--kit",
+          "/k",
+        ],
+        options: { cwd: "/work", stdio: "inherit" },
+      },
+    ]);
+  });
+
+  it("uses the injected gato bin, not a fixed path", async () => {
+    const h = harness({});
+    h.deps.gatoBin = "/elsewhere/gato-cli/dist/gato.mjs";
+    await run(["app", "--kit", "/k"], h.deps);
+    expect(h.spawnCalls[0]?.args[0]).toBe("/elsewhere/gato-cli/dist/gato.mjs");
+  });
+
+  it("a downloaded kit is passed with --kit and its wa.mjs is never run", async () => {
+    const h = harness({
+      routes: { [CODELOAD_TARBALL_010]: bytesResponse([1]) },
+    });
+    await expect(run(["app", "--kit-version", "0.1.0"], h.deps)).resolves.toBe(
+      0,
+    );
+    const tmp = h.tempDirs[0] as string;
+    const delegated = h.spawnCalls.filter((call) => call.command === NODE);
+    expect(delegated).toHaveLength(1);
+    expect(delegated[0]?.args).toEqual([
+      GATO,
+      "create",
+      "app",
+      "--kit",
+      `${tmp}/kit`,
+    ]);
+    expect(
+      h.spawnCalls.some((call) =>
+        call.args.some((arg) => arg.includes("wa.mjs")),
+      ),
+    ).toBe(false);
+  });
+
+  it("an unsupported Node refuses before delegating even with --cli-source", async () => {
+    const h = harness({ nodeVersion: "v21.7.3" });
+    await expect(
+      run(["app", "--kit", "/k", "--cli-source", "/t/x.tgz"], h.deps),
+    ).resolves.toBe(1);
+    expect(h.errors.join("\n")).toContain(">=22");
+    expect(h.spawnCalls).toEqual([]);
   });
 });

@@ -11,20 +11,43 @@ const CLOSED_22_TO_25 = [{ from: "22.0.0", belowMajor: 25 }];
 const WITH_GAP = [{ from: "24.15.0", belowMajor: 25 }, { from: "26.0.0" }];
 
 describe("enginesRange", () => {
-  it("default ranges give >=22.0.0", () => {
-    expect(enginesRange(SUPPORTED_NODE_RANGES)).toBe(">=22.0.0");
+  it("default ranges give >=22", () => {
+    expect(enginesRange(SUPPORTED_NODE_RANGES)).toBe(">=22");
   });
 
   it("matches engines.node in package.json", async () => {
     const packageJson = JSON.parse(
       await readFile(new URL("../../package.json", import.meta.url), "utf8"),
     ) as { engines: { node: string } };
-    expect(packageJson.engines.node).toBe(">=22.0.0");
+    expect(packageJson.engines.node).toBe(">=22");
     expect(enginesRange(SUPPORTED_NODE_RANGES)).toBe(packageJson.engines.node);
   });
 
-  it("closed and open ranges are joined with ||", () => {
-    expect(enginesRange(WITH_GAP)).toBe("^24.15.0 || >=26.0.0");
+  it("closed and open ranges are joined with ||, the open one as a bare major", () => {
+    expect(enginesRange(WITH_GAP)).toBe("^24.15.0 || >=26");
+  });
+
+  it("a closed range keeps its full version even when it ends in .0.0", () => {
+    expect(enginesRange(CLOSED_22_TO_25)).toBe("^22.0.0");
+  });
+
+  it.each([
+    ["22.1.0", ">=22.1.0"],
+    ["22.0.1", ">=22.0.1"],
+    ["22.10.0", ">=22.10.0"],
+    ["20.10.0", ">=20.10.0"],
+    ["100.0.0", ">=100"],
+  ])("an open range from %s prints as %s", (from, expected) => {
+    expect(enginesRange([{ from }])).toBe(expected);
+  });
+
+  it("two closed ranges both keep the full form", () => {
+    expect(
+      enginesRange([
+        { from: "22.0.0", belowMajor: 23 },
+        { from: "24.0.0", belowMajor: 25 },
+      ]),
+    ).toBe("^22.0.0 || ^24.0.0");
   });
 });
 
@@ -75,7 +98,8 @@ describe("checkNodeVersion with default ranges", () => {
     expect(verdict.kind).toBe("refuse");
     if (verdict.kind === "ok") throw new Error("expected a message");
     expect(verdict.message).toContain("too old");
-    expect(verdict.message).toContain(">=22.0.0");
+    expect(verdict.message).toContain(">=22");
+    expect(verdict.message).not.toContain(">=22.0.0");
     expect(verdict.message).toContain(bare);
     expect(verdict.message).not.toContain("too new");
     expect(verdict.message).not.toContain("unsupported release line");
