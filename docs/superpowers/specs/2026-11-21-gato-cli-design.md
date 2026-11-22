@@ -1,143 +1,157 @@
-# `create-gato-app` i `gato-cli`: publiczne narzędzia kitu
+# `create-gato-app` and `gato-cli`: public tools for the kit
 
-Data: 2026-11-21. Projekt Patryka z agentem. Szkic do przeglądu, nie plan implementacji.
+Date: 2026-11-21. Drafted by Patryk with an agent. Draft for review, not an implementation plan.
 
-Źródła:
+Sources:
 
-- CLI `wa` w `kit/cli` (komendy `create`, `add`, `remove`, `list`, `generate`, `kit sync`) i jego dokumentacja: `docs/16-cli-wa.md`, `docs/16b-rozwoj-kitu.md`;
-- decyzje [D28](../../decyzje.md#d28) (CLI w `kit/cli`, bundel `.wa/bin/wa.mjs`, bez npm), [D29](../../decyzje.md#d29) (puste `packages/*`), [D46](../../decyzje.md#d46) (kit wydawany tagiem);
-- `ragen-app/packages/create-ragen-app` (kreator instalacji, `giget`, `@clack/prompts`, zakres wersji Node, sondowanie portów, `COMPOSE_PROJECT_NAME`) i `.github/workflows/installer.yml` (smoke test spakowanego tarballa);
-- `ragen-app/packages/ragen-cli` (nazwa pakietu inna niż nazwa komendy, `doctor`, `version`, test spakowanego CLI w `.github/workflows/ragen-cli.yml`);
-- strona `gato-website` (`src/config/site.ts`: publiczna nazwa GatoJS, „open-source Next.js kit”).
+- the `wa` CLI in `kit/cli` (`create`, `add`, `remove`, `list`, `generate`, `kit sync`) and its docs: `docs/16-cli-wa.md`, `docs/16b-rozwoj-kitu.md`;
+- decisions [D28](../../decyzje.md#d28) (CLI in `kit/cli`, bundle `.wa/bin/wa.mjs`, no npm), [D29](../../decyzje.md#d29) (empty `packages/*`), [D46](../../decyzje.md#d46) (kit released by tag);
+- `ragen-app/packages/create-ragen-app` (installer wizard, `giget`, `@clack/prompts`, Node version range, port probing, `COMPOSE_PROJECT_NAME`) and `.github/workflows/installer.yml` (smoke test of the packed tarball);
+- `ragen-app/packages/ragen-cli` (package name differs from the command name, `doctor`, `version`, packed CLI test in `.github/workflows/ragen-cli.yml`);
+- the `gato-website` site (`src/config/site.ts`: public name GatoJS, "open-source Next.js kit").
 
-## 1. Po co
+## 1. Why
 
-Kit (roboczo „wa-kit”) ma się stać publicznym frameworkiem GatoJS w repozytorium `webamigos/gatojs`. Dziś nowy projekt zakłada się jednolinijkowcem z `git clone` prywatnego repo, a każdy projekt niesie skopiowany bundel `.wa/bin/wa.mjs`. To działa wewnątrz Web Amigos, ale nie nadaje się dla ludzi spoza firmy:
+The kit (working name "wa-kit") becomes the public framework GatoJS in the `webamigos/gatojs` repository. Today a new project starts from a one-liner with `git clone` of a private repo, and every project carries a copied bundle `.wa/bin/wa.mjs`. That works inside Web Amigos but not for people outside it:
 
-- wymaga `git` z dostępem do prywatnego repo i ręcznie wpisanego tagu;
-- nie ma kreatora: nie sprawdza wersji Node ani portów, nie generuje sekretów modułów, nie pyta o provider storage;
-- wersja CLI w projekcie jest plikiem w repo, którego nic nie aktualizuje, a projekt nie ma `wa update`.
+- it needs `git` with access to a private repo and a hand-typed tag;
+- there is no wizard: no Node version or port checks, no module secrets, no storage provider question;
+- the CLI version in a project is a file in the repo that nothing updates, and there is no `wa update` on `main` yet (PR #14).
 
-Ragen rozwiązał to samo dwoma publicznymi pakietami npm. Ten spec przenosi ten układ do kitu.
+Ragen solved the same problem with two public npm packages. This spec brings that layout to the kit.
 
-## 2. Decyzje Patryka (2026-11-21)
+## 2. Patryk's decisions (2026-11-21)
 
-1. Kit (rdzeń i moduły) staje się publiczny.
-2. `gato-cli` trafia do projektu jako `devDependency`. Commitowany bundel `.wa/bin/wa.mjs` znika.
-3. Źródła obu pakietów leżą w katalogu `packages/` repo kitu.
-4. CLI ma własny semver, niezależny od wersji kitu. Zgodność pilnuje numer formatu kitu.
-5. „wa-kit” to nazwa robocza. Framework nazywa się **GatoJS**, a repozytorium **`webamigos/gatojs`**.
+1. The kit (core and modules) becomes public.
+2. `gato-cli` reaches a project as a `devDependency`. The committed bundle `.wa/bin/wa.mjs` goes away.
+3. The sources of both packages live in the kit repo's `packages/` directory.
+4. The CLI has its own semver, independent of the kit version. Compatibility is tracked by a kit format number.
+5. "wa-kit" is a working name. The framework is called **GatoJS** and the repository is **`webamigos/gatojs`**.
 
-## 3. Dwa pakiety
+## 3. Two packages
 
 | | `create-gato-app` | `gato-cli` |
 | --- | --- | --- |
-| Uruchomienie | `npm create gato-app@latest <katalog>` (alias `npx create-gato-app`) | `npx gato <komenda>` w projekcie (z `devDependencies`) |
-| Rola | Kreator: zakłada projekt i doprowadza go do działającego `npm run dev` | Cykl życia projektu: `add`, `remove`, `list`, `generate`, `doctor`, później `upgrade` |
-| Komenda | `create-gato-app` | `gato` |
-| Zależy od | `gato-cli` (biblioteka składania projektu) | `zod` |
+| How to run | `npm create gato-app@latest <dir>` (alias `npx create-gato-app`) | `npx gato <command>` in a project (from `devDependencies`) |
+| Role | Wizard: creates a project and brings it to a working `npm run dev` | Project lifecycle: `add`, `remove`, `list`, `generate`, `doctor`, later `upgrade` |
+| Command | `create-gato-app` | `gato` |
+| Depends on | `gato-cli` (the project assembly library), pinned exactly | `zod` |
 
-Jedna implementacja składania projektu: kod `create` z `kit/cli` przechodzi do `gato-cli` jako eksportowana funkcja (`createProject`), a `create-gato-app` dokłada tylko interfejs kreatora i kroki środowiska. To ta sama lekcja co w Raganie (`ragen create` deleguje do `create-ragen-app`, a nie kopiuje kreatora), tylko w odwrotnym kierunku. Dzięki temu `gato add` i `create` korzystają z tych samych reguł kopiowania, placeholderów i hashy.
+One implementation of project assembly: the `create` code from `kit/cli` moves into `gato-cli` as an exported function (`createProject`), and `create-gato-app` adds only the wizard UI and environment steps. This is the same lesson as in Ragen (`ragen create` delegates to `create-ragen-app` instead of copying the wizard), in the opposite direction. `gato add` and `create` then share the same copy, placeholder and hash rules.
 
-`gato` poza projektem (brak `.wa/kit.json`) nie składa projektu, tylko wypisuje `npm create gato-app@latest <katalog>`.
+Outside a project (no `.wa/kit.json`), `gato` does not assemble anything; it prints `npm create gato-app@latest <dir>`.
 
-### 3.1 Nazwy w npm
+### 3.1 npm names
 
-- `gato` jest zajęte (inny pakiet). `gato-cli`, `create-gato-app`, `gatojs` i scope `@gatojs` były wolne 2026-11-21.
-- Filtr podobieństwa npm odrzucił w Raganie nazwę `ragen` (403), więc nazwy trzeba zarezerwować od razu, publikując wersje `0.0.0` z samym README. Jeśli npm odrzuci `gato-cli`, zapasowo `@gatojs/cli`; komenda `gato` się nie zmienia, bo `bin` nie zależy od `name`.
-- Scope `@gatojs` zakładamy jako organizację npm z dwiema osobami z uprawnieniami publikacji.
+- `gato` is taken (an unrelated package). `gato-cli`, `create-gato-app`, `gatojs` and the `@gatojs` scope were free on 2026-11-21.
+- npm's similarity filter rejected `ragen` for Ragen (403), so the names should be reserved now by publishing `0.0.0` versions with only a README. If npm rejects `gato-cli`, the fallback is `@gatojs/cli`; the `gato` command does not change, because `bin` is independent of `name`.
+- The `@gatojs` scope is created as an npm organization with two people allowed to publish.
 
-## 4. `packages/` w repo kitu
+## 4. `packages/` in the kit repo
 
-### 4.1 Dwa rodzaje pakietów
+### 4.1 Two kinds of packages
 
-- **Narzędzia kitu** (`packages/gato-cli`, `packages/create-gato-app`): publikowane w npm, **nie trafiają do projektów** (lista `kitOnly` w `kit/kit.json`). Projekt dostaje `gato-cli` z npm.
-- **Pakiety projektu** (później: `env`, `observability`, `connector-guard`): kopiowane do projektu jako pliki rdzenia albo modułu. Poza zakresem tego specu, ale infrastruktura z 4.2 ma je obsłużyć bez zmian.
+- **Kit tools** (`packages/gato-cli`, `packages/create-gato-app`): published to npm, **not copied into projects** (`kitOnly` list in `kit/kit.json`). A project gets `gato-cli` from npm.
+- **Project packages** (later: `env`, `observability`, `connector-guard`): copied into a project as core or module files. Out of scope here, but the infrastructure in 4.2 has to support them unchanged.
 
-### 4.2 Infrastruktura workspace'ów (nowa decyzja zamiast D29 i części D28)
+### 4.2 Workspace infrastructure (a new decision replacing D29 and part of D28)
 
-- `kit/cli` przechodzi do `packages/gato-cli` bez zmiany zachowania (pierwszy krok, osobny PR).
-- Root `package.json` kitu ma `workspaces: ["packages/*", "apps/*"]` jak dziś. Lockfile kitu obejmuje pakiety narzędziowe. `create` dopasowuje lockfile projektu przez `npm install`, tak jak dziś.
-- `Dockerfile`: etap `deps` kopiuje `packages/*/package.json` przed `npm ci` (wzorzec Ragena i jego test `a-scoped-dockerfile-installs-every-workspace-dep`). Do testów architektury kitu dochodzi test pilnujący tego wzorca.
-- ESLint: `packages/**` przestaje być ignorowane; każdy pakiet ma własny `eslint.config.mjs` (do czasu pakietu `eslint-config`).
-- `npm run verify` kitu obejmuje pakiety przez `turbo run test typecheck lint build`. Bramka `npm run verify --prefix kit/cli` znika razem z `kit/cli`.
-- Stryker i `mutation-gate.json` pakietu `gato-cli` przechodzą z `kit/cli` bez zmiany progów i plików krytycznych.
+- `kit/cli` moves to `packages/gato-cli` with no behaviour change (first step, separate PR).
+- The kit's root `package.json` keeps `workspaces: ["packages/*", "apps/*"]`. The kit lockfile includes the tool packages. `create` adapts the project lockfile through `npm install`, as today.
+- `Dockerfile`: the `deps` stage copies `packages/*/package.json` before `npm ci` (Ragen's pattern and its `a-scoped-dockerfile-installs-every-workspace-dep` test). The kit's architecture tests get a test that guards this pattern.
+- ESLint: `packages/**` is no longer ignored; each package has its own `eslint.config.mjs` (until there is an `eslint-config` package).
+- The kit's `npm run verify` covers packages through `turbo run test typecheck lint build`. The `npm run verify --prefix kit/cli` gate goes away with `kit/cli`.
+- Stryker and `mutation-gate.json` for `gato-cli` move from `kit/cli` with unchanged thresholds and critical files.
 
-## 5. Pobieranie kitu bez gita
+## 5. Fetching the kit without git
 
-- Źródłem jest tarball tagu z GitHuba (`https://codeload.github.com/<owner>/<repo>/tar.gz/refs/tags/v<wersja>`), bez logowania i bez `git`. Tarball zawiera dokładnie pliki śledzone przez git, więc zastępuje `git ls-files` z `listKitFiles`. Plik `.gitattributes` z `export-ignore` może dodatkowo wyciąć `docs/` i `packages/` z tarballa, żeby był mniejszy.
-- Lokalny klon (`--kit <ścieżka>`, `GATO_KIT_SOURCE`) zostaje dla pracy nad kitem i dla CI.
-- Sumy kontrolne: CLI zapisuje w `.wa/kit.json` sha commita tagu (z nagłówka odpowiedzi albo z API GitHuba), żeby `gato doctor` i `upgrade` wiedziały, z czego projekt powstał.
-- Wersja kitu domyślna dla `create`: najnowsze GitHub Release, którego `kitFormat` CLI obsługuje (API GitHuba bez tokenu; przy limicie zapytań komunikat z `--kit-version <wersja>`). `--kit-version` i `--kit` nadpisują.
+- The source is the tag tarball from GitHub (`https://codeload.github.com/<owner>/<repo>/tar.gz/refs/tags/v<version>`), with no login and no `git`. The tarball contains exactly the files tracked by git, so it replaces `git ls-files` in `listKitFiles`. A `.gitattributes` file with `export-ignore` can also drop `docs/` and `packages/` from the tarball to make it smaller.
+- A local clone (`--kit <path>`, `GATO_KIT_SOURCE`) stays for kit development and CI.
+- Provenance: the CLI records the tag's commit sha in `.wa/kit.json` (from the response header or the GitHub API), so `gato doctor` and `upgrade` know what the project was created from.
+- Default kit version for `create`: the newest GitHub Release whose `kitFormat` the CLI supports (GitHub API without a token; on a rate limit, a message suggesting `--kit-version <version>`). `--kit-version` and `--kit` override it.
 
-## 6. Wersje i zgodność
+## 6. Versions and compatibility
 
-- `kit/kit.json` dostaje `kitFormat` (liczba całkowita, start `1`). Format zmienia się, gdy zmienia się kontrakt czytany przez CLI: schemat manifestu, `.wa/kit.json`, regiony `wa:*`, układ plików generowanych.
-- `gato-cli` deklaruje obsługiwane formaty (`SUPPORTED_KIT_FORMATS`). Projekt albo kit w formacie spoza listy kończy komendę błędem: `Ten projekt używa formatu kitu <n>; zaktualizuj gato-cli (npm i -D gato-cli@latest)` albo, dla formatu starszego niż obsługiwane, wskazaniem ostatniej wersji CLI, która go zna.
-- `create-gato-app` przypina w projekcie `gato-cli` na `^<swoja wersja>` (oba pakiety wydawane razem, gdy zmienia się kod wspólny).
-- `.wa/kit.json` zapisuje `kitFormat` i `cliVersion` z chwili ostatniej operacji.
+- `kit/kit.json` gains `kitFormat` (an integer, starting at `1`). The format changes when a contract read by the CLI changes: the manifest schema, `.wa/kit.json`, `wa:*` regions, the layout of generated files.
+- `gato-cli` declares the formats it supports (`SUPPORTED_KIT_FORMATS`). A project or kit in a format outside that list ends the command with an error: `This project uses kit format <n>; update gato-cli (npm i -D gato-cli@latest)`, or, for a format older than any supported one, the last CLI version that knows it.
+- **Which `gato-cli` a new project gets.** `create-gato-app` depends on an exact `gato-cli` version (no range) and writes `"gato-cli": "^<that exact version>"` into the project. The version therefore always exists in the registry, whatever the creator's own version number is. The release workflow publishes `gato-cli` before `create-gato-app` when both change, and a CI check fails when the creator's pinned `gato-cli` version is not the one in the workspace.
+- `.wa/kit.json` records `kitFormat` and `cliVersion` at the time of the last operation.
 
-## 7. `create-gato-app`: kreator
+## 7. `create-gato-app`: the wizard
 
-Kolejność za Ragenem: najpierw wszystko, co może odmówić bez skutków ubocznych, potem pobranie i zapis.
+Order follows Ragen: first everything that can refuse without side effects, then download and write.
 
-1. **Node:** zakres z `engines` kitu sprawdzony przed pobraniem. Odmowa mówi „za stary”, „nieobsługiwana linia nieparzysta” albo „za nowy”, a nie samo „wymaga Node X”. `--skip-install` zamienia odmowę w ostrzeżenie (kreator wtedy niczego nie uruchamia).
-2. **Katalog i slug:** reguły z dzisiejszego `wa create` (`SLUG_PATTERN`, pusty katalog), plus walidacja i escapowanie `--title` i `--admin-email` (dziś niewalidowane, opisane w `docs/16-cli-wa.md`).
-3. **Pytania** (`@clack/prompts`, z `--yes` wartości domyślne): moduły z opisami z manifestów wybranej wersji kitu, języki, nazwa, e-mail admina, provider storage, gdy wybrano `uploads` (`local` albo `s3` z adresem i kluczami), setup.
-4. **Składanie:** `createProject` z `gato-cli` (pliki, placeholdery, hashe, `package.json` z `gato-cli` w `devDependencies`, `wa generate`).
-5. **Sekrety:** każda zmienna manifestu z nowym polem `generate` (`secret-32`, `secret-64`) dostaje losową wartość w `.env`; dziś tylko `BETTER_AUTH_SECRET`, a `API_KEY_PEPPER` zostaje przykładowy i blokuje produkcję.
-6. **Docker:** `COMPOSE_PROJECT_NAME` ze slugu w `.env` (dwa projekty o tej samej nazwie katalogu się nie zderzą) i sondowanie portów z `docker-compose.yml` (plus profili, które kreator uruchamia) przed `docker compose up`. Zajęty port kończy się propozycją zmiennych `*_PORT`.
-7. **Git, `npm install`, pierwszy commit, setup** (`migrate`, `admin:create`) jak dziś (D35).
-8. **Kolejne kroki** na końcu, tylko to, czego kreator nie zrobił.
+1. **Node:** the kit's `engines` range is checked before download. The refusal says "too old", "unsupported odd-numbered line" or "too new", not just "requires Node X".
+2. **Directory and slug:** the rules of today's `wa create` (`SLUG_PATTERN`, empty directory), plus validation and escaping of `--title` and `--admin-email` (not validated today, as `docs/16-cli-wa.md` describes).
+3. **Questions** (`@clack/prompts`; with `--yes`, defaults): modules with descriptions from the chosen kit version's manifests, locales, title, admin email, storage provider when `uploads` is chosen (`local`, or `s3` with endpoint and keys), setup.
+4. **Assembly:** `createProject` from `gato-cli` (files, placeholders, hashes, `package.json` with `gato-cli` in `devDependencies`, `wa generate`). `wa generate` runs in-process and needs no installed dependencies.
+5. **Secrets:** every manifest variable with a new `generate` field (`secret-32`, `secret-64`) gets a random value in `.env`. Today only `BETTER_AUTH_SECRET` does; `API_KEY_PEPPER` stays an example value and blocks production.
+6. **Docker:** `.env` gets `COMPOSE_PROJECT_NAME=<slug>-<6 random characters>`. The suffix is generated once at creation, stored in `.env` and never regenerated, so two projects in directories with the same name do not share containers or volumes. The wizard probes the ports from `docker-compose.yml` (plus the profiles it starts) before `docker compose up`. A busy port ends with a suggestion of the `*_PORT` variables.
+7. **Git, `npm install`, first commit, setup** (`migrate`, `admin:create`) as today (D35).
+8. **Next steps** at the end, listing only what the wizard did not do.
 
-Flagi: zestaw z `wa create` plus `--kit-version`, `--skip-docker`, `--skip-install`.
+Flags: the `wa create` set plus `--kit-version`, `--skip-docker`, `--skip-install`.
 
-## 8. `gato-cli`: komendy
+`--skip-install` means "write files, run nothing that needs installed dependencies or services":
 
-| Komenda | Stan | Uwagi |
+| Step | With `--skip-install` |
+| --- | --- |
+| 1. Node check | Warning instead of refusal |
+| 2–5. Directory, questions, assembly (including `wa generate`), secrets | Run |
+| 6. Docker (port probe, `docker compose up`) | Skipped, as with `--skip-docker` |
+| 7. `git init` and first commit | Run (unless `--no-git`) |
+| 7. `npm install`, `migrate`, `admin:create` | Skipped |
+| 8. Next steps | List `npm install`, `docker compose up -d`, `npx prisma migrate dev --name init`, `npm run admin:create` and `npm run dev` |
+
+`--yes` does not bypass the Node check: it means "accept defaults", not "ignore a requirement".
+
+## 8. `gato-cli`: commands
+
+| Command | Status | Notes |
 | --- | --- | --- |
-| `gato add`, `remove`, `list`, `generate` | z `wa` | `npm run wa -- x` → `npx gato x`; skrypt `wa` w `package.json` zostaje jako alias przez jeden minor, potem znika |
-| `gato doctor` | nowa | Node w zakresie, `kitFormat` obsługiwany, pliki generowane aktualne, hashe plików rdzenia (lista zmienionych lokalnie), `.env` przechodzi `checkEnv` projektu, Docker i porty. Kod wyjścia ≠ 0 przy błędzie. Wzór: `ragen doctor` |
-| `gato version`, `--help` | nowa | Wersja z `package.json`; nieznana komenda kończy się kodem 1 |
-| `gato kit sync` | z `wa`, ukryta | Działa tylko w repo kitu |
-| `gato upgrade` | później | Przejście projektu na nowszą wersję kitu z trójstronnym porównaniem po hashach z `.wa/kit.json`. Osobny spec |
+| `gato add`, `remove`, `list`, `generate` | from `wa` | `npm run wa -- x` → `npx gato x`; the `wa` script stays in `package.json` as an alias for one minor, then goes away |
+| `gato doctor` | new | Node in range, `kitFormat` supported, generated files current, core file hashes (list of locally changed files), `.env` passes the project's `checkEnv`, Docker and ports. Non-zero exit on failure. Modelled on `ragen doctor` |
+| `gato version`, `--help` | new | Version from `package.json`; an unknown command exits with code 1 |
+| `gato kit sync` | from `wa`, hidden | Works only in the kit repo |
+| `gato upgrade` | later | Moves a project to a newer kit version with a three-way merge based on the hashes in `.wa/kit.json`. Builds on `wa update` (PR #14). Separate spec |
 
-Komunikaty: patrz pytanie otwarte 2.
+Messages: see open question 2.
 
-## 9. Publikacja i CI
+## 9. Publishing and CI
 
-- Workflow `release-packages.yml` reaguje na tag `gato-cli@<wersja>` albo `create-gato-app@<wersja>` ustawiony przez człowieka (jak D46), publikuje z `--provenance` przez npm trusted publishing (OIDC, bez `NPM_TOKEN` w sekretach).
-- Workflow `packages.yml` na PR i `main`, wzorowany na `ragen-cli.yml` i `installer.yml`:
-  - `npm pack` każdego pakietu i instalacja z tarballa;
-  - `gato --version` równe wersji z `package.json`; nieznana komenda kończy się kodem ≠ 0;
-  - `create-gato-app` składa projekt z commita pod testem (`--kit <checkout>`, `--yes`, `--skip-docker`) dla zestawów modułów z joba `assemble`, a skrypt asercji sprawdza wynik (sekrety wygenerowane, `gato-cli` w `devDependencies`, brak `.wa/bin`, `npx gato doctor` bez błędów konfiguracji);
-  - odmowa na Node spoza zakresu.
-- Job `assemble` w `kit.yml` przechodzi na `create-gato-app` ze spakowanego tarballa.
+- A `release-packages.yml` workflow reacts to a `gato-cli@<version>` or `create-gato-app@<version>` tag set by a human (as in D46) and publishes with `--provenance` through npm trusted publishing (OIDC, no `NPM_TOKEN` secret).
+- A `packages.yml` workflow on PRs and `main`, modelled on `ragen-cli.yml` and `installer.yml`:
+  - `npm pack` of each package and installation from the tarball;
+  - `gato --version` equals the version in `package.json`; an unknown command exits non-zero;
+  - `create-gato-app` assembles a project from the commit under test (`--kit <checkout>`, `--yes`, `--skip-docker`) for the module sets of the `assemble` job. The packed `gato-cli` from the same run is used inside the generated project through a CI-only flag, `--cli-source <path to tarball>`, which writes `"gato-cli": "file:<path>"` instead of the registry version. `npm install` then installs the PR's CLI, and `npx gato doctor` runs that build. An assertion script checks the result (secrets generated, `gato-cli` in `devDependencies`, no `.wa/bin`, `npx gato doctor` with no configuration errors);
+  - refusal on a Node version outside the range.
+- The `assemble` job in `kit.yml` switches to `create-gato-app` from the packed tarball, with the same `--cli-source`.
 
-## 10. Kit publiczny: warunki wstępne
+## 10. Making the kit public: prerequisites
 
-- Licencja (Ragen: Apache-2.0 z `NOTICE`), `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`.
-- Skan całej historii na sekrety (trufflehog na pełnej historii, nie tylko na diffie) przed zmianą widoczności.
-- Zmiana nazwy repo `webamigos/wa-kit` → `webamigos/gatojs` (GitHub zostawia przekierowanie ze starego adresu, ale `kitRepo` w `kit/kit.json` i w projektach trzeba przepisać na nowy adres).
-- Nazwa robocza znika z kodu i tekstów widocznych dla użytkownika: `@wa-kit/cli`, komunikaty w rodzaju „Uruchom create z klonu wa-kit”, katalog tymczasowy `wa-list-`, `WA_KIT_SOURCE` (→ `GATO_KIT_SOURCE`, stara nazwa czytana przez okres przejściowy), commit `chore: initial commit from wa-kit v<wersja>`, `README.md`, `kit/README.md`, `AGENTS.md`, `CLAUDE.md` i `docs/`. Lista do zebrania `grep -rni "wa-kit\|wa_kit"`.
-- Przegląd plików pod kątem danych klientów i wewnętrznych odnośników (ClickUp, nazwiska w planach w `docs/superpowers/`).
+- License (Ragen: Apache-2.0 with `NOTICE`), `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`.
+- A secret scan of the whole history (trufflehog on the full history, not only on diffs) before the visibility changes.
+- Repository rename `webamigos/wa-kit` → `webamigos/gatojs` (GitHub keeps a redirect from the old address, but `kitRepo` in `kit/kit.json` and in projects has to be rewritten).
+- The working name disappears from user-visible code and text: `@wa-kit/cli`, messages like "Run create from a wa-kit clone", the `wa-list-` temp directory prefix, `WA_KIT_SOURCE` (→ `GATO_KIT_SOURCE`, the old name read during a transition), the commit subject `chore: initial commit from wa-kit v<version>`, `README.md`, `kit/README.md`, `AGENTS.md`, `CLAUDE.md` and `docs/`. Collect the list with `grep -rni "wa-kit\|wa_kit"`.
+- Review files for client data and internal references (ClickUp links, names in plans under `docs/superpowers/`).
+- English-first content (decided 2026-11-22): file names, docs, messages and test names in English; a separate migration spec covers it.
 
-## 11. Kolejność prac
+## 11. Order of work
 
-1. Rezerwacja nazw w npm (`0.0.0`) i organizacja `@gatojs`. Ręcznie, człowiek.
-2. Infrastruktura `packages/` i przeniesienie `kit/cli` → `packages/gato-cli` bez zmiany zachowania. Nowa decyzja zamiast D29 i części D28.
-3. `kitFormat`, źródło tarball z GitHuba, `gato-cli` jako `devDependency` zamiast bundla, alias `wa`.
-4. `create-gato-app`: kreator z punktu 7.
+1. Reserve the npm names (`0.0.0`) and the `@gatojs` organization. Manual, done by a human.
+2. `packages/` infrastructure and the move `kit/cli` → `packages/gato-cli` with no behaviour change. A new decision replacing D29 and part of D28.
+3. `kitFormat`, the GitHub tarball source, `gato-cli` as a `devDependency` instead of the bundle, the `wa` alias.
+4. `create-gato-app`: the wizard from section 7.
 5. `gato doctor`, `gato version`.
-6. Workflowy publikacji i smoke testy z punktu 9.
-7. Zmiana nazwy na GatoJS w kodzie i dokumentacji, przeniesienie repo do `webamigos/gatojs`, upublicznienie (punkt 10) i pierwsze wydanie w npm.
+6. Publishing workflows and smoke tests from section 9.
+7. Rename to GatoJS in code and docs, move the repo to `webamigos/gatojs`, make it public (section 10), first npm release.
 
-Punkty 2–6 mogą powstawać przy prywatnym repo: CI używa `--kit <checkout>`, a tarball z GitHuba działa z tokenem (`GATO_GITHUB_TOKEN`) do czasu upublicznienia.
+Steps 2–6 can happen while the repo is private: CI uses `--kit <checkout>`, and the GitHub tarball works with a token (`GATO_GITHUB_TOKEN`) until the repo is public.
 
-## 12. Pytania otwarte
+## 12. Open questions
 
-1. **Katalog `.wa/` i nazwy `wa:*`:** po decyzji o nazwie GatoJS rekomendacja to `.gato/` i `gato:*` przed pierwszym wydaniem publicznym (CLI czyta oba przez okres przejściowy). Do potwierdzenia.
-2. **Język komunikatów CLI:** dziś po polsku. Publiczne narzędzie po angielsku (jak strona), polski przez `--lang pl` / `LANG`, czy zostaje polski?
-3. **Język dokumentacji kitu** (`docs/` po polsku) po upublicznieniu: osobny serwis dokumentacji po angielsku (strona wspomina Mintlify) czy `docs/` w obu językach?
-4. **Istniejące projekty z `.wa/bin/wa.mjs`:** czy są takie u klientów? Jeśli tak, potrzebna jest komenda migracji albo instrukcja (zamiana bundla na `devDependency`).
-5. **Licencja:** Apache-2.0 jak Ragen czy MIT?
+1. **The `.wa/` directory and `wa:*` names:** after the GatoJS naming decision, the recommendation is `.gato/` and `gato:*` before the first public release (the CLI reads both during a transition). To be confirmed.
+2. **CLI message language:** English (decided 2026-11-22 for repo content). Is a Polish translation of CLI messages needed at all?
+3. **Documentation after going public:** a separate docs site (the website mentions Mintlify) or `docs/` in the repo?
+4. **Existing projects with `.wa/bin/wa.mjs`:** are there any at clients? If so, a migration command or guide is needed (bundle → `devDependency`).
+5. **License:** Apache-2.0 like Ragen, or MIT?
