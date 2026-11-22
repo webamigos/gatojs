@@ -217,13 +217,13 @@ describe("GET /api/v1/organization", () => {
     await call(`Bearer ${KEY_A}`);
     await vi.waitFor(async () => {
       const row = await prisma.apiKey.findUniqueOrThrow({
-        where: { id: keyA.id },
+        where: { id: keyA.id, organizationId: world.orgA.id },
         select: { lastUsedAt: true },
       });
       expect(row.lastUsedAt?.toISOString()).toBe("2026-10-29T12:00:00.000Z");
     });
     const untouched = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: keyB.id },
+      where: { id: keyB.id, organizationId: world.orgB.id },
       select: { lastUsedAt: true },
     });
     expect(untouched.lastUsedAt).toBeNull();
@@ -233,7 +233,7 @@ describe("GET /api/v1/organization", () => {
     const key = await seedKey(world.orgA.id, KEY_A, { scopes: [] });
     await call(`Bearer ${KEY_A}`);
     const row = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: key.id },
+      where: { id: key.id, organizationId: world.orgA.id },
       select: { lastUsedAt: true },
     });
     expect(row.lastUsedAt).toBeNull();

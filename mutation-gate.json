@@ -1,6 +1,7 @@
 {
   "critical": [
     "src/shared/lib/auth/",
+    "src/shared/lib/tenant-scope/",
     "src/features/auth/services/",
     "src/features/organizations/services/",
     "src/features/users/services/",

@@ -27,6 +27,7 @@ vi.mock("@/shared/lib/auth", () => ({
 }));
 
 import { prisma } from "@/shared/lib/prisma";
+import { withoutTenantScope } from "@/shared/lib/tenant-scope";
 import { readUploadForDownload } from "../read-upload";
 import { deleteUploadCommand } from "../commands/upload-commands";
 import { deleteObject, getObject, putObject } from "../storage";
@@ -236,6 +237,20 @@ describe("readUploadForDownload na bazie i storage", () => {
     expect(await readUploadForDownload(upload.id)).toEqual({ status: 404 });
   });
 
+  it("użytkownik organizacji B czyta plik PUBLIC organizacji A", async () => {
+    const upload = await seedUpload({
+      organizationId: world.orgA.id,
+      uploadedById: world.alice.id,
+      visibility: "PUBLIC",
+    });
+    await signInAs(world.bob, world.orgB);
+
+    const result = await readUploadForDownload(upload.id);
+
+    expect(result.status).toBe(200);
+    expect(result).toMatchObject({ body: PAYLOAD });
+  });
+
   it("superadmin w trybie serwisowym A czyta plik A, a z aktywną B dostaje 404", async () => {
     const upload = await seedUpload({
       organizationId: world.orgA.id,
@@ -287,9 +302,17 @@ describe("deleteUploadCommand na bazie i storage", () => {
     const result = await deleteUploadCommand({ id: own.id });
 
     expect(result).toEqual({ success: true });
-    expect(await prisma.upload.count({ where: { id: own.id } })).toBe(0);
+    expect(
+      await withoutTenantScope("test assertion", () =>
+        prisma.upload.count({ where: { id: own.id } }),
+      ),
+    ).toBe(0);
     expect(await getObject(own.key)).toBeNull();
-    expect(await prisma.upload.count({ where: { id: foreign.id } })).toBe(1);
+    expect(
+      await prisma.upload.count({
+        where: { id: foreign.id, organizationId: world.orgB.id },
+      }),
+    ).toBe(1);
     expect(await getObject(foreign.key)).not.toBeNull();
     expect(mockTrackAudit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -311,7 +334,11 @@ describe("deleteUploadCommand na bazie i storage", () => {
     const result = await deleteUploadCommand({ id: foreign.id });
 
     expect(result.success).toBe(false);
-    expect(await prisma.upload.count({ where: { id: foreign.id } })).toBe(1);
+    expect(
+      await prisma.upload.count({
+        where: { id: foreign.id, organizationId: world.orgB.id },
+      }),
+    ).toBe(1);
     expect(await getObject(foreign.key)).not.toBeNull();
     expect(mockTrackAudit).not.toHaveBeenCalled();
   });
@@ -330,7 +357,11 @@ describe("deleteUploadCommand na bazie i storage", () => {
       success: false,
       error: "Brak uprawnień do usunięcia pliku",
     });
-    expect(await prisma.upload.count({ where: { id: other.id } })).toBe(1);
+    expect(
+      await prisma.upload.count({
+        where: { id: other.id, organizationId: world.orgA.id },
+      }),
+    ).toBe(1);
     expect(await getObject(other.key)).not.toBeNull();
   });
 
@@ -344,7 +375,7 @@ describe("deleteUploadCommand na bazie i storage", () => {
 
     const denied = await deleteUploadCommand({ id: upload.id });
     const countAfterDenied = await prisma.upload.count({
-      where: { id: upload.id },
+      where: { id: upload.id, organizationId: world.orgA.id },
     });
     const allowed = await deleteUploadCommand(
       { id: upload.id },
@@ -357,6 +388,10 @@ describe("deleteUploadCommand na bazie i storage", () => {
     });
     expect(countAfterDenied).toBe(1);
     expect(allowed).toEqual({ success: true });
-    expect(await prisma.upload.count({ where: { id: upload.id } })).toBe(0);
+    expect(
+      await withoutTenantScope("test assertion", () =>
+        prisma.upload.count({ where: { id: upload.id } }),
+      ),
+    ).toBe(0);
   });
 });
