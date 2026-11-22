@@ -5,6 +5,14 @@ import { fileURLToPath } from "node:url";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const SHARED_EXCLUDE = [
+  "**/node_modules/**",
+  "**/*.integration.test.ts",
+  "docs/**",
+  ".superpowers/**",
+  ".stryker-tmp/**",
+];
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -14,24 +22,38 @@ export default defineConfig({
     },
   },
   test: {
-    environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     globals: true,
-    include: [
-      "src/**/*.test.ts",
-      "src/**/*.test.tsx",
-      "scripts/**/*.test.ts",
-      "e2e/**/*.test.ts",
-    ],
-    exclude: [
-      "**/node_modules/**",
-      "**/*.integration.test.ts",
-      "packages/**",
-      "kit/**",
-      "docs/**",
-      ".superpowers/**",
-      ".stryker-tmp/**",
-    ],
     clearMocks: true,
+    passWithNoTests: true,
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "app",
+          environment: "jsdom",
+          include: [
+            "src/**/*.test.ts",
+            "src/**/*.test.tsx",
+            "scripts/**/*.test.ts",
+            "e2e/**/*.test.ts",
+          ],
+          exclude: [...SHARED_EXCLUDE, "packages/**", "kit/**"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "packages",
+          environment: "node",
+          include: ["packages/*/src/**/*.test.ts"],
+          exclude: [
+            ...SHARED_EXCLUDE,
+            "packages/gato-cli/**",
+            "packages/create-gato-app/**",
+          ],
+        },
+      },
+    ],
   },
 });

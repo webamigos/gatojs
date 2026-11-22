@@ -439,14 +439,14 @@ function compareModuleNames(a, b) {
 }
 
 // src/assemble/copy.ts
-import { chmod, mkdir, readFile as readFile2, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile as readFile2, stat as stat2, writeFile } from "node:fs/promises";
 import { dirname, join as join2 } from "node:path";
 
 // src/assemble/hash.ts
 import { createHash } from "node:crypto";
 
 // src/generate/targets.ts
-import { readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 // src/generate/regions.ts
@@ -534,6 +534,42 @@ async function ciStepsBody({
   }
   return parts.join("\n\n");
 }
+async function isFile(file2) {
+  try {
+    return (await stat(file2)).isFile();
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      return false;
+    }
+    throw error62;
+  }
+}
+async function packageDirectories(projectDir) {
+  const packagesDir = join(projectDir, "packages");
+  let entries;
+  try {
+    entries = await readdir(packagesDir, { withFileTypes: true });
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      return [];
+    }
+    throw error62;
+  }
+  const names = [];
+  for (const entry of entries) {
+    if (entry.isDirectory() && await isFile(join(packagesDir, entry.name, "package.json"))) {
+      names.push(entry.name);
+    }
+  }
+  return names.sort(compareCodePoint);
+}
+async function workspacesBody({
+  projectDir
+}) {
+  return (await packageDirectories(projectDir)).map(
+    (name) => `COPY packages/${name}/package.json ./packages/${name}/package.json`
+  ).join("\n");
+}
 var regionTargets = [
   {
     file: "prisma/schema/auth.prisma",
@@ -556,7 +592,8 @@ var regionTargets = [
     file: ".github/workflows/mutation.yml",
     marker: "ci-integration",
     body: ciStepsBody
-  }
+  },
+  { file: "Dockerfile", marker: "workspaces", body: workspacesBody }
 ];
 var REGION_FILES = regionTargets.map((target) => target.file).sort(compareCodePoint);
 function hasAnyRegionMarker(content, marker) {
@@ -651,7 +688,7 @@ async function readAssembledFile(input2) {
   );
   return {
     content: replaced === text ? original : Buffer.from(replaced),
-    mode: (await stat(source)).mode & PERMISSION_BITS
+    mode: (await stat2(source)).mode & PERMISSION_BITS
   };
 }
 async function copyFiles(input2) {
@@ -821,7 +858,7 @@ function moduleFiles(manifest, files) {
 }
 
 // src/generate/index.ts
-import { mkdir as mkdir3, readFile as readFile4, stat as stat2, writeFile as writeFile3 } from "node:fs/promises";
+import { mkdir as mkdir3, readFile as readFile4, stat as stat3, writeFile as writeFile3 } from "node:fs/promises";
 import { dirname as dirname3, join as join4 } from "node:path";
 
 // src/manifest/kit-state.ts
@@ -20770,7 +20807,7 @@ var LOCALES_FILE = "src/i18n/locales.generated.ts";
 var FEATURE_GLOB = /^src\/features\/([^/*]+)\//;
 async function exists(path2) {
   try {
-    await stat2(path2);
+    await stat3(path2);
     return true;
   } catch {
     return false;
@@ -20859,7 +20896,7 @@ async function generate(projectDir) {
 }
 
 // src/kit/kit-config.ts
-import { readdir, readFile as readFile5 } from "node:fs/promises";
+import { readdir as readdir2, readFile as readFile5 } from "node:fs/promises";
 import { basename, join as join5 } from "node:path";
 var kitConfigSchema = external_exports.object({
   version: external_exports.string().min(1),
@@ -20890,7 +20927,7 @@ async function readKitConfig(kitDir) {
 }
 async function readKitManifests(kitDir) {
   const modulesDir = join5(kitDir, "kit/modules");
-  const entries = (await readdir(modulesDir)).filter((fileName) => fileName.endsWith(".json")).map((fileName) => ({ fileName, name: basename(fileName, ".json") })).sort((a, b) => compareModuleNames(a.name, b.name));
+  const entries = (await readdir2(modulesDir)).filter((fileName) => fileName.endsWith(".json")).map((fileName) => ({ fileName, name: basename(fileName, ".json") })).sort((a, b) => compareModuleNames(a.name, b.name));
   const manifests = [];
   for (const { fileName, name } of entries) {
     const manifest = moduleManifestSchema.parse(
@@ -21176,7 +21213,7 @@ import { existsSync as existsSync2 } from "node:fs";
 import {
   chmod as chmod2,
   mkdir as mkdir4,
-  readdir as readdir2,
+  readdir as readdir3,
   readFile as readFile7,
   rm as rm2,
   writeFile as writeFile5
@@ -21210,7 +21247,7 @@ async function isNonEmptyDirectory(dir) {
   if (!existsSync2(dir)) {
     return false;
   }
-  return (await readdir2(dir)).length > 0;
+  return (await readdir3(dir)).length > 0;
 }
 var LOCALE_CHOICES = [
   { value: "pl", label: "pl", checked: true, locked: true },
@@ -21251,7 +21288,7 @@ async function collectAnswers(options, manifests, names) {
   return { modules, locales, title, adminEmail, setup };
 }
 async function removeDirectoryContents(dir) {
-  for (const entry of await readdir2(dir)) {
+  for (const entry of await readdir3(dir)) {
     await rm2(join8(dir, entry), { recursive: true });
   }
 }
@@ -23361,7 +23398,7 @@ function list(options) {
 import {
   lstat as lstat2,
   readFile as readFile9,
-  readdir as readdir3,
+  readdir as readdir4,
   readlink,
   realpath,
   rm as rm3,
@@ -23472,7 +23509,7 @@ async function removeEmptyParents(projectDir, start) {
       if (!stats.isDirectory()) {
         return;
       }
-      if ((await readdir3(current)).length > 0) {
+      if ((await readdir4(current)).length > 0) {
         return;
       }
       await rmdir2(current);
@@ -23537,7 +23574,7 @@ import {
   readFile as readFile10,
   rm as rm5,
   rmdir as rmdir3,
-  stat as stat3,
+  stat as stat4,
   writeFile as writeFile8
 } from "node:fs/promises";
 import { dirname as dirname6, join as join12, relative as relative2, resolve as resolve4, sep as sep2 } from "node:path";
@@ -23933,7 +23970,7 @@ async function rememberOriginal(absolute) {
   if (!content) {
     return null;
   }
-  const mode = (await stat3(absolute)).mode & PERMISSION_BITS2;
+  const mode = (await stat4(absolute)).mode & PERMISSION_BITS2;
   return { path: absolute, content, mode };
 }
 async function applyWrite(projectDir, { file: file2, absolute }) {
