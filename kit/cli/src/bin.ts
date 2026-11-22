@@ -21,9 +21,17 @@ import { updateFromSource } from "./commands/update.js";
 import { readKitManifests } from "./kit/kit-config.js";
 import { resolveKitSource } from "./kit/source.js";
 import { readKitState } from "./manifest/kit-state.js";
+import {
+  createKitDir,
+  kitSourceFromEnv,
+  runMetaCommand,
+  type CliIdentity,
+} from "./cli.js";
 
-const USAGE =
-  "Użycie: wa generate | wa kit sync | wa create <katalog> [opcje] | wa add <moduł> [--kit <ścieżka|url>] [--no-install] | wa remove <moduł> [--force] [--no-install] | wa list [--kit <ścieżka|url>] | wa update <wersja> [--kit <ścieżka|url>] [--dry-run] [--no-install]";
+declare const __CLI_NAME__: CliIdentity["name"];
+declare const __CLI_VERSION__: string;
+
+const identity: CliIdentity = { name: __CLI_NAME__, version: __CLI_VERSION__ };
 
 async function listCommand(kit: string | null): Promise<void> {
   const projectDir = process.cwd();
@@ -35,7 +43,7 @@ async function listCommand(kit: string | null): Promise<void> {
     try {
       const kitDir = await resolveKitSource({
         kitFlag: kit,
-        envSource: process.env["WA_KIT_SOURCE"],
+        envSource: kitSourceFromEnv(process.env),
         state,
         runner: spawnRunner,
         tmpDir,
@@ -55,8 +63,18 @@ function bundleKitDir(): string {
 }
 
 async function main(argv: string[]): Promise<number> {
-  const [command, subcommand] = argv;
-  if (command === "kit" && subcommand === "sync") {
+  const meta = runMetaCommand(argv, identity);
+  if (meta !== null) {
+    if (meta.stdout !== null) {
+      console.log(meta.stdout);
+    }
+    if (meta.stderr !== null) {
+      console.error(meta.stderr);
+    }
+    return meta.exitCode;
+  }
+  const [command] = argv;
+  if (command === "kit") {
     const { changed } = await kitSync(process.cwd());
     console.log(changed ? "Zaktualizowano .wa/kit.json" : "Bez zmian");
     return 0;
@@ -67,7 +85,7 @@ async function main(argv: string[]): Promise<number> {
       projectDir: process.cwd(),
       module,
       kitFlag: kit,
-      envSource: process.env["WA_KIT_SOURCE"],
+      envSource: kitSourceFromEnv(process.env),
       install,
       runner: spawnRunner,
       log: console.log,
@@ -95,7 +113,7 @@ async function main(argv: string[]): Promise<number> {
     const { exitCode } = await updateFromSource({
       projectDir: process.cwd(),
       args: parseUpdateArgs(argv.slice(1)),
-      envSource: process.env["WA_KIT_SOURCE"],
+      envSource: kitSourceFromEnv(process.env),
       bundleKitDir: bundleKitDir(),
       runner: spawnRunner,
       log: console.log,
@@ -105,19 +123,18 @@ async function main(argv: string[]): Promise<number> {
   }
   if (command === "create") {
     const { kit, ...parsed } = parseCreateArgs(argv.slice(1));
-    const defaultKit = bundleKitDir();
     await create({
       ...parsed,
-      kitDir: kit === null ? defaultKit : resolve(kit),
+      kitDir: createKitDir({
+        kitFlag: kit,
+        name: identity.name,
+        bundleDir: dirname(fileURLToPath(import.meta.url)),
+      }),
       runner: spawnRunner,
       prompter: readlinePrompter,
       log: console.log,
     });
     return 0;
-  }
-  if (command !== "generate") {
-    console.error(USAGE);
-    return 1;
   }
   const { changed } = await generate(process.cwd());
   if (changed.length === 0) {
