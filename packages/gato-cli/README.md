@@ -62,12 +62,17 @@ gato create ./my-app --kit ~/gatojs --yes --modules audit-logs,api-keys --no-ins
 | `--setup` | After install, start Docker, migrate and create the admin. Not with `--no-install`. |
 | `--no-install` | Skip `npm install`. |
 | `--no-git` | Skip `git init` and the first commit. `git` is still needed to read the kit's files. |
+| `--cli-source <tarball>` | Write `"gato-cli": "file:<absolute path>"` instead of `"^<version>"` into the project's `devDependencies` (CI: test a packed CLI). The file must exist. |
+
+`gato create` adds `"gato-cli": "^<its own version>"` to the project's `devDependencies`, so
+`npx gato` in the project runs a matching CLI. `npm run wa -- create` leaves `devDependencies` as they
+are unless `--cli-source` is given.
 
 `create` copies the files git tracks in the checkout, so the checkout must be a git repository. Without
 `--no-git` the project gets a first commit, so `git` needs `user.name` and `user.email`.
 
-A one-step `npm create gato-app@latest <dir>` that fetches the kit itself is planned as a separate
-package, `create-gato-app`.
+`npm create gato-app@latest <dir>` (package `create-gato-app`) downloads the kit itself and runs this
+`gato create` from the `gato-cli` version it pins exactly.
 
 ### Commands inside a project
 
@@ -119,35 +124,25 @@ the package has no runtime dependencies.
 `gato-cli` has its own semver, independent of the kit version a project uses. `gato --version` prints
 the CLI's version.
 
-## Publishing (manual)
+## Publishing
 
-There is no publish job in CI. From a clean checkout of `main`:
+CI publishes from a tag a human pushes; there is no publish from a laptop.
 
-```bash
-cd packages/gato-cli
-npm version <patch|minor|major> --no-git-tag-version
-npm run build                     # updates .wa/bin/wa.mjs, which embeds the version
-```
+1. On a branch: `npm version <patch|minor|major> --no-git-tag-version --workspace gato-cli`
+   (with the pinned npm, `npx -y npm@11.21.1 …`), `npm run build --prefix packages/gato-cli` (the
+   bundle `.wa/bin/wa.mjs` embeds the version), and the matching `gato-cli` pin in
+   `packages/create-gato-app/package.json`. Merge to `main`.
+2. Tag the merge commit `gato-cli@<version>` and push the tag. `.github/workflows/publish-packages.yml`
+   verifies the package and runs `npm publish --provenance --access public` through npm trusted
+   publishing (no token).
+3. Approve the staged version on npmjs.com; the workflow's `confirm` job waits for it, or run the
+   workflow by hand with the tag afterwards.
 
-Commit `package.json`, `package-lock.json` and `.wa/bin/wa.mjs` and land them on `main` **before**
-publishing: npm versions are immutable, and `npm unpublish` is limited to 72 hours and burns the
-version number.
-
-```bash
-cd packages/gato-cli
-npm ci
-npm publish --dry-run             # check the file list: dist/gato.mjs, README.md, LICENSE, NOTICE, package.json
-npm publish
-```
-
-`prepack` copies `LICENSE` and `NOTICE` from the repository root and runs the build (typecheck and
-bundle), so the tarball always holds a fresh `dist/gato.mjs`.
-
-Then exercise what was actually published:
-
-```bash
-npx gato-cli@latest --version
-```
+npm versions are immutable, and `npm unpublish` is limited to 72 hours and burns the version number.
+`prepack` copies `LICENSE` and `NOTICE` from the repository root and runs the build, so the tarball
+holds exactly `dist/gato.mjs`, `README.md`, `LICENSE`, `NOTICE` and `package.json`
+(`.github/workflows/packages.yml` checks the list). Details and the one-time npm setup:
+`kit/CLAUDE.md`.
 
 ## Licence
 

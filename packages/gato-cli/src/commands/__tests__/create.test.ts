@@ -76,6 +76,8 @@ function opts(overrides: Partial<CreateOptions> = {}): CreateOptions {
     setup: false,
     install: false,
     git: false,
+    cliSource: null,
+    cliDependency: null,
     runner,
     prompter: scriptedPrompter([]).prompter,
     log: (line) => logs.push(line),
@@ -1009,5 +1011,125 @@ describe("create: pytania i kotwice linii .env", () => {
     expect(env).toMatch(SECRET_LINE);
     expect(env).toMatch(/^ADMIN_EMAIL=a@x\.pl$/m);
     expect(env).not.toContain("change-me");
+  });
+});
+
+describe("create: gato-cli dependency", () => {
+  type PackageJson = {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
+
+  async function packageJsonOf(dir: string): Promise<PackageJson> {
+    return JSON.parse(await read(dir, "package.json")) as PackageJson;
+  }
+
+  it("a caret dependency lands in devDependencies of the project", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true, cliDependency: "^0.2.0" }));
+    const packageJson = await packageJsonOf(dir);
+    expect(packageJson.devDependencies?.["gato-cli"]).toBe("^0.2.0");
+    expect(packageJson.dependencies?.["gato-cli"]).toBeUndefined();
+  });
+
+  it("a file: dependency lands in devDependencies unchanged", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(
+      opts({
+        target: dir,
+        yes: true,
+        cliDependency: "file:/t/gato-cli-0.2.0.tgz",
+      }),
+    );
+    expect((await packageJsonOf(dir)).devDependencies?.["gato-cli"]).toBe(
+      "file:/t/gato-cli-0.2.0.tgz",
+    );
+  });
+
+  it("gato-cli is the only devDependency of the fixture project and dependencies stay as assembled", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true, cliDependency: "^0.2.0" }));
+    expect(await packageJsonOf(dir)).toMatchObject({
+      dependencies: { zod: "^4.3.6" },
+      devDependencies: { "gato-cli": "^0.2.0" },
+    });
+    expect((await packageJsonOf(dir)).devDependencies).toEqual({
+      "gato-cli": "^0.2.0",
+    });
+  });
+
+  it("without a dependency the project has no gato-cli key", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true, cliDependency: null }));
+    const packageJson = await packageJsonOf(dir);
+    expect(packageJson.devDependencies ?? {}).not.toHaveProperty("gato-cli");
+    expect(packageJson.dependencies ?? {}).not.toHaveProperty("gato-cli");
+  });
+
+  it("an existing --cli-source file is accepted", async () => {
+    const tarball = join(tmp, "gato-cli-0.2.0.tgz");
+    await writeFile(tarball, "tgz");
+    const dir = join(tmp, "acme-shop");
+    await create(
+      opts({
+        target: dir,
+        yes: true,
+        cliSource: tarball,
+        cliDependency: `file:${tarball}`,
+      }),
+    );
+    expect((await packageJsonOf(dir)).devDependencies?.["gato-cli"]).toBe(
+      `file:${tarball}`,
+    );
+  });
+
+  it("a missing --cli-source fails before the project directory exists", async () => {
+    const dir = join(tmp, "acme-shop");
+    await expect(
+      create(
+        opts({
+          target: dir,
+          yes: true,
+          cliSource: "/missing/gato-cli.tgz",
+          cliDependency: "file:/missing/gato-cli.tgz",
+        }),
+      ),
+    ).rejects.toThrow("--cli-source: /missing/gato-cli.tgz does not exist");
+    expect(existsSync(dir)).toBe(false);
+    expect(await readdir(tmp)).toEqual([]);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("a missing --cli-source fails before any question is asked", async () => {
+    const scripted = scriptedPrompter([]);
+    await expect(
+      create(
+        opts({
+          prompter: scripted.prompter,
+          yes: false,
+          modules: null,
+          cliSource: "/missing/gato-cli.tgz",
+          cliDependency: "file:/missing/gato-cli.tgz",
+        }),
+      ),
+    ).rejects.toThrow("--cli-source: /missing/gato-cli.tgz does not exist");
+    expect(scripted.questions).toEqual([]);
+    expect(existsSync(join(tmp, "acme-shop"))).toBe(false);
+  });
+
+  it("a missing --cli-source leaves an existing empty target empty", async () => {
+    const dir = join(tmp, "acme-shop");
+    await mkdir(dir);
+    await expect(
+      create(
+        opts({
+          target: dir,
+          yes: true,
+          cliSource: join(tmp, "nope.tgz"),
+          cliDependency: null,
+        }),
+      ),
+    ).rejects.toThrow(`--cli-source: ${join(tmp, "nope.tgz")} does not exist`);
+    expect(await readdir(dir)).toEqual([]);
   });
 });

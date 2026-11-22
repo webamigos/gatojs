@@ -5,6 +5,7 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 # wa:workspaces:start
+COPY packages/create-gato-app/package.json ./packages/create-gato-app/package.json
 COPY packages/env/package.json ./packages/env/package.json
 COPY packages/gato-cli/package.json ./packages/gato-cli/package.json
 # wa:workspaces:end

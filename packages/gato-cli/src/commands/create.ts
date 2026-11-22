@@ -12,7 +12,10 @@ import { join, resolve } from "node:path";
 import { parseLocales } from "../args.js";
 import type { Locale } from "../args.js";
 import { copyFiles } from "../assemble/copy.js";
-import { projectPackageJson } from "../assemble/package-json.js";
+import {
+  projectPackageJson,
+  withCliDependency,
+} from "../assemble/package-json.js";
 import { projectNames } from "../assemble/project-names.js";
 import type { ProjectNames } from "../assemble/project-names.js";
 import { moduleFiles, resolveModules } from "../assemble/resolve-modules.js";
@@ -36,6 +39,8 @@ export type CreateOptions = {
   setup: boolean;
   install: boolean;
   git: boolean;
+  cliSource?: string | null;
+  cliDependency?: string | null;
   runner: Runner;
   prompter: Prompter;
   log: (line: string) => void;
@@ -147,10 +152,13 @@ async function assemble(input: {
   const packageJsonPath = join(projectDir, "package.json");
   await writeFile(
     packageJsonPath,
-    projectPackageJson(
-      await readFile(packageJsonPath, "utf8"),
-      manifests,
-      names,
+    withCliDependency(
+      projectPackageJson(
+        await readFile(packageJsonPath, "utf8"),
+        manifests,
+        names,
+      ),
+      options.cliDependency ?? null,
     ),
   );
   await writeKitState(projectDir, {
@@ -249,6 +257,9 @@ export async function create(
   options: CreateOptions,
 ): Promise<{ projectDir: string; modules: string[] }> {
   const projectDir = resolve(options.target);
+  if (options.cliSource && !existsSync(options.cliSource)) {
+    throw new Error(`--cli-source: ${options.cliSource} does not exist`);
+  }
   const names = projectNames(projectDir, options.title);
   const existed = existsSync(projectDir);
   if (await isNonEmptyDirectory(projectDir)) {

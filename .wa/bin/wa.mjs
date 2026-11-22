@@ -324,7 +324,8 @@ function parseCreateArgs(argv) {
     yes: { type: "boolean", default: false },
     "no-install": { type: "boolean", default: false },
     "no-git": { type: "boolean", default: false },
-    kit: { type: "string" }
+    kit: { type: "string" },
+    "cli-source": { type: "string" }
   });
   const [target] = positionals;
   if (target === void 0) {
@@ -344,7 +345,8 @@ function parseCreateArgs(argv) {
     setup: values.setup,
     install: !values["no-install"],
     git: !values["no-git"],
-    kit: optionalValue(values.kit, "--kit")
+    kit: optionalValue(values.kit, "--kit"),
+    cliSource: optionalValue(values["cli-source"], "--cli-source")
   };
 }
 function parseAddArgs(argv) {
@@ -706,6 +708,7 @@ async function copyFiles(input2) {
 
 // src/assemble/package-json.ts
 var SECTIONS = ["dependencies", "devDependencies"];
+var CLI_PACKAGE = "gato-cli";
 function sortedKeys(dependencies) {
   return Object.fromEntries(
     Object.entries(dependencies).sort(([a], [b]) => compareCodePoint(a, b))
@@ -727,6 +730,15 @@ function projectPackageJson(kitPackageJson, manifests, names) {
   packageJson.dependencies = sumDependencies(manifests, "dependencies");
   packageJson.devDependencies = sumDependencies(manifests, "devDependencies");
   return serialize(packageJson);
+}
+function withCliDependency(packageJson, value) {
+  if (value === null) {
+    return packageJson;
+  }
+  const parsed = JSON.parse(packageJson);
+  const existing = parsed.devDependencies ?? {};
+  parsed.devDependencies = sortedKeys({ ...existing, [CLI_PACKAGE]: value });
+  return serialize(parsed);
 }
 function addDependencies(packageJson, manifest) {
   const parsed = JSON.parse(packageJson);
@@ -21318,10 +21330,13 @@ async function assemble(input2) {
   const packageJsonPath = join8(projectDir, "package.json");
   await writeFile5(
     packageJsonPath,
-    projectPackageJson(
-      await readFile7(packageJsonPath, "utf8"),
-      manifests,
-      names
+    withCliDependency(
+      projectPackageJson(
+        await readFile7(packageJsonPath, "utf8"),
+        manifests,
+        names
+      ),
+      options.cliDependency ?? null
     )
   );
   await writeKitState(projectDir, {
@@ -21397,6 +21412,9 @@ function logNextSteps(log, projectDir, setup, adminEmail) {
 }
 async function create(options) {
   const projectDir = resolve2(options.target);
+  if (options.cliSource && !existsSync2(options.cliSource)) {
+    throw new Error(`--cli-source: ${options.cliSource} does not exist`);
+  }
   const names = projectNames(projectDir, options.title);
   const existed = existsSync2(projectDir);
   if (await isNonEmptyDirectory(projectDir)) {
@@ -24277,7 +24295,7 @@ function usage(name) {
     `Usage: ${name} <command> [options]`,
     "",
     "Commands:",
-    `  ${name} create <dir> [--modules <a,b>] [--locales <pl,en>] [--title <title>] [--admin-email <email>] [--setup] [--yes] [--no-install] [--no-git] [--kit <path>]`,
+    `  ${name} create <dir> [--modules <a,b>] [--locales <pl,en>] [--title <title>] [--admin-email <email>] [--setup] [--yes] [--no-install] [--no-git] [--kit <path>] [--cli-source <tarball>]`,
     `  ${name} add <module> [--kit <path|url>] [--no-install]`,
     `  ${name} remove <module> [--force] [--no-install]`,
     `  ${name} list [--kit <path|url>]`,
@@ -24335,9 +24353,15 @@ function createKitDir(input2) {
   }
   return resolve5(input2.bundleDir, "../..");
 }
+function cliDependency(input2) {
+  if (input2.cliSource !== null) {
+    return `file:${resolve5(input2.cwd, input2.cliSource)}`;
+  }
+  return input2.name === "gato" ? `^${input2.version}` : null;
+}
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.1.0" };
+var identity = { name: "wa", version: "0.2.0" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);
@@ -24425,9 +24449,16 @@ async function main(argv) {
     return exitCode;
   }
   if (command === "create") {
-    const { kit, ...parsed } = parseCreateArgs(argv.slice(1));
+    const { kit, cliSource, ...parsed } = parseCreateArgs(argv.slice(1));
     await create({
       ...parsed,
+      cliSource: cliSource === null ? null : resolve6(cliSource),
+      cliDependency: cliDependency({
+        name: identity.name,
+        version: identity.version,
+        cliSource,
+        cwd: process.cwd()
+      }),
       kitDir: createKitDir({
         kitFlag: kit,
         name: identity.name,

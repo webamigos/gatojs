@@ -1,6 +1,6 @@
 # kit/CLAUDE.md
 
-Zasady dla plików tylko kitu (`kit/`, pakiety narzędzi `packages/gato-cli`). Nie trafiają do projektów (`.dockerignore`, własny workflow).
+Zasady dla plików tylko kitu (`kit/`, pakiety narzędzi `packages/gato-cli` i `packages/create-gato-app`). Nie trafiają do projektów (`.dockerignore`, własny workflow).
 
 ## Bramka kitu
 
@@ -18,6 +18,43 @@ Zasady dla plików tylko kitu (`kit/`, pakiety narzędzi `packages/gato-cli`). N
 - Ten sam build tworzy `packages/gato-cli/dist/gato.mjs` (pakiet npm `gato-cli`, komenda `gato`; nie commitujemy go). Bundle różnią się
   tylko nazwą komendy; wersja z `packages/gato-cli/package.json` jest wbudowana w oba. Job `cli-package` w `kit.yml` pakuje CLI
   (`npm pack`) i uruchamia `gato` z tarballa. Publikacja: `packages/gato-cli/README.md` („Publishing”).
+
+## create-gato-app
+
+- Bramka: `npm run verify --prefix packages/create-gato-app` (lint → typecheck → testy → build `dist/`); w CI job
+  `create-gato-app` w `.github/workflows/packages.yml`. Mutacje: `npm run test:mutation:task --prefix packages/create-gato-app -- <pliki>`.
+- `create-gato-app` zależy od `gato-cli` w dokładnej wersji (bez zakresu) i uruchamia jego `dist/gato.mjs create`;
+  pin musi równać się `version` w `packages/gato-cli/package.json` (test `package.test.ts` i CI). Podbijasz `gato-cli` →
+  podbij pin w tym samym PR. Eksport biblioteczny `createProject` z `gato-cli` może później zastąpić uruchamianie bina.
+- Smoke test na spakowanych tarballach (nigdy z rejestru): `SMOKE_INSTALL=1 bash packages/create-gato-app/scripts/smoke-pack.sh "$PWD"`;
+  w CI job `smoke` w `packages.yml`. `npm pack --pack-destination` nie tworzy katalogu: utwórz go wcześniej.
+
+## Publikacja na npm (`gato-cli`, `create-gato-app`)
+
+- Workflow `.github/workflows/publish-packages.yml` publikuje na tag ustawiony przez człowieka: `gato-cli@<x.y.z>` albo
+  `create-gato-app@<x.y.z>`, przez npm trusted publishing (OIDC, bez sekretu `NPM_TOKEN`) z `--provenance`. Tag musi
+  wskazywać commit na `main`, w którym `version` pakietu równa się wersji z tagu.
+- **Kolejność:** gdy zmieniają się oba, najpierw `gato-cli` (tag, publikacja, zatwierdzenie na npmjs.com), dopiero potem
+  `create-gato-app`. Workflow odmawia publikacji `create-gato-app`, dopóki przypięta wersja `gato-cli` nie jest dostępna
+  w rejestrze.
+- **Staged publishing** (konto Patryka): publikacja czeka na zatwierdzenie na npmjs.com, a do tego czasu rejestr serwuje
+  tylko zaślepkę `0.0.0-stage`. Runbook wydania:
+  1. Push tagu → job `publish` publikuje wersję (staged).
+  2. Patryk zatwierdza ją na npmjs.com: strona pakietu → wersja oczekująca na zatwierdzenie → zatwierdź
+     (dokładną nazwę przycisku zapisz tu przy pierwszym wydaniu).
+  3. Job `confirm` czeka do 10 minut, aż `npm view <pakiet>@<v> version` zwróci `<v>`, a `dist-tags.latest` wskaże `<v>`.
+     Po dłuższym czasie: „Re-run failed jobs” albo ręcznie „Run workflow” z polem `tag` (np. `gato-cli@0.2.0`).
+  - Do sprawdzenia przy pierwszej publikacji z CI: czy publikacja przez trusted publishing (OIDC) też jest staged.
+    Wynik zapisz tutaj.
+  - Zaślepka `0.0.0-stage` zostaje na liście wersji; `latest` przechodzi na pierwsze prawdziwe wydanie.
+- **Jednorazowa konfiguracja na npmjs.com** (Patryk, dla `gato-cli` i dla `create-gato-app`):
+  1. npmjs.com → zaloguj się → avatar → „Packages” → pakiet → „Settings”.
+  2. Sekcja „Trusted Publisher” → „GitHub Actions”: Organization or user `webamigos`, Repository `gatojs`,
+     Workflow filename `publish-packages.yml`, Environment puste → zapisz („Set up connection”).
+  3. Po pierwszej udanej publikacji z CI: w „Publishing access” wybierz „Require two-factor authentication and disallow
+     tokens”, żeby publikować dało się tylko z workflow albo z 2FA.
+  4. Drugi właściciel obu nazw (decyzja Patryka), żeby zatwierdzenie nie zależało od jednego konta:
+     `npm owner add <login> gato-cli` i `npm owner add <login> create-gato-app`.
 
 ## Moduły i manifest
 
