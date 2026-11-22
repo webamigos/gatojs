@@ -43,7 +43,7 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 - `src/shared/components/service-mode/__tests__/`
 - `src/features/users/components/__tests__/`
 - `src/features/users/services/commands/__tests__/invite-user-command.test.ts`
-- `node_modules/better-auth/dist/plugins/admin/routes.mjs` (better-auth 1.7.13)
+- `node_modules/better-auth/dist/plugins/admin/routes.mjs` (better-auth 1.7.27)
 - `node_modules/better-auth/dist/plugins/organization/routes/`
 
 Role, macierz dostępu, guardy i `admin:create` opisuje [04-auth-i-role.md](04-auth-i-role.md). Kontekst organizacji, w tym gałąź superadmina w `getOrgContext()`, opisuje [03-dane-i-organizacje.md](03-dane-i-organizacje.md#kontekst-organizacji).
@@ -92,7 +92,7 @@ export const ADMIN_TARGET_PATHS: readonly string[] = [
 ];
 ```
 
-Lista to wszystkie endpointy pluginu `admin` z better-auth 1.7.13, które działają na wskazanym koncie albo jego sesjach, poza odczytem `/admin/get-user`. Test „zawiera dokładnie ścieżki pluginu admin działające na wskazanym użytkowniku” w `admin-access.test.ts` pilnuje, żeby lista miała dokładnie te dziesięć ścieżek, ale nie porównuje jej z endpointami better-auth, więc nowy endpoint po aktualizacji biblioteki trzeba dopisać ręcznie. Hook nie obejmuje odczytów `/admin/list-users` i `/admin/get-user` ani `/admin/stop-impersonating` i `/admin/has-permission`, więc admin widzi i czyta konta superadmina.
+Lista to wszystkie endpointy pluginu `admin` z better-auth 1.7.27, które działają na wskazanym koncie albo jego sesjach, poza odczytem `/admin/get-user`. Test „zawiera dokładnie ścieżki pluginu admin działające na wskazanym użytkowniku” w `admin-access.test.ts` pilnuje, żeby lista miała dokładnie te dziesięć ścieżek, ale nie porównuje jej z endpointami better-auth, więc nowy endpoint po aktualizacji biblioteki trzeba dopisać ręcznie. Hook nie obejmuje odczytów `/admin/list-users` i `/admin/get-user` ani `/admin/stop-impersonating` i `/admin/has-permission`, więc admin widzi i czyta konta superadmina.
 
 Hook zbiera trzy dane i przekazuje je do `assertAdminActionAllowed` z `src/shared/lib/auth/admin-access.ts`:
 
