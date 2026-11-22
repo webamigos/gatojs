@@ -427,17 +427,18 @@ Skille są plikami rdzenia (`.claude/skills/**` w `kit/modules/core.json`), wię
 
 | Reguła | Komendy |
 | --- | --- |
-| `Bash(npm run verify)`, `Bash(npm run lint)`, `Bash(npm run typecheck)` | Bramka i jej części, bez argumentów. |
-| `Bash(npm test *)`, `Bash(npx vitest run *)`, `Bash(npx tsc --noEmit *)` | Testy jednostkowe i sprawdzenie typów, z argumentami albo bez. |
-| `Bash(npm run test:hooks)`, `Bash(npm run test:integration *)`, `Bash(npm run test:mutation *)`, `Bash(npm run test:mutation:task *)`, `Bash(npm run test:mutation:gate)`, `Bash(npm run test:mutation:integration *)` | Testy hooków, integracyjne i mutacyjne. |
+| `Bash(npm run verify)`, `Bash(npm run lint)`, `Bash(npm run typecheck)`, `Bash(npx tsc --noEmit)` | Bramka i jej części, bez argumentów. |
+| `Bash(npm test)`, `Bash(npm run test)`, `Bash(npm run test:hooks)`, `Bash(npm run test:mutation:gate)` | Testy jednostkowe, testy hooków i bramka mutacji, bez argumentów. |
 | `Bash(npm run wa -- generate)` | Odświeżenie plików generowanych. |
-| `Bash(git status *)`, `Bash(git diff *)`, `Bash(git log *)`, `Bash(git show *)` | Odczyt stanu repozytorium. |
+| `Bash(git status)`, `Bash(git status *)`, `Bash(git diff *)`, `Bash(git log *)`, `Bash(git show *)` | Odczyt stanu repozytorium. |
+
+Lista ma tylko dokładne reguły dla komend testowych. Reguła z końcowym `*` przyjmuje dowolne argumenty, więc `Bash(npm test *)` albo `Bash(npx vitest run *)` przepuściłyby `npm test -- -c vitest.integration.config.ts`, a konfiguracja integracyjna woła `resetDatabase()` i czyści bazę `_test`. Z tego samego powodu na liście nie ma `test:integration`, `test:mutation:integration` (Postgres) ani `test:mutation` i `test:mutation:task` (argumenty przekazywane do Strykera mogą wskazać konfigurację integracyjną).
 
 Składnia według [dokumentacji uprawnień](https://code.claude.com/docs/en/permissions): reguła bez `*` pasuje tylko do dokładnie tej komendy, a spacja przed końcowym `*` jest częścią reguły. `Bash(npm run test:mutation *)` pasuje więc do `npm run test:mutation` i `npm run test:mutation -- …`, ale nie do `npm run test:mutation:task`, dlatego każdy skrypt testów ma własną regułę. Zapis `:*` na końcu (`Bash(npm run test:*)`) znaczy to samo co ` *`, czyli nie obejmuje skryptów `test:<nazwa>`. Komenda złożona (`&&`, `;`, `|`) przechodzi bez pytania tylko wtedy, gdy każda jej część pasuje do reguły.
 
 Czego lista celowo nie zawiera:
 
-- `npm run test:e2e`: reset bazy e2e wymaga zgody użytkownika ([Pułapki przy pracy z agentem](#pulapki-agentow));
+- `npm run test:e2e`, `test:integration`, `test:mutation:integration`: piszą do bazy; reset bazy e2e wymaga zgody użytkownika ([Pułapki przy pracy z agentem](#pulapki-agentow));
 - `npm run test:watch`: proces nie kończy się sam;
 - komend zapisujących do bazy poza bazą testową (`npx prisma migrate`, `npm run admin:create`), instalujących (`npm install`), usuwających (`rm`), zmieniających historię albo zdalne repozytorium (`git reset`, `git push`) i `docker`.
 
