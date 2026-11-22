@@ -46,7 +46,7 @@ Zweryfikowano z kodem: 6c05f1f, 2026-11-05
 - `prisma/schema/auth.prisma`
 - `prisma/schema/organizations.prisma`
 - `.github/workflows/` (wszystkie sześć plików)
-- `node_modules/better-auth/dist/plugins/admin/routes.mjs` (better-auth 1.7.13: `setRole`, `removeUser`, `impersonateUser`, `stopImpersonating`)
+- `node_modules/better-auth/dist/plugins/admin/routes.mjs` (better-auth 1.7.27: `setRole`, `removeUser`, `impersonateUser`, `stopImpersonating`)
 - `node_modules/better-auth/dist/plugins/organization/routes/crud-members.mjs` (`leaveOrganization`, `listMembers`, `updateMemberRole`)
 - dokumentacja Railway, sprawdzona 2026-10-28: [Config as Code](https://docs.railway.com/reference/config-as-code), [Infrastructure as Code](https://docs.railway.com/infrastructure-as-code), [healthchecki](https://docs.railway.com/reference/healthchecks), [komenda przed wdrożeniem](https://docs.railway.com/guides/pre-deploy-command), [`railway run`](https://docs.railway.com/cli/run), [PostgreSQL](https://docs.railway.com/databases/postgresql), [zmienne](https://docs.railway.com/reference/variables), [wdrożenia z GitHub](https://docs.railway.com/guides/github-autodeploys)
 - dokumentacja Railway, sprawdzona 2026-11-04: [wolumeny](https://docs.railway.com/volumes/reference), [Storage Buckets](https://docs.railway.com/storage-buckets), [zmienne ustawiane przez Railway](https://docs.railway.com/variables/reference)

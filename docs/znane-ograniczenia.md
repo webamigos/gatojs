@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - gdzie w kodzie siedzi przyczyna każdej pozycji i który plik dokumentacji opisuje ją szczegółowo;
 - czym ograniczenie różni się od decyzji z [rejestru decyzji](decyzje.md).
 
-Zweryfikowano z kodem: 6c05f1f, 2026-11-05 (pozycje modułu `uploads`: [provider `local`](#uploads-local) i skutki dla `uploads` w [`wa add` nie uzupełnia `.env`](#add-env)); 734391b, 2026-11-04 ([magazyn bez sprzątania](#bez-sprzatania) w module `uploads`); 2788536, 2026-11-04 (skutki błędnego `env` w pozycjach [`wa add` nie uzupełnia `.env`](#add-env) i [`API_KEY_PEPPER`](#api-key-pepper)); 75f7322, 2026-10-30 (sekcje [CLI i składanie projektu](#cli) i [Moduły kitu](#moduly-kitu)); pozostałe pozycje: d416599, 2026-10-28
+Zweryfikowano z kodem: 2c83429, 2026-11-21 ([guard organizacji w runtime](#guard-organizacji)); 6c05f1f, 2026-11-05 (pozycje modułu `uploads`: [provider `local`](#uploads-local) i skutki dla `uploads` w [`wa add` nie uzupełnia `.env`](#add-env)); 734391b, 2026-11-04 ([magazyn bez sprzątania](#bez-sprzatania) w module `uploads`); 2788536, 2026-11-04 (skutki błędnego `env` w pozycjach [`wa add` nie uzupełnia `.env`](#add-env) i [`API_KEY_PEPPER`](#api-key-pepper)); 75f7322, 2026-10-30 (sekcje [CLI i składanie projektu](#cli) i [Moduły kitu](#moduly-kitu)); pozostałe pozycje: d416599, 2026-10-28
 
 Źródła:
 
@@ -45,7 +45,7 @@ Priorytet „wysoki” dostają pozycje, które dotyczą domyślnej ścieżki st
 | [Funkcje projektu i rejestr modułów](#funkcje-projektu) | [mniejsze pozycje generatora i rejestru](#rejestr-male) |
 | [CLI i składanie projektu](#cli) | [`wa add` nie uzupełnia `.env`](#add-env), [wydanie bez tagu](#tagi-kitu), [mniejsze pozycje](#cli-male) |
 | [Moduły kitu](#moduly-kitu) | [dziennik i magazyn plików bez sprzątania](#bez-sprzatania), [provider `local` modułu `uploads`](#uploads-local), [`API_KEY_PEPPER`](#api-key-pepper), [mniejsze pozycje](#moduly-male) |
-| [Logowanie, role i organizacje](#auth) | [zaproszenie dla istniejącego konta](#zaproszenie-istniejace-konto), [rola z kilkoma wartościami](#rola-wielowartosciowa), [tryb serwisowy](#tryb-serwisowy-luki), [impersonacja i konta serwisowe](#konta-serwisowe), [mniejsze pozycje](#auth-male) |
+| [Logowanie, role i organizacje](#auth) | [zaproszenie dla istniejącego konta](#zaproszenie-istniejace-konto), [rola z kilkoma wartościami](#rola-wielowartosciowa), [tryb serwisowy](#tryb-serwisowy-luki), [guard organizacji w runtime](#guard-organizacji), [impersonacja i konta serwisowe](#konta-serwisowe), [mniejsze pozycje](#auth-male) |
 | [Język i komunikaty](#jezyk) | [wykrywanie języka](#wykrywanie-jezyka), [komunikaty i strona 404](#jezyk-male) |
 | [Logi, healthcheck i serwer](#serwer) | [logi na produkcji](#logi), [`HOSTNAME=127.0.0.1`](#hostname), [mniejsze pozycje](#serwer-male) |
 | [Wzorce kodu i reguły](#wzorce) | [`handleCommandError` i `notFound()`](#handle-command-error), [reguły z `AGENTS.md`, które kod stosuje inaczej](#reguly-agents) |
@@ -284,6 +284,25 @@ Dodatkowo strona przyjmuje zaproszenie w `page.tsx` przy samym otwarciu adresu (
 **Kierunek zmiany.** `run` wysyła `organizationId` karty w każdym trybie (osobne pole, na przykład `expectedOrganizationId`), a assert porównuje je z aktywną organizacją także poza trybem serwisowym. Doprecyzowanie `AGENTS.md` do „każda komenda kitu na danych organizacji”.
 
 **Sprawdzono.** Z kodu i testów jednostkowych; żaden test nie sprawdza dwóch kart. Decyzja: [D22](decyzje.md#d22).
+
+<a id="guard-organizacji"></a>
+
+### Guard organizacji w runtime nie widzi wszystkich zapytań
+
+**Skutek.** Guard odrzuca zapytanie bez filtra organizacji tylko na modelu objętym guardem i tylko wtedy, gdy zapytanie idzie przez delegata modelu (`prisma.apiKey.findMany`, `tx.upload.create` itd.) ([03-dane-i-organizacje.md](03-dane-i-organizacje.md#guard-w-runtime)). Bez sprawdzenia przechodzą:
+
+- **Raw SQL.** `$queryRaw`, `$queryRawUnsafe`, `$executeRaw` i `$executeRawUnsafe` nie są operacjami modelu.
+- **Zapytania zagnieżdżone.** `include` i `select` relacji oraz zapis zagnieżdżony z modelu nadrzędnego, na przykład `prisma.organization.findUnique({ where: { id }, include: { apiKeys: true } })` albo `prisma.user.findMany({ where: { auditLogs: { some: { organizationId } } } })`. Guard widzi tylko model najwyższego poziomu (`Organization`, `User`), który nie jest objęty.
+- **`Member` i `Invitation`.** Mają `organizationId`, ale są poza guardem, bo adapter better-auth czyta je po `id`, `userId` i adresie e-mail, a rdzeń czyta członkostwa jednego konta we wszystkich organizacjach. Ich izolację pilnują testy izolacji i `src/__tests__/server-entrypoints-guard.test.ts`.
+- **Filtr po złej organizacji.** Guard sprawdza, że filtr jest, a nie, że wskazuje aktywną organizację. `where: { organizationId: input.organizationId }` z wejścia formularza przechodzi.
+
+**Gdzie.** `src/shared/lib/tenant-scope/tenant-scope.ts` (`findTenantScopedModels`, `isTenantScopeSatisfied`), `src/shared/lib/tenant-scope/tenant-scope-extension.ts` (`query.$allModels.$allOperations`).
+
+**Obejście.** Raw SQL na tabeli z `organization_id` pisz z warunkiem `organization_id = ${organizationId}` i testem izolacji. Relacje modeli domenowych czytaj od modelu objętego guardem z filtrem organizacji, a nie od `Organization` albo `User`. `organizationId` zawsze z `getOrgContext()` albo `ApiKeyContext`, nigdy z wejścia.
+
+**Kierunek zmiany.** Sprawdzanie zapytań zagnieżdżonych wymaga przejścia drzewa `include`/`select`/`data` z metadanymi relacji. Ragen tego nie robi; decyzja przy pierwszym wycieku tą drogą.
+
+**Sprawdzono.** Raw SQL i model nadrzędny: z kodu rozszerzenia (Prisma przekazuje do `$allModels.$allOperations` tylko operacje delegata modelu). `Member`: uruchomiono test integracyjny `prisma.member.findMany({ where: { userId } })`. Decyzja: [D51](decyzje.md#d51).
 
 <a id="konta-serwisowe"></a>
 

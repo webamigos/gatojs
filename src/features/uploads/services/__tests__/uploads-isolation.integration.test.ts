@@ -27,6 +27,7 @@ vi.mock("@/shared/lib/auth", () => ({
 }));
 
 import { prisma } from "@/shared/lib/prisma";
+import { withoutTenantScope } from "@/shared/lib/tenant-scope";
 import { createUpload } from "../commands/create-upload";
 import { deleteObject, getObject } from "../storage";
 import {
@@ -150,7 +151,9 @@ describe("izolacja uploadów między organizacjami", () => {
     expect(
       await prisma.upload.count({ where: { organizationId: world.orgB.id } }),
     ).toBe(0);
-    const rows = await prisma.upload.findMany();
+    const rows = await withoutTenantScope("test assertion", () =>
+      prisma.upload.findMany(),
+    );
     expect(rows).toHaveLength(1);
     expect(rows[0]!.organizationId).toBe(world.orgA.id);
     writtenKeys.push(rows[0]!.key);
@@ -172,7 +175,9 @@ describe("izolacja uploadów między organizacjami", () => {
     });
     expect(rowsB).toHaveLength(1);
     expect(rowsB[0]!.key.startsWith(`orgs/${world.orgB.id}/`)).toBe(true);
-    const all = await prisma.upload.findMany();
+    const all = await withoutTenantScope("test assertion", () =>
+      prisma.upload.findMany(),
+    );
     writtenKeys.push(...all.map((row) => row.key));
   });
 
@@ -182,7 +187,9 @@ describe("izolacja uploadów między organizacjami", () => {
     const result = await createUpload(await pngForm());
 
     expect(result.status).toBe(403);
-    expect(await prisma.upload.count()).toBe(0);
+    expect(
+      await withoutTenantScope("test assertion", () => prisma.upload.count()),
+    ).toBe(0);
   });
 
   it("superadmin z potwierdzeniem A zapisuje tylko w A", async () => {
@@ -198,7 +205,9 @@ describe("izolacja uploadów między organizacjami", () => {
     );
 
     expect(result.status).toBe(201);
-    const rows = await prisma.upload.findMany();
+    const rows = await withoutTenantScope("test assertion", () =>
+      prisma.upload.findMany(),
+    );
     expect(rows).toHaveLength(1);
     expect(rows[0]!.organizationId).toBe(world.orgA.id);
     writtenKeys.push(rows[0]!.key);
@@ -207,11 +216,15 @@ describe("izolacja uploadów między organizacjami", () => {
   it("usunięcie organizacji kasuje jej rekordy uploadów", async () => {
     await signInAs(world.alice, world.orgA);
     await createUpload(await pngForm());
-    const [row] = await prisma.upload.findMany();
+    const [row] = await prisma.upload.findMany({
+      where: { organizationId: world.orgA.id },
+    });
     writtenKeys.push(row!.key);
 
     await prisma.organization.delete({ where: { id: world.orgA.id } });
 
-    expect(await prisma.upload.count()).toBe(0);
+    expect(
+      await withoutTenantScope("test assertion", () => prisma.upload.count()),
+    ).toBe(0);
   });
 });
