@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "repo": "https://github.com/webamigos/wa-kit.git",
+  "repo": "https://github.com/webamigos/gatojs.git",
   "kitOnly": [
     "kit/**",
     "docs/**",
@@ -9,7 +9,17 @@
     ".wa/kit.json",
     ".github/workflows/kit.yml",
     ".github/workflows/kit-mutation.yml",
-    "prisma/migrations/.gitignore"
+    "prisma/migrations/.gitignore",
+    "LICENSE",
+    "NOTICE",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    ".github/README.md",
+    ".github/CODEOWNERS",
+    ".github/dependabot.yml",
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    ".github/ISSUE_TEMPLATE/**"
   ],
   "placeholders": {
     "projectName": "WA App",
