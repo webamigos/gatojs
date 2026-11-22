@@ -1,6 +1,7 @@
 {
   "critical": [
     "src/shared/lib/auth/",
+    "src/shared/lib/tenant-scope/",
     "src/features/auth/services/",
     "src/features/organizations/services/",
     "src/features/users/services/",
@@ -318,6 +319,13 @@
       "original": "{\n      return { success: true };\n    }",
       "replacement": "{}",
       "reason": "równoważny: jak wyżej, bez wczesnego powrotu updateMany zwraca count 0 i komenda kończy się { success: true } bez audytu"
+    },
+    {
+      "file": "src/shared/lib/tenant-scope/tenant-scope.ts",
+      "mutator": "ArrayDeclaration",
+      "original": "[]",
+      "replacement": "[\"Stryker was here\"]",
+      "reason": "równoważny: lista zapasowa dla modelu bez ScalarFieldEnum nie zawiera organizationId, więc zbiór modeli pod guardem jest ten sam (gałąź nieosiągalna, każdy model ma enum)"
     }
   ]
 }
