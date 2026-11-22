@@ -94,8 +94,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/work"
           output=$(docker run --rm \
             -v "$RUNNER_TEMP/prefix:/prefix:ro" -v "$RUNNER_TEMP/work:/work" -w /work \
-            node:20-slim node /prefix/node_modules/create-gato-app/dist/index.js /work/old-node-app --yes 2>&1)
-          status=$?
+            node:20-slim node /prefix/node_modules/create-gato-app/dist/index.js /work/old-node-app --yes 2>&1) && status=0 || status=$?
           echo "$output"
           if [ "$status" -eq 0 ]; then
             echo "create-gato-app ran under Node 20." >&2
