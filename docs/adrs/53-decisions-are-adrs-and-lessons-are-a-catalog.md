@@ -6,7 +6,7 @@
 
 ## Context
 
-The kit recorded decisions in one Polish file, `docs/decyzje.md` (D01–D49 on `main`, with D47 in PR #14 and D50–D52 in PR #29). Two problems showed up:
+The kit recorded decisions in one Polish file, `docs/decyzje.md` (D01–D52, with D47 still in PR #14). Two problems showed up:
 
 - Parallel branches append to the same file. Phase 1 of the harness work produced three branches that each added a decision (D50, D51, D52); all three conflicted in the header line, the number range, the index table and the entries, and had to be merged by hand.
 - The kit had no place for non-obvious gotchas that are not decisions: a build that stops once on a Next.js security notice, `smtp://localhost` taking 17 seconds on macOS, Prisma refusing a database reset from an AI agent. They lived only in agent reports and were rediscovered by the next agent.
@@ -16,7 +16,7 @@ Ragen solves both with one file per ADR (`docs/adrs/NN-*.md`) and a lessons cata
 ## Decision
 
 - New decisions are ADR files in `docs/adrs/`, in English, numbered from 53 so they continue the D-log without reusing a number. Format and rules: [`README.md`](README.md).
-- `docs/decyzje.md` stays as the log of D01–D52 (D47 and D50–D52 arrive with PRs #14 and #29; their numbers are reserved) until the English migration splits it into ADR files with the same numbers.
+- `docs/decyzje.md` stays as the log of D01–D52 (D47 arrives with PR #14; its number is reserved) until the English migration splits it into ADR files with the same numbers.
 - Non-obvious corrections and gotchas go to the lessons catalog: one file per lesson in `docs/lessons/<slug>.md` and one title-only line in [`../lessons.md`](../lessons.md). Each lesson has front matter (`title`, `areas`, `topics`), an "In short" paragraph and four sections: Context, Problem, Rule, Applies to.
 - An agent checks the lessons for the area it touches before nontrivial work, and adds or extends a lesson after a nontrivial correction (`kit/CLAUDE.md`).
 
