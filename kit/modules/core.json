@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "0.5.6",
+  "version": "0.6.0",
   "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
   "requires": [],
   "files": [
@@ -8,6 +8,7 @@
     ".claude/agents/test-writer.md",
     ".claude/hooks/**",
     ".claude/settings.json",
+    ".claude/skills/**",
     ".coderabbit.yaml",
     ".dockerignore",
     ".editorconfig",
@@ -53,6 +54,7 @@
     "vitest.config.ts",
     "vitest.integration.config.ts",
     "vitest.setup.ts",
+    "src/__tests__/architecture/**",
     "src/__tests__/instrumentation.test.ts",
     "src/__tests__/proxy-matcher.test.ts",
     "src/__tests__/server-entrypoints-guard.test.ts",

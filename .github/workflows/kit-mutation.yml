@@ -1,4 +1,4 @@
-name: Kit mutation testing
+name: GatoJS mutation testing
 
 on:
   workflow_dispatch:

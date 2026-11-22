@@ -2,7 +2,7 @@
 
 Ten plik wyjaśnia, dlaczego wa-kit jest zbudowany tak, a nie inaczej. Każdy wpis mówi, jaki problem rozwiązuje decyzja, co wybrano, co odrzucono, co z tego wynika przy pisaniu kodu i co pilnuje, żeby decyzja była przestrzegana. Jak dana część działa krok po kroku, opisują pliki `01`–`16b` (spis w [README.md](README.md)).
 
-Zweryfikowano z kodem: 6c05f1f, 2026-11-05 (wpis D49); 734391b, 2026-11-04 (poprawki w D44, D45 i D48); 2788536, 2026-11-04 (wpis D48 i odnośniki do niego w D15, D17 i D43); 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
+Zweryfikowano z kodem: b0f6382, 2026-11-21 (wpis D50); 8c9f5eb, 2026-11-21 (wpis D52); 2c83429, 2026-11-21 (wpis D51 i odnośniki do niego w D07); 6c05f1f, 2026-11-05 (wpis D49); 734391b, 2026-11-04 (poprawki w D44, D45 i D48); 2788536, 2026-11-04 (wpis D48 i odnośniki do niego w D15, D17 i D43); 98a669c, 2026-10-30 (wpisy D28–D46, statusy D01 i D02 oraz poprawki w D03, D04, D13 i D27); pozostałe wpisy: 25adbb8, 2026-10-28
 
 Rejestr obejmuje decyzje, które obowiązują w kodzie, i decyzje zastąpione, zostawione jako zapis historii. Funkcje zaplanowane, ale niezrobione (na przykład aktualizacja projektu do nowszej wersji kitu albo moduły `worker` i `legal`), pojawiają się wyłącznie jako kontekst albo konsekwencja.
 
@@ -44,7 +44,7 @@ Sposoby egzekwowania różnią się siłą:
 - `zastąpiona przez Dxx`: decyzja przestała obowiązywać. Wpis zostaje w pliku z nowym statusem i jednym zdaniem o tym, co się zmieniło, a decyzja, która go zastąpiła, ma własny numer i mówi, co zmieniła. Pozostała treść zastąpionego wpisu jest zapisem historii i nie opisuje kodu.
 - Gdy w decyzji zmieniły się tylko fakty (na przykład lista plików generowanych albo miejsc w kodzie), wpis poprawia się w miejscu, bez nowego numeru.
 - Numery `D01`, `D02`… są stałe i nie są używane ponownie. Inne pliki linkują do wpisu przez kotwicę, na przykład `[D07](decyzje.md#d07)`, więc zmiana numeru zepsułaby linki. Odnośnik, który opisuje bieżący stan kodu, wskazuje decyzję obowiązującą, a nie zastąpioną.
-- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D46, D48 i D49: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), pozostałe obowiązują. Numer D47 należy do decyzji o `wa update` z osobnej gałęzi ([webamigos/wa-kit#14](https://github.com/webamigos/wa-kit/pull/14)).
+- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D46 i D48–D52: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), pozostałe obowiązują. Numer D47 należy do decyzji o `wa update` z osobnej gałęzi ([webamigos/wa-kit#14](https://github.com/webamigos/wa-kit/pull/14)).
 - Nową decyzję dopisuje się na końcu z następnym wolnym numerem, kotwicą `<a id="dNN"></a>` i wszystkimi polami.
 - Jeden plik wystarcza, dopóki decyzje dopisuje jedna gałąź naraz. Gdy zaczną to robić równolegle różne gałęzie, dwie mogą dopisać ten sam następny numer; wtedy warto rozważyć osobne pliki `docs/decyzje/NNNN-*.md`.
 
@@ -136,6 +136,9 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 | [D46](#d46) | Kit wydawany tagiem `v<version>`; projekt pobiera kit tylko w swojej wersji | Wydanie | obowiązuje |
 | [D48](#d48) | Walidacja `env` przy starcie procesu | Konfiguracja i usługi | obowiązuje |
 | [D49](#d49) | Uploads: provider storage `local` albo `s3`, domyślnie `local` | Moduły kitu | obowiązuje |
+| [D50](#d50) | Testy architektury repo w rdzeniu kitu | Jakość i proces | obowiązuje |
+| [D51](#d51) | Guard organizacji w runtime rzuca błąd; `Member` i `Invitation` poza guardem; `withoutTenantScope` jako jedyne wyjście | Dane i organizacje | obowiązuje |
+| [D52](#d52) | Skille projektowe, Task Router i allowlista `permissions` jako pliki rdzenia | Jakość i proces | obowiązuje |
 
 <a id="d01"></a>
 
@@ -350,13 +353,13 @@ Poza szwami generowanymi rdzeń ma punkty wejścia, które woła kod modułu alb
 - Każda tabela domenowa (także w modułach opcjonalnych) ma wymagane `organizationId` z indeksem.
 - Zapytania i komendy na danych domenowych biorą `organizationId` z `getOrgContext()` (`src/shared/lib/auth/org-context.ts`) i filtrują po nim jawnie w każdym wywołaniu Prismy. Kod nie czyta `activeOrganizationId` z sesji samodzielnie.
 - `getOrgContext()` zwraca `{ userId, organizationId, orgRole, userRole, serviceMode }`. Czyta sesję z bazy z pominięciem cookie cache better-auth (kopii sesji w ciasteczku, ważnej 5 minut), bo aktywna organizacja może się zmienić po stronie serwera. Bez sesji przekierowuje na `/sign-in`. Bez aktywnej organizacji albo bez członkostwa w niej rzuca `NoOrganizationError` (wyjątek dla superadmina opisuje [D21](#d21)). Nigdy nie zwraca kontekstu bez organizacji.
-- Nie ma automatycznego filtrowania przez rozszerzenie Prisma.
+- Nie ma automatycznego filtrowania przez rozszerzenie Prisma. Rozszerzenie z [D51](#d51) niczego nie dokleja: odrzuca zapytanie, które filtra nie ma.
 
 **Odrzucone alternatywy.** Automatyczne filtrowanie przez rozszerzenie klienta Prisma (design doc §3.1). Źródło nie podaje powodu odrzucenia.
 
 **Konsekwencje.**
 
-- Autor każdego nowego zapytania musi sam dopisać filtr. Brak filtra nie powoduje błędu, tylko wyciek danych, więc każde nowe query i komenda dostaje test izolacji z dwiema organizacjami (`AGENTS.md`).
+- Autor każdego nowego zapytania musi sam dopisać filtr. Od [D51](#d51) brak filtra na modelu z `organizationId` (poza `Member` i `Invitation`) kończy się błędem `TenantScopeError`. Filtr po złej organizacji guard przepuszcza, więc każde nowe query i komenda dostaje test izolacji z dwiema organizacjami (`AGENTS.md`).
 - Brak organizacji kończy się błędem albo przekierowaniem, nigdy pustym filtrem, który zwróciłby dane wszystkich organizacji.
 - Konta (`User`) są globalne, a nie domenowe. Lista kont dla admina globalnego (`getUserAccountsQuery`) nie filtruje po organizacji.
 - Szczegóły i przykład z istniejącego query: [03-dane-i-organizacje.md](03-dane-i-organizacje.md).
@@ -366,7 +369,7 @@ Poza szwami generowanymi rdzeń ma punkty wejścia, które woła kod modułu alb
 - `src/__tests__/server-entrypoints-guard.test.ts` wymaga, żeby każda eksportowana funkcja w pliku `"use server"` i w `services/queries/` wywołała guard sesji przed Prismą ([D24](#d24)). Nie sprawdza, czy zapytanie filtruje po `organizationId`.
 - `src/features/organizations/services/__tests__/organization-isolation.integration.test.ts` sprawdza izolację na prawdziwym Postgresie (job `integration` w `.github/workflows/ci.yml`).
 - Bramka mutacji obejmuje `src/features/organizations/services/` i `src/shared/lib/auth/` ([D26](#d26)).
-- Obecność filtra w nowym zapytaniu: tylko konwencja i test izolacji, który dopisuje autor.
+- Obecność filtra w nowym zapytaniu: guard organizacji w runtime ([D51](#d51)) dla zapytań przez delegata modelu. Raw SQL, zapytania zagnieżdżone, `Member` i `Invitation`: tylko konwencja i test izolacji, który dopisuje autor.
 - Wymagane `organizationId` z indeksem w tabelach domenowych: tylko konwencja. Żaden test nie czyta schematu Prisma pod tym kątem.
 
 **Źródło.** [Design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §3.1; [AGENTS.md](../AGENTS.md) i [CLAUDE.md](../CLAUDE.md), „Dane i organizacje”.
@@ -1542,7 +1545,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 
 ## D46 · Kit wydawany tagiem `v<version>` ustawianym przez człowieka; projekt pobiera kit tylko w swojej wersji
 
-**Status:** obowiązuje · **Data:** 2026-10-30 · **Kto zdecydował:** reguła wydania: `kit/CLAUDE.md` (autora nie zapisano); Jakub (tag `v0.1.0` z adnotacją na `76ca2d7`, opublikowany na GitHubie 2026-10-30)
+**Status:** obowiązuje częściowo: wydanie i tag zastępuje [ADR-54](adrs/54-kit-releases-are-cut-by-semantic-release.md) (semantic-release na `main`); pobieranie kitu w wersji projektu obowiązuje · **Data:** 2026-10-30 · **Kto zdecydował:** reguła wydania: `kit/CLAUDE.md` (autora nie zapisano); Jakub (tag `v0.1.0` z adnotacją na `76ca2d7`, opublikowany na GitHubie 2026-10-30)
 
 **Kontekst.** `wa add` i `wa list` w projekcie potrzebują kitu w tej samej wersji, z której projekt powstał, bo kopiują pliki modułu obok skopiowanego wcześniej rdzenia. Kit nie ma rejestru paczek ([D28](#d28)), więc wersję wskazuje tag gita.
 
@@ -1650,3 +1653,114 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 - Profil Compose `s3` i katalog `/app/volumes/uploads` w obrazie: tylko konwencja. Job `assemble` buduje obraz (`docker build .`), ale nie sprawdza katalogu ani listy usług Compose.
 
 **Źródło.** [Spec providera storage](superpowers/specs/2026-11-04-uploads-storage-provider-design.md) §1–§6; [plan](superpowers/plans/2026-11-04-uploads-storage-provider.md), Task 2–6; commity `787fb39`, `c3b0a86`, `b435fda`, `cc7c13b`, `22bd604`, `a08b121`, `734391b` i `6c05f1f` (ruling R19); pakiet `storage` i ADR-27 Ragena oraz dokumentacja Railway ([wolumeny](https://docs.railway.com/volumes/reference), [Storage Buckets](https://docs.railway.com/storage-buckets)) w opisie specu.
+
+<a id="d50"></a>
+
+## D50 · Testy architektury repo w rdzeniu kitu
+
+**Status:** obowiązuje · **Data:** 2026-11-21 · **Kto zdecydował:** Patryk (przeniesienie testów zgodności repo z Ragena do rdzenia kitu, lista siedmiu testów i zasada „naruszenie poprawia się w tym samym zadaniu”: spec harnessu z Ragena, §2 i §3); autor planu harnessu (reguły rozpoznawania ścieżek, kluczy, importów i literałów `node-version`, Task 1); wykonawca Task 1 (funkcje wykrywające w `scripts/lib/architecture/`, gołe nazwy plików z katalogu głównego tylko z rozszerzeniami plików konfiguracji, pominięcie `import type`, trzy moduły `@/shared/lib/auth` dozwolone w plikach klienckich)
+
+**Kontekst.** Harness kitu pilnuje tego, jak agent pisze kod i testy (hooki, tester inny niż implementer, bramka mutacji), ale nie spójności repo: czy komendy i ścieżki z instrukcji agenta istnieją, czy klucze tłumaczeń są w obu językach, czy `.env.example` przechodzi walidację, czy wersja Node jest jedna. Monorepo Ragena ma na to około 125 testów zgodności w `tests/architecture/`. Przegląd harnessu z Patrykiem 2026-11-21 wybrał z nich siedem, które pasują do projektu złożonego z kitu.
+
+**Decyzja.**
+
+- Siedem testów w `src/__tests__/architecture/`: budżet `AGENTS.md` (31 744 bajty), istniejące komendy `npm run`, istniejące cytowane ścieżki, te same klucze tłumaczeń w każdym języku, `.env.example` zgodny z `checkEnv`, jedna wersja Node w `.nvmrc`, `Dockerfile` i workflow, pliki klienckie bez importów serwerowych. Lista i reguły: [08-testy.md](08-testy.md#architektura).
+- Testy są plikami rdzenia (`src/__tests__/architecture/**` w `files` manifestu `core`), więc działają w każdym projekcie, i czytają tylko pliki, które projekt ma. Odsyłacze do `docs/` i `kit/` (`kitOnly`) są pomijane.
+- Każdy test ma czystą funkcję wykrywającą w `scripts/lib/architecture/`, testowaną na literałach, i jedno wywołanie na prawdziwym repo, które oczekuje pustej listy naruszeń. Funkcje nie leżą w `src/__tests__/`, bo hook `protect-tests` blokuje tam zapis w fazie implementacji.
+- Naruszenie w obecnym kodzie poprawia się w tym samym zadaniu. Przy wprowadzeniu testów żadnego nie było. Wyjątek z uzasadnieniem jest dopuszczalny tylko wtedy, gdy poprawka wykracza poza zadanie, i zadanie zgłasza go człowiekowi. Jedyny taki wyjątek to `CLIENT_SAFE_AUTH_MODULES`: komponenty rdzenia importują stałe ról z `@/shared/lib/auth/roles` i `@/shared/lib/auth/permissions`, a te pliki nie importują kodu serwera.
+
+**Odrzucone alternatywy.**
+
+- Testy tylko w repo kitu (na przykład w `kit/cli`): nie sprawdzałyby projektu, który zmienia `AGENTS.md`, dodaje tłumaczenia albo zmienia `Dockerfile` po `wa create`.
+- Reguły ESLint zamiast testów: ESLint sprawdza pojedynczy plik źródłowy, a te niezmienniki łączą kilka plików różnych typów (Markdown z `package.json`, `.nvmrc` z `Dockerfile` i YAML, pary plików JSON). Importy w plikach klienckich dałoby się sprawdzić regułą `no-restricted-imports`, ale bez warunku na dyrektywę `"use client"`.
+
+**Konsekwencje.**
+
+- Projekt, który zmieni plik rdzenia w niezgodny sposób (wydłuży `AGENTS.md` ponad budżet, usunie skrypt z `package.json` wspomniany w `CLAUDE.md`, podbije Node tylko w `Dockerfile`), dostaje czerwony `npm test`. Poprawia plik albo test w swoim repo, a poprawkę ogólną zgłasza do kitu.
+- Moduł kitu z tłumaczeniami musi mieć plik dla każdego języka projektu, a zmienna modułu z `.env.example` musi przejść schemat `env.ts` modułu.
+- Testy są heurystyczne: nie widzą importu względnego ani pośredniego modułu serwerowego w pliku klienckim, gołej nazwy pliku z rozszerzeniem spoza listy ani komendy `npm test` czy `npm start`.
+
+**Jak egzekwowana.**
+
+- Testy w `npm run verify`: `src/__tests__/architecture/*.test.ts`, na przykład „AGENTS.md o bajt za duży zgłasza rozmiar i limit”, „różny kształt to naruszenie w obie strony” i „import typu jest ignorowany”.
+- Bramka mutacji: `scripts/lib/architecture/` jest we wzorcach `mutate` w `stryker.config.json`, ale nie w `critical` w `mutation-gate.json`, bo to nie logika bezpieczeństwa.
+
+**Źródło.** [Spec harnessu z Ragena](superpowers/specs/2026-11-21-harness-from-ragen-design.md) §1–§3 i §6; [plan](superpowers/plans/2026-11-21-harness-from-ragen.md), Task 1; testy Ragena `tests/architecture/` (w tym `agent-instructions-fit-the-budget.test.ts`, `documented-commands-exist.test.ts`, `i18n-keys-exist-in-every-locale.test.ts`, `the-node-floor-is-one-number.test.ts`, `client-bundles-stay-browser-safe.test.ts`) w opisie specu.
+
+<a id="d51"></a>
+
+## D51 · Guard organizacji w runtime rzuca błąd; `Member` i `Invitation` poza guardem; `withoutTenantScope` jako jedyne wyjście
+
+**Status:** obowiązuje · **Data:** 2026-11-21 · **Kto zdecydował:** Patryk z agentem (research harnessu Ragena: spec harnessu z Ragena, §4); wykonawca planu (Task 2: lista modeli z `Prisma.ModelName` i `Prisma.<Model>ScalarFieldEnum`, `guardTenantQuery` z wstrzykiwanym `isScoped` dla testów rdzenia bez modeli modułów, filtr `{ id, organizationId }` przy zapisie `lastUsedAt` zamiast zwolnienia)
+
+**Kontekst.** [D07](#d07) wymaga jawnego filtra `organizationId` w każdym zapytaniu domenowym, ale brak filtra nie dawał błędu, tylko wyciek danych. `src/__tests__/server-entrypoints-guard.test.ts` jest składniowy i sprawdza guard sesji, a nie filtr. Lukę łapał tylko test izolacji, który autor dopisał sam. Ragen ma rozszerzenie Prismy, które ostrzega przy zapytaniu bez filtra organizacji (`docs/tenant-scope-guard.md`, ADR-23). Zaczął od ostrzeżeń, bo miał ok. 200 miejsc bez audytu. Kit ma kilkanaście zapytań na modelach domenowych, a wszystkie poza dwoma filtrowały po `organizationId`.
+
+**Decyzja.**
+
+- `src/shared/lib/prisma.ts` eksportuje klienta z rozszerzeniem `tenantScopeExtension` (`query.$allModels.$allOperations`, `src/shared/lib/tenant-scope/`). Ten sam klient trafia do `prismaAdapter` better-auth.
+- Guard obejmuje każdy model ze skalarnym polem `organizationId` z wyjątkiem `Member` i `Invitation`. Listę liczy `findTenantScopedModels` z wygenerowanego klienta (`Prisma.ModelName` i `Prisma.<Model>ScalarFieldEnum`), a nie z ręcznej mapy, bo moduł nie edytuje plików rdzenia ([D03](#d03)). Nowy model modułu albo funkcji projektu z `organizationId` jest objęty bez zmiany rdzenia.
+- Zapytanie na modelu objętym guardem bez filtra organizacji rzuca `TenantScopeError` (`name = "TenantScopeError"`, pola `model` i `operation`) i nie trafia do bazy, w dev, testach i na produkcji. Co liczy się jako filtr, opisuje [03-dane-i-organizacje.md](03-dane-i-organizacje.md#guard-w-runtime) (za Ragenem: przypięta wartość, selektor złożony, element `AND`, `OR` z filtrem w każdej gałęzi; `NOT`, filtr relacji, `{ not }`, `{ notIn }` i `{ in: [] }` się nie liczą).
+- `withoutTenantScope(reason, fn)` uruchamia `fn` ze zwolnieniem w `AsyncLocalStorage`. `reason` to niepusty napis. Każde zapytanie bez filtra wewnątrz `fn` zapisuje `logger.debug` z modelem, operacją i powodem. Zwolnienie działa w zagnieżdżeniu i kończy się z `fn`, także po błędzie.
+- Zwolnienie mają dwa miejsca, w których organizacja jest nieznana przed odczytem: `authenticateApiKey` (odczyt po `hashedKey`) i `readUploadForDownload` (odczyt po `id` przed sprawdzeniem widoczności).
+
+**Odrzucone alternatywy.**
+
+- Ostrzeżenie zamiast błędu, jak w Ragenie: kit startuje ze stanu czystego, a błąd zatrzymuje pomyłkę w pierwszym teście integracyjnym albo e2e. Ostrzeżenie na produkcji bez `OTEL_EXPORTER_OTLP_ENDPOINT` nie trafia nigdzie ([D15](#d15)).
+- Automatyczne doklejanie `organizationId` z kontekstu: rozszerzenie musiałoby znać sesję, a zapytania better-auth, hooków i tras z kluczem API nie mają `getOrgContext()`. Odrzucone już w [D07](#d07).
+- `Member` i `Invitation` w guardzie: adapter better-auth czyta je po `id`, `userId` i e-mailu, a rdzeń czyta członkostwa jednego konta we wszystkich organizacjach. Zwolnienie byłoby potrzebne w większości zapytań na tych tabelach.
+- Ręczna mapa modeli objętych guardem w rdzeniu: każdy moduł z nowym modelem musiałby edytować plik rdzenia.
+- Osobny klient bez rozszerzenia dla testów: testy integracyjne sprawdzają kod produkcyjny na tym samym kliencie; asercje stanu bazy niezależne od organizacji używają `withoutTenantScope("test assertion", …)`.
+
+**Konsekwencje.**
+
+- Zapytanie bez filtra na `ApiKey`, `AuditLog`, `Upload` albo modelu funkcji projektu kończy się wyjątkiem. Komenda z `handleCommandError` zwraca wtedy komunikat domyślny i zapisuje `logger.error`.
+- Raw SQL, zapytania przez relację zagnieżdżoną (`include`, `select` relacji, zapis zagnieżdżony z modelu nadrzędnego), `Member` i `Invitation` zostają poza guardem ([znane-ograniczenia.md](znane-ograniczenia.md#guard-organizacji)).
+- Guard nie sprawdza, czy filtr wskazuje aktywną organizację. Test izolacji z dwiema organizacjami zostaje obowiązkowy ([D07](#d07)).
+- Rdzeń nie ma modelu objętego guardem, więc testy rdzenia sprawdzają `guardTenantQuery` z wstrzykniętym `isScoped`, a testy `isTenantScoped("ApiKey" | "AuditLog" | "Upload")` i test na prawdziwej bazie leżą w katalogach modułów.
+- Moduły `api-keys` i `uploads` zmieniły kod (zwolnienie i filtr przy `lastUsedAt`), a `audit-logs` tylko testy integracyjne, które czytały tabelę bez filtra.
+
+**Jak egzekwowana.**
+
+- Guard w kodzie: `guardTenantQuery` w `src/shared/lib/tenant-scope/tenant-scope-extension.ts` przy każdym zapytaniu przez delegata modelu.
+- Testy w `npm run verify`: `src/shared/lib/tenant-scope/__tests__/tenant-scope.test.ts` (reguły filtra na literałach i `test.prop`, na przykład „OR z gałęzią bez organizacji na końcu” i „{ in: [] } nie przypina organizacji”), `tenant-scope-extension.test.ts` (odrzucenie bez wywołania zapytania, zwolnienie, sprzątanie po błędzie) i `src/features/<moduł>/services/__tests__/tenant-scope-model.test.ts`.
+- Testy integracyjne (job `integration` w `.github/workflows/ci.yml`): `src/features/api-keys/services/__tests__/tenant-scope-guard.integration.test.ts` i `src/shared/lib/tenant-scope/__tests__/sign-in.integration.test.ts` (logowanie przez better-auth na kliencie z guardem).
+- Bramka mutacji: `src/shared/lib/tenant-scope/` w `critical` ([D26](#d26)).
+- Zwolnienie tylko z uzasadnionym powodem: `reason` niepusty sprawdza kod; to, czy powód jest uzasadniony, tylko recenzja.
+
+**Źródło.** [Spec harnessu z Ragena](superpowers/specs/2026-11-21-harness-from-ragen-design.md) §4; [plan](superpowers/plans/2026-11-21-harness-from-ragen.md), Task 2; `ragen-app/docs/tenant-scope-guard.md`, ADR-23 i `packages/platform-contracts/src/tenant-scope/` Ragena w opisie specu.
+
+<a id="d52"></a>
+
+## D52 · Skille projektowe, Task Router i allowlista `permissions` jako pliki rdzenia
+
+**Status:** obowiązuje · **Data:** 2026-11-21 · **Kto zdecydował:** Patryk (zakres i odrzucenie pluginu: [spec harnessu z Ragena](superpowers/specs/2026-11-21-harness-from-ragen-design.md) §5 i [plan](superpowers/plans/2026-11-21-harness-from-ragen.md), Task 3); wykonawca planu (lista reguł `permissions` dopasowana do składni Claude Code)
+
+**Kontekst.** Instrukcje agenta w kicie to `CLAUDE.md` i `AGENTS.md`. Odsyłacze do dokumentacji były rozproszone po sekcjach `AGENTS.md`, a wiedza o powtarzalnych zadaniach (recenzja zmiany, podbicie zależności, nowa funkcja) była tylko w długich dokumentach repozytorium kitu, których projekt nie ma. Każda bramka i każda komenda tylko do odczytu wymagała zgody użytkownika, więc agent przerywał pracę na `npm run verify` czy `git diff`. Ragen (`ragen-app`) rozwiązuje to skillami w `.claude/skills/`, sekcją „Task Router” w `AGENTS.md` i listą `permissions.allow` w `.claude/settings.json`; spec przenosi te trzy elementy do kitu.
+
+**Decyzja.**
+
+- Trzy skille w `.claude/skills/<nazwa>/SKILL.md`: `wa-code-review` (niezmienniki, których `npm run verify` nie sprawdzi), `wa-upgrade-dependency` (podbicie zależności z e2e jako bramką, osobno better-auth, Prisma i Next.js), `wa-new-module` (funkcja projektu w `projectModules` albo moduł kitu). Nagłówek ma `name` i `description` z wyzwalaczami po polsku i angielsku, treść jest po polsku i zawiera tylko fakty sprawdzone w repozytorium.
+- Skille należą do rdzenia (`.claude/skills/**` w `files` w `kit/modules/core.json`), więc trafiają do projektu przez `wa create`. Odsyłacze do `docs/` w skillach wskazują repozytorium `webamigos/wa-kit`, bo `docs/**` jest w `kitOnly`.
+- `AGENTS.md` ma sekcję „Task Router”: tabela „zadanie → gdzie patrzeć”, w której każda komórka wskazuje plik repozytorium, dokument kitu albo skill. Wiersze modułów kitu wskazują tylko dokumentację, bo projekt bez modułu nie ma jego plików.
+- `.claude/settings.json` dostaje `permissions.allow` z dokładnymi regułami dla bramek i komend, które nie piszą do żadnej bazy: `npm run verify`, `lint`, `typecheck`, `npm test`, `npm run test`, `test:hooks`, `test:mutation:gate`, `npm run wa -- generate`, `npx tsc --noEmit`, `git status`, `git diff`, `git log`, `git show` ([Uprawnienia](11-praca-z-kitem.md#uprawnienia)). Reguły z `*` dla komend testowych są wykluczone, bo przepuszczają konfigurację integracyjną, która czyści bazę `_test` (review CodeRabbita w #25). Sekcja `hooks` się nie zmienia.
+- Plan wymieniał regułę `Bash(npm run test:*)`. Według dokumentacji Claude Code końcowe `:*` znaczy to samo co ` *`, więc reguła nie obejmuje skryptów `test:<nazwa>`. Skrypty, które piszą do bazy (`test:integration`, `test:mutation:integration`, `test:e2e`) albo przyjmują dowolną konfigurację Strykera (`test:mutation`, `test:mutation:task`), zostają poza listą; `test:watch` też, bo proces się nie kończy.
+
+**Odrzucone alternatywy.**
+
+- Plugin Claude Code wspólny dla wszystkich projektów Web Amigos: miałby wersjonowanie niezależne od kitu, więc skill mógłby opisywać inną wersję rdzenia niż ta w projekcie, a `wa kit sync` i manifesty kitu go nie obejmują (plan, Task 3).
+- Reguła `Bash(npm run test:*)` z planu: nie obejmuje skryptów `test:<nazwa>` (decyzja wyżej).
+
+**Konsekwencje.**
+
+- Skill jest instrukcją jak `AGENTS.md`: zmiana reguły w kodzie to także zmiana skilla, który ją cytuje. Zmiana skilla w projekcie, która przyda się innym, wraca do kitu pull requestem.
+- Nowy wiersz Task Routera zastępuje odsyłacz w innej sekcji `AGENTS.md`, a nie go dubluje, bo Codex po cichu ucina instrukcje powyżej 32 KiB.
+- Agent uruchamia bramki i odczyt repozytorium bez pytania. Komendy, które zmieniają bazę poza bazą testową, instalują pakiety, usuwają pliki albo pushują, dalej wymagają zgody. Własne reguły projekt dopisuje w `.claude/settings.local.json`.
+- Skille działają jako skille tylko w Claude Code. Inne narzędzia czytają je jako zwykłe pliki Markdown przez odsyłacze w routerze.
+
+**Jak egzekwowana.**
+
+- Test `npm run test:hooks` w `npm run verify` sprawdza hooki z `.claude/hooks/`, ale nie treść `permissions`.
+- Istnienie komend `npm run` i ścieżek cytowanych w `AGENTS.md` i `.claude/**/*.md` oraz rozmiar `AGENTS.md` pilnują testy architektury z [D50](#d50).
+- Zgodność treści skilli z kodem: tylko konwencja.
+
+**Źródło.** [Spec harnessu z Ragena](superpowers/specs/2026-11-21-harness-from-ragen-design.md) §5 i §6; [plan](superpowers/plans/2026-11-21-harness-from-ragen.md), Task 3; `ragen-app/.claude/skills/`, sekcja „Task Router” w `ragen-app/AGENTS.md` i `ragen-app/.claude/settings.json`; [dokumentacja uprawnień Claude Code](https://code.claude.com/docs/en/permissions).

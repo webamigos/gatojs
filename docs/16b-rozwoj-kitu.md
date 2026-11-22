@@ -6,7 +6,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak `wa kit sync` utrzymuje `.wa/kit.json` kitu w zgodzie z manifestami i co sprawdza test własności plików i zależności;
 - jak CLI liczy hashe plików projektu i podmienia placeholdery;
 - jak zmienić kod CLI: bundel, bramka CLI, mutacje i workflowy kitu;
-- jak wydać nową wersję kitu z tagiem;
+- jak semantic-release wydaje nową wersję kitu z tagiem;
 - jak dodać do kitu nowy moduł, krok po kroku, tak jak zrobił to plan 3.
 
 Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wersja `uploads` w [Manifestach modułów](#manifesty)); a065725, 2026-11-13 (wersje `core` i `audit-logs` w [Manifestach modułów](#manifesty)); pozostałe sekcje: 734391b, 2026-11-04
@@ -449,7 +449,7 @@ Uwagi dla osoby, która zmienia ten workflow albo kontrakt CLI:
 - Zmiana kontraktu `projectModules` wymaga aktualizacji fikstury i obiektu manifestu wpisanego w krok rejestracji (`kit/CLAUDE.md`). Commit `2e8db6e`, który dodał pole `ciSteps`, dopisał `ciSteps: null` właśnie tam.
 - `.github/workflows/kit-mutation.yml` uruchamia pełny przebieg Strykera CLI i bramkę tylko ręcznie (`workflow_dispatch`), jak `mutation.yml` w aplikacji ([D26](decyzje.md#d26)). Raport trafia do artefaktu `kit-mutation-report`.
 - `security-audit.yml` (rdzeń) uruchamia `npm audit` tylko w katalogu głównym; zależności `kit/cli` nie są audytowane przez żaden workflow.
-- Żaden workflow nie działa na tagach ani ich nie tworzy ([Wydanie](#wydanie)).
+- `release.yml` tworzy commit wydania, tag i GitHub Release; żaden workflow nie uruchamia się na tagach ([Wydanie](#wydanie)).
 
 <a id="wydanie"></a>
 
@@ -457,25 +457,24 @@ Uwagi dla osoby, która zmienia ten workflow albo kontrakt CLI:
 
 Wersja kitu to `version` w `kit/kit.json`. Trafia do `kitVersion` każdego nowego projektu i do treści jego pierwszego commita (`chore: initial commit from wa-kit v<wersja>`). Wyznacza też tag `v<wersja>`, który klonują one-liner z [16](16-cli-wa.md#wa-create) oraz `wa add` i `wa list` w projektach tej wersji ([16](16-cli-wa.md#zrodlo-kitu), [D46](decyzje.md#d46)). Każdy moduł ma osobną `version` w manifeście; trafia ona do `.wa/kit.json` projektu.
 
-Kroki wydania:
+Wydanie robi semantic-release ([ADR-54](adrs/54-kit-releases-are-cut-by-semantic-release.md)), a nie człowiek. Workflow `.github/workflows/release.yml` (tylko w kicie) uruchamia się przy każdym pushu na `main` i ręcznie (`workflow_dispatch`). Paczka `kit/release/` ma własny `package.json` i lockfile, poza root `package.json`, bo ten trafia do projektów ([D30](decyzje.md#d30)).
 
-1. Podbij `version` w manifeście każdego modułu, którego pliki się zmieniły (`kit/CLAUDE.md`, „Moduły i manifest”).
-2. Podbij `version` w `kit/kit.json`. `kit/CLAUDE.md` tego kroku nie wymienia (R11 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)), ale wynika on z kodu: tag nazywa się jak wersja kitu, a tag poprzedniej wersji już istnieje i wskazuje stary commit.
-3. `npm run wa -- kit sync`, potem `npm run wa -- generate`; zacommituj `.wa/kit.json`.
-4. Przejdź obie bramki i scal zmianę do `main`.
-5. Ustaw tag z adnotacją na commicie wydania w `main` i wypchnij go. Tag ustawia człowiek. Tag `v0.1.0` ma adnotację `wa-kit v0.1.0` i wskazuje `76ca2d7` (sprawdzone, `git cat-file -p v0.1.0`):
+1. Commit analyzer (preset `conventionalcommits`) czyta commity od ostatniego tagu: `feat` → minor, `fix` i `perf` → patch, breaking change → minor (dopóki kit jest poniżej 1.0), `[no release]` w temacie → bez wydania; `docs`, `chore`, `test`, `ci`, `refactor` nie wydają.
+2. `node kit/release/set-kit-version.mjs <wersja>` zmienia tylko `version` najwyższego poziomu w `kit/kit.json`, a `node .wa/bin/wa.mjs kit sync` przepisuje `kitVersion` w `.wa/kit.json`.
+3. `@semantic-release/git` commituje oba pliki jako `chore(release): <wersja> [skip ci]`, a semantic-release ustawia na tym commicie tag `v<wersja>` (bez adnotacji) i publikuje GitHub Release z notatkami.
+
+Po scaleniu do `main` wystarczy więc commit z właściwym typem. Ręcznie zostaje tylko podbicie `version` w manifeście każdego modułu, którego pliki się zmieniły (`kit/CLAUDE.md`, „Moduły i manifest”), i `npm run wa -- kit sync`. `version` w `kit/kit.json` i `kitVersion` w `.wa/kit.json` zmienia tylko wydanie.
+
+Podgląd następnej wersji bez wydania (z klonu na `main`, z dostępem do GitHuba):
 
 ```bash
-git tag -a v<wersja> -m "wa-kit v<wersja>" <commit>
-git push origin v<wersja>
+npm ci --prefix kit/release
+GITHUB_TOKEN=$(gh auth token) kit/release/node_modules/.bin/semantic-release --dry-run --no-ci --extends ./kit/release/release.config.mjs
 ```
 
-Tag z adnotacją wskazuje obiekt tagu, a nie commit, dlatego `git clone --branch v<wersja>` wypisuje ostrzeżenie `… is not a commit!` i komunikat o odłączonym HEAD. To nie jest błąd; wyjaśnia to [16](16-cli-wa.md#one-liner).
+Tag `v0.1.0` ustawił człowiek, z adnotacją (`git cat-file -p v0.1.0`), dlatego `git clone --branch v0.1.0` wypisuje ostrzeżenie `… is not a commit!` i komunikat o odłączonym HEAD; wyjaśnia to [16](16-cli-wa.md#one-liner). Tagi z semantic-release są lekkie.
 
-Nic nie sprawdza kroków 1, 2 i 5:
-
-- Zmiana plików modułu bez podbicia jego wersji przechodzi przez obie bramki i CI. W planie 3 `core` przeszedł z `0.1.0` do `0.4.0` w trzech commitach (`c8a0ffd`, `102b706`, `2e8db6e`), ale kilka innych zmian plików rdzenia weszło bez podbicia (R12 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Wersja kitu przez cały plan 3 zostawała `0.1.0`, a tag `v0.1.0` ustawiono 2026-10-30 na końcowym commicie planu.
-- Bez tagu one-liner z `--branch v<wersja>` i `wa add` z domyślnym źródłem kończą się błędem pobierania, a `wa list` wypisuje `Dostępne: nie udało się pobrać kitu (<powód>)` z kodem 0 ([16](16-cli-wa.md#wa-list), [znane-ograniczenia.md](znane-ograniczenia.md)).
+Nic nie sprawdza podbicia wersji modułu: zmiana plików modułu bez podbicia przechodzi przez obie bramki i CI (R12 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)).
 
 <a id="nowy-modul-kitu"></a>
 
