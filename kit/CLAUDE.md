@@ -27,7 +27,9 @@ Zasady dla plików tylko kitu (`kit/`). Nie trafiają do projektów (`.dockerign
 
 - Job `assemble` w `.github/workflows/kit.yml` składa projekt z kitu (`wa create`) dla każdej kombinacji modułów z macierzy `combo` i uruchamia w nim `verify`, testy integracyjne oraz `docker build`. Nowy moduł kitu dopisz do macierzy.
 - Fixture modułu projektu (`kit/cli/src/__tests__/fixtures/project-module/`) jest używane przez `assemble`; zmiana kontraktu `projectModules` wymaga jego aktualizacji.
-- Wydanie: podbij `version` zmienionych modułów, uruchom `npm run wa -- kit sync`, zmerguj do `main`; tag `v<version>` ustawia człowiek.
+- Wydanie robi semantic-release (`.github/workflows/release.yml`, paczka `kit/release/`, [ADR-54](../docs/adrs/54-kit-releases-are-cut-by-semantic-release.md)) z Conventional Commits przy każdym pushu na `main`: `feat` → minor, `fix`/`perf` → patch, breaking poniżej 1.0 → minor, `[no release]` w temacie → bez wydania. Zapisuje wersję w `kit/kit.json`, uruchamia `kit sync`, commituje `chore(release): <wersja> [skip ci]` i ustawia tag `v<wersja>` na tym commicie.
+- `version` w `kit/kit.json` (i `kitVersion` w `.wa/kit.json`) zmienia tylko wydanie; nie edytuj ich ręcznie. `version` zmienionych modułów w `kit/modules/*.json` podbijasz ręcznie, potem `npm run wa -- kit sync`.
+- Paczka `kit/release/`: `npm ci --prefix kit/release`, testy `npm test --prefix kit/release` (job `release-scripts` w `kit.yml`). Nie dodawaj semantic-release do root `package.json`: trafiłby do projektów.
 - Opis dla użytkowników CLI: `kit/README.md`.
 
 ## Agent skills
