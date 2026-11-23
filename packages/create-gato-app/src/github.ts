@@ -16,6 +16,10 @@ export type FetchLike = (
 
 const TAGS_PAGE_SIZE = 100;
 
+export class GitHubTokenRejectedError extends Error {
+  name = "GitHubTokenRejectedError";
+}
+
 export function githubHeaders(token: string | null): Record<string, string> {
   const headers: Record<string, string> = {
     "User-Agent": "create-gato-app",
@@ -94,6 +98,11 @@ async function request(
     throw new Error(`Could not reach GitHub for ${what}: ${detail}`, {
       cause: error,
     });
+  }
+  if (response.status === 401 && token !== null) {
+    throw new GitHubTokenRejectedError(
+      httpErrorMessage(response.status, what, token),
+    );
   }
   if (!response.ok) {
     throw new Error(httpErrorMessage(response.status, what, token));

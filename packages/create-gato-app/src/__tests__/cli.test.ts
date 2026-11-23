@@ -1,6 +1,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { test } from "@fast-check/vitest";
+import fc from "fast-check";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { USAGE } from "../args.js";
 import { run, type CliDeps } from "../cli.js";
@@ -167,6 +169,7 @@ describe("run: parse errors", () => {
       "--kit and --kit-version cannot be used together",
     ],
     [[], "Missing project directory"],
+    [[""], "Missing project directory."],
     [["app", "--skip-docker"], "--skip-docker is not supported yet"],
   ])(
     "%j prints the error and returns 1 without side effects",
@@ -489,5 +492,293 @@ describe("run: delegation to gato-cli", () => {
     ).resolves.toBe(1);
     expect(h.errors.join("\n")).toContain(">=22");
     expect(h.spawnCalls).toEqual([]);
+  });
+});
+
+const NAME_ERROR_SUFFIX =
+  "use lowercase letters, digits and hyphens, start with a letter, 2-50 characters";
+const FIFTY = `a${"b".repeat(49)}`;
+const FIFTY_ONE = `a${"b".repeat(50)}`;
+
+describe("run: project name validation", () => {
+  it.each([
+    ["Bad Name", "/work"],
+    ["UPPER", "/work"],
+    ["123app", "/work"],
+    ["a", "/work"],
+    ["ąę", "/work"],
+    [FIFTY_ONE, "/work"],
+  ])("%j is rejected before the download with exit 1", async (target, cwd) => {
+    const h = harness({
+      cwd,
+      env: { GITHUB_TOKEN: SECRET },
+      routes: {
+        [TAGS_PAGE_1]: jsonResponse([{ name: "v0.1.0" }]),
+        [API_TARBALL_010]: bytesResponse([1]),
+      },
+    });
+    await expect(run([target, "--yes"], h.deps)).resolves.toBe(1);
+    expect(h.errors).toEqual([
+      `Project name "${target}": ${NAME_ERROR_SUFFIX}`,
+    ]);
+    expect(h.fetchCalls).toEqual([]);
+    expect(h.spawnCalls).toEqual([]);
+    expect(h.makeTempDir).not.toHaveBeenCalled();
+  });
+
+  it("an invalid name is rejected with --kit too, without delegating", async () => {
+    const h = harness({});
+    await expect(run(["Bad Name", "--kit", "/k"], h.deps)).resolves.toBe(1);
+    expect(h.errors).toEqual([`Project name "Bad Name": ${NAME_ERROR_SUFFIX}`]);
+    expect(h.spawnCalls).toEqual([]);
+  });
+
+  it("an invalid name is rejected with --kit-version, without downloading", async () => {
+    const h = harness({
+      routes: { [CODELOAD_TARBALL_010]: bytesResponse([1]) },
+    });
+    await expect(
+      run(["UPPER", "--kit-version", "0.1.0"], h.deps),
+    ).resolves.toBe(1);
+    expect(h.errors).toEqual([`Project name "UPPER": ${NAME_ERROR_SUFFIX}`]);
+    expect(h.fetchCalls).toEqual([]);
+    expect(h.makeTempDir).not.toHaveBeenCalled();
+  });
+
+  it("the name is the last path segment of the target", async () => {
+    const h = harness({});
+    await expect(run(["nested/Bad Dir", "--kit", "/k"], h.deps)).resolves.toBe(
+      1,
+    );
+    expect(h.errors).toEqual([`Project name "Bad Dir": ${NAME_ERROR_SUFFIX}`]);
+  });
+
+  it(". in a badly named cwd is rejected with the cwd's name", async () => {
+    const h = harness({ cwd: "/work/Bad Dir" });
+    await expect(run([".", "--kit", "/k"], h.deps)).resolves.toBe(1);
+    expect(h.errors).toEqual([`Project name "Bad Dir": ${NAME_ERROR_SUFFIX}`]);
+    expect(h.spawnCalls).toEqual([]);
+  });
+
+  it.each([
+    ["ab", "/work"],
+    [FIFTY, "/work"],
+    ["nested/dir/my-app", "/work"],
+    [".", "/work/acme-crm"],
+  ])("%j in %s is accepted and delegated with --kit", async (target, cwd) => {
+    const h = harness({ cwd, childCode: 4 });
+    await expect(run([target, "--kit", "/k"], h.deps)).resolves.toBe(4);
+    expect(h.errors).toEqual([]);
+    expect(h.spawnCalls).toEqual([
+      {
+        command: NODE,
+        args: [GATO, "create", target, "--kit", "/k"],
+        options: { cwd, stdio: "inherit" },
+      },
+    ]);
+  });
+
+  it("a valid name still downloads the kit exactly as before", async () => {
+    const h = harness({
+      routes: { [CODELOAD_TARBALL_010]: bytesResponse([1]) },
+    });
+    await expect(run(["ab", "--kit-version", "0.1.0"], h.deps)).resolves.toBe(
+      0,
+    );
+    expect(h.fetchCalls.map((call) => call.url)).toEqual([
+      CODELOAD_TARBALL_010,
+    ]);
+    expect(h.spawnCalls.map((call) => call.command)).toEqual([
+      "tar",
+      "git",
+      "git",
+      NODE,
+    ]);
+  });
+
+  test.prop([fc.stringMatching(/^[a-z][a-z0-9-]{1,49}$/)])(
+    "every name of a lowercase letter and 1-49 letters, digits or hyphens is delegated",
+    async (name) => {
+      const h = harness({});
+      await expect(run([name, "--kit", "/k"], h.deps)).resolves.toBe(0);
+      expect(h.errors).toEqual([]);
+      expect(h.spawnCalls).toHaveLength(1);
+    },
+  );
+
+  test.prop([
+    fc
+      .string({ minLength: 1, maxLength: 60 })
+      .filter(
+        (name) =>
+          !/^[a-z][a-z0-9-]{1,49}$/.test(name) &&
+          !name.includes("/") &&
+          !name.startsWith("-") &&
+          name !== "." &&
+          name !== "..",
+      ),
+  ])(
+    "every other single-segment name is rejected without side effects",
+    async (name) => {
+      const h = harness({});
+      await expect(run([name, "--kit", "/k"], h.deps)).resolves.toBe(1);
+      expect(h.errors).toEqual([
+        `Project name "${name}": ${NAME_ERROR_SUFFIX}`,
+      ]);
+      expect(h.spawnCalls).toEqual([]);
+      expect(h.fetchCalls).toEqual([]);
+    },
+  );
+});
+
+describe("run: a rejected token is retried anonymously once", () => {
+  const BOGUS = "bogus";
+  const RETRY_WARNING = "GitHub rejected the token (401); retrying without it.";
+
+  type Route = { withToken?: HttpResponse; anonymous?: HttpResponse };
+
+  function routeByToken(h: Harness, routes: Record<string, Route>): void {
+    h.deps.fetch = async (url, init) => {
+      h.fetchCalls.push({ url, headers: init.headers });
+      h.events.push(`fetch ${url}`);
+      const route = routes[url];
+      const response =
+        init.headers.Authorization === undefined
+          ? route?.anonymous
+          : route?.withToken;
+      if (!response) throw new Error(`unexpected request: ${url}`);
+      return response;
+    };
+  }
+
+  function authOf(h: Harness): (string | undefined)[] {
+    return h.fetchCalls.map((call) => call.headers.Authorization);
+  }
+
+  it("a 401 on the tag list retries the tag list and the tarball without the token", async () => {
+    const h = harness({ env: { GITHUB_TOKEN: BOGUS }, childCode: 6 });
+    routeByToken(h, {
+      [TAGS_PAGE_1]: {
+        withToken: statusResponse(401),
+        anonymous: jsonResponse([{ name: "v0.1.0" }, { name: "v0.2.0" }]),
+      },
+      [CODELOAD_TARBALL_020]: { anonymous: bytesResponse([1]) },
+    });
+    await expect(run(["app", "--yes"], h.deps)).resolves.toBe(6);
+    expect(h.fetchCalls.map((call) => call.url)).toEqual([
+      TAGS_PAGE_1,
+      TAGS_PAGE_1,
+      CODELOAD_TARBALL_020,
+    ]);
+    expect(authOf(h)).toEqual(["Bearer bogus", undefined, undefined]);
+    expect(h.fetchCalls[1]?.headers).not.toHaveProperty("Authorization");
+    expect(h.fetchCalls[2]?.headers).not.toHaveProperty("Authorization");
+    expect(h.errors).toEqual([RETRY_WARNING]);
+    expect(h.spawnCalls.filter((call) => call.command === NODE)).toHaveLength(
+      1,
+    );
+  });
+
+  it("a 401 on the API tarball falls back to codeload without the token", async () => {
+    const h = harness({ env: { GITHUB_TOKEN: BOGUS } });
+    routeByToken(h, {
+      [API_TARBALL_010]: { withToken: statusResponse(401) },
+      [CODELOAD_TARBALL_010]: { anonymous: bytesResponse([1]) },
+    });
+    await expect(run(["app", "--kit-version", "0.1.0"], h.deps)).resolves.toBe(
+      0,
+    );
+    expect(h.fetchCalls.map((call) => call.url)).toEqual([
+      API_TARBALL_010,
+      CODELOAD_TARBALL_010,
+    ]);
+    expect(authOf(h)).toEqual(["Bearer bogus", undefined]);
+    expect(h.errors).toEqual([RETRY_WARNING]);
+    expect(h.spawnCalls.map((call) => call.command)).toEqual([
+      "tar",
+      "git",
+      "git",
+      NODE,
+    ]);
+  });
+
+  it("the retry never prints the token", async () => {
+    const h = harness({ env: { GITHUB_TOKEN: SECRET } });
+    routeByToken(h, {
+      [TAGS_PAGE_1]: {
+        withToken: statusResponse(401),
+        anonymous: jsonResponse([{ name: "v0.1.0" }]),
+      },
+      [CODELOAD_TARBALL_010]: { anonymous: bytesResponse([1]) },
+    });
+    await expect(run(["app"], h.deps)).resolves.toBe(0);
+    expect(output(h)).not.toContain(SECRET);
+  });
+
+  it("a second 401 without the token fails with the anonymous error and no further retry", async () => {
+    const h = harness({ env: { GITHUB_TOKEN: BOGUS } });
+    routeByToken(h, {
+      [TAGS_PAGE_1]: {
+        withToken: statusResponse(401),
+        anonymous: statusResponse(401),
+      },
+    });
+    await expect(run(["app"], h.deps)).resolves.toBe(1);
+    expect(authOf(h)).toEqual(["Bearer bogus", undefined]);
+    expect(h.errors[0]).toBe(RETRY_WARNING);
+    expect(h.errors[1]).toContain("GitHub returned 401 for the tag list.");
+    expect(h.errors).toHaveLength(2);
+    expect(h.spawnCalls).toEqual([]);
+  });
+
+  it("another status after the retry fails with the anonymous message", async () => {
+    const h = harness({ env: { GITHUB_TOKEN: BOGUS } });
+    routeByToken(h, {
+      [API_TARBALL_010]: { withToken: statusResponse(401) },
+      [CODELOAD_TARBALL_010]: { anonymous: statusResponse(404) },
+    });
+    await expect(run(["app", "--kit-version", "0.1.0"], h.deps)).resolves.toBe(
+      1,
+    );
+    expect(h.fetchCalls.map((call) => call.url)).toEqual([
+      API_TARBALL_010,
+      CODELOAD_TARBALL_010,
+    ]);
+    expect(h.errors[0]).toBe(RETRY_WARNING);
+    expect(h.errors[1]).toContain("GitHub returned 404 for kit v0.1.0.");
+    expect(h.errors[1]).toContain("may be private");
+    expect(h.errors).toHaveLength(2);
+    expect(h.removed).toEqual(h.tempDirs);
+  });
+
+  it.each([403, 404, 429, 500])(
+    "a %i with a token is not retried",
+    async (status) => {
+      const h = harness({ env: { GITHUB_TOKEN: BOGUS } });
+      routeByToken(h, {
+        [TAGS_PAGE_1]: {
+          withToken: statusResponse(status),
+          anonymous: jsonResponse([{ name: "v0.1.0" }]),
+        },
+        [CODELOAD_TARBALL_010]: { anonymous: bytesResponse([1]) },
+      });
+      await expect(run(["app"], h.deps)).resolves.toBe(1);
+      expect(authOf(h)).toEqual(["Bearer bogus"]);
+      expect(h.errors).toHaveLength(1);
+      expect(h.errors[0]).toContain(`GitHub returned ${status}`);
+      expect(h.errors).not.toContain(RETRY_WARNING);
+    },
+  );
+
+  it("a 401 without any token is not retried", async () => {
+    const h = harness({ env: {}, gh: null });
+    routeByToken(h, {
+      [CODELOAD_TARBALL_010]: { anonymous: statusResponse(401) },
+    });
+    await expect(run(["app", "--kit-version", "0.1.0"], h.deps)).resolves.toBe(
+      1,
+    );
+    expect(h.fetchCalls).toHaveLength(1);
+    expect(h.errors).not.toContain(RETRY_WARNING);
   });
 });
