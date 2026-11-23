@@ -15,6 +15,7 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 
 - `.claude/agents/test-writer.md`
 - `.claude/agents/test-reviewer.md`
+- `.claude/skills/gato-task/SKILL.md`
 - `.claude/hooks/protect-tests.mjs`
 - `.claude/hooks/protect-tests.test.mjs`
 - `.claude/settings.json`
@@ -37,7 +38,7 @@ Reguły procesu są w [AGENTS.md](../AGENTS.md#testy-które-próbują-złamać-k
 Pojęcia używane w tym pliku:
 
 - **Test adwersarialny**: test, który ma złamać kod, a nie potwierdzić to, co założył jego autor.
-- **Orkiestrator**: główna sesja agenta, która prowadzi plan zadanie po zadaniu i uruchamia subagentów (tryb subagent-driven-development z pakietu umiejętności superpowers dla Claude Code).
+- **Orkiestrator**: główna sesja agenta, która prowadzi plan zadanie po zadaniu według skilla `gato-task` (`.claude/skills/gato-task/SKILL.md`) i uruchamia subagentów. Agent bez skilli wykonuje te same kroki z `AGENTS.md` („Running a task”). Plugin superpowers dla Claude Code (brainstorming, writing-plans, subagent-driven-development) jest polecany w `.claude/settings.json`, ale opcjonalny: kit od niego nie zależy ([ADR-57](adrs/57-the-agent-workflow-is-shipped-by-gatojs.md)).
 - **Subagent**: osobna sesja agenta z własnym kontekstem. Nie widzi rozmowy orkiestratora ani innych subagentów, tylko to, co dostał w poleceniu.
 - **Implementer**: subagent, który pisze kod produkcyjny zadania.
 - **Mutant**: kopia kodu z jedną celową zmianą, na przykład odwróconym warunkiem. Mutant, którego żaden test nie wykrywa, wskazuje zachowanie bez testu.
@@ -73,7 +74,7 @@ Po audycie dopisano testy, które zabijają wskazane mutanty, a do repozytorium 
 
 | Rola | Co dostaje | Czego nie robi | Narzędzia | Definicja |
 | --- | --- | --- | --- | --- |
-| Orkiestrator | Plan zadania. | Nie pisze testów ani kodu zadania. Uruchamia subagentów, zapisuje i usuwa plik fazy `.superpowers/phase`. | wszystkie | brak osobnej definicji |
+| Orkiestrator | Plan zadania. | Nie pisze testów ani kodu zadania. Uruchamia subagentów, zapisuje i usuwa plik fazy `.superpowers/phase`. | wszystkie | skill `.claude/skills/gato-task/SKILL.md` |
 | `test-writer` | Zadanie z planu (sekcje „Zachowania” i „Mutacje do zabicia”), sygnatury, kontrakty z `contracts/`, istniejące testy jako wzór stylu. | Nie czyta implementacji zadania ani rozumowania implementera. Istniejącą implementację traktuje jak czarną skrzynkę. | `Read`, `Grep`, `Glob`, `Write`, `Edit`, `Bash` | `.claude/agents/test-writer.md` |
 | Implementer | Plan i gotowe testy. | Nie zmienia testów. Błędny test zgłasza w raporcie. | wszystkie, w fazie `implement` bez edycji testów | brak osobnej definicji |
 | `test-reviewer` | Pliki zadania (diff) i raporty Strykera. | Nie edytuje plików. Nie dopisuje wpisów do `mutation-gate.json`, tylko je proponuje. | `Read`, `Grep`, `Glob`, `Bash` | `.claude/agents/test-reviewer.md` |
