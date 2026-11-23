@@ -129,6 +129,11 @@ describe("readKitManifests", () => {
     expect(demo?.dependencies).toEqual({ "left-pad": "^1.3.0" });
     expect(demo?.env).toEqual([
       { name: "DEMO_TOKEN", example: "{{projectSlug}}_demo_" },
+      {
+        name: "DEMO_SECRET",
+        example: "demo-secret-example",
+        generate: "secret-64",
+      },
     ]);
     expect(demo?.schemaRelations).toEqual([
       { model: "User", field: "demos Demo[]" },
