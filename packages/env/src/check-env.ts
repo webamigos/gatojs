@@ -81,6 +81,7 @@ export function verifyEnvOnStartup(
 
 // WHY: keeps process.exit out of instrumentation.ts, which Turbopack also compiles for Edge and warns about.
 export const processStartupIo: StartupIo = {
+  // eslint-disable-next-line no-console -- the startup report goes to stderr before the logger exists
   error: (message: string) => console.error(message),
   exit: (code: number) => process.exit(code),
 };

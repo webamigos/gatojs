@@ -1,26 +1,10 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import js from "@eslint/js";
-import tseslint from "typescript-eslint";
-import globals from "globals";
+import { defineConfig } from "eslint/config";
+import node from "@gatojs/eslint-config/node";
 
 export default defineConfig([
-  js.configs.recommended,
-  tseslint.configs.recommended,
-  {
-    languageOptions: { globals: globals.node },
-    rules: {
-      curly: "error",
-      "no-nested-ternary": "error",
-    },
-  },
+  ...node,
   {
     files: ["**/__tests__/**"],
     rules: { curly: "off" },
   },
-  globalIgnores([
-    "node_modules/**",
-    "dist/**",
-    "reports/**",
-    ".stryker-tmp/**",
-  ]),
 ]);

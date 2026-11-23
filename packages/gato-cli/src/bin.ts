@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- the CLI entry point: the console is its output */
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdtemp, rm } from "node:fs/promises";

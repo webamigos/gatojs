@@ -14,11 +14,14 @@ export interface Logger {
 
 function consoleMethodFor(severity: SeverityNumber) {
   if (severity >= SeverityNumber.ERROR) {
+    // eslint-disable-next-line no-console -- the logger prints to the console in development
     return console.error;
   }
   if (severity >= SeverityNumber.WARN) {
+    // eslint-disable-next-line no-console -- the logger prints to the console in development
     return console.warn;
   }
+  // eslint-disable-next-line no-console -- the logger prints to the console in development
   return console.log;
 }
 

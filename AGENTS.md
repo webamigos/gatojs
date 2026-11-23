@@ -136,8 +136,10 @@ src/app/[locale]/(auth|app)
   `this.constructor.name`, `new.target.name` and `KeyLimitError.name`, because the build minifies class names.
 - A class that extends `Error` directly has its own `name`: a field `name = "KeyLimitError"` or `this.name = "KeyLimitError"`
   as a separate constructor statement (not inside an `if` or a function). ESLint flags a class without it outside tests, `e2e/`
-  and `*.d.ts` files. Add your own `no-restricted-syntax` selectors to `restrictedSyntax` in `eslint.config.mjs`,
-  because the config object for those files repeats that list.
+  and `*.d.ts` files. Add your own `no-restricted-syntax` selectors in `eslint.config.mjs` with
+  `...restrictedSyntax([{ selector, message }])` from `@gatojs/eslint-config`: a later `no-restricted-syntax` replaces the list.
+- Lint rules live in `packages/eslint-config` (`@gatojs/eslint-config`; `/next` for the app, `/node` for Node tools):
+  `eqeqeq`, `curly`, `no-nested-ternary`, `consistent-type-imports`, and `no-console` outside tests (the logger is the output).
 
 ### Auth
 
