@@ -1,0 +1,15 @@
+GatoJS
+Copyright 2026 Web Amigos
+
+This product includes software developed by Web Amigos and the GatoJS
+contributors.
+
+Licensed under the Apache License, Version 2.0. See the LICENSE file for the
+full terms.
+
+---
+
+src/components/ui contains components copied from shadcn/ui, which is
+distributed under the MIT License. The notice is in src/components/ui/LICENSE,
+which is copied into every project assembled from the kit together with the
+components.

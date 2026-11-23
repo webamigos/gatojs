@@ -258,6 +258,7 @@ const ALL_USER_ACTIONS = [
   "delete",
   "set-password",
   "set-email",
+  "set-phone",
   "get",
   "update",
 ] as const;

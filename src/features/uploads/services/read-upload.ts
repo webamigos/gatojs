@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { prisma } from "@/shared/lib/prisma";
+import { withoutTenantScope } from "@/shared/lib/tenant-scope";
 import { readOrgContextForApi } from "./api-org-context";
 import { contentDisposition } from "./content-disposition";
 import { getObject } from "./storage";
@@ -28,7 +29,10 @@ export async function readUploadForDownload(
   if (!uploadIdSchema.safeParse(id).success) {
     return NOT_FOUND;
   }
-  const upload = await prisma.upload.findUnique({ where: { id } });
+  const upload = await withoutTenantScope(
+    "upload lookup before visibility check",
+    () => prisma.upload.findUnique({ where: { id } }),
+  );
   if (!upload) {
     return NOT_FOUND;
   }

@@ -6,10 +6,10 @@ Po przeczytaniu będziesz wiedzieć:
 - jak `wa kit sync` utrzymuje `.wa/kit.json` kitu w zgodzie z manifestami i co sprawdza test własności plików i zależności;
 - jak CLI liczy hashe plików projektu i podmienia placeholdery;
 - jak zmienić kod CLI: bundel, bramka CLI, mutacje i workflowy kitu;
-- jak wydać nową wersję kitu z tagiem;
+- jak semantic-release wydaje nową wersję kitu z tagiem;
 - jak dodać do kitu nowy moduł, krok po kroku, tak jak zrobił to plan 3.
 
-Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wersja `uploads` w [Manifestach modułów](#manifesty)); a065725, 2026-11-13 (wersje `core` i `audit-logs` w [Manifestach modułów](#manifesty)); pozostałe sekcje: 734391b, 2026-11-04
+Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wersja `uploads` w [Manifestach modułów](#manifesty)); 2026-11-22 (wersje modułów i tagi w [Manifestach modułów](#manifesty)); pozostałe sekcje: 734391b, 2026-11-04
 
 Źródła:
 
@@ -17,21 +17,21 @@ Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wersja `uploads` w [Manifestach modu
 - `kit/modules/core.json`, `kit/modules/audit-logs.json`, `kit/modules/api-keys.json`, `kit/modules/uploads.json`
 - `kit/CLAUDE.md`
 - `kit/README.md`
-- `kit/cli/package.json`
-- `kit/cli/bundle.mjs`
-- `kit/cli/eslint.config.mjs`
-- `kit/cli/stryker.config.json`
-- `kit/cli/mutation-gate.json`
-- `kit/cli/vitest.config.ts`
-- `kit/cli/vitest.setup.ts`
-- `kit/cli/vitest.sequencer.ts`
-- `kit/cli/src/commands/kit-sync.ts`
-- `kit/cli/src/kit/` (`kit-config.ts`, `files.ts`, `ownership.ts`, `source.ts`)
-- `kit/cli/src/assemble/` (`hash.ts`, `placeholders.ts`, `package-json.ts`, `copy.ts`)
-- `kit/cli/src/generate/targets.ts`
-- `kit/cli/src/manifest/schema.ts`
-- `kit/cli/src/kit/__tests__/ownership.test.ts`
-- `kit/cli/src/__tests__/fixtures/project-module/`
+- `packages/gato-cli/package.json`
+- `packages/gato-cli/bundle.mjs`
+- `packages/gato-cli/eslint.config.mjs`
+- `packages/gato-cli/stryker.config.json`
+- `packages/gato-cli/mutation-gate.json`
+- `packages/gato-cli/vitest.config.ts`
+- `packages/gato-cli/vitest.setup.ts`
+- `packages/gato-cli/vitest.sequencer.ts`
+- `packages/gato-cli/src/commands/kit-sync.ts`
+- `packages/gato-cli/src/kit/` (`kit-config.ts`, `files.ts`, `ownership.ts`, `source.ts`)
+- `packages/gato-cli/src/assemble/` (`hash.ts`, `placeholders.ts`, `package-json.ts`, `copy.ts`)
+- `packages/gato-cli/src/generate/targets.ts`
+- `packages/gato-cli/src/manifest/schema.ts`
+- `packages/gato-cli/src/kit/__tests__/ownership.test.ts`
+- `packages/gato-cli/src/__tests__/fixtures/project-module/`
 - `scripts/mutation-gate.ts`
 - `src/instrumentation.ts`, `e2e/env.ts`, `src/test/integration/setup-env.ts`, `Dockerfile`, `docker/uploads.compose.yml`
 - `.wa/kit.json`
@@ -76,7 +76,7 @@ Repozytorium kitu to działająca aplikacja referencyjna: rdzeń i wszystkie mod
 | --- | --- |
 | `kit/kit.json` | Konfiguracja kitu: wersja, adres repozytorium, pliki tylko dla kitu, placeholdery, pliki generowane i zarządzane ([Referencja](#referencja-kit-json)). |
 | `kit/modules/<x>.json` | Manifest modułu kitu: pliki, zależności npm, zmienne, relacje, usługa Dockera, kroki CI, wymagane moduły ([Manifesty](#manifesty)). |
-| `kit/cli/` | Kod źródłowy CLI z własnym `package.json`, `package-lock.json`, testami, konfiguracją ESLint i Strykera ([D28](decyzje.md#d28)). |
+| `packages/gato-cli/` | Kod źródłowy CLI (pakiet npm `gato-cli`, workspace z listy `kitOnly`) z własnym `package.json`, testami, konfiguracją ESLint i Strykera ([D28](decyzje.md#d28), [ADR-56](adrs/56-workspace-packages-replace-d29.md)). |
 | `kit/README.md`, `kit/CLAUDE.md` | Opis CLI dla użytkowników i reguły pracy nad plikami kitu. |
 | `.wa/kit.json` | Stan kitu przepisany z manifestów przez `wa kit sync` ([niżej](#kit-sync)). Projekt dostaje własny `.wa/kit.json`, zapisany przez `wa create`. |
 | `.github/workflows/kit.yml`, `.github/workflows/kit-mutation.yml` | Bramka CLI, składanie projektów z kitu i ręczny przebieg mutacji CLI ([CI kitu](#ci-kitu)). |
@@ -89,8 +89,8 @@ Narzędzia aplikacji pomijają `kit/`: ESLint (`kit/**` w `globalIgnores` w `esl
 `.gitignore`
 
 ```text
-kit/cli/reports/
-kit/cli/.stryker-tmp/
+packages/gato-cli/reports/
+packages/gato-cli/.stryker-tmp/
 ```
 
 Te wpisy leżą w plikach `core` (`.gitignore`, `.dockerignore`, `eslint.config.mjs`, `vitest.config.ts`, `tsconfig.json`), więc trafiają też do projektów, gdzie nic nie wskazują. Dlatego `npm run verify` w katalogu głównym nie sprawdza kodu CLI; robi to bramka CLI ([Bramka CLI](#bramka-cli)).
@@ -101,16 +101,16 @@ W drugą stronę reguła nie działa: workflowy rdzenia (`ci.yml`, `e2e.yml`, `m
 
 ## Manifesty modułów
 
-Każdy moduł kitu ma plik `kit/modules/<nazwa>.json`. Pole `name` musi być równe nazwie pliku, inaczej odczyt manifestów kończy się błędem `kit/modules/<plik>: name "<name>" nie zgadza się z nazwą pliku` (`readKitManifests` w `kit/cli/src/kit/kit-config.ts`). Manifesty są czytane w kolejności: `core`, potem pozostałe alfabetycznie (`compareModuleNames`). Schemat (`moduleManifestSchema` w `kit/cli/src/manifest/schema.ts`) jest ten sam co w `.wa/kit.json` projektu; pełną listę pól z typami i wartościami domyślnymi podaje [02b](02b-rejestr-i-generator.md#referencja-manifest).
+Każdy moduł kitu ma plik `kit/modules/<nazwa>.json`. Pole `name` musi być równe nazwie pliku, inaczej odczyt manifestów kończy się błędem `kit/modules/<plik>: name "<name>" nie zgadza się z nazwą pliku` (`readKitManifests` w `packages/gato-cli/src/kit/kit-config.ts`). Manifesty są czytane w kolejności: `core`, potem pozostałe alfabetycznie (`compareModuleNames`). Schemat (`moduleManifestSchema` w `packages/gato-cli/src/manifest/schema.ts`) jest ten sam co w `.wa/kit.json` projektu; pełną listę pól z typami i wartościami domyślnymi podaje [02b](02b-rejestr-i-generator.md#referencja-manifest).
 
-Manifesty w repozytorium kitu (`version` w `kit/kit.json`: `0.1.0`). Tag `v0.1.0` ma starsze wersje trzech z nich: `core` `0.4.0`, `uploads` `0.1.0` i `audit-logs` `0.1.0`, bo `core` `0.5.3` (walidacja `env` przy starcie od `0.5.0`, [D48](decyzje.md#d48)), `uploads` `0.2.2` (provider storage od `0.2.0`, [D49](decyzje.md#d49)) i `audit-logs` `0.1.2` przyszły po tagu, a wersja kitu się nie zmieniła:
+Manifesty w repozytorium kitu (`version` w `kit/kit.json`: `0.3.0`, zapisuje ją semantic-release). Tag `v0.3.0` ma te same wersje modułów poza `core`: `core` `0.7.0` (`wa update`, [D47](decyzje.md#d47)) przyszedł po tagu, który ma `core` `0.6.3`. Tag `v0.1.0` ma starsze wersje wszystkich czterech: `core` `0.4.0` (walidacja `env` przy starcie od `0.5.0`, [D48](decyzje.md#d48)), `api-keys` `0.1.0`, `uploads` `0.1.0` (provider storage od `0.2.0`, [D49](decyzje.md#d49)) i `audit-logs` `0.1.0`:
 
 | Moduł | `version` | `files` | Zależności npm | `env` | `compose` | `ciSteps` |
 | --- | --- | --- | --- | --- | --- | --- |
-| `core` | `0.5.3` | wszystkie pliki rdzenia, od `.claude/agents/test-reviewer.md` po `src/types/**`, w tym `.wa/bin/wa.mjs` | wszystkie zależności rdzenia | — | — | — |
+| `core` | `0.7.0` | wszystkie pliki rdzenia, od `.claude/agents/test-reviewer.md` po `src/types/**`, w tym `.wa/bin/wa.mjs` | wszystkie zależności rdzenia | — | — | — |
 | `audit-logs` | `0.1.2` | `prisma/schema/audit-logs.prisma`, `src/features/audit-logs/**`, `src/app/[locale]/(app)/audit-log/**` | `better-call` w `devDependencies` | — | — | — |
-| `api-keys` | `0.1.0` | `prisma/schema/api-keys.prisma`, `src/features/api-keys/**`, `src/app/api/v1/organization/**`, `src/app/[locale]/(app)/api-keys/**` | — | `API_KEY_PEPPER` | — | — |
-| `uploads` | `0.2.2` | `prisma/schema/uploads.prisma`, `src/features/uploads/**`, `src/app/api/uploads/**`, `docker/uploads.compose.yml`, `ci/uploads.integration-steps.yml` | `@aws-sdk/client-s3`, `file-type`, `sharp` | `STORAGE_PROVIDER`, `STORAGE_LOCAL_PATH`, `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE`, wszystkie z `required: false` | `docker/uploads.compose.yml` | `ci/uploads.integration-steps.yml` |
+| `api-keys` | `0.1.1` | `prisma/schema/api-keys.prisma`, `src/features/api-keys/**`, `src/app/api/v1/organization/**`, `src/app/[locale]/(app)/api-keys/**` | — | `API_KEY_PEPPER` | — | — |
+| `uploads` | `0.2.4` | `prisma/schema/uploads.prisma`, `src/features/uploads/**`, `src/app/api/uploads/**`, `docker/uploads.compose.yml`, `ci/uploads.integration-steps.yml` | `@aws-sdk/client-s3`, `file-type`, `sharp` | `STORAGE_PROVIDER`, `STORAGE_LOCAL_PATH`, `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE`, wszystkie z `required: false` | `docker/uploads.compose.yml` | `ci/uploads.integration-steps.yml` |
 
 Żaden z modułów nie ma `requires`. Co każdy moduł robi, opisuje [12-moduly-kitu.md](12-moduly-kitu.md).
 
@@ -132,9 +132,9 @@ Pola manifestu czytają różne części CLI:
 
 ### Wzorce `files` i lista plików kitu
 
-Wzorce w `files` znają tylko `**/` (zero albo więcej katalogów), `**` (dowolne znaki, także `/`) i `*` (dowolne znaki poza `/`). Pozostałe znaki, w tym `[locale]` i `(app)`, są dosłowne (`globToRegExp` w `kit/cli/src/kit/files.ts`). Nawiasów klamrowych nie ma: wzorzec `src/features/{a,b}/**` test własności zgłasza jako błąd, a generator go pomija.
+Wzorce w `files` znają tylko `**/` (zero albo więcej katalogów), `**` (dowolne znaki, także `/`) i `*` (dowolne znaki poza `/`). Pozostałe znaki, w tym `[locale]` i `(app)`, są dosłowne (`globToRegExp` w `packages/gato-cli/src/kit/files.ts`). Nawiasów klamrowych nie ma: wzorzec `src/features/{a,b}/**` test własności zgłasza jako błąd, a generator go pomija.
 
-Wzorce są dopasowywane do listy plików z indeksu gita (`git ls-files` w `listKitFiles`), bez plików z `kitOnly` i `generatedFiles` (`assemblableFiles`). Treść pliku CLI czyta jednak z drzewa roboczego (`copyFiles` w `kit/cli/src/assemble/copy.ts`). Przy pracy nad kitem wynikają z tego dwie rzeczy (sprawdzone na kopii: `create --modules api-keys` po dopisaniu linii do `src/features/api-keys/env.ts` i po utworzeniu nowego pliku w `src/features/api-keys/`):
+Wzorce są dopasowywane do listy plików z indeksu gita (`git ls-files` w `listKitFiles`), bez plików z `kitOnly` i `generatedFiles` (`assemblableFiles`). Treść pliku CLI czyta jednak z drzewa roboczego (`copyFiles` w `packages/gato-cli/src/assemble/copy.ts`). Przy pracy nad kitem wynikają z tego dwie rzeczy (sprawdzone na kopii: `create --modules api-keys` po dopisaniu linii do `src/features/api-keys/env.ts` i po utworzeniu nowego pliku w `src/features/api-keys/`):
 
 - niezacommitowana zmiana pliku śledzonego trafia do projektu złożonego z twojego klonu;
 - nowy plik przed `git add` nie trafia do projektu i nie widzi go test własności ([niżej](#wlasnosc)).
@@ -145,7 +145,7 @@ Job `assemble` w CI składa projekt z checkoutu commita, więc tam obie listy si
 
 ### Pliki `docker/` i `ci/` modułu
 
-Pola `compose` i `ciSteps` wskazują pliki, które generator czyta z katalogu projektu (`composeBody` i `ciStepsBody` w `kit/cli/src/generate/targets.ts`). Plik musi więc trafić do projektu razem z modułem, czyli należeć do `files` tego samego modułu. Moduł `uploads` trzyma je w katalogach `docker/` i `ci/` z nazwą modułu w nazwie pliku:
+Pola `compose` i `ciSteps` wskazują pliki, które generator czyta z katalogu projektu (`composeBody` i `ciStepsBody` w `packages/gato-cli/src/generate/targets.ts`). Plik musi więc trafić do projektu razem z modułem, czyli należeć do `files` tego samego modułu. Moduł `uploads` trzyma je w katalogach `docker/` i `ci/` z nazwą modułu w nazwie pliku:
 
 - `docker/uploads.compose.yml`: definicje usług (`minio`, `minio-init`) bez klucza `services:`, bo generator wcina treść o dwie spacje i wstawia ją pod `services:` w regionie `wa:services` w `docker-compose.yml`. Obie usługi mają `profiles: ["s3"]` zaraz pod `image:`, więc `docker compose up -d` ich nie uruchamia, a `docker compose --profile s3 up -d` je uruchamia ([15](15-modul-uploads.md#minio)). Profil trafia do `docker-compose.yml` razem z resztą fragmentu:
 
@@ -179,7 +179,7 @@ Ten plik w kicie nie jest edytowany ręcznie. Przepisuje go komenda:
 npm run wa -- kit sync
 ```
 
-`kitSync` w `kit/cli/src/commands/kit-sync.ts` buduje stan z `kit/kit.json` i manifestów:
+`kitSync` w `packages/gato-cli/src/commands/kit-sync.ts` buduje stan z `kit/kit.json` i manifestów:
 
 | Pole `.wa/kit.json` | Skąd |
 | --- | --- |
@@ -206,13 +206,13 @@ Generator dopisuje nowe feature do rejestru i przepisuje regiony `wa:*` w plikac
 
 Każdy plik kitu, który może trafić do projektu, ma dokładnie jednego właściciela: moduł, którego wzorzec `files` go obejmuje. Bez tego `wa create` pominąłby plik albo skopiował go z dwóch modułów, a `wa remove` usunąłby plik potrzebny innemu modułowi. Każda zależność npm z `package.json` kitu musi mieć manifest, który deklaruje ją w tej samej sekcji i w tej samej wersji ([D30](decyzje.md#d30), [D38](decyzje.md#d38)).
 
-Pilnuje tego test „każdy plik i każda zależność ma dokładnie jednego właściciela” w `kit/cli/src/kit/__tests__/ownership.test.ts`. Uruchamia `checkOwnership` (`kit/cli/src/kit/ownership.ts`) na samym repozytorium kitu, nie na kopii (korzeń szuka po `kit/kit.json` i `kit/cli/package.json` w górę od pliku testu) i oczekuje pustego raportu. Pozostałe testy w tym pliku sprawdzają `checkOwnership` na fiksturach `ownership-broken`, `ownership-order` i `ownership-sections`.
+Pilnuje tego test „każdy plik i każda zależność ma dokładnie jednego właściciela” w `packages/gato-cli/src/kit/__tests__/ownership.test.ts`. Uruchamia `checkOwnership` (`packages/gato-cli/src/kit/ownership.ts`) na samym repozytorium kitu, nie na kopii (korzeń szuka po `kit/kit.json` i `packages/gato-cli/package.json` w górę od pliku testu) i oczekuje pustego raportu. Pozostałe testy w tym pliku sprawdzają `checkOwnership` na fiksturach `ownership-broken`, `ownership-order` i `ownership-sections`.
 
 Pojedynczo uruchomisz test tak:
 
 ```bash
-npm ci --prefix kit/cli
-cd kit/cli && npx vitest run src/kit/__tests__/ownership.test.ts
+npm ci
+cd packages/gato-cli && npx vitest run src/kit/__tests__/ownership.test.ts
 ```
 
 Na `758b557` przechodzi 16 testów (sprawdzone).
@@ -232,7 +232,7 @@ Granice testu:
 - **Widzi tylko indeks gita.** Nowy plik bez właściciela przed `git add` jest niewidoczny i test przechodzi; po `git add` test zgłasza go w `unowned` (sprawdzone na kopii z nowym plikiem w nowym katalogu feature). Uruchamiaj test po `git add`, przed commitem.
 - **Nie liczy właścicieli zależności.** Ta sama zależność w dwóch manifestach, w tej samej sekcji i wersji, przechodzi test mimo jego nazwy (sprawdzone na kopii: `zod` dopisany do `dependencies` `audit-logs` obok `core`). `wa remove` takiego modułu zostawia zależność, dopóki deklaruje ją inny moduł. R10 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md).
 - **Nie sprawdza `ciSteps`** ([wyżej](#pliki-uslug-i-ci)).
-- **Nie trafia do projektu.** Test leży w `kit/cli`; w projekcie klienta nic nie pilnuje kompletności manifestów.
+- **Nie trafia do projektu.** Test leży w `packages/gato-cli`; w projekcie klienta nic nie pilnuje kompletności manifestów.
 
 Praktyczna konsekwencja: aktualizacja zależności w kicie to dwie zmiany, w `package.json` (z lockfile) i w manifeście właściciela. Test nie pozwala zapomnieć o drugiej.
 
@@ -240,7 +240,7 @@ Praktyczna konsekwencja: aktualizacja zależności w kicie to dwie zmiany, w `pa
 
 ## Hashe plików w projekcie
 
-`wa create` i `wa add` zapisują w `.wa/kit.json` projektu, pod `modules.<nazwa>.files`, wartość dla każdego skopiowanego pliku. `wa remove` porównuje ją z plikiem na dysku, żeby nie usunąć pliku zmienionego lokalnie ([16](16-cli-wa.md#wa-remove), [D31](decyzje.md#d31)). Wartość liczy `fileHash` (`kit/cli/src/assemble/hash.ts`) z treści zapisanej w projekcie, czyli już po podmianie placeholderów:
+`wa create` i `wa add` zapisują w `.wa/kit.json` projektu, pod `modules.<nazwa>.files`, wartość dla każdego skopiowanego pliku. `wa remove` porównuje ją z plikiem na dysku, żeby nie usunąć pliku zmienionego lokalnie ([16](16-cli-wa.md#wa-remove), [D31](decyzje.md#d31)). Wartość liczy `fileHash` (`packages/gato-cli/src/assemble/hash.ts`) z treści zapisanej w projekcie, czyli już po podmianie placeholderów:
 
 | Rodzaj pliku | Wartość w `files` |
 | --- | --- |
@@ -250,7 +250,7 @@ Praktyczna konsekwencja: aktualizacja zależności w kicie to dwie zmiany, w `pa
 
 W projekcie `acme-app` ze wszystkimi modułami hash `docker/uploads.compose.yml` w `.wa/kit.json` jest równy SHA-256 pliku z `acme-app-uploads`, a hash `.env.example` jest równy SHA-256 treści bez linii regionu `wa:modules` (sprawdzone).
 
-- `REGION_FILES` powstaje z listy `regionTargets` w `kit/cli/src/generate/targets.ts`. Nowy region w nowym pliku to zmiana w CLI, a nie w manifeście. Wszystkie pliki z regionami należą do `core`.
+- `REGION_FILES` powstaje z listy `regionTargets` w `packages/gato-cli/src/generate/targets.ts`. Nowy region w nowym pliku to zmiana w CLI, a nie w manifeście. Wszystkie pliki z regionami należą do `core`.
 - Region, który ma linię startu bez linii końca, zostaje w hashu w całości.
 - Pliki generowane (`generatedFiles`) nie są kopiowane, nie mają właściciela ani hasha; odtwarza je generator.
 - W `.wa/kit.json` kitu `files` każdego modułu jest puste.
@@ -259,7 +259,7 @@ W projekcie `acme-app` ze wszystkimi modułami hash `docker/uploads.compose.yml`
 
 ## Placeholdery
 
-Kit to działająca aplikacja o nazwie „WA App”. Przy kopiowaniu pliku z listy `placeholderFiles` CLI zamienia jej nazwy na nazwy projektu (`applyPlaceholders` w `kit/cli/src/assemble/placeholders.ts`, [D32](decyzje.md#d32)):
+Kit to działająca aplikacja o nazwie „WA App”. Przy kopiowaniu pliku z listy `placeholderFiles` CLI zamienia jej nazwy na nazwy projektu (`applyPlaceholders` w `packages/gato-cli/src/assemble/placeholders.ts`, [D32](decyzje.md#d32)):
 
 | Placeholder w kicie | Zamieniany na | Dla `acme-app` |
 | --- | --- | --- |
@@ -296,15 +296,15 @@ Reguły dla osoby, która dodaje plik do kitu:
 
 Job `assemble` w `kit.yml` sprawdza w złożonym projekcie, że poza testami (`**/__tests__/**`, `**/*.test.*`), `package-lock.json` i `.wa/bin/**` nie został żaden z trzech napisów (krok „No placeholders left in the project”). Ten sam `git grep` w projekcie `acme-app` złożonym ze wszystkimi modułami nie znalazł nic (kod 1, sprawdzone).
 
-Osobny mechanizm działa w generatorze: w polu `example` wpisu `env` manifestu napisy `{{projectSlug}}` i `{{projectName}}` są zamieniane na slug i nazwę z `.wa/kit.json` przy każdym `wa generate` (`fillPlaceholders` w `kit/cli/src/generate/targets.ts`). `S3_BUCKET` modułu `uploads` ma przykład `{{projectSlug}}-uploads`, więc w kicie region `wa:modules` zawiera `S3_BUCKET=wa-app-uploads`, a w projekcie `acme-app` `S3_BUCKET=acme-app-uploads` (sprawdzone).
+Osobny mechanizm działa w generatorze: w polu `example` wpisu `env` manifestu napisy `{{projectSlug}}` i `{{projectName}}` są zamieniane na slug i nazwę z `.wa/kit.json` przy każdym `wa generate` (`fillPlaceholders` w `packages/gato-cli/src/generate/targets.ts`). `S3_BUCKET` modułu `uploads` ma przykład `{{projectSlug}}-uploads`, więc w kicie region `wa:modules` zawiera `S3_BUCKET=wa-app-uploads`, a w projekcie `acme-app` `S3_BUCKET=acme-app-uploads` (sprawdzone).
 
 <a id="bundel"></a>
 
 ## Bundel CLI
 
-Kod CLI leży w `kit/cli/src`, ale kit i projekty uruchamiają jeden plik `.wa/bin/wa.mjs`, zbudowany esbuildem i zacommitowany ([D28](decyzje.md#d28)):
+Kod CLI leży w `packages/gato-cli/src`, ale kit i projekty uruchamiają jeden plik `.wa/bin/wa.mjs`, zbudowany esbuildem i zacommitowany ([D28](decyzje.md#d28)):
 
-`kit/cli/bundle.mjs`
+`packages/gato-cli/bundle.mjs`
 
 ```js
 await build({
@@ -319,49 +319,49 @@ await build({
 });
 ```
 
-Bundel zawiera kod wszystkich zależności CLI (jedyna zależność produkcyjna `kit/cli` to `zod`), więc projekt nie potrzebuje ani `kit/cli`, ani jego `node_modules`. Należy do `core` (wzorzec `.wa/bin/wa.mjs` w `kit/modules/core.json`), dlatego trafia do każdego projektu bajt w bajt (sprawdzone porównaniem z projektem próbnym). Jest w `.prettierignore` (`.wa/bin`) i w ignorach ESLint (`.wa/**`).
+Bundel zawiera kod wszystkich zależności CLI (jedyna zależność produkcyjna `packages/gato-cli` to `zod`), więc projekt nie potrzebuje ani `packages/gato-cli`, ani jego `node_modules`. Należy do `core` (wzorzec `.wa/bin/wa.mjs` w `kit/modules/core.json`), dlatego trafia do każdego projektu bajt w bajt (sprawdzone porównaniem z projektem próbnym). Jest w `.prettierignore` (`.wa/bin`) i w ignorach ESLint (`.wa/**`).
 
-Po każdej zmianie w `kit/cli/src`:
+Po każdej zmianie w `packages/gato-cli/src`:
 
 ```bash
-npm run build --prefix kit/cli
+npm run build --prefix packages/gato-cli
 ```
 
-`build` uruchamia typecheck i `bundle.mjs`. Zacommituj `.wa/bin/wa.mjs` razem ze zmianą kodu (`kit/CLAUDE.md`, „Bundel CLI”). Build jest powtarzalny: `npm run verify --prefix kit/cli` na `758b557` nie zmienił bundla ani w worktree, ani w świeżym klonie (sprawdzone).
+`build` uruchamia typecheck i `bundle.mjs`. Zacommituj `.wa/bin/wa.mjs` razem ze zmianą kodu (`kit/CLAUDE.md`, „Bundel CLI”). Build jest powtarzalny: `npm run verify --prefix packages/gato-cli` na `758b557` nie zmienił bundla ani w worktree, ani w świeżym klonie (sprawdzone).
 
-Bundel zawiera komentarze ze ścieżkami modułów, na przykład `// node_modules/zod/v4/core/util.js`, liczonymi od `kit/cli`. Buduj go z zależnościami zainstalowanymi w `kit/cli` przez `npm ci --prefix kit/cli`. Na kopii z `kit/cli/node_modules` jako dowiązaniem symbolicznym do innego katalogu esbuild wpisał w komentarze pełne ścieżki docelowe i zmienił 96 linii bundla bez zmiany kodu (sprawdzone).
+Bundel zawiera komentarze ze ścieżkami modułów, na przykład `// node_modules/zod/v4/core/util.js`, liczonymi od `packages/gato-cli`. Buduj go z zależnościami zainstalowanymi przez `npm ci` w korzeniu repozytorium (workspace `packages/gato-cli`, [ADR-56](adrs/56-workspace-packages-replace-d29.md)). Na kopii z `kit/cli/node_modules` jako dowiązaniem symbolicznym do innego katalogu esbuild wpisał w komentarze pełne ścieżki docelowe i zmienił 96 linii bundla bez zmiany kodu (sprawdzone).
 
-**Który krok CI zatrzymuje nieaktualny bundel.** W jobie `cli` w `kit.yml` krok „Verify CLI” (`npm run verify --prefix kit/cli`) kończy się przebudową bundla. Następny krok, „Kit state and generated files are up to date”, robi `git diff --exit-code` na całym drzewie, więc to on zatrzymuje pull request z nieaktualnym bundlem. Na kopii z commitem, który zmienił tekst w `kit/cli/src/bin.ts` bez przebudowy, ten krok wykazał różnicę w `.wa/bin/wa.mjs` (sprawdzone, kroki joba uruchomione lokalnie po kolei). Ostatni krok, „Bundle is up to date” (`git diff --exit-code -- .wa/bin/wa.mjs`), po udanym poprzednim zawsze przechodzi; zdanie w `kit/CLAUDE.md`, że nieaktualny bundel zatrzymuje ten właśnie krok, jest nieścisłe (R3 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)).
+**Który krok CI zatrzymuje nieaktualny bundel.** W jobie `cli` w `kit.yml` krok „Verify CLI” (`npm run verify --prefix packages/gato-cli`) kończy się przebudową bundla. Następny krok, „Kit state and generated files are up to date”, robi `git diff --exit-code` na całym drzewie, więc to on zatrzymuje pull request z nieaktualnym bundlem. Na kopii z commitem, który zmienił tekst w `packages/gato-cli/src/bin.ts` bez przebudowy, ten krok wykazał różnicę w `.wa/bin/wa.mjs` (sprawdzone, kroki joba uruchomione lokalnie po kolei). Ostatni krok, „Bundle is up to date” (`git diff --exit-code -- .wa/bin/wa.mjs`), po udanym poprzednim zawsze przechodzi; zdanie w `kit/CLAUDE.md`, że nieaktualny bundel zatrzymuje ten właśnie krok, jest nieścisłe (R3 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)).
 
 <a id="bramka-cli"></a>
 
 ## Bramka CLI, testy i mutacje
 
-CLI ma osobny `package.json` i `package-lock.json` w `kit/cli`. Zależności instalujesz komendą `npm ci --prefix kit/cli`, a nowe dodajesz przez npm 11 (`npx -y npm@11.21.1 install …` w `kit/cli`, `kit/CLAUDE.md`).
+CLI to workspace `packages/gato-cli` z własnym `package.json`; jego zależności są w głównym `package-lock.json` ([ADR-56](adrs/56-workspace-packages-replace-d29.md)). Zależności instalujesz komendą `npm ci` w korzeniu repozytorium, a nowe dodajesz przez npm 11 (`npx -y npm@11.21.1 install … --workspace gato-cli`, `kit/CLAUDE.md`).
 
 | Komenda | Co robi |
 | --- | --- |
-| `npm run verify --prefix kit/cli` | Bramka CLI: lint → typecheck → testy → build bundla (skrypt `verify` w `kit/cli/package.json`). |
-| `npm run lint --prefix kit/cli` | ESLint z `kit/cli/eslint.config.mjs`: zalecane reguły JS i `typescript-eslint` oraz `curly` (wyłączone w `__tests__/`) i `no-nested-ternary`; pomija `src/__tests__/fixtures/**`, `reports/**` i `.stryker-tmp/**`. |
-| `npm run typecheck --prefix kit/cli` | `tsc --noEmit` z `kit/cli/tsconfig.json` (bez fikstur). |
-| `npm test --prefix kit/cli` | Vitest w środowisku `node`, pliki `src/**/*.test.ts` (`kit/cli/vitest.config.ts`), plik ustawień `kit/cli/vitest.setup.ts` ze stałym seedem testów właściwości w procesach Strykera ([08b](08b-testy-adwersarialne.md#seed)). Testy kopiują fikstury do katalogu tymczasowego ([08](08-testy.md#cli-hooki)); wyjątkiem jest test własności na repozytorium kitu. |
-| `npm run build --prefix kit/cli` | Typecheck i bundel ([wyżej](#bundel)). |
-| `npm run test:mutation:task --prefix kit/cli -- <pliki>` | Stryker tylko na podanych plikach, każda jako ścieżka względem `kit/cli`. Skrypt przekazuje listę do `--mutate` bez filtrowania, więc przyjmuje też pliki spoza `src/`, na przykład `vitest.sequencer.ts`. |
-| `npm run test:mutation --prefix kit/cli` | Pełny przebieg Strykera: przyrostowy (`reports/stryker-incremental.json`), próg `break` 75%. |
-| `npm run test:mutation:gate --prefix kit/cli` | Bramka plików krytycznych CLI. |
+| `npm run verify --prefix packages/gato-cli` | Bramka CLI: lint → typecheck → testy → build bundla (skrypt `verify` w `packages/gato-cli/package.json`). |
+| `npm run lint --prefix packages/gato-cli` | ESLint z `packages/gato-cli/eslint.config.mjs`: zalecane reguły JS i `typescript-eslint` oraz `curly` (wyłączone w `__tests__/`) i `no-nested-ternary`; pomija `src/__tests__/fixtures/**`, `reports/**` i `.stryker-tmp/**`. |
+| `npm run typecheck --prefix packages/gato-cli` | `tsc --noEmit` z `packages/gato-cli/tsconfig.json` (bez fikstur). |
+| `npm test --prefix packages/gato-cli` | Vitest w środowisku `node`, pliki `src/**/*.test.ts` (`packages/gato-cli/vitest.config.ts`), plik ustawień `packages/gato-cli/vitest.setup.ts` ze stałym seedem testów właściwości w procesach Strykera ([08b](08b-testy-adwersarialne.md#seed)). Testy kopiują fikstury do katalogu tymczasowego ([08](08-testy.md#cli-hooki)); wyjątkiem jest test własności na repozytorium kitu. |
+| `npm run build --prefix packages/gato-cli` | Typecheck i bundel ([wyżej](#bundel)). |
+| `npm run test:mutation:task --prefix packages/gato-cli -- <pliki>` | Stryker tylko na podanych plikach, każda jako ścieżka względem `packages/gato-cli`. Skrypt przekazuje listę do `--mutate` bez filtrowania, więc przyjmuje też pliki spoza `src/`, na przykład `vitest.sequencer.ts`. |
+| `npm run test:mutation --prefix packages/gato-cli` | Pełny przebieg Strykera: przyrostowy (`reports/stryker-incremental.json`), próg `break` 75%. |
+| `npm run test:mutation:gate --prefix packages/gato-cli` | Bramka plików krytycznych CLI. |
 
 Na `758b557` bramka CLI przechodzi: 28 plików testów, 594 testy, bundel bez zmian (sprawdzone).
 
 Mutacje działają jak w aplikacji ([08b](08b-testy-adwersarialne.md#bramka)): testy pisze `test-writer` przed implementacją, a `test-reviewer` uruchamia Strykera i bramkę. Różnice w CLI:
 
-- `kit/cli/stryker.config.json` mutuje `src/**/*.ts` bez `__tests__/` i bez `kit/cli/src/bin.ts`; raport trafia do `kit/cli/reports/mutation/mutation.json`. W odróżnieniu od aplikacji ustawia `concurrency: "50%"`, `timeoutFactor: 5` i `"vitest": { "related": false }`, a `timeoutMS` zostawia domyślne 5000 (aplikacja ma 15000); powody opisuje [Limit czasu mutantów w CLI](#timeouty-cli).
-- Bramka CLI uruchamia skrypt aplikacji `scripts/mutation-gate.ts` (`tsx ../../scripts/mutation-gate.ts`) w katalogu `kit/cli`, więc czyta `kit/cli/mutation-gate.json` i raport z `kit/cli/reports/mutation/`. Bez raportu kończy się komunikatem `Brak raportu mutacji. Uruchom najpierw npm run test:mutation.`
-- Krytyczne są całe katalogi `kit/cli/src/generate/`, `kit/cli/src/manifest/`, `kit/cli/src/assemble/`, `kit/cli/src/commands/` i `kit/cli/src/kit/` (w `kit/cli/mutation-gate.json` zapisane względem `kit/cli`). Wpisy `allowed` dopisuje człowiek ([D26](decyzje.md#d26)).
-- Nie uruchamiaj dwóch przebiegów Strykera naraz, także jednego w aplikacji i jednego w `kit/cli` ([08b](08b-testy-adwersarialne.md#jeden-stryker)).
-- Stały seed testów właściwości w procesach Strykera ustawia osobny plik `kit/cli/vitest.setup.ts`, a nie `vitest.setup.ts` aplikacji ([08b](08b-testy-adwersarialne.md#seed)).
-- W procesach Strykera Vitest uruchamia pliki testów CLI w stałej kolejności, od najmniejszego (`SmallestFileFirstSequencer` z `kit/cli/vitest.sequencer.ts`, włączany w `kit/cli/vitest.config.ts`); zwykłe `npm test` zostaje przy domyślnej kolejności Vitest ([Limit czasu mutantów w CLI](#timeouty-cli)).
+- `packages/gato-cli/stryker.config.json` mutuje `src/**/*.ts` bez `__tests__/` i bez `packages/gato-cli/src/bin.ts`; raport trafia do `packages/gato-cli/reports/mutation/mutation.json`. W odróżnieniu od aplikacji ustawia `concurrency: "50%"`, `timeoutFactor: 5` i `"vitest": { "related": false }`, a `timeoutMS` zostawia domyślne 5000 (aplikacja ma 15000); powody opisuje [Limit czasu mutantów w CLI](#timeouty-cli).
+- Bramka CLI uruchamia skrypt aplikacji `scripts/mutation-gate.ts` (`tsx ../../scripts/mutation-gate.ts`) w katalogu `packages/gato-cli`, więc czyta `packages/gato-cli/mutation-gate.json` i raport z `packages/gato-cli/reports/mutation/`. Bez raportu kończy się komunikatem `Brak raportu mutacji. Uruchom najpierw npm run test:mutation.`
+- Krytyczne są całe katalogi `packages/gato-cli/src/generate/`, `packages/gato-cli/src/manifest/`, `packages/gato-cli/src/assemble/`, `packages/gato-cli/src/commands/` i `packages/gato-cli/src/kit/` (w `packages/gato-cli/mutation-gate.json` zapisane względem `packages/gato-cli`). Wpisy `allowed` dopisuje człowiek ([D26](decyzje.md#d26)).
+- Nie uruchamiaj dwóch przebiegów Strykera naraz, także jednego w aplikacji i jednego w `packages/gato-cli` ([08b](08b-testy-adwersarialne.md#jeden-stryker)).
+- Stały seed testów właściwości w procesach Strykera ustawia osobny plik `packages/gato-cli/vitest.setup.ts`, a nie `vitest.setup.ts` aplikacji ([08b](08b-testy-adwersarialne.md#seed)).
+- W procesach Strykera Vitest uruchamia pliki testów CLI w stałej kolejności, od najmniejszego (`SmallestFileFirstSequencer` z `packages/gato-cli/vitest.sequencer.ts`, włączany w `packages/gato-cli/vitest.config.ts`); zwykłe `npm test` zostaje przy domyślnej kolejności Vitest ([Limit czasu mutantów w CLI](#timeouty-cli)).
 
-Zmiana w repozytorium kitu przechodzi przed pull requestem obie bramki: `npm run verify` (aplikacja) i `npm run verify --prefix kit/cli` (CLI).
+Zmiana w repozytorium kitu przechodzi przed pull requestem obie bramki: `npm run verify` (aplikacja) i `npm run verify --prefix packages/gato-cli` (CLI).
 
 <a id="timeouty-cli"></a>
 
@@ -371,9 +371,9 @@ Stryker daje mutantowi status `Timeout`, gdy jego przebieg nie skończy się w l
 
 W CLI testy zwalniają bardziej. Testy `create`, `add` i `remove` składają projekty z fikstur: kopiują katalogi do katalogu tymczasowego i uruchamiają `git`, więc obciążają procesor i system plików. Te komendy wołają większość kodu CLI, więc mutanta w takim kodzie obejmuje od 100 do 240 testów (mediana 189), które w przebiegu suchym trwają razem od 11 do 28 s; tak było w 199 z 251 uruchomionych mutantów sześciu plików opisanych niżej. Suma czasów wszystkich 594 testów CLI uruchomionych tak jak w procesie Strykera (`vitest run --pool threads --maxWorkers 1`) wynosiła 26–28 s w jednym procesie, 45 s w każdym z 4 procesów uruchomionych naraz i 72 s w każdym z 7 (sprawdzone na Apple M1 z 4 rdzeniami wydajnymi i 4 energooszczędnymi). macOS obsługuje przy tym zmiany w plikach w osobnych procesach (`fseventsd` i indeksowanie Spotlight: `mds`, `mds_stores`), które w trakcie przebiegu Strykera zajmowały zwykle mniej niż jeden rdzeń, a chwilami dwa do trzech.
 
-Długo trwa nie tylko mutant, który przeżywa, bo musi przejść wszystkie swoje testy. Domyślny sekwencer Vitest uruchamia najpierw pliki testów, które padły w poprzednim przebiegu tego samego procesu, a pozostałe od najdłuższego. Jeśli poprzedni mutant w procesie zginął w innym pliku, szybki test jednostkowy, na przykład w `kit/cli/src/__tests__/compare.test.ts`, zabijał mutanta dopiero po wolnych testach `add`, `create` i `remove`. Ta kolejność zależała od historii procesu, więc między przebiegami zmieniał się też test, który zabija mutanta (`killedBy` w raporcie): w dwóch przebiegach przed wprowadzeniem stałej kolejności (opisanej niżej) był inny dla 54 z 228 zabitych mutantów.
+Długo trwa nie tylko mutant, który przeżywa, bo musi przejść wszystkie swoje testy. Domyślny sekwencer Vitest uruchamia najpierw pliki testów, które padły w poprzednim przebiegu tego samego procesu, a pozostałe od najdłuższego. Jeśli poprzedni mutant w procesie zginął w innym pliku, szybki test jednostkowy, na przykład w `packages/gato-cli/src/__tests__/compare.test.ts`, zabijał mutanta dopiero po wolnych testach `add`, `create` i `remove`. Ta kolejność zależała od historii procesu, więc między przebiegami zmieniał się też test, który zabija mutanta (`killedBy` w raporcie): w dwóch przebiegach przed wprowadzeniem stałej kolejności (opisanej niżej) był inny dla 54 z 228 zabitych mutantów.
 
-Przy domyślnych ustawieniach Strykera (7 procesów testów na 8 logicznych procesorach, `timeoutFactor` 1,5, `timeoutMS` 5000) mutant objęty takimi testami dostawał limit około 46 s (od 28 do 52 s) i często go przekraczał. To, które mutanty dostały `Timeout`, zależało od chwilowego obciążenia: na tym samym kodzie `test:mutation:task` na sześciu plikach (`src/assemble/hash.ts`, `src/assemble/project-names.ts`, `src/assemble/package-json.ts`, `src/kit/files.ts`, `src/compare.ts` i `src/generate/registry.ts`) dawał od 52 do 104 timeoutów na 302 mutanty. Wpisy `allowed` dla `kit/cli/src/kit/files.ts` w `kit/cli/mutation-gate.json` raz pasowały do mutantów `Survived`, a raz bramka zgłaszała je jako nieaktualne, bo te same mutanty dostały `Timeout`. Samo zmniejszenie liczby procesów do czterech nie wystarczyło: przebieg dał 50 timeoutów, a bramka nadal zgłosiła nieaktualny wpis.
+Przy domyślnych ustawieniach Strykera (7 procesów testów na 8 logicznych procesorach, `timeoutFactor` 1,5, `timeoutMS` 5000) mutant objęty takimi testami dostawał limit około 46 s (od 28 do 52 s) i często go przekraczał. To, które mutanty dostały `Timeout`, zależało od chwilowego obciążenia: na tym samym kodzie `test:mutation:task` na sześciu plikach (`src/assemble/hash.ts`, `src/assemble/project-names.ts`, `src/assemble/package-json.ts`, `src/kit/files.ts`, `src/compare.ts` i `src/generate/registry.ts`) dawał od 52 do 104 timeoutów na 302 mutanty. Wpisy `allowed` dla `packages/gato-cli/src/kit/files.ts` w `packages/gato-cli/mutation-gate.json` raz pasowały do mutantów `Survived`, a raz bramka zgłaszała je jako nieaktualne, bo te same mutanty dostały `Timeout`. Samo zmniejszenie liczby procesów do czterech nie wystarczyło: przebieg dał 50 timeoutów, a bramka nadal zgłosiła nieaktualny wpis.
 
 W pomiarach zależność od obciążenia nie wystąpiła już po zmianie dwóch ustawień:
 
@@ -382,17 +382,17 @@ W pomiarach zależność od obciążenia nie wystąpiła już po zmianie dwóch 
 
 Pętle nieskończone nie czekają na ten limit, jeśli zmieniony kod wykonuje się w każdym ich obrocie: Stryker liczy w przebiegu suchym, ile razy wykonuje się kod każdego mutanta, i przerywa przebieg mutanta jako `Timeout`, gdy ten kod wykona się ponad sto razy częściej (`Hit limit reached` w raporcie). W pomiarach po zmianie każdy z 20 timeoutów miał tę przyczynę i przychodził zwykle po kilku sekundach, najpóźniej po około minucie. Zawieszenie, którego licznik nie łapie, na przykład pętla, przed którą zmieniony kod wykonał się tylko raz, czeka teraz na pełny limit, przy ciężkich mutantach do około 2,5 minuty. Zawieszenie asynchroniczne kończy wcześniej limit pojedynczego testu w Vitest (5 s), a mutant dostaje `Killed`.
 
-Domyślna kolejność plików decydowała też o statusie mutanta, który w jednym teście wpada w pętlę nieskończoną, a w innym kończy się błędem asercji: status dawał ten z tych testów, który Vitest uruchomił pierwszy. Tak zachowywały się trzy mutanty pętli w `stripRegions` (`kit/cli/src/assemble/hash.ts`), na przykład `&&` → `||`: dostawały `Timeout` z licznika wykonań, chyba że wcześniej wykonał się test w `remove.test.ts`, który kończy się na nich błędem i daje `Killed`. Bramki to nie dotyczyło, bo oba statusy liczą się jako wykryte, ale statusy przebiegów różniły się. Dlatego w procesach Strykera (zmienna `STRYKER_MUTATOR_WORKER`, jak przy stałym seedzie) `kit/cli/vitest.config.ts` podmienia sekwencer na `SmallestFileFirstSequencer` z `kit/cli/vitest.sequencer.ts`. Ustawia on pliki testów od najmniejszego, a przy równym rozmiarze po ścieżce w porządku punktów kodowych, więc kolejność zależy tylko od zbioru plików. Trzy największe pliki (`add`, `create`, `remove`) są też najwolniejsze, więc szybkie testy jednostkowe nadal idą pierwsze i większość mutantów ginie szybko. `Survived` od kolejności nie zależał nigdy: mutant przeżywa tylko wtedy, gdy przejdą wszystkie jego testy, więc o tym, czy przeżyje, czy dostanie `Timeout`, decyduje limit czasu.
+Domyślna kolejność plików decydowała też o statusie mutanta, który w jednym teście wpada w pętlę nieskończoną, a w innym kończy się błędem asercji: status dawał ten z tych testów, który Vitest uruchomił pierwszy. Tak zachowywały się trzy mutanty pętli w `stripRegions` (`packages/gato-cli/src/assemble/hash.ts`), na przykład `&&` → `||`: dostawały `Timeout` z licznika wykonań, chyba że wcześniej wykonał się test w `remove.test.ts`, który kończy się na nich błędem i daje `Killed`. Bramki to nie dotyczyło, bo oba statusy liczą się jako wykryte, ale statusy przebiegów różniły się. Dlatego w procesach Strykera (zmienna `STRYKER_MUTATOR_WORKER`, jak przy stałym seedzie) `packages/gato-cli/vitest.config.ts` podmienia sekwencer na `SmallestFileFirstSequencer` z `packages/gato-cli/vitest.sequencer.ts`. Ustawia on pliki testów od najmniejszego, a przy równym rozmiarze po ścieżce w porządku punktów kodowych, więc kolejność zależy tylko od zbioru plików. Trzy największe pliki (`add`, `create`, `remove`) są też najwolniejsze, więc szybkie testy jednostkowe nadal idą pierwsze i większość mutantów ginie szybko. `Survived` od kolejności nie zależał nigdy: mutant przeżywa tylko wtedy, gdy przejdą wszystkie jego testy, więc o tym, czy przeżyje, czy dostanie `Timeout`, decyduje limit czasu.
 
-`kit/cli/stryker.config.json` wyłącza też `vitest.related`. Przy domyślnym `true` runner Vitest Strykera uruchamia w przebiegu suchym tylko testy powiązane z mutowanymi plikami w grafie importów Vite. Testy sekwencera i konfiguracji ładują `kit/cli/vitest.sequencer.ts` i `kit/cli/vitest.config.ts` po adresie URL, czego Vite nie widzi, więc `test:mutation:task` na tych plikach kończył się błędem `No tests were executed`. Z `related: false` przebieg suchy uruchamia wszystkie testy CLI. Przy zwykłym mutancie Stryker i tak uruchamia tylko testy, które w przebiegu suchym wykonały jego kod, więc dodatkowe testy zmieniają coś tylko wtedy, gdy też wykonują ten kod, jak testy sekwencera. Mutanty statyczne przechodzą jednak przez wszystkie pliki testów zamiast powiązanych, więc ich status może się zmienić: dodatkowy test może zabić mutanta, który wcześniej przeżywał, albo wydłużyć przebieg ponad limit. W pomiarze na sześciu plikach statusy wyszły te same co przed zmianą (sprawdzone), ale to wynik pomiaru, a nie gwarancja. Kosztem jest dłuższy przebieg suchy zadania na pliku, którego używa mało testów. Przy sześciu plikach z pomiarów powiązane były i tak 478 z 594 testów, ale na przykład `src/commands/list.ts` importują tylko `src/bin.ts` i `list.test.ts`. Dla tego pliku przebieg suchy wykonuje teraz 615 testów w 53 s zamiast 14 testów w 1 s, a całe `test:mutation:task` trwa 1 min 40 s zamiast 45 s (sprawdzone).
+`packages/gato-cli/stryker.config.json` wyłącza też `vitest.related`. Przy domyślnym `true` runner Vitest Strykera uruchamia w przebiegu suchym tylko testy powiązane z mutowanymi plikami w grafie importów Vite. Testy sekwencera i konfiguracji ładują `packages/gato-cli/vitest.sequencer.ts` i `packages/gato-cli/vitest.config.ts` po adresie URL, czego Vite nie widzi, więc `test:mutation:task` na tych plikach kończył się błędem `No tests were executed`. Z `related: false` przebieg suchy uruchamia wszystkie testy CLI. Przy zwykłym mutancie Stryker i tak uruchamia tylko testy, które w przebiegu suchym wykonały jego kod, więc dodatkowe testy zmieniają coś tylko wtedy, gdy też wykonują ten kod, jak testy sekwencera. Mutanty statyczne przechodzą jednak przez wszystkie pliki testów zamiast powiązanych, więc ich status może się zmienić: dodatkowy test może zabić mutanta, który wcześniej przeżywał, albo wydłużyć przebieg ponad limit. W pomiarze na sześciu plikach statusy wyszły te same co przed zmianą (sprawdzone), ale to wynik pomiaru, a nie gwarancja. Kosztem jest dłuższy przebieg suchy zadania na pliku, którego używa mało testów. Przy sześciu plikach z pomiarów powiązane były i tak 478 z 594 testów, ale na przykład `src/commands/list.ts` importują tylko `src/bin.ts` i `list.test.ts`. Dla tego pliku przebieg suchy wykonuje teraz 615 testów w 53 s zamiast 14 testów w 1 s, a całe `test:mutation:task` trwa 1 min 40 s zamiast 45 s (sprawdzone).
 
 Po zmianie `test:mutation:task` na `vitest.sequencer.ts` i `vitest.config.ts` zabija wszystkie mutanty sekwencera i jego włączenia w konfiguracji; przeżywają tylko 4 mutanty w pozostałych liniach konfiguracji (`environment`, `include`, `passWithNoTests`), których testy nie sprawdzają.
 
-`timeoutMS` zostaje przy wartości domyślnej: spowolnienie rośnie proporcjonalnie do czasu testów, więc pokrywa je mnożnik, a stała część limitu wystarcza mutantom objętym krótkimi testami. Po zmianie dwa kolejne przebiegi na tych samych sześciu plikach dały te same statusy każdego mutanta (228 `Killed`, 20 `Timeout`, wszystkie z licznika wykonań, 3 `Survived` z wpisami w `kit/cli/mutation-gate.json`, 51 `CompileError`), a bramka CLI przeszła (sprawdzone). Po dojściu stałego seeda testów właściwości ([08b](08b-testy-adwersarialne.md#seed)) dwa kolejne przebiegi też przeszły bramkę z tymi samymi trzema `Survived`, a wszystkie ich timeouty pochodziły z licznika wykonań, ale różniły się trzema mutantami z `stripRegions` z akapitu wyżej. Ze stałą kolejnością plików dwa kolejne przebiegi dały identyczne statusy wszystkich 302 mutantów, te same co wyżej, i ten sam test zabijający każdy z 228 zabitych mutantów; bramka CLI przeszła, a najwolniejszy mutant zużył najwyżej 38% limitu (sprawdzone).
+`timeoutMS` zostaje przy wartości domyślnej: spowolnienie rośnie proporcjonalnie do czasu testów, więc pokrywa je mnożnik, a stała część limitu wystarcza mutantom objętym krótkimi testami. Po zmianie dwa kolejne przebiegi na tych samych sześciu plikach dały te same statusy każdego mutanta (228 `Killed`, 20 `Timeout`, wszystkie z licznika wykonań, 3 `Survived` z wpisami w `packages/gato-cli/mutation-gate.json`, 51 `CompileError`), a bramka CLI przeszła (sprawdzone). Po dojściu stałego seeda testów właściwości ([08b](08b-testy-adwersarialne.md#seed)) dwa kolejne przebiegi też przeszły bramkę z tymi samymi trzema `Survived`, a wszystkie ich timeouty pochodziły z licznika wykonań, ale różniły się trzema mutantami z `stripRegions` z akapitu wyżej. Ze stałą kolejnością plików dwa kolejne przebiegi dały identyczne statusy wszystkich 302 mutantów, te same co wyżej, i ten sam test zabijający każdy z 228 zabitych mutantów; bramka CLI przeszła, a najwolniejszy mutant zużył najwyżej 38% limitu (sprawdzone).
 
 Same ustawienia limitu nie skracają przebiegu: z nimi trwał 9–12 minut, z ustawieniami domyślnymi od 7 do 14 minut, zależnie od obciążenia maszyny, bo mutanty, które limit przerywał wcześniej po około 46 s, kończą swoje testy. Skraca go dopiero stała kolejność plików: przebieg trwał 6 i 7,5 minuty, a dłużej niż 20 s trwały tylko 2 przebiegi mutantów zamiast od 28 do 107, bo większość mutantów ginie na szybkich testach jednostkowych, zanim dojdzie do wolnych testów komend.
 
-Tryb przyrostowy przepisuje ze starego raportu wynik każdego niezmienionego mutanta innego niż `Killed`, dopóki nie dojdzie nowy test, który go obejmuje, więc zachowałby też `Timeout` sprzed tej zmiany. Przed pierwszym pełnym przebiegiem z nowymi ustawieniami uruchom go z `--force` (`npm run test:mutation --prefix kit/cli -- --force`) albo usuń `kit/cli/reports/stryker-incremental.json`. `test:mutation:task` zawsze działa z `--force`.
+Tryb przyrostowy przepisuje ze starego raportu wynik każdego niezmienionego mutanta innego niż `Killed`, dopóki nie dojdzie nowy test, który go obejmuje, więc zachowałby też `Timeout` sprzed tej zmiany. Przed pierwszym pełnym przebiegiem z nowymi ustawieniami uruchom go z `--force` (`npm run test:mutation --prefix packages/gato-cli -- --force`) albo usuń `packages/gato-cli/reports/stryker-incremental.json`. `test:mutation:task` zawsze działa z `--force`.
 
 <a id="ci-kitu"></a>
 
@@ -404,8 +404,8 @@ Workflow `.github/workflows/kit.yml` działa przy pushu do `main` i przy pull re
 
 | Krok | Co robi | Co zatrzymuje |
 | --- | --- | --- |
-| Install CLI dependencies | `npm ci --prefix kit/cli` | Lockfile CLI niezgodny z `kit/cli/package.json`. |
-| Verify CLI | `npm run verify --prefix kit/cli` | Błąd lintu, typów albo testu CLI, w tym testu własności. |
+| Install dependencies (root and workspaces) | `npm ci` | Główny lockfile niezgodny z `package.json` albo z `packages/gato-cli/package.json`. |
+| Verify CLI | `npm run verify --prefix packages/gato-cli` | Błąd lintu, typów albo testu CLI, w tym testu własności. |
 | Kit state and generated files are up to date | `npm run wa -- kit sync && npm run wa -- generate && git diff --exit-code` | `.wa/kit.json`, pliki generowane albo regiony niezgodne z manifestami; nieaktualny bundel ([wyżej](#bundel)). |
 | Bundle is up to date | `git diff --exit-code -- .wa/bin/wa.mjs` | Nic: po udanym poprzednim kroku zawsze przechodzi (R3 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). |
 
@@ -441,15 +441,15 @@ Workflow `.github/workflows/kit.yml` działa przy pushu do `main` i przy pull re
 | Start MinIO, Create MinIO bucket | kombinacje z `uploads` | MinIO z obrazu przypiętego digestem i bucket `matrix-app-uploads`. |
 | Integration tests | zawsze | `npm run test:integration` z `INTEGRATION_DATABASE_URL` na `matrix_app_test` oraz `INTEGRATION_S3_ENDPOINT` i `INTEGRATION_S3_BUCKET`. |
 | Docker image builds | `core` i `all` | `docker build .` w projekcie. |
-| Project module is registered without editing core tests | zawsze | Kopiuje fiksturę `kit/cli/src/__tests__/fixtures/project-module/` (feature `notes` ze schematem `Note`), dopisuje jej manifest do `projectModules`, uruchamia `wa generate` i `npm test` ([D36](decyzje.md#d36), [D37](decyzje.md#d37)). |
+| Project module is registered without editing core tests | zawsze | Kopiuje fiksturę `packages/gato-cli/src/__tests__/fixtures/project-module/` (feature `notes` ze schematem `Note`), dopisuje jej manifest do `projectModules`, uruchamia `wa generate` i `npm test` ([D36](decyzje.md#d36), [D37](decyzje.md#d37)). |
 
 Uwagi dla osoby, która zmienia ten workflow albo kontrakt CLI:
 
 - Job `assemble` nie korzysta z regionu `wa:ci-integration` projektu: MinIO uruchamiają jego własne kroki, które powtarzają treść `ci/uploads.integration-steps.yml`. Zmiana obrazu MinIO albo aws-cli to zmiana w obu plikach i w `docker/uploads.compose.yml`; tak zrobił commit `1d57445` (przypięcie obrazów), a `ci.yml` i `docker-compose.yml` kitu odświeżył `wa generate`.
 - Zmiana kontraktu `projectModules` wymaga aktualizacji fikstury i obiektu manifestu wpisanego w krok rejestracji (`kit/CLAUDE.md`). Commit `2e8db6e`, który dodał pole `ciSteps`, dopisał `ciSteps: null` właśnie tam.
 - `.github/workflows/kit-mutation.yml` uruchamia pełny przebieg Strykera CLI i bramkę tylko ręcznie (`workflow_dispatch`), jak `mutation.yml` w aplikacji ([D26](decyzje.md#d26)). Raport trafia do artefaktu `kit-mutation-report`.
-- `security-audit.yml` (rdzeń) uruchamia `npm audit` tylko w katalogu głównym; zależności `kit/cli` nie są audytowane przez żaden workflow.
-- Żaden workflow nie działa na tagach ani ich nie tworzy ([Wydanie](#wydanie)).
+- `security-audit.yml` (rdzeń) uruchamia `npm audit` tylko w katalogu głównym; zależności `packages/gato-cli` nie są audytowane przez żaden workflow.
+- `release.yml` tworzy commit wydania, tag i GitHub Release; żaden workflow nie uruchamia się na tagach ([Wydanie](#wydanie)).
 
 <a id="wydanie"></a>
 
@@ -457,25 +457,24 @@ Uwagi dla osoby, która zmienia ten workflow albo kontrakt CLI:
 
 Wersja kitu to `version` w `kit/kit.json`. Trafia do `kitVersion` każdego nowego projektu i do treści jego pierwszego commita (`chore: initial commit from wa-kit v<wersja>`). Wyznacza też tag `v<wersja>`, który klonują one-liner z [16](16-cli-wa.md#wa-create) oraz `wa add` i `wa list` w projektach tej wersji ([16](16-cli-wa.md#zrodlo-kitu), [D46](decyzje.md#d46)). Każdy moduł ma osobną `version` w manifeście; trafia ona do `.wa/kit.json` projektu.
 
-Kroki wydania:
+Wydanie robi semantic-release ([ADR-54](adrs/54-kit-releases-are-cut-by-semantic-release.md)), a nie człowiek. Workflow `.github/workflows/release.yml` (tylko w kicie) uruchamia się przy każdym pushu na `main` i ręcznie (`workflow_dispatch`). Paczka `kit/release/` ma własny `package.json` i lockfile, poza root `package.json`, bo ten trafia do projektów ([D30](decyzje.md#d30)).
 
-1. Podbij `version` w manifeście każdego modułu, którego pliki się zmieniły (`kit/CLAUDE.md`, „Moduły i manifest”).
-2. Podbij `version` w `kit/kit.json`. `kit/CLAUDE.md` tego kroku nie wymienia (R11 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)), ale wynika on z kodu: tag nazywa się jak wersja kitu, a tag poprzedniej wersji już istnieje i wskazuje stary commit.
-3. `npm run wa -- kit sync`, potem `npm run wa -- generate`; zacommituj `.wa/kit.json`.
-4. Przejdź obie bramki i scal zmianę do `main`.
-5. Ustaw tag z adnotacją na commicie wydania w `main` i wypchnij go. Tag ustawia człowiek. Tag `v0.1.0` ma adnotację `wa-kit v0.1.0` i wskazuje `76ca2d7` (sprawdzone, `git cat-file -p v0.1.0`):
+1. Commit analyzer (preset `conventionalcommits`) czyta commity od ostatniego tagu: `feat` → minor, `fix` i `perf` → patch, breaking change → minor (dopóki kit jest poniżej 1.0), `[no release]` w temacie → bez wydania; `docs`, `chore`, `test`, `ci`, `refactor` nie wydają.
+2. `node kit/release/set-kit-version.mjs <wersja>` zmienia tylko `version` najwyższego poziomu w `kit/kit.json`, a `node .wa/bin/wa.mjs kit sync` przepisuje `kitVersion` w `.wa/kit.json`.
+3. `@semantic-release/git` commituje oba pliki jako `chore(release): <wersja> [skip ci]`, a semantic-release ustawia na tym commicie tag `v<wersja>` (bez adnotacji) i publikuje GitHub Release z notatkami.
+
+Po scaleniu do `main` wystarczy więc commit z właściwym typem. Ręcznie zostaje tylko podbicie `version` w manifeście każdego modułu, którego pliki się zmieniły (`kit/CLAUDE.md`, „Moduły i manifest”), i `npm run wa -- kit sync`. `version` w `kit/kit.json` i `kitVersion` w `.wa/kit.json` zmienia tylko wydanie.
+
+Podgląd następnej wersji bez wydania (z klonu na `main`, z dostępem do GitHuba):
 
 ```bash
-git tag -a v<wersja> -m "wa-kit v<wersja>" <commit>
-git push origin v<wersja>
+npm ci --prefix kit/release
+GITHUB_TOKEN=$(gh auth token) kit/release/node_modules/.bin/semantic-release --dry-run --no-ci --extends ./kit/release/release.config.mjs
 ```
 
-Tag z adnotacją wskazuje obiekt tagu, a nie commit, dlatego `git clone --branch v<wersja>` wypisuje ostrzeżenie `… is not a commit!` i komunikat o odłączonym HEAD. To nie jest błąd; wyjaśnia to [16](16-cli-wa.md#one-liner).
+Tag `v0.1.0` ustawił człowiek, z adnotacją (`git cat-file -p v0.1.0`), dlatego `git clone --branch v0.1.0` wypisuje ostrzeżenie `… is not a commit!` i komunikat o odłączonym HEAD; wyjaśnia to [16](16-cli-wa.md#one-liner). Tagi z semantic-release są lekkie.
 
-Nic nie sprawdza kroków 1, 2 i 5:
-
-- Zmiana plików modułu bez podbicia jego wersji przechodzi przez obie bramki i CI. W planie 3 `core` przeszedł z `0.1.0` do `0.4.0` w trzech commitach (`c8a0ffd`, `102b706`, `2e8db6e`), ale kilka innych zmian plików rdzenia weszło bez podbicia (R12 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Wersja kitu przez cały plan 3 zostawała `0.1.0`, a tag `v0.1.0` ustawiono 2026-10-30 na końcowym commicie planu.
-- Bez tagu one-liner z `--branch v<wersja>` i `wa add` z domyślnym źródłem kończą się błędem pobierania, a `wa list` wypisuje `Dostępne: nie udało się pobrać kitu (<powód>)` z kodem 0 ([16](16-cli-wa.md#wa-list), [znane-ograniczenia.md](znane-ograniczenia.md)).
+Nic nie sprawdza podbicia wersji modułu: zmiana plików modułu bez podbicia przechodzi przez obie bramki i CI (R12 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)).
 
 <a id="nowy-modul-kitu"></a>
 
@@ -508,7 +507,7 @@ Kroki opisują, co zrobił plan 3 ([plan](superpowers/plans/2026-10-29-wa-kit-pl
 10. **Bramka mutacji aplikacji.** `mutation-gate.json` w katalogu głównym jest plikiem `core`. Plan 3 dopisał do jego listy `critical` katalogi usług modułów, `src/features/<x>/services/` (`c8b5f74`, `102b706`, `c6c26c4`), a do `allowed` osiem wpisów dla plików `api-keys` (`36dd132`, zatwierdzone przez człowieka w pull requeście); żaden z tych commitów nie podbił `core`.
 11. **Macierz `assemble`.** Dopisz pozycję `{ name: <x>, modules: "<x>" }` i dopisz moduł do listy kombinacji `all` w `.github/workflows/kit.yml` (`309d26e`, `d5b0c98`, `1166d08`). Moduł, którego testy integracyjne potrzebują usługi, dostaje w `assemble` własne kroki z warunkiem `if: contains(matrix.combo.modules, '<x>')` i zmienne dla `Integration tests` (`1166d08` dla MinIO).
 12. **Dokumentacja.** Wiersz modułu w tabeli `kit/README.md`, opis w `docs/12-moduly-kitu.md` i decyzje w [decyzje.md](decyzje.md#statusy-i-numeracja) (`615bda3`, `b1a3a28`, `474aaee`).
-13. **Bramki i wydanie.** `npm run verify`, `npm run verify --prefix kit/cli`, pull request, a po scaleniu wydanie ([wyżej](#wydanie)).
+13. **Bramki i wydanie.** `npm run verify`, `npm run verify --prefix packages/gato-cli`, pull request, a po scaleniu wydanie ([wyżej](#wydanie)).
 
 **Co z tego trafia do projektu.** Zmiany z kroków 6, 7 i 10 leżą w plikach `core`, więc dostaje je każdy projekt, także ten z samym rdzeniem. Projekt bez modułów ma w `mutation-gate.json` katalogi `critical` modułów, których nie ma, i wpisy `allowed` dla plików `api-keys`, w `e2e/env.ts` wartości `API_KEY_PEPPER`, `STORAGE_PROVIDER` i `STORAGE_LOCAL_PATH`, w `src/test/integration/setup-env.ts` wartości `API_KEY_PEPPER`, `STORAGE_PROVIDER` i `S3_*`, a obraz z `Dockerfile` pusty katalog `/app/volumes/uploads`. To nieszkodliwe: `checkMutationGate` (`scripts/lib/mutation-gate.ts`) przegląda tylko pliki obecne w raporcie Strykera, a wpis `allowed` uznaje za nieaktualny tylko wtedy, gdy jego plik jest w raporcie (`entry.file in report.files`), a zmienne bez schematu modułu nie są czytane. Job `assemble` składa i weryfikuje projekt `core` z tymi plikami w CI.
 
@@ -522,7 +521,7 @@ Testy rdzenia, które porównują rejestr z literałem, filtrują go do modułó
 
 ### `kit/kit.json`
 
-Schemat `kitConfigSchema` z `kit/cli/src/kit/kit-config.ts`. Wszystkie pola są wymagane; brak pliku daje `Brak kit/kit.json w <katalog> — to nie jest repozytorium wa-kit`, niepoprawny JSON `SyntaxError` z `JSON.parse`, a poprawny JSON o złym kształcie surowy błąd Zod.
+Schemat `kitConfigSchema` z `packages/gato-cli/src/kit/kit-config.ts`. Wszystkie pola są wymagane; brak pliku daje `Brak kit/kit.json w <katalog> — to nie jest repozytorium wa-kit`, niepoprawny JSON `SyntaxError` z `JSON.parse`, a poprawny JSON o złym kształcie surowy błąd Zod.
 
 | Pole | Typ | Wartość w kicie | Kto czyta |
 | --- | --- | --- | --- |
@@ -544,11 +543,11 @@ Schemat `kitConfigSchema` z `kit/cli/src/kit/kit-config.ts`. Wszystkie pola są 
 | --- | --- |
 | `npm run wa -- kit sync` | Po zmianie `kit/modules/*.json` albo `kit/kit.json`. |
 | `npm run wa -- generate` | Po `kit sync` i po zmianach feature ([02b](02b-rejestr-i-generator.md#uruchomienie)). |
-| `npm ci --prefix kit/cli` | Instalacja zależności CLI. |
-| `npm run build --prefix kit/cli` | Po każdej zmianie w `kit/cli/src`; commit `.wa/bin/wa.mjs`. |
-| `npm run verify --prefix kit/cli` | Bramka CLI. |
-| `npm run test:mutation:task --prefix kit/cli -- <pliki>` | Mutacje plików zadania w CLI. |
-| `npm run test:mutation:gate --prefix kit/cli` | Bramka plików krytycznych CLI. |
+| `npm ci` | Instalacja zależności, także CLI (workspace `packages/gato-cli`). |
+| `npm run build --prefix packages/gato-cli` | Po każdej zmianie w `packages/gato-cli/src`; commit `.wa/bin/wa.mjs`. |
+| `npm run verify --prefix packages/gato-cli` | Bramka CLI. |
+| `npm run test:mutation:task --prefix packages/gato-cli -- <pliki>` | Mutacje plików zadania w CLI. |
+| `npm run test:mutation:gate --prefix packages/gato-cli` | Bramka plików krytycznych CLI. |
 | `node .wa/bin/wa.mjs create <katalog> --yes --kit .` | Próbne złożenie projektu z bieżącego klonu kitu, tak jak job `assemble`. Dodaj `--modules <lista>`, a `--no-install --no-git`, żeby tylko obejrzeć pliki. Złożenie bierze treść z drzewa roboczego, a listę plików z indeksu ([wyżej](#wzorce)). |
 
 <a id="referencja-komunikaty"></a>

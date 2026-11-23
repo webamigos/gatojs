@@ -3,45 +3,51 @@
 Po przeczytaniu będziesz wiedzieć:
 
 - jak założyć projekt one-linerem z GitHuba albo z lokalnego klonu kitu i dlaczego ostrzeżenie gita o tagu nie jest błędem;
-- w jakiej kolejności `wa create`, `wa add`, `wa remove` i `wa list` sprawdzają warunki, kiedy pobierają kit i z jakim kodem wyjścia się kończą;
+- w jakiej kolejności `wa create`, `wa add`, `wa remove`, `wa list` i `wa update` sprawdzają warunki, kiedy pobierają kit i z jakim kodem wyjścia się kończą;
+- jak przenieść projekt na nowszą wersję kitu (`wa update`), co dzieje się z lokalnymi zmianami i jak rozwiązać konflikt;
 - co CLI cofa po błędzie, a czego nie cofa;
 - co zostaje w projekcie, w bazie i w magazynie plików po `wa remove` i jaką migrację wtedy utworzyć;
 - jak CLI traktuje moduły projektu (`projectModules`);
 - co znaczy każdy komunikat CLI.
 
-Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wersja `uploads` w sekcji [Po `wa add`](#add-po)); pozostałe sekcje: 6c05f1f, 2026-11-05
+Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wersja `uploads` w sekcji [Po `wa add`](#add-po)); 6c05f1f, 2026-11-05; cdf13ba, 2026-11-03 (sekcja [`wa update`](#wa-update) i miejsca, które się do niej odwołują; symlinki w krokach 10 i 12 oraz w komunikatach: 2026-11-22)
 
 Źródła:
 
-- `kit/cli/src/bin.ts`
-- `kit/cli/src/args.ts`
-- `kit/cli/src/commands/create.ts`
-- `kit/cli/src/commands/add.ts`
-- `kit/cli/src/commands/remove.ts`
-- `kit/cli/src/commands/list.ts`
-- `kit/cli/src/assemble/` (`copy.ts`, `hash.ts`, `package-json.ts`, `placeholders.ts`, `project-names.ts`, `resolve-modules.ts`)
-- `kit/cli/src/kit/source.ts`
-- `kit/cli/src/commands/kit-sync.ts`
-- `kit/cli/src/generate/targets.ts` (`REGION_FILES`)
-- `kit/cli/src/kit/files.ts`
-- `kit/cli/src/kit/kit-config.ts`
-- `kit/cli/src/manifest/kit-state.ts`
-- `kit/cli/src/manifest/schema.ts`
-- `kit/cli/src/process/prompter.ts`
-- `kit/cli/src/process/runner.ts`
-- `kit/cli/src/__tests__/args.test.ts`
-- `kit/cli/src/commands/__tests__/` (`create.test.ts`, `add.test.ts`, `add-rollback.test.ts`, `add-fs-failures.test.ts`, `remove.test.ts`, `list.test.ts`)
-- `kit/cli/src/kit/__tests__/source.test.ts`
+- `packages/gato-cli/src/bin.ts`
+- `packages/gato-cli/src/args.ts`
+- `packages/gato-cli/src/commands/create.ts`
+- `packages/gato-cli/src/commands/add.ts`
+- `packages/gato-cli/src/commands/remove.ts`
+- `packages/gato-cli/src/commands/list.ts`
+- `packages/gato-cli/src/commands/update.ts`
+- `packages/gato-cli/src/update/` (`plan.ts`, `merge.ts`, `snapshot.ts`, `version.ts`, `report.ts`)
+- `packages/gato-cli/src/assemble/` (`copy.ts`, `hash.ts`, `package-json.ts`, `placeholders.ts`, `project-names.ts`, `resolve-modules.ts`)
+- `packages/gato-cli/src/kit/source.ts`
+- `packages/gato-cli/src/commands/kit-sync.ts`
+- `packages/gato-cli/src/generate/targets.ts` (`REGION_FILES`)
+- `packages/gato-cli/src/kit/files.ts`
+- `packages/gato-cli/src/kit/kit-config.ts`
+- `packages/gato-cli/src/manifest/kit-state.ts`
+- `packages/gato-cli/src/manifest/schema.ts`
+- `packages/gato-cli/src/process/prompter.ts`
+- `packages/gato-cli/src/process/runner.ts`
+- `packages/gato-cli/src/__tests__/args.test.ts`
+- `packages/gato-cli/src/commands/__tests__/` (`create.test.ts`, `add.test.ts`, `add-rollback.test.ts`, `add-fs-failures.test.ts`, `remove.test.ts`, `list.test.ts`, `update.test.ts`, `update-rollback.test.ts`, `update-source.test.ts`)
+- `packages/gato-cli/src/update/__tests__/` (`plan.test.ts`, `merge.test.ts`, `snapshot.test.ts`, `version.test.ts`)
+- `packages/gato-cli/src/kit/__tests__/source.test.ts`
 - `kit/kit.json`
 - `kit/modules/core.json`, `kit/modules/audit-logs.json`, `kit/modules/api-keys.json`, `kit/modules/uploads.json`
 - `kit/README.md`
-- `src/shared/lib/env.ts`
+- `packages/env/src/*.ts`, `src/env.ts`
 - `src/features/api-keys/env.ts`
 - `src/features/uploads/env.ts`, `src/features/uploads/services/storage-env.ts`, `docker/uploads.compose.yml`
 
-Ten plik opisuje CLI z perspektywy osoby, która zakłada projekt albo zmienia jego zestaw modułów. Komendę `wa generate` opisuje [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#wa-generate), a pracę nad samym kitem (manifesty, `wa kit sync`, bundel, wydanie) [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md). Jak moduł po skopiowaniu łączy się z aplikacją, wyjaśnia [12-moduly-kitu.md](12-moduly-kitu.md). Pojęcia moduł, feature i rejestr modułów są w [słowniku](README.md#slownik).
+Ten plik opisuje CLI z perspektywy osoby, która zakłada projekt, zmienia jego zestaw modułów albo przenosi go na nowszą wersję kitu. Komendę `wa generate` opisuje [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#wa-generate), a pracę nad samym kitem (manifesty, `wa kit sync`, bundel, wydanie) [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md). Jak moduł po skopiowaniu łączy się z aplikacją, wyjaśnia [12-moduly-kitu.md](12-moduly-kitu.md). Pojęcia moduł, feature i rejestr modułów są w [słowniku](README.md#slownik).
 
 „(sprawdzone)” znaczy tu, że zachowanie potwierdził przebieg z 2026-10-30: bundel `.wa/bin/wa.mjs` z tagu `v0.1.0` sklonowanego z `https://github.com/webamigos/wa-kit.git`, uruchomiony w katalogu tymczasowym, bez Dockera i bez `npm install`. Błędy poleceń zewnętrznych (`npm`, `docker`, `npx`) wywołano atrapami tych poleceń w `PATH`.
+
+W sekcji [`wa update`](#wa-update) „(sprawdzone)” znaczy przebieg z 2026-11-03: lokalny klon tego repozytorium na commicie `cdf13ba` z tagami `v0.2.0` i `v0.3.0` dopisanymi w klonie (podbita `version` w `kit/kit.json` i zmiany w `src/shared/lib/utils.ts` oraz `prisma/schema/auth.prisma`), projekt złożony bundlem z tagu `v0.1.0` z `--yes --no-install`, źródło kitu podane jako `--kit <ścieżka klonu>`, `git` 2.56.0. Tagi `v0.2.0` i `v0.3.0` istniały tylko w tym klonie.
 
 <a id="komendy"></a>
 
@@ -55,15 +61,16 @@ CLI to jeden plik, `.wa/bin/wa.mjs`, zapisany w repozytorium kitu i w każdym pr
 | `wa add <moduł> [--kit <źródło>] [--no-install]` | w projekcie | Kopiuje pliki modułu kitu i modułów z jego `requires` ([wa add](#wa-add)). | tak, w wersji projektu |
 | `wa remove <moduł> [--force] [--no-install]` | w projekcie | Usuwa pliki modułu kitu i jego zależności npm ([wa remove](#wa-remove)). | nie |
 | `wa list [--kit <źródło>]` | w projekcie | Wypisuje moduły zainstalowane, dostępne w kicie i moduły projektu ([wa list](#wa-list)). | tylko do listy „Dostępne” |
+| `wa update <wersja> [--kit <źródło>] [--dry-run] [--no-install]` | w projekcie | Przenosi rdzeń i wszystkie moduły kitu na wersję `<wersja>`, scalając zmiany kitu z lokalnymi zmianami projektu ([wa update](#wa-update)). | tak, w wersji projektu i w wersji docelowej |
 | `wa generate` | w projekcie i w kicie | Odświeża pliki generowane i regiony `wa:*` ([02b](02b-rejestr-i-generator.md#wa-generate)). | nie |
 | `wa kit sync` | tylko w kicie | Przepisuje `.wa/kit.json` kitu z manifestów ([16b](16b-rozwoj-kitu.md)). | działa w kicie |
 
-Każda komenda działa w katalogu bieżącym procesu. Kody wyjścia (`main` w `kit/cli/src/bin.ts`):
+Każda komenda działa w katalogu bieżącym procesu. Kody wyjścia (`main` w `packages/gato-cli/src/bin.ts`):
 
 - **0:** komenda się udała. Także `wa list`, gdy kitu nie dało się pobrać: wypisuje wtedy stan projektu i linię `Dostępne: nie udało się pobrać kitu (<powód>)` (sprawdzone).
-- **1:** każdy błąd. Komunikat trafia na stderr jako jedna linia albo kilka linii (lista plików). Nieznana komenda, brak komendy i samo `wa kit` wypisują linię `Użycie: …` z podsumowaniem komend (sprawdzone).
+- **1:** każdy błąd, a także `wa update` zakończone konfliktem albo plikiem „do decyzji” ([Konflikty](#update-konflikty)). Komunikat błędu trafia na stderr jako jedna linia albo kilka linii (lista plików). Nieznana komenda, brak komendy i samo `wa kit` wypisują linię `Użycie: …` z podsumowaniem komend (sprawdzone).
 
-Polecenia uruchamiane przez CLI (`git clone`, `git init`, `npm install`, `docker compose`, `npx prisma`) piszą wprost do terminala, więc ich wyjście pojawia się nad komunikatem CLI. Listę komunikatów podaje [Referencja](#referencja-komunikaty).
+Polecenia uruchamiane przez CLI (`git clone`, `git init`, `npm install`, `docker compose`, `npx prisma`, a w `wa update` także bundel wersji docelowej) piszą wprost do terminala, więc ich wyjście pojawia się nad komunikatem CLI. Listę komunikatów podaje [Referencja](#referencja-komunikaty).
 
 <a id="wa-create"></a>
 
@@ -73,7 +80,7 @@ Polecenia uruchamiane przez CLI (`git clone`, `git init`, `npm install`, `docker
 
 ### Uruchomienie z GitHuba
 
-`create` potrzebuje klonu repozytorium kitu: kopiuje pliki śledzone przez git w tym klonie (`git ls-files` w `listKitFiles`, `kit/cli/src/kit/files.ts`). Kit nie jest publikowany w rejestrze npm ([D28](decyzje.md#d28)), a wersję wskazuje tag gita ([D46](decyzje.md#d46)). Podstawowa droga to jedna linia, która klonuje tag do katalogu tymczasowego i uruchamia bundel z klonu:
+`create` potrzebuje klonu repozytorium kitu: kopiuje pliki śledzone przez git w tym klonie (`git ls-files` w `listKitFiles`, `packages/gato-cli/src/kit/files.ts`). Kit nie jest publikowany w rejestrze npm ([D28](decyzje.md#d28)), a wersję wskazuje tag gita ([D46](decyzje.md#d46)). Podstawowa droga to jedna linia, która klonuje tag do katalogu tymczasowego i uruchamia bundel z klonu:
 
 ```bash
 KIT_DIR=$(mktemp -d) && git clone --depth 1 --branch v0.1.0 https://github.com/webamigos/wa-kit.git "$KIT_DIR" && node "$KIT_DIR/.wa/bin/wa.mjs" create <nazwa>
@@ -103,7 +110,7 @@ Turn off this advice by setting config variable advice.detachedHead to false
 - Tag nie jest gałęzią, więc klon zostaje na „odłączonym HEAD” (`detached HEAD`). Z klonu tylko czytasz, więc to bez znaczenia.
 - Przy polskich ustawieniach języka git pisze te same informacje po polsku: `warning: refs/tags/v0.1.0 … nie jest zapisem!` i `Jesteś w stanie „odłączonego HEAD”.` (sprawdzone).
 
-To samo ostrzeżenie pojawia się nad wynikiem `wa add` i `wa list`, gdy klonują kit z GitHuba ([Źródło kitu](#zrodlo-kitu)); opcja `--quiet`, z którą klonują, go nie wycisza (sprawdzone).
+To samo ostrzeżenie pojawia się nad wynikiem `wa add` i `wa list`, gdy klonują kit z GitHuba ([Źródło kitu](#zrodlo-kitu)); opcja `--quiet`, z którą klonują, go nie wycisza (sprawdzone). Porady o odłączonym HEAD tam nie ma: CLI klonuje z `-c advice.detachedHead=false`.
 
 Błąd klonowania (brak dostępu do repozytorium, nieistniejący tag) przerywa linię na `git clone` z komunikatem gita, a `create` się nie uruchamia.
 
@@ -129,7 +136,7 @@ Bundel w projekcie nie ma obok siebie kitu, więc `npm run wa -- create …` w p
 
 Ostatni człon ścieżki katalogu staje się slugiem projektu i musi pasować do wzorca:
 
-`kit/cli/src/assemble/project-names.ts`
+`packages/gato-cli/src/assemble/project-names.ts`
 
 ```ts
 const SLUG_PATTERN = /^[a-z][a-z0-9-]{1,49}$/;
@@ -143,7 +150,7 @@ Ze slugu powstają trzy nazwy, które zastępują placeholdery kitu w plikach z 
 | Slug | ostatni człon ścieżki | `acme-app` | `name` w `package.json`, `src/shared/config/project.ts`, bucket `acme-app-uploads` modułu `uploads` |
 | Snake | slug z `_` zamiast `-` | `acme_app` | baza `acme_app` w `docker-compose.yml` i `.env.example`, `acme_app_test` w testach integracyjnych |
 
-Opcje (`parseCreateArgs` w `kit/cli/src/args.ts`):
+Opcje (`parseCreateArgs` w `packages/gato-cli/src/args.ts`):
 
 | Opcja | Znaczenie | Bez opcji |
 | --- | --- | --- |
@@ -171,7 +178,7 @@ Bez `--yes` CLI pyta po kolei o to, czego nie podano w opcjach: moduły, języki
 
 Moduły i języki wybiera się z listy, tak jak w `create-next-app`. Strzałki przesuwają kursor, spacja zaznacza pozycję, `a` zaznacza wszystkie, `i` odwraca zaznaczenie, a Enter zatwierdza wybór. Lista modułów pokazuje moduły kitu z opisami, bez `core`, i na starcie nic nie ma zaznaczonego. Enter bez zaznaczenia oznacza sam rdzeń. Na liście języków `pl` i `en` są zaznaczone, a `pl` ma dopisek „(wymagany)” i nie da się go odznaczyć (sprawdzone w terminalu). Ponieważ nazwy wybiera się z listy, a nie wpisuje, błędy `Nieznany moduł: …` i `--locales: …` dotyczą tylko opcji `--modules` i `--locales`.
 
-Pytania obsługuje `readlinePrompter` (`kit/cli/src/process/prompter.ts`). Listę rysuje paczka `@inquirer/checkbox` zbudowana w bundel ([D28](decyzje.md#d28)), a pozostałe pytania czyta `node:readline`. Bez terminala (CI, przekierowane wejście) pierwsze pytanie kończy komendę błędem `Brak terminala: użyj --yes`, zanim powstanie katalog projektu (sprawdzone). Ctrl+C na liście kończy komendę błędem `Przerwano`, także zanim powstanie katalog (sprawdzone). Przy pytaniu o setup odpowiedzi `t`, `tak`, `y` i `yes`, bez względu na wielkość liter, oznaczają zgodę. Pusta odpowiedź na pytanie tekstowe przyjmuje wartość domyślną.
+Pytania obsługuje `readlinePrompter` (`packages/gato-cli/src/process/prompter.ts`). Listę rysuje paczka `@inquirer/checkbox` zbudowana w bundel ([D28](decyzje.md#d28)), a pozostałe pytania czyta `node:readline`. Bez terminala (CI, przekierowane wejście) pierwsze pytanie kończy komendę błędem `Brak terminala: użyj --yes`, zanim powstanie katalog projektu (sprawdzone). Ctrl+C na liście kończy komendę błędem `Przerwano`, także zanim powstanie katalog (sprawdzone). Przy pytaniu o setup odpowiedzi `t`, `tak`, `y` i `yes`, bez względu na wielkość liter, oznaczają zgodę. Pusta odpowiedź na pytanie tekstowe przyjmuje wartość domyślną.
 
 <a id="create-przebieg"></a>
 
@@ -198,7 +205,7 @@ flowchart TD
 1. **Opcje, nazwa, katalog.** Najpierw parsowanie opcji, potem wzorzec slugu, potem katalog docelowy. Katalog, który istnieje i ma jakikolwiek wpis (także ukryty plik), kończy komendę błędem `Katalog <ścieżka> istnieje i nie jest pusty` (sprawdzone). Pusty istniejący katalog jest akceptowany. Żadne pytanie ani polecenie nie pada przed tymi kontrolami.
 2. **Kit.** Brak `kit/kit.json` w klonie daje `Uruchom create z klonu wa-kit albo podaj --kit <ścieżka>` (sprawdzone). Potem CLI czyta `kit/kit.json` i manifesty `kit/modules/*.json`.
 3. **Pytania** ([wyżej](#create-pytania)).
-4. **Moduły.** Do wybranych modułów CLI dodaje moduły z ich `requires` i zawsze `core` (`resolveModules` w `kit/cli/src/assemble/resolve-modules.ts`). Nieznana nazwa daje `Nieznany moduł: <nazwa>. Dostępne: <lista>`, zanim powstanie katalog (sprawdzone). W wersji `v0.1.0` moduły `audit-logs`, `api-keys` i `uploads` mają puste `requires`.
+4. **Moduły.** Do wybranych modułów CLI dodaje moduły z ich `requires` i zawsze `core` (`resolveModules` w `packages/gato-cli/src/assemble/resolve-modules.ts`). Nieznana nazwa daje `Nieznany moduł: <nazwa>. Dostępne: <lista>`, zanim powstanie katalog (sprawdzone). W wersji `v0.1.0` moduły `audit-logs`, `api-keys` i `uploads` mają puste `requires`.
 5. **Składanie.** CLI sprawdza jeszcze raz, czy katalog jest pusty, tworzy go i kopiuje pliki wybranych modułów. Pomija pliki tylko dla kitu (`kitOnly` w `kit/kit.json`: `kit/**`, `docs/**`, `.superpowers/**`, `.claude/handoffs/**`, `.wa/kit.json`, workflowy kitu, `prisma/migrations/.gitignore`) i pliki generowane (`generatedFiles`), które odtwarza generator. Kopia ma te same bity uprawnień co plik w kicie. W plikach z `placeholderFiles` podmienia nazwy, a hash każdego pliku zapisuje w `.wa/kit.json` ([D31](decyzje.md#d31)). `package.json` dostaje slug jako `name`, wersję `0.1.0` i sumę zależności wybranych manifestów ([D30](decyzje.md#d30)). Na końcu CLI zapisuje `.wa/kit.json` i uruchamia `wa generate`.
 6. **`.env`.** Kopia `.env.example` z `BETTER_AUTH_SECRET` ustawionym na 32 losowe bajty w base64url (43 znaki) i z `ADMIN_EMAIL`, jeśli podano adres. Plik ma uprawnienia `0600` (sprawdzone). Zmienne modułów (`API_KEY_PEPPER`, `STORAGE_PROVIDER`, `STORAGE_LOCAL_PATH`, `S3_*`) trafiają do `.env` z wartościami przykładowymi z regionu `wa:modules` (sprawdzone; `STORAGE_PROVIDER=local` i `STORAGE_LOCAL_PATH=./volumes/uploads` na projekcie z lokalnego klonu kitu 2026-11-04).
 7. **`git init`**, gdy nie podano `--no-git`.
@@ -211,7 +218,7 @@ flowchart TD
 
 ### Cofanie i jego granice
 
-- **Błąd w kroku 5 (składanie)** usuwa katalog projektu, a gdy katalog istniał wcześniej (pusty), usuwa jego zawartość (sprawdzone na kicie bez repozytorium git: nowy katalog znika, istniejący zostaje pusty). Błąd samego sprzątania jest połykany; widzisz tylko pierwotny błąd. Testy: `describe("create: błąd podczas składania")` w `kit/cli/src/commands/__tests__/create.test.ts`.
+- **Błąd w kroku 5 (składanie)** usuwa katalog projektu, a gdy katalog istniał wcześniej (pusty), usuwa jego zawartość (sprawdzone na kicie bez repozytorium git: nowy katalog znika, istniejący zostaje pusty). Błąd samego sprzątania jest połykany; widzisz tylko pierwotny błąd. Testy: `describe("create: błąd podczas składania")` w `packages/gato-cli/src/commands/__tests__/create.test.ts`.
 - **Błąd po składaniu** (zapis `.env`, `git init`, `npm install`, kroki setupu) niczego nie cofa: katalog projektu zostaje, a kolejne kroki się nie wykonują i nie są wypisywane ([D35](decyzje.md#d35)).
   - Błąd `npm install` daje `Projekt utworzony w <ścieżka>, ale npm install się nie powiódł. Uruchom: cd <ścieżka> && npm install` (sprawdzone). Commita i setupu wtedy nie ma.
   - Błąd w setupie przychodzi jako surowy komunikat procesu, na przykład `docker compose up -d --wait zakończone kodem 1` (sprawdzone). Commit (bez `--no-git`) już wtedy istnieje. Usuń przyczynę (zwykle zajęty port, [01-uruchomienie.md](01-uruchomienie.md#zmiana-portow)) i wykonaj pozostałe kroki ręcznie.
@@ -239,24 +246,24 @@ Po `create` bez setupu postępujesz jak w [01-uruchomienie.md](01-uruchomienie.m
 
 ## Źródło kitu dla `add` i `list`
 
-`wa add` i `wa list` czytają manifesty i pliki z repozytorium kitu w wersji projektu (`kitVersion` w `.wa/kit.json`). `wa remove` kitu nie potrzebuje. Źródło wybiera `resolveKitSource` (`kit/cli/src/kit/source.ts`), w tej kolejności ([D46](decyzje.md#d46)):
+`wa add` i `wa list` czytają manifesty i pliki z repozytorium kitu w wersji projektu (`kitVersion` w `.wa/kit.json`). `wa remove` kitu nie potrzebuje. Źródło wybiera `resolveKitSource` (`packages/gato-cli/src/kit/source.ts`), w tej kolejności ([D46](decyzje.md#d46)):
 
 1. opcja `--kit <źródło>`;
 2. zmienna środowiskowa `WA_KIT_SOURCE`;
 3. `kitRepo` z `.wa/kit.json` (po `create` z kitu `v0.1.0`: `https://github.com/webamigos/wa-kit.git`).
 
-`kit/cli/src/kit/source.ts`
+`packages/gato-cli/src/kit/source.ts`
 
 ```ts
 const REMOTE_PREFIXES = ["https://", "ssh://", "file://", "git@"];
 ```
 
-- **Źródło zdalne** (zaczyna się jednym z tych prefiksów) CLI klonuje poleceniem `git clone --depth 1 --branch v<kitVersion> --quiet` do katalogu tymczasowego (`wa-add-…` albo `wa-list-…` w katalogu tymczasowym systemu), który znika po komendzie, także po błędzie. Nad wynikiem widać ostrzeżenie gita o tagu z adnotacją, takie jak przy [one-linerze](#one-liner). Nieudany klon daje `Nie udało się pobrać wa-kit v<wersja> z <adres>. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`, a nad nim wyjście gita, na przykład `fatal: repository '…' not found` (sprawdzone).
+- **Źródło zdalne** (zaczyna się jednym z tych prefiksów) CLI klonuje poleceniem `git -c advice.detachedHead=false clone --depth 1 --branch v<kitVersion> --quiet` do katalogu tymczasowego (`wa-add-…` albo `wa-list-…` w katalogu tymczasowym systemu), który znika po komendzie, także po błędzie. Nad wynikiem widać jedną linię gita: ostrzeżenie o tagu z adnotacją, takie jak przy [one-linerze](#one-liner) (`warning: refs/tags/v<kitVersion> <sha> is not a commit!`). Porady o odłączonym HEAD nie ma, bo wyłącza ją `-c advice.detachedHead=false`. Nieudany klon daje `Nie udało się pobrać wa-kit v<wersja> z <adres>. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`, a nad nim wyjście gita, na przykład `fatal: repository '…' not found` (sprawdzone).
 - **Ścieżka lokalna** musi wskazywać katalog z `kit/kit.json` (inaczej `Brak kit/kit.json w <ścieżka> — to nie jest repozytorium wa-kit`), a `version` z tego pliku musi być równa `kitVersion` projektu (inaczej `Kit w <ścieżka> ma wersję <x>, projekt używa <y>`).
-- **Odrzucane źródła:** wartość zaczynająca się od `-` (żeby nie stała się opcją gita) i wartość z `://` albo `::` spoza listy prefiksów, na przykład `ext::sh`. Komunikat: `Nieprawidłowe źródło wa-kit: <źródło>` (sprawdzone dla `--kit=-x` i `--kit ext::sh`). Dotyczy tylko `add` i `list`: `create` nie korzysta z `resolveKitSource`, tylko z `--kit` jako ścieżki.
+- **Odrzucane źródła:** wartość zaczynająca się od `-` (żeby nie stała się opcją gita) i wartość z `://` albo `::` spoza listy prefiksów, na przykład `ext::sh`. Komunikat: `Nieprawidłowe źródło wa-kit: <źródło>` (sprawdzone dla `--kit=-x` i `--kit ext::sh`). Dotyczy `add`, `list` i `update` (`update` sprawdza źródło przez `kitSourceLocation`, tak jak `add` i `list` przez `resolveKitSource`): `create` nie korzysta z żadnej z tych funkcji, tylko z `--kit` jako ścieżki.
 - **Pusty `WA_KIT_SOURCE`** (`WA_KIT_SOURCE=`) jest ścieżką lokalną: wskazuje katalog bieżący, czyli zwykle projekt, który nie ma `kit/kit.json` (sprawdzone).
 
-Wymóg równej wersji wynika z modelu kitu: projekt dostaje kod jednej wersji kitu, a przejścia na nowszą wersję CLI nie ma ([README](README.md#plany)). Moduł z nowszego kitu skopiowałby pliki, które zakładają nowszy rdzeń.
+Wymóg równej wersji wynika z modelu kitu: projekt dostaje kod jednej wersji kitu. Moduł z nowszego kitu skopiowałby pliki, które zakładają nowszy rdzeń. Na nowszą wersję przenosi projekt [`wa update`](#wa-update), a dopiero potem `wa add` dodaje moduły tej wersji.
 
 <a id="lokalny-klon-zrodlo"></a>
 
@@ -303,7 +310,7 @@ flowchart TD
 ```
 
 1. **`.wa/kit.json`.** Brak pliku daje `Brak .wa/kit.json w <katalog> — to nie jest projekt wa-kit`. Plik, który nie przechodzi walidacji, daje błąd walidacji ([Referencja](#referencja-komunikaty)).
-2. **Pobranie kitu** według [źródła kitu](#zrodlo-kitu). Pobranie idzie **przed** odmowami z następnego kroku (`addFromSource` w `kit/cli/src/commands/add.ts`): `wa add uploads --kit /nie/ma` w projekcie, który ma `uploads`, daje błąd źródła, nie odmowę, a przy domyślnym `kitRepo` nawet odmowa wymaga sieci (sprawdzone).
+2. **Pobranie kitu** według [źródła kitu](#zrodlo-kitu). Pobranie idzie **przed** odmowami z następnego kroku (`addFromSource` w `packages/gato-cli/src/commands/add.ts`): `wa add uploads --kit /nie/ma` w projekcie, który ma `uploads`, daje błąd źródła, nie odmowę, a przy domyślnym `kitRepo` nawet odmowa wymaga sieci (sprawdzone).
 3. **Odmowy:** moduł zainstalowany (`Moduł <x> jest już zainstalowany`, także dla `core`) i nazwa zajęta przez moduł projektu (`Moduł <x> jest modułem projektu; zmień jego nazwę albo usuń wpis z projectModules`) (sprawdzone).
 4. **Kit i manifesty.** Dopiero teraz `add` waliduje schematem `kit/kit.json` i `kit/modules/*.json` (`readKitConfig`, `readKitManifests`). Uszkodzony manifest daje więc błąd dopiero po odmowach.
 5. **Zestaw modułów:** moduł i moduły z jego `requires`, których projekt nie ma. Nieznana nazwa daje `Nieznany moduł: <nazwa>. Dostępne: api-keys, audit-logs, uploads` (sprawdzone).
@@ -313,12 +320,11 @@ flowchart TD
 9. **`wa generate`**, potem `npm install` (bez `--no-install`).
 10. **Podpowiedź migracji:** ostatnia linia wyjścia to `npx prisma migrate dev --name add-<moduł>`, z nazwą z argumentu, także gdy CLI dodało moduły z `requires`. Migrację tworzysz i commitujesz sam ([03b](03b-schemat-i-migracje.md#migracje-w-projekcie)).
 
-Przebieg w projekcie `acme-app` z modułem `uploads` (sprawdzone, domyślne źródło, wyjście gita skrócone):
+Przebieg w projekcie `acme-app` z modułem `uploads` (sprawdzone, domyślne źródło, wyjście skrócone):
 
 ```text
 $ npm run wa -- add api-keys --no-install
 warning: refs/tags/v0.1.0 14772ce361ec63b4777cb9925802cea0442afd05 is not a commit!
-Note: switching to '76ca2d7ccfb23b43d53d4d9d492d1ba59ba3ca88'.
 …
 npx prisma migrate dev --name add-api-keys
 ```
@@ -352,7 +358,7 @@ Ostrzeżenie nie przerywa komendy: sprawdź sam, czy moduł działa z wersją pr
 
 - **Błąd przed kopiowaniem** (kroki 1–7) niczego nie zmienia w projekcie.
 - **Błąd w kroku 8** (na przykład brak miejsca na dysku, plik tylko do odczytu, plik w miejscu katalogu modułu) cofa zmiany (`rollbackAdd`): usuwa pliki modułu, usuwa katalogi, które `add` utworzył, jeśli zostały puste, i przywraca `package.json` oraz `.wa/kit.json`, jeśli ich treść się zmieniła. Pierwotny błąd to zwykle surowy komunikat Node po angielsku, na przykład `ENOTDIR: not a directory, mkdir '…/src/features/api-keys/__tests__'`, gdy w miejscu katalogu `src/features/api-keys` leży zwykły plik (sprawdzone: po błędzie w projekcie został tylko ten plik), albo `EEXIST: file already exists, mkdir …` w podobnej sytuacji głębiej w drzewie.
-- Każdy krok sprzątania działa niezależnie. Krok, który się nie uda, CLI wypisuje jako `Nie udało się posprzątać: <ścieżka> (<kod błędu albo komunikat>)` i idzie dalej, a na końcu rzuca pierwotny błąd. Typowy przypadek: w katalogu, który utworzył `add`, pojawił się obcy plik, więc katalog nie jest pusty (`Nie udało się posprzątać: src/features/demo/i18n (ENOTEMPTY)` w teście „rzuca oryginalny błąd, usuwa plik modułu, zostawia obcy plik i loguje oba katalogi” w `kit/cli/src/commands/__tests__/add-rollback.test.ts`).
+- Każdy krok sprzątania działa niezależnie. Krok, który się nie uda, CLI wypisuje jako `Nie udało się posprzątać: <ścieżka> (<kod błędu albo komunikat>)` i idzie dalej, a na końcu rzuca pierwotny błąd. Typowy przypadek: w katalogu, który utworzył `add`, pojawił się obcy plik, więc katalog nie jest pusty (`Nie udało się posprzątać: src/features/demo/i18n (ENOTEMPTY)` w teście „rzuca oryginalny błąd, usuwa plik modułu, zostawia obcy plik i loguje oba katalogi” w `packages/gato-cli/src/commands/__tests__/add-rollback.test.ts`).
 - **Błąd w `wa generate` albo `npm install`** (krok 9) nie cofa zmian: pliki są skopiowane, a `.wa/kit.json` je opisuje. Powtórz `npm run wa -- generate` albo `npm install`. Przy błędzie instalacji komunikat to `Moduł dodany, ale npm install się nie powiódł. Uruchom: npm install`.
 
 <a id="wa-remove"></a>
@@ -427,7 +433,7 @@ Zachowanie kodu projektu bez modułu (na przykład `trackAudit` bez `audit-logs`
 
 `wa remove` nie ma cofania. „Wszystko albo nic” dotyczy kontroli: błąd w krokach z [Kolejności kontroli](#remove-kolejnosc) niczego nie zmienia (sprawdzone dla odmów i zmienionych plików). Błąd w trakcie usuwania (na przykład uprawnienia) zostawia stan częściowy: część plików usunięta, `.wa/kit.json` jeszcze z modułem. Usuń przyczynę i uruchom `wa remove` ponownie; brakujące pliki nie blokują komendy. Błąd `npm install` na końcu daje `Moduł usunięty, ale npm install się nie powiódł. Uruchom: npm install`, a moduł jest już usunięty ze stanu i z dysku.
 
-Wpis w `files` uszkodzonego `.wa/kit.json` też zatrzymuje komendę przed usuwaniem: katalog daje surowy błąd `EISDIR`, a ścieżka pod zwykłym plikiem błąd `ENOTDIR: not a directory, realpath …` (testy w `kit/cli/src/commands/__tests__/remove.test.ts`).
+Wpis w `files` uszkodzonego `.wa/kit.json` też zatrzymuje komendę przed usuwaniem: katalog daje surowy błąd `EISDIR`, a ścieżka pod zwykłym plikiem błąd `ENOTDIR: not a directory, realpath …` (testy w `packages/gato-cli/src/commands/__tests__/remove.test.ts`).
 
 <a id="remove-bezpieczenstwo"></a>
 
@@ -460,7 +466,7 @@ Dostępne:
 - **Dostępne:** moduły z manifestów kitu w wersji projektu, których projekt nie ma, alfabetycznie, z opisem i sufiksem `(wymaga: …)`, gdy manifest ma `requires`. Gdy nic nie zostało, linia brzmi `Dostępne: brak`.
 - **Projektu:** moduły z `projectModules` z opisem, na przykład `notes — Notatki projektu`. Sekcja pojawia się tylko wtedy, gdy projekt je ma.
 
-Gdy kitu nie da się pobrać (zła ścieżka, odrzucone źródło, nieudany klon, pusty `WA_KIT_SOURCE`), zamiast listy „Dostępne” pada linia `Dostępne: nie udało się pobrać kitu (<powód>)` na stdout, a komenda kończy się kodem 0, bo stan projektu wypisała (`listCommand` w `kit/cli/src/bin.ts`). Przebieg (sprawdzone):
+Gdy kitu nie da się pobrać (zła ścieżka, odrzucone źródło, nieudany klon, pusty `WA_KIT_SOURCE`), zamiast listy „Dostępne” pada linia `Dostępne: nie udało się pobrać kitu (<powód>)` na stdout, a komenda kończy się kodem 0, bo stan projektu wypisała (`listCommand` w `packages/gato-cli/src/bin.ts`). Przebieg (sprawdzone):
 
 ```text
 $ npm run wa -- list --kit /nie/ma
@@ -472,11 +478,215 @@ Dostępne: nie udało się pobrać kitu (Brak kit/kit.json w /nie/ma — to nie 
 
 W skrypcie sprawdzaj więc tę linię, a nie kod wyjścia. Błędy przed pobraniem kitu (opcje, brak albo uszkodzony `.wa/kit.json`) kończą `list` kodem 1 jak każdą komendę.
 
+<a id="wa-update"></a>
+
+## `wa update`: przejście na nowszą wersję kitu
+
+```bash
+npm run wa -- update <wersja> [--kit <źródło>] [--dry-run] [--no-install]
+```
+
+`wa update` przenosi projekt z wersji kitu zapisanej w `kitVersion` w `.wa/kit.json` na tag `v<wersja>`: nakłada na projekt różnicę kitu między tymi dwiema wersjami i zachowuje lokalne zmiany projektu ([D47](decyzje.md#d47)). Zmienia rdzeń i wszystkie zainstalowane moduły kitu naraz; pojedynczego modułu nie zaktualizujesz. Wynik przeglądasz w `git diff` i commitujesz sam.
+
+| Argument albo opcja | Znaczenie |
+| --- | --- |
+| `<wersja>` | Wersja docelowa bez `v`, na przykład `0.2.0`: trzy liczby bez zer wiodących, opcjonalnie z sufiksem prerelease (`0.2.0-rc.1`). Obowiązkowa; domyślnej „najnowszej” nie ma. Musi być wyższa od `kitVersion` projektu (porównanie semver, więc `0.10.0` jest nowsza niż `0.9.0`). |
+| `--kit <źródło>` | Źródło kitu jak w `add` i `list` ([Źródło kitu](#zrodlo-kitu)): bez opcji `WA_KIT_SOURCE`, potem `kitRepo`. Inaczej niż w `add`, także ścieżkę lokalną CLI klonuje z tagu, więc treść kitu pochodzi zawsze z tagów `v<kitVersion>` i `v<wersja>`, nigdy z drzewa roboczego. |
+| `--dry-run` | Wypisuje plan i kończy się kodem 0 bez zmian w projekcie, także gdy plan przewiduje konflikty. Nie wymaga czystego drzewa git, ale klonuje obie wersje kitu. |
+| `--no-install` | Bez `npm install` na końcu. |
+
+Nie ma `--force`: konflikt jest miejscem do ręcznego scalenia, nie błędem do obejścia. Opcja `--from-kit <katalog>` jest wewnętrzna (bundel projektu przekazuje nią pracę bundlowi wersji docelowej, [niżej](#update-delegacja)) i nie ma jej w linii `Użycie: …`.
+
+<a id="update-pierwsza"></a>
+
+### Pierwsza aktualizacja projektu z `v0.1.0`
+
+Bundel `v0.1.0` nie zna komendy `update`: `npm run wa -- update 0.2.0` w takim projekcie wypisuje linię `Użycie: …` bez `wa update` i kończy się kodem 1 (sprawdzone). Pierwszą aktualizację uruchamiasz więc bundlem z klonu tagu docelowego, w katalogu projektu, tak jak [one-liner](#one-liner) przy `create`:
+
+```bash
+KIT_DIR=$(mktemp -d) && git clone --depth 1 --branch v<wersja> https://github.com/webamigos/wa-kit.git "$KIT_DIR" && node "$KIT_DIR/.wa/bin/wa.mjs" update <wersja>
+```
+
+Opcje (`--kit`, `--dry-run`, `--no-install`) dopisujesz na końcu. Bundel z klonu sprawdza tylko, że `version` w `kit/kit.json` jego klonu równa się `<wersja>` (inaczej `Bundel pochodzi z wa-kit <x>, a aktualizacja prowadzi do <wersja>`), a potem pracuje sam. Wersję docelową i tak klonuje jeszcze raz ze [źródła kitu](#zrodlo-kitu) projektu, więc nad wynikiem widać trzy przebiegi `git clone` (sprawdzone). Bundel `.wa/bin/wa.mjs` należy do `core`, więc aktualizacja wymienia go w projekcie na wersję docelową, a kolejne aktualizacje działają już przez `npm run wa -- update <wersja>`.
+
+<a id="update-delegacja"></a>
+
+### Kto liczy aktualizację
+
+Plan aktualizacji zależy od reguł wersji docelowej: listy plików z regionami, schematów `kit/kit.json` i `.wa/kit.json`, budowy `package.json` i generatora. Starszy bundel nie policzyłby go poprawnie, więc bundel projektu robi tylko kontrole wstępne, klonuje tag docelowy i uruchamia bundel z klonu:
+
+```text
+node <klon>/.wa/bin/wa.mjs update <wersja> --from-kit <klon> --kit <źródło> [--dry-run] [--no-install]
+```
+
+Proces potomny działa w katalogu projektu, z wyjściem wprost w terminalu. Gdy kończy się kodem różnym od 0, bundel projektu kończy się kodem 1 bez własnego komunikatu (błąd wypisał już proces potomny). Bundel rozpoznaje, czy pochodzi z projektu, po braku `kit/kit.json` dwa poziomy nad sobą (`updateFromSource` w `packages/gato-cli/src/commands/update.ts`).
+
+<a id="update-kolejnosc"></a>
+
+### Kolejność kontroli
+
+Wszystkie kontrole i całe scalanie idą w pamięci, przed pierwszym zapisem.
+
+1. **Opcje i wersja.** Brak wersji: `Podaj wersję kitu`; zły format, na przykład `v0.3.0`: `Nieprawidłowa wersja: v0.3.0; podaj na przykład 0.2.0` (sprawdzone).
+2. **`.wa/kit.json`** jak w `add`.
+3. **Wersja docelowa.** Równa `kitVersion`: linia `Projekt ma już wa-kit <wersja>` i kod 0, także na brudnym drzewie i bez sieci (sprawdzone). Niższa: `Projekt ma wa-kit <x>, nowszą niż <wersja>; wa update nie obniża wersji` (sprawdzone).
+4. **Czyste drzewo git** (bez `--dry-run`): `git status --porcelain` musi być pusty; pliki ignorowane się nie liczą, nieśledzone tak. Brudne drzewo: `Niezacommitowane zmiany w projekcie; zrób commit albo stash przed wa update` (sprawdzone). Katalog poza repozytorium git: `<katalog> nie jest repozytorium git; wa update wymaga gita, żeby dało się cofnąć zmiany`. Brak polecenia `git` w `PATH`: `Nie znaleziono polecenia git; zainstaluj git, żeby uruchomić wa update`.
+5. **Źródło kitu:** `Nieprawidłowe źródło wa-kit: <źródło>` jak w `add`.
+6. **Bundel z klonu** (one-liner): wersja jego kitu równa `<wersja>` ([wyżej](#update-pierwsza)).
+7. **Pobranie wersji docelowej i bazowej:** `git -c advice.detachedHead=false clone --depth 1 --branch v<wersja> --quiet` (dla ścieżki lokalnej bez `--depth 1`) do katalogu tymczasowego `wa-update-…`, który znika po komendzie, także po błędzie. Brak tagu: `Nie udało się pobrać wa-kit v<wersja> z <źródło>. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`, a nad nim linia gita (sprawdzone; przy polskich ustawieniach `fatal: Nie znaleziono zdalnej gałęzi v0.4.0 w repozytorium origin`). Tag z inną `version` w `kit/kit.json`: `Kit w <klon> ma wersję <x>, oczekiwano <wersja>`. Bundel projektu klonuje tu wersję docelową i przekazuje pracę ([wyżej](#update-delegacja)); proces potomny powtarza kroki 2–5 i klonuje wersję bazową `v<kitVersion>`.
+8. **Odczyt obu wersji**, najpierw bazowej (`readKitSnapshot` w `packages/gato-cli/src/update/snapshot.ts`): `kit/kit.json` i manifesty (błąd schematu to surowy błąd Zod), potem moduły. Każdy moduł kitu z `.wa/kit.json` musi istnieć w obu wersjach: `Moduł <x> nie istnieje w wa-kit <wersja>` (moduł usunięty albo przemianowany w kicie wymaga ręcznej decyzji). Kit wskazany przez `--from-kit` w innej wersji niż docelowa: `Kit docelowy ma wersję <x>, oczekiwano <wersja>`.
+9. **`requires`** modułów w wersji docelowej muszą być zainstalowane: `Moduł <x> w wa-kit <wersja> wymaga niezainstalowanych modułów: <lista>`. Komenda nie dodaje modułów sama. Brakujący moduł, który istnieje w wersji kitu projektu, doda `wa add`; moduł nowy dopiero w wersji docelowej nie ma ścieżki w CLI ([znane ograniczenia](znane-ograniczenia.md#cli-male)). `projectModules` zostają bez zmian, a ich `requires` sprawdza odczyt `.wa/kit.json` jak w każdej komendzie.
+10. **Plan dla każdego pliku** ([niżej](#update-plan)), razem ze scaleniem treści. Ścieżka, która po rozwiązaniu symlinków wychodzi poza projekt, daje `Ścieżka poza projektem: <ścieżka>`; wiszący symlink jest rozwiązywany względem swojego katalogu, więc link do nieistniejącego pliku poza projektem też daje ten błąd (`insideProject` w `packages/gato-cli/src/commands/remove.ts`, testy w `inside-project.test.ts`); błąd `git merge-file` daje `git merge-file: <komunikat gita>`.
+11. **`--dry-run`:** wypisanie planu i kod 0.
+12. **Zapis** plików według planu, potem `.wa/kit.json`. Przed pierwszym zapisem każdy cel (pliki do zapisania albo usunięcia, `.wa/kit.json`, pliki generowane i pliki z regionami) nie może mieć symlinku w żadnym członie ścieżki pod katalogiem projektu (`lstat`), także gdy link prowadzi do innego pliku projektu: `Dowiązanie symboliczne na ścieżce zapisu: <ścieżka>`, bez zmian w projekcie (`writableInsideProject` w `packages/gato-cli/src/commands/update.ts`). Symlink na pliku, którego aktualizacja nie zapisuje, nie przeszkadza ([Co zapisuje](#update-zapis)). Błąd zapisu cofa zmiany ([Cofanie](#update-cofanie)).
+13. **Bez konfliktów:** `wa generate` w procesie, podpowiedzi ([Po `wa update`](#update-po)) i `npm install` (bez `--no-install`). **Z konfliktami:** wszystkie trzy pominięte ([Konflikty](#update-konflikty)).
+
+<a id="update-plan"></a>
+
+### Plan dla pliku
+
+Plan obejmuje pliki zainstalowanych modułów kitu w wersji bazowej i w wersji docelowej (bez `kitOnly`, plików generowanych i `package-lock.json`) oraz `package.json`. Każda ścieżka ma trzy strony:
+
+- **baza:** plik z tagu `v<kitVersion>` po podmianie placeholderów nazwami projektu z `.wa/kit.json`;
+- **kit:** to samo dla tagu `v<wersja>`;
+- **projekt:** plik na dysku.
+
+Dla `package.json` baza i kit to `package.json` złożony tak jak przy `create` z manifestów zainstalowanych modułów danej wersji ([D30](decyzje.md#d30)), więc zmiana zależności albo skryptu w kicie scala się z własnymi skryptami i zależnościami projektu.
+
+| Baza | Kit | Projekt | Wynik | Linia w wyjściu |
+| --- | --- | --- | --- | --- |
+| jest | równy bazie | dowolny | bez zmian | — |
+| jest | inny | równy bazie | treść kitu | `zaktualizowano` |
+| jest | inny | równy kitowi | bez zmian | — |
+| jest | inny | inny niż oba | scalenie trójstronne | `scalono` albo `konflikt`; gdy wynik scalenia równa się projektowi, bez linii |
+| jest | inny | brak | plik nie wraca | `do decyzji … (usunięty w projekcie, zmieniony w kicie)` |
+| jest | brak | równy bazie | usunięcie, razem z pustymi katalogami | `usunięto` |
+| jest | brak | inny niż baza | plik zostaje | `do decyzji … (zmieniony w projekcie, usunięty w kicie)` |
+| jest | brak | brak | bez zmian | — |
+| brak | jest | brak | dodanie | `dodano` |
+| brak | jest | równy kitowi | bez zmian | — |
+| brak | jest | inny | zostaje treść projektu | `konflikt … (plik projektu na ścieżce nowego pliku kitu)` |
+
+Szczegóły (`planUpdate` w `packages/gato-cli/src/update/plan.ts`):
+
+- **Równość** liczona jest jak hash w `.wa/kit.json` ([D31](decyzje.md#d31)): w plikach z regionami (`REGION_FILES`) bez treści regionów `wa:*`, w pozostałych bajt w bajt.
+- **Baza niezgodna z hashem.** Projekt mógł powstać z drzewa roboczego klonu, a nie z tagu (`create` i `add --kit <ścieżka>` tagu nie sprawdzają). „Projekt równy bazie” wymaga więc dwóch warunków: plik projektu równy bazie z tagu i hash zapisany w `.wa/kit.json` równy hashowi bazy (albo brak hasha lub znacznik `managed`). Plik, którego hash zgadza się z zapisanym, ale baza z tagu jest inna, idzie ścieżką „inny niż baza” (scalenie albo „do decyzji”), nigdy nadpisaniem ani usunięciem. Takie pliki z pozycją w planie komenda liczy w linii `Uwaga: <n> plików różni się od v<kitVersion> z tagu; potraktowano je jak zmienione w projekcie`.
+- **Scalenie:** `git merge-file -p --diff3` na trzech plikach tymczasowych, z etykietami `projekt`, `v<kitVersion>` i `v<wersja>` (`mergeFile` w `packages/gato-cli/src/update/merge.ts`).
+- **Pliki z regionami:** przed scaleniem treść między markerami `wa:*` jest czyszczona we wszystkich trzech wersjach, więc różnice regionów nie dają konfliktów. Regiony wypełnia `wa generate`, który przy konfliktach się nie uruchamia.
+- **Pliki binarne** (bajt NUL w którejś wersji) nie są scalane: zmiana po obu stronach daje `konflikt … (plik binarny zmieniony w projekcie i w kicie)`, a plik zostaje w wersji projektu.
+- **Bity uprawnień:** plik zaktualizowany, dodany, scalony albo z markerami konfliktu dostaje bity z wersji docelowej kitu.
+- Plik, który w nowej wersji należy do innego modułu, nie jest zmianą: liczy się tylko treść.
+
+<a id="update-wyjscie"></a>
+
+### Wyjście
+
+Na stdout nagłówek i po jednej linii na plik z pozycją w planie. Kategorie idą w kolejności `zaktualizowano`, `scalono`, `dodano`, `usunięto`, `konflikt`, `do decyzji`, a w kategorii alfabetycznie po ścieżce. Nazwa akcji ma stałą szerokość 14 znaków. Przykład z wszystkimi kategoriami (format z `planReport` w `packages/gato-cli/src/update/report.ts`, ścieżki przykładowe):
+
+```text
+Aktualizacja wa-kit 0.1.0 → 0.2.0
+  zaktualizowano src/shared/lib/auth/org-context.ts
+  scalono        src/shared/lib/env.ts
+  dodano         src/shared/lib/rate-limit.ts
+  usunięto       src/shared/lib/legacy.ts
+  konflikt       src/features/uploads/services/upload-purposes.ts
+  do decyzji     src/shared/lib/old-helper.ts (zmieniony w projekcie, usunięty w kicie)
+Uwaga: 2 pliki różnią się od v0.1.0 z tagu; potraktowano je jak zmienione w projekcie
+```
+
+- `--dry-run` zaczyna od `Plan aktualizacji wa-kit <x> → <wersja> (bez zmian w projekcie)` (sprawdzone).
+- Gdy kit nie zmienił żadnego pliku projektu, pod nagłówkiem stoi `  bez zmian w plikach`, a `.wa/kit.json` i tak dostaje nową wersję.
+- Bez `--dry-run` plan pojawia się dopiero po udanym zapisie; przy błędzie zapisu widać tylko błąd.
+- Nad wynikiem jest wyjście `git clone`: jedna linia na każdy klon (dwa przy `npm run wa -- update`, trzy przy one-linerze, licząc klon z samego one-linera), ostrzeżenie o tagu z adnotacją `warning: refs/tags/v<wersja> <sha> is not a commit!` (po polsku `… nie jest zapisem!`). Porady o odłączonym HEAD nie ma (CLI klonuje z `-c advice.detachedHead=false`; one-liner, który klonuje bez tej opcji, ją wypisuje), a ścieżkę lokalną CLI klonuje bez `--depth 1`, więc nie ma też ostrzeżenia `--depth is ignored in local clones` (sprawdzone na git 2.56 dla ścieżki lokalnej i `file://`). To nie są błędy.
+
+Przebieg z konfliktem (sprawdzone, wyjście gita pominięte):
+
+```text
+$ npm run wa -- update 0.3.0 --kit ~/wa-kit --no-install
+Aktualizacja wa-kit 0.2.0 → 0.3.0
+  zaktualizowano prisma/schema/auth.prisma
+  konflikt       src/shared/lib/utils.ts
+Rozwiąż konflikty, potem: npm run wa -- generate && npm install
+Cofnięcie całej aktualizacji: git restore . && git clean -fd
+```
+
+<a id="update-konflikty"></a>
+
+### Konflikty i pliki „do decyzji”
+
+Konflikt tekstowy zostawia w pliku markery w stylu `diff3`, z wersją bazową w środku (sprawdzone):
+
+```text
+<<<<<<< projekt
+export const kitMarker = "projekt";
+||||||| v0.2.0
+export const kitMarker = "v0.2.0";
+=======
+export const kitMarker = "v0.3.0";
+>>>>>>> v0.3.0
+```
+
+| Sytuacja po zapisie | `.wa/kit.json` | `wa generate`, podpowiedzi, `npm install` | Kod wyjścia | Ostatnie linie |
+| --- | --- | --- | --- | --- |
+| Bez konfliktów i bez „do decyzji” | nowa wersja | wykonane | 0 | podpowiedzi albo plan |
+| Tylko pliki „do decyzji” | nowa wersja | wykonane | 1 | podpowiedzi albo plan; bez osobnego komunikatu |
+| Co najmniej jeden konflikt | nowa wersja | pominięte | 1 | `Rozwiąż konflikty, potem: npm run wa -- generate && npm install` i `Cofnięcie całej aktualizacji: git restore . && git clean -fd` |
+
+- `.wa/kit.json` jest zapisywany także przy konfliktach: po rozwiązaniu markerów projekt jest w wersji docelowej. Ponowne `wa update <wersja>` mówi już `Projekt ma już wa-kit <wersja>`, więc konfliktów nie rozwiążesz drugim przebiegiem.
+- Przy konfliktach `wa generate` i `npm install` się nie wykonują, bo markery mogą psuć regiony i `package.json`. Do czasu `wa generate` pliki generowane i regiony w zaktualizowanych albo scalonych plikach z regionami nie odpowiadają modułom projektu. Podpowiedzi migracji i zmiennych też nie ma: sprawdź `git diff -- prisma/schema .env.example` sam.
+- Pliki „do decyzji” nie mają markerów, więc `wa generate` i `npm install` się wykonują, ale kod wyjścia i tak wynosi 1: skrypt i agent dostają ten sam sygnał „wymaga człowieka” co przy konflikcie. Taki plik nie ma wpisu w `files` modułu w `.wa/kit.json`.
+- Plik usunięty w projekcie nie wraca. Plik projektu na ścieżce nowego pliku kitu nie jest nadpisywany: zostaje treść projektu, a plik kitu przenosisz ręcznie z klonu tagu `v<wersja>` (pliki z `placeholderFiles` mają tam jeszcze nazwy kitu, na przykład `wa-app`, zamiast nazw projektu).
+
+Po konfliktach:
+
+1. Rozwiąż markery w plikach z linią `konflikt` i zdecyduj o plikach `do decyzji` (usuń je, zostaw jako kod projektu albo przenieś zmiany).
+2. `npm run wa -- generate`, potem `npm install`.
+3. Migracja i zmienne, jak w [Po `wa update`](#update-po).
+4. Commit. Cofnięcie całości przed commitem: `git restore . && git clean -fd`; pojedynczy plik: `git restore <plik>`. `git clean -fd` nie usuwa plików ignorowanych przez `.gitignore` (na przykład `node_modules` po `npm install` albo nowego pliku kitu, który pasuje do `.gitignore` projektu; takie pliki pokaże `git status --ignored`, usuń je ręcznie), więc po cofnięciu uruchom jeszcze `npm install`, żeby zależności zgadzały się z przywróconym `package-lock.json`.
+
+<a id="update-zapis"></a>
+
+### Co zapisuje
+
+- Pliki według planu: dodane, zaktualizowane, scalone, z markerami konfliktu, usunięte (z pustymi katalogami nad nimi, jak w `remove`). Konflikt binarny i konflikt na ścieżce nowego pliku kitu zostawiają plik projektu bez zmian.
+- `package.json` według planu, jak każdy plik.
+- `.wa/kit.json`: `kitVersion` równa wersji docelowej, a dla każdego modułu kitu `version` i `manifest` z wersji docelowej i `files` z hashami treści **kitu** (nie scalonej treści) wszystkich plików modułu w tej wersji. `package.json` i `package-lock.json` zachowują znacznik `managed`. Pliki „do decyzji” i pliki nieobecne w wersji docelowej nie mają wpisu. `kitRepo`, `project`, `locales` i `projectModules` zostają bez zmian. Dzięki hashom z treści kitu plik scalony z lokalnymi zmianami dalej liczy się w `wa remove` jako zmieniony, a kolejne `wa update` ma właściwą bazę.
+
+Komenda nie zmienia `.env` ani `package-lock.json`: lockfile zmienia dopiero `npm install`, więc z `--no-install` albo przy konfliktach `package-lock.json` zostaje stary do pierwszej instalacji.
+
+<a id="update-po"></a>
+
+### Po `wa update`
+
+Bez konfliktów, po `wa generate`, CLI wypisuje podpowiedzi (`successHints` w `packages/gato-cli/src/update/report.ts`):
+
+| Linia | Kiedy |
+| --- | --- |
+| `npx prisma migrate dev --name kit-<wersja>` | Kit zmienił, dodał albo usunął któryś plik `prisma/schema/**` zainstalowanych modułów (porównanie wersji kitu, nie projektu) (sprawdzone). |
+| `Nowe zmienne w .env.example: <lista>; uzupełnij .env` | Manifesty zainstalowanych modułów w wersji docelowej mają zmienne `env`, których nie było w wersji bazowej; lista alfabetyczna, rozdzielona `, `. |
+
+Potem:
+
+1. **Migracja:** uruchom podaną komendę przy działającej bazie i zacommituj migrację ([03b](03b-schemat-i-migracje.md#migracje-w-projekcie)). Kit nie dostarcza migracji ([D13](decyzje.md#d13)).
+2. **`.env`:** skopiuj nowe zmienne z regionu `wa:modules` w `.env.example` i ustaw wartości; `wa update` nie zmienia `.env`.
+3. Z `--no-install` zainstaluj zależności sam (`npm install`), co zaktualizuje też `package-lock.json`.
+4. **Przegląd:** `git diff`, `npm run verify`, commit (razem z `package-lock.json`).
+
+<a id="update-cofanie"></a>
+
+### Cofanie i jego granice
+
+- **Błąd przed zapisem** (kroki 1–11 z [Kolejności](#update-kolejnosc)) niczego nie zmienia: treść każdego pliku, łącznie ze scaleniem, powstaje w pamięci.
+- **Błąd zapisu** (krok 12, na przykład brak miejsca na dysku albo plik w miejscu katalogu) cofa zmiany: przywraca oryginalną treść i bity uprawnień zmienionych i usuniętych plików (zapamiętane jako bajty przed zapisem), usuwa dodane pliki i katalogi utworzone przez komendę i przywraca `.wa/kit.json`. Nieudany krok sprzątania daje linię `Nie udało się posprzątać: <ścieżka> (<kod albo komunikat>)` na stdout, a na końcu pada pierwotny błąd z drugą linią `Sprawdź git status; całość cofa: git restore . && git clean -fd` (testy w `packages/gato-cli/src/commands/__tests__/update-rollback.test.ts`). Czyste drzewo git na starcie jest siatką bezpieczeństwa: te dwie komendy przywracają projekt sprzed `wa update`.
+- **Błąd `wa generate`** (krok 13) nie cofa zmian: pliki i `.wa/kit.json` są już w nowej wersji, a komenda kończy się komunikatem `Zaktualizowano do wa-kit <wersja>, ale wa generate się nie powiódł. Uruchom: npm run wa -- generate`, kod 1 (błąd generatora jest w `cause`). Podpowiedzi i `npm install` się wtedy nie wykonują. Usuń przyczynę, uruchom `npm run wa -- generate`, potem `npm install`.
+- **Błąd `npm install`** nie cofa zmian: `Zaktualizowano do wa-kit <wersja>, ale npm install się nie powiódł. Uruchom: npm install`, kod 1. Podpowiedzi są wtedy wypisane przed błędem.
+- **Konflikt** nie jest błędem zapisu i niczego nie cofa.
+
 <a id="moduly-projektu"></a>
 
 ## Moduły projektu a CLI
 
-Funkcja napisana w projekcie ma wpis w `projectModules` w `.wa/kit.json`: sam manifest, bez wersji wpisu i bez hashy ([D36](decyzje.md#d36), [krok 3 tutorialu](09-nowy-modul.md#krok-3)). Każda komenda, która czyta `.wa/kit.json`, najpierw sprawdza te wpisy (`validateProjectModules` w `kit/cli/src/manifest/kit-state.ts`): `name` równe kluczowi, brak modułu kitu o tej nazwie, wszystkie `requires` zainstalowane, `files` z wzorcem zaczynającym się od `src/features/<klucz>/`. Błędny wpis zatrzymuje każdą komendę w projekcie ([komunikaty](#referencja-komunikaty)).
+Funkcja napisana w projekcie ma wpis w `projectModules` w `.wa/kit.json`: sam manifest, bez wersji wpisu i bez hashy ([D36](decyzje.md#d36), [krok 3 tutorialu](09-nowy-modul.md#krok-3)). Każda komenda, która czyta `.wa/kit.json`, najpierw sprawdza te wpisy (`validateProjectModules` w `packages/gato-cli/src/manifest/kit-state.ts`): `name` równe kluczowi, brak modułu kitu o tej nazwie, wszystkie `requires` zainstalowane, `files` z wzorcem zaczynającym się od `src/features/<klucz>/`. Błędny wpis zatrzymuje każdą komendę w projekcie ([komunikaty](#referencja-komunikaty)).
 
 | Komenda | Moduł projektu |
 | --- | --- |
@@ -484,6 +694,7 @@ Funkcja napisana w projekcie ma wpis w `projectModules` w `.wa/kit.json`: sam ma
 | `wa add` | Odmawia dodania modułu kitu o tej samej nazwie (sprawdzone). |
 | `wa remove` | Odmawia usunięcia modułu projektu; jego pliki i wpis usuwasz ręcznie. Nie usuwa modułu kitu, którego moduł projektu wymaga w `requires`, ani zależności npm, które moduł projektu deklaruje w tej samej sekcji (sprawdzone). |
 | `wa list` | Wypisuje go w sekcji „Projektu”, także gdy kitu nie dało się pobrać. |
+| `wa update` | Zostawia jego wpis i pliki bez zmian. Plik kitu zmieniony w projekcie scala jak każdą lokalną zmianę ([Plan dla pliku](#update-plan)). |
 | `wa kit sync` | Zachowuje wpisy bez zmian ([16b](16b-rozwoj-kitu.md)). |
 
 Zależność npm, której używa tylko moduł projektu, wpisz w jego manifeście w tej samej sekcji (`dependencies` albo `devDependencies`), w której deklaruje ją moduł kitu. Bez tego `wa remove` modułu kitu, który deklaruje tę samą zależność, usunie ją z `package.json`: deklaracja w drugiej sekcji jej nie chroni.
@@ -496,7 +707,7 @@ Zależność npm, której używa tylko moduł projektu, wpisz w jego manifeście
 
 ### Opcje i argumenty
 
-Opcje parsuje `parseArgs` z `node:util`; jego błędy CLI tłumaczy na polskie komunikaty (`translateParseError` w `kit/cli/src/args.ts`).
+Opcje parsuje `parseArgs` z `node:util`; jego błędy CLI tłumaczy na polskie komunikaty (`translateParseError` w `packages/gato-cli/src/args.ts`).
 
 | Komenda | Argumenty pozycyjne | Opcje z wartością | Opcje bez wartości |
 | --- | --- | --- | --- |
@@ -504,6 +715,7 @@ Opcje parsuje `parseArgs` z `node:util`; jego błędy CLI tłumaczy na polskie k
 | `add` | dokładnie 1: moduł | `--kit` | `--no-install` |
 | `remove` | dokładnie 1: moduł | brak | `--force`, `--no-install` |
 | `list` | 0 | `--kit` | brak |
+| `update` | dokładnie 1: wersja | `--kit`, `--from-kit` (wewnętrzna) | `--dry-run`, `--no-install` |
 | `generate` | 0; nadmiarowe argumenty i opcje są pomijane | brak | brak |
 | `kit sync` | 0; nadmiarowe argumenty i opcje są pomijane | brak | brak |
 
@@ -511,15 +723,15 @@ Puste i brakujące wartości (sprawdzone):
 
 | Zapis | Wynik |
 | --- | --- |
-| `--kit=`, `--kit ""` | `Opcja --kit wymaga wartości`; pusta wartość jest błędem tylko dla `--kit` (`optionalValue`). |
+| `--kit=`, `--kit ""` | `Opcja --kit wymaga wartości`; pusta wartość jest błędem tylko dla `--kit` i `--from-kit` (`optionalValue`). |
 | `--kit` na końcu, `--title --yes`, `--kit -x` | `Opcja <opcja> wymaga wartości`: po opcji nie ma wartości albo stoi inna opcja lub wartość zaczynająca się od `-`. |
-| `--kit=-x` | Wartość przyjęta. W `add` i `list` potem `Nieprawidłowe źródło wa-kit: -x`; w `create` ścieżka `-x` nie ma `kit/kit.json`, więc `Uruchom create z klonu wa-kit albo podaj --kit <ścieżka>` (sprawdzone). |
+| `--kit=-x` | Wartość przyjęta. W `add`, `list` i `update` potem `Nieprawidłowe źródło wa-kit: -x`; w `create` ścieżka `-x` nie ma `kit/kit.json`, więc `Uruchom create z klonu wa-kit albo podaj --kit <ścieżka>` (sprawdzone). |
 | `--modules=` | Sam rdzeń. |
 | `--locales=` | `--locales: dozwolone pl,en; pl jest wymagany`. |
 | `--title=` | Pusta nazwa wyświetlana. |
 | `--admin-email=` | Pusta linia `ADMIN_EMAIL=` w `.env`. |
 
-Zmienna środowiskowa `WA_KIT_SOURCE` działa jak `--kit` w `add` i `list`, gdy opcji nie podano. W `create` nie działa.
+Zmienna środowiskowa `WA_KIT_SOURCE` działa jak `--kit` w `add`, `list` i `update`, gdy opcji nie podano. W `create` nie działa.
 
 <a id="referencja-kody"></a>
 
@@ -527,8 +739,8 @@ Zmienna środowiskowa `WA_KIT_SOURCE` działa jak `--kit` w `add` i `list`, gdy 
 
 | Kod | Kiedy |
 | --- | --- |
-| 0 | Komenda się udała, także z liniami `Uwaga: …`. `wa list`, także gdy kitu nie dało się pobrać. |
-| 1 | Każdy komunikat z tabeli niżej, każdy surowy błąd (Node, Zod, JSON, proces) i linia `Użycie: …`. |
+| 0 | Komenda się udała, także z liniami `Uwaga: …`. `wa list`, także gdy kitu nie dało się pobrać. `wa update` bez konfliktów i bez plików „do decyzji”, `wa update --dry-run` (także z konfliktami w planie) i `wa update` do wersji, którą projekt już ma. |
+| 1 | Każdy komunikat z tabeli niżej, każdy surowy błąd (Node, Zod, JSON, proces) i linia `Użycie: …`. `wa update` z konfliktem albo plikiem „do decyzji”, mimo zapisanych zmian (sprawdzone dla konfliktu). |
 
 `npm run wa -- …` kończy się tym samym kodem co bundel (sprawdzone dla kodu 1 z npm 11.21.1).
 
@@ -541,17 +753,17 @@ Każdy komunikat z tej tabeli trafia na stderr i kończy komendę kodem 1. Komun
 | Komenda | Sytuacja | Komunikat |
 | --- | --- | --- |
 | każda | brak komendy, nieznana komenda, `wa kit` bez `sync` | `Użycie: wa generate \| wa kit sync \| wa create <katalog> [opcje] \| …` (jedna linia z wszystkimi komendami) |
-| `create`, `add`, `remove` | brak argumentu pozycyjnego | `Podaj katalog projektu` (`create`), `Podaj nazwę modułu` (`add`, `remove`) |
-| `create`, `add`, `remove`, `list` | nadmiarowy argument | `Nieoczekiwany argument: <wartość>` |
-| `create`, `add`, `remove`, `list` | nieznana opcja | `Nieznana opcja: <opcja>` |
-| `create`, `add`, `list` | opcja z wartością bez wartości ([wyżej](#referencja-opcje)) | `Opcja <opcja> wymaga wartości` |
-| `create`, `add`, `remove` | wartość przy opcji bez wartości, na przykład `--force=1` | `Opcja <opcja> nie przyjmuje wartości` |
-| `add`, `remove`, `list`, `generate` | brak `.wa/kit.json` w katalogu | `Brak .wa/kit.json w <katalog> — to nie jest projekt wa-kit` |
-| `add`, `remove`, `list`, `generate` | `.wa/kit.json` nie jest poprawnym JSON-em albo nie przechodzi schematu `kitStateSchema` | surowy błąd parsera JSON albo Zod (lista problemów w formacie JSON) |
-| `add`, `remove`, `list`, `generate` | wpis `projectModules` z inną nazwą niż klucz | `projectModules.<klucz>: name "<nazwa>" nie zgadza się z kluczem` |
-| `add`, `remove`, `list`, `generate` | ta sama nazwa w `modules` i `projectModules` | `Moduł <x> jest jednocześnie modułem kitu i modułem projektu` |
-| `add`, `remove`, `list`, `generate` | moduł projektu wymaga modułu, którego nie ma | `Moduł projektu <x> wymaga niezainstalowanego modułu: <y>` |
-| `add`, `remove`, `list`, `generate` | `files` modułu projektu bez katalogu feature | `Moduł projektu <x>: files musi obejmować src/features/<x>/**` |
+| `create`, `add`, `remove`, `update` | brak argumentu pozycyjnego | `Podaj katalog projektu` (`create`), `Podaj nazwę modułu` (`add`, `remove`), `Podaj wersję kitu` (`update`, sprawdzone) |
+| `create`, `add`, `remove`, `list`, `update` | nadmiarowy argument | `Nieoczekiwany argument: <wartość>` |
+| `create`, `add`, `remove`, `list`, `update` | nieznana opcja | `Nieznana opcja: <opcja>` |
+| `create`, `add`, `list`, `update` | opcja z wartością bez wartości ([wyżej](#referencja-opcje)) | `Opcja <opcja> wymaga wartości` |
+| `create`, `add`, `remove`, `update` | wartość przy opcji bez wartości, na przykład `--force=1` | `Opcja <opcja> nie przyjmuje wartości` |
+| `add`, `remove`, `list`, `generate`, `update` | brak `.wa/kit.json` w katalogu | `Brak .wa/kit.json w <katalog> — to nie jest projekt wa-kit` |
+| `add`, `remove`, `list`, `generate`, `update` | `.wa/kit.json` nie jest poprawnym JSON-em albo nie przechodzi schematu `kitStateSchema` | surowy błąd parsera JSON albo Zod (lista problemów w formacie JSON) |
+| `add`, `remove`, `list`, `generate`, `update` | wpis `projectModules` z inną nazwą niż klucz | `projectModules.<klucz>: name "<nazwa>" nie zgadza się z kluczem` |
+| `add`, `remove`, `list`, `generate`, `update` | ta sama nazwa w `modules` i `projectModules` | `Moduł <x> jest jednocześnie modułem kitu i modułem projektu` |
+| `add`, `remove`, `list`, `generate`, `update` | moduł projektu wymaga modułu, którego nie ma | `Moduł projektu <x> wymaga niezainstalowanego modułu: <y>` |
+| `add`, `remove`, `list`, `generate`, `update` | `files` modułu projektu bez katalogu feature | `Moduł projektu <x>: files musi obejmować src/features/<x>/**` |
 | `create` | niepoprawne `--locales` albo odpowiedź o języki | `--locales: dozwolone pl,en; pl jest wymagany` |
 | `create` | `--setup` z `--no-install` | `--setup wymaga instalacji zależności (bez --no-install)` |
 | `create` | zła nazwa katalogu | `Nazwa projektu "<slug>": dozwolone małe litery, cyfry i myślniki, pierwsza litera, 2–50 znaków` |
@@ -566,8 +778,8 @@ Każdy komunikat z tej tabeli trafia na stderr i kończy komendę kodem 1. Komun
 | `create` | błąd `npm install` | `Projekt utworzony w <ścieżka>, ale npm install się nie powiódł. Uruchom: cd <ścieżka> && npm install` |
 | `create` | `git init` albo krok setupu kończy się kodem różnym od 0 | `<polecenie z argumentami> zakończone kodem <n>`, na przykład `docker compose up -d --wait zakończone kodem 1` |
 | `create` | brak `docker` albo `npx` w `PATH` przy setupie | `spawn <polecenie> ENOENT`, na przykład `spawn npx ENOENT` |
-| `add`, `list` | źródło kitu nie do przyjęcia | `Nieprawidłowe źródło wa-kit: <źródło>` |
-| `add`, `list` | nieudany `git clone` | `Nie udało się pobrać wa-kit v<wersja> z <adres>. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>` |
+| `add`, `list`, `update` | źródło kitu nie do przyjęcia | `Nieprawidłowe źródło wa-kit: <źródło>` |
+| `add`, `list`, `update` | nieudany `git clone` (w `update` także brak tagu wersji bazowej albo docelowej, sprawdzone) | `Nie udało się pobrać wa-kit v<wersja> z <adres>. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>` |
 | `add`, `list` | ścieżka bez `kit/kit.json` | `Brak kit/kit.json w <ścieżka> — to nie jest repozytorium wa-kit` |
 | `add`, `list` | inna wersja lokalnego kitu | `Kit w <ścieżka> ma wersję <x>, projekt używa <y>` |
 | `add` | moduł zainstalowany | `Moduł <x> jest już zainstalowany` |
@@ -584,6 +796,24 @@ Każdy komunikat z tej tabeli trafia na stderr i kończy komendę kodem 1. Komun
 | `remove` | wpis `files` wskazuje katalog albo ścieżkę pod zwykłym plikiem | surowy błąd Node z `EISDIR` albo `ENOTDIR` |
 | `remove` | `package.json` nie jest poprawnym JSON-em albo go nie ma | surowy błąd parsera JSON albo Node (`ENOENT`) |
 | `remove` | błąd `npm install` | `Moduł usunięty, ale npm install się nie powiódł. Uruchom: npm install` |
+| `update` | zły format wersji | `Nieprawidłowa wersja: <wartość>; podaj na przykład 0.2.0` (sprawdzone) |
+| `update` | wersja niższa niż `kitVersion` | `Projekt ma wa-kit <x>, nowszą niż <wersja>; wa update nie obniża wersji` (sprawdzone) |
+| `update` | projekt poza repozytorium git (bez `--dry-run`) | `<katalog> nie jest repozytorium git; wa update wymaga gita, żeby dało się cofnąć zmiany` |
+| `update` | brak polecenia `git` w `PATH` (bez `--dry-run`) | `Nie znaleziono polecenia git; zainstaluj git, żeby uruchomić wa update` |
+| `update` | niezacommitowane albo nieśledzone pliki (bez `--dry-run`) | `Niezacommitowane zmiany w projekcie; zrób commit albo stash przed wa update` (sprawdzone) |
+| `update` | one-liner z klonem innej wersji niż `<wersja>` | `Bundel pochodzi z wa-kit <x>, a aktualizacja prowadzi do <wersja>` |
+| `update` | tag kitu ma w `kit/kit.json` inną wersję niż w nazwie | `Kit w <klon> ma wersję <x>, oczekiwano <wersja>` |
+| `update` | `--from-kit` wskazuje kit w innej wersji | `Kit docelowy ma wersję <x>, oczekiwano <wersja>` |
+| `update` | zainstalowany moduł kitu nie istnieje w wersji bazowej albo docelowej | `Moduł <x> nie istnieje w wa-kit <wersja>` |
+| `update` | niespełnione `requires` w wersji docelowej | `Moduł <x> w wa-kit <wersja> wymaga niezainstalowanych modułów: <lista>` |
+| `update` | ścieżka z planu, `.wa/kit.json`, plik generowany albo plik z regionem wychodzi poza projekt (także przez wiszący symlink) | `Ścieżka poza projektem: <ścieżka>` |
+| `update` | symlink w ścieżce celu zapisu, także wskazujący plik w projekcie (bez `--dry-run`) | `Dowiązanie symboliczne na ścieżce zapisu: <ścieżka>` (sprawdzone) |
+| `update` | błąd `git merge-file` inny niż konflikt | `git merge-file: <komunikat gita>` |
+| `update` | błąd zapisu | pierwotny błąd (zwykle surowy błąd Node) i druga linia `Sprawdź git status; całość cofa: git restore . && git clean -fd`; przed nim ewentualne linie `Nie udało się posprzątać: …` |
+| `update` | błąd `wa generate` | `Zaktualizowano do wa-kit <wersja>, ale wa generate się nie powiódł. Uruchom: npm run wa -- generate` |
+| `update` | błąd `npm install` | `Zaktualizowano do wa-kit <wersja>, ale npm install się nie powiódł. Uruchom: npm install` |
+| `update` | proces bundla wersji docelowej zakończył się błędem | brak własnego komunikatu: błąd wypisał proces potomny |
+| `update` | proces bundla wersji docelowej nie wystartował (na przykład `spawn node ENOENT`) | `Nie udało się uruchomić bundla wa-kit <wersja>: <komunikat Node>` |
 
 Linie, które nie kończą komendy błędem (stdout):
 
@@ -596,3 +826,12 @@ Linie, które nie kończą komendy błędem (stdout):
 | `add` | `npx prisma migrate dev --name add-<moduł>` | Sukces. |
 | `remove` | `npx prisma migrate dev --name remove-<moduł>` | Sukces. |
 | `list` | `Dostępne: nie udało się pobrać kitu (<powód>)` | Kitu nie da się pobrać; kod wyjścia 0. |
+| `update` | `Projekt ma już wa-kit <wersja>` | Wersja docelowa równa `kitVersion`; kod 0 (sprawdzone). |
+| `update` | `Aktualizacja wa-kit <x> → <wersja>` i linie plików | Po zapisie ([Wyjście](#update-wyjscie)). |
+| `update` | `Plan aktualizacji wa-kit <x> → <wersja> (bez zmian w projekcie)` i linie plików | `--dry-run`; kod 0. |
+| `update` | `  bez zmian w plikach` | Plan bez pozycji. |
+| `update` | `Uwaga: <n> plików różni się od v<x> z tagu; potraktowano je jak zmienione w projekcie`; dla 1: `Uwaga: 1 plik różni się od v<x> z tagu; potraktowano go jak zmieniony w projekcie`, dla 2–4 (22–24…, bez 12–14): `Uwaga: <n> pliki różnią się od v<x> z tagu; potraktowano je jak zmienione w projekcie` | Baza z tagu inna niż hash w `.wa/kit.json` ([Plan dla pliku](#update-plan)). |
+| `update` | `Rozwiąż konflikty, potem: npm run wa -- generate && npm install` i `Cofnięcie całej aktualizacji: git restore . && git clean -fd` | Konflikt; kod 1 (sprawdzone). |
+| `update` | `npx prisma migrate dev --name kit-<wersja>` | Bez konfliktów, kit zmienił `prisma/schema/**` (sprawdzone). |
+| `update` | `Nowe zmienne w .env.example: <lista>; uzupełnij .env` | Bez konfliktów, nowe zmienne `env` w manifestach. |
+| `update` | `Nie udało się posprzątać: <ścieżka> (<kod albo komunikat>)` | Nieudany krok cofania; po nich pada pierwotny błąd z kodem 1. |

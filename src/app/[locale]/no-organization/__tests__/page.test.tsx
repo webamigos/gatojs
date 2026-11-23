@@ -37,7 +37,7 @@ vi.mock("@/i18n/routing", () => ({
   redirect: mockRedirect,
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
-vi.mock("@/shared/lib/env", () => ({ env: mockEnv }));
+vi.mock("@/env", () => ({ env: mockEnv }));
 vi.mock("@/shared/lib/auth/org-context", () => {
   class NoOrganizationError extends Error {}
   return { NoOrganizationError, getOrgContext: mockGetOrgContext };

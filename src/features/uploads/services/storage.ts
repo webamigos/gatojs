@@ -1,4 +1,4 @@
-import { env, type CoreEnv } from "@/shared/lib/env";
+import { env, type CoreEnv } from "@/env";
 import type {
   ObjectStorage,
   StorageEnv,

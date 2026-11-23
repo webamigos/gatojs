@@ -14,7 +14,7 @@ const { mockFindUnique, mockUpdate, mockEnv, mockLogger, mockKnownScopes } =
     mockKnownScopes: vi.fn(),
   }));
 
-vi.mock("@/shared/lib/env", () => ({ env: mockEnv }));
+vi.mock("@/env", () => ({ env: mockEnv }));
 vi.mock("@/shared/lib/logger", () => ({ logger: mockLogger }));
 vi.mock("@/shared/lib/prisma", () => ({
   prisma: { apiKey: { findUnique: mockFindUnique, update: mockUpdate } },
@@ -269,7 +269,10 @@ describe("authenticateApiKey: kontekst i lastUsedAt", () => {
   it("poprawny klucz aktualizuje lastUsedAt tego rekordu na bieżący czas", async () => {
     await authenticateApiKey(requestWith(`Bearer ${KEY}`), "organization:read");
     expect(mockUpdate).toHaveBeenCalledTimes(1);
-    expect(mockUpdate.mock.calls[0][0].where).toEqual({ id: "key-1" });
+    expect(mockUpdate.mock.calls[0][0].where).toEqual({
+      id: "key-1",
+      organizationId: "org-a",
+    });
     expect(mockUpdate.mock.calls[0][0].data).toEqual({ lastUsedAt: NOW });
   });
 

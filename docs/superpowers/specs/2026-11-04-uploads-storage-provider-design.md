@@ -1,6 +1,6 @@
 # Moduł `uploads`: provider storage lokalny dysk albo S3
 
-Data: 2026-11-04. Burza mózgów z Jakubem. Zadanie w ClickUp: [WA Kit · uploads: provider storage lokalny dysk albo S3](https://app.clickup.com/t/86bcxy1r3).
+Data: 2026-11-04. Burza mózgów z Jakubem. Zadanie w ClickUp: „WA Kit · uploads: provider storage lokalny dysk albo S3”.
 
 Źródła:
 
@@ -32,7 +32,7 @@ Kit nie ma jeszcze projektów, które korzystają z `uploads` (potwierdził Jaku
 
 - Przenoszenie plików między providerami. Ragen też tego nie ma.
 - Presigned URL-e i upload prosto z przeglądarki do magazynu. Pliki dalej idą przez aplikację.
-- Kreator zmiennych środowiskowych w CLI. To osobne zadanie ([WA Kit · CLI: kreator zmiennych środowiskowych przy wyborze modułów](https://app.clickup.com/t/86bcxy1r4)).
+- Kreator zmiennych środowiskowych w CLI. To osobne zadanie („WA Kit · CLI: kreator zmiennych środowiskowych przy wyborze modułów”).
 - Sprzątanie osieroconych plików. Zostaje tak jak w D44, do modułu `worker`.
 - Więcej niż jedna instancja aplikacji przy `local`. To ograniczenie, nie funkcja.
 - Ogólny mechanizm „seamów” jak `STORAGE_SEAM` w Ragenie. Przy jednym przełączniku byłby na wyrost.
