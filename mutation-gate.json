@@ -9,7 +9,9 @@
     "src/shared/lib/audit.ts",
     "src/features/audit-logs/services/",
     "src/features/api-keys/services/",
-    "src/features/uploads/services/"
+    "src/features/uploads/services/",
+    "packages/crypto/src/",
+    "src/features/encryption/services/"
   ],
   "allowed": [
     {
