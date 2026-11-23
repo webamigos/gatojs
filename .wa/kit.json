@@ -1,5 +1,5 @@
 {
-  "kitVersion": "0.8.2",
+  "kitVersion": "0.9.0",
   "kitRepo": "https://github.com/webamigos/gatojs.git",
   "project": {
     "name": "WA App",
