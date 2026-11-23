@@ -34,6 +34,10 @@ Zasady dla plików tylko kitu (`kit/`, pakiety narzędzi `packages/gato-cli` i `
 - Workflow `.github/workflows/publish-packages.yml` publikuje na tag ustawiony przez człowieka: `gato-cli@<x.y.z>` albo
   `create-gato-app@<x.y.z>`, przez npm trusted publishing (OIDC, bez sekretu `NPM_TOKEN`) z `--provenance`. Tag musi
   wskazywać commit na `main`, w którym `version` pakietu równa się wersji z tagu.
+- Workflow publikuje przez `npm stage publish` (staged), bo trusted publisher pakietu ma uprawnienie „npm stage publish”;
+  zwykłe `npm publish` z OIDC kończy się 403 „OIDC permission denied for this action”.
+- Tag nie może wskazywać commitu wydania `chore(release): … [skip ci]`: GitHub nie uruchamia wtedy workflow. Wskaż commit
+  merge'a PR z daną wersją pakietu (`git tag gato-cli@<v> <sha> && git push origin gato-cli@<v>`).
 - **Kolejność:** gdy zmieniają się oba, najpierw `gato-cli` (tag, publikacja, zatwierdzenie na npmjs.com), dopiero potem
   `create-gato-app`. Workflow odmawia publikacji `create-gato-app`, dopóki przypięta wersja `gato-cli` nie jest dostępna
   w rejestrze.
