@@ -70,6 +70,7 @@ const eslintConfig = defineConfig([
     "packages/*/dist/**",
     "kit/**",
     "docs/**",
+    ".gato/**",
     ".superpowers/**",
     ".claude/**",
     ".stryker-tmp/**",

@@ -6,6 +6,7 @@
     "packages/gato-cli/**",
     "packages/create-gato-app/**",
     "docs/**",
+    ".gato/**",
     ".superpowers/**",
     ".claude/handoffs/**",
     ".wa/kit.json",
