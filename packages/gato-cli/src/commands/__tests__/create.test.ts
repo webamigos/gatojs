@@ -91,6 +91,15 @@ function commands(): string[] {
   );
 }
 
+async function messageOf(promise: Promise<unknown>): Promise<string> {
+  try {
+    await promise;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  throw new Error("expected a rejection");
+}
+
 async function read(dir: string, path: string): Promise<string> {
   return readFile(join(dir, path), "utf8");
 }
@@ -294,12 +303,69 @@ describe("create: składanie projektu", () => {
     expect(existsSync(dir)).toBe(false);
   });
 
-  it("kitDir bez kit/kit.json zgłasza wskazówkę o klonie wa-kit", async () => {
+  it("a kitDir without kit/kit.json is rejected as not a GatoJS checkout", async () => {
     const emptyKit = await makeTempDir();
-    await expect(create(opts({ kitDir: emptyKit, yes: true }))).rejects.toThrow(
-      "Uruchom create z klonu wa-kit albo podaj --kit <ścieżka>",
-    );
+    await expect(
+      messageOf(create(opts({ kitDir: emptyKit, yes: true }))),
+    ).resolves.toBe(`${emptyKit} is not a GatoJS checkout (no kit/kit.json)`);
     expect(existsSync(join(tmp, "acme-shop"))).toBe(false);
+  });
+
+  it("a kitDir that does not exist is rejected with the --kit path", async () => {
+    const missingKit = join(tmp, "no-such-kit");
+    await expect(
+      messageOf(create(opts({ kitDir: missingKit, yes: true }))),
+    ).resolves.toBe(`--kit: ${missingKit} does not exist`);
+    expect(existsSync(join(tmp, "acme-shop"))).toBe(false);
+  });
+
+  it.each([
+    ["missing", false],
+    ["without kit/kit.json", true],
+  ])(
+    "a bad kitDir (%s) fails before any question or command",
+    async (_case, exists) => {
+      const badKit = join(tmp, "bad-kit");
+      if (exists) await mkdir(badKit);
+      const { prompter, questions } = scriptedPrompter([]);
+      await expect(
+        create(
+          opts({
+            kitDir: badKit,
+            modules: null,
+            install: true,
+            git: true,
+            prompter,
+          }),
+        ),
+      ).rejects.toThrow(badKit);
+      expect(questions).toEqual([]);
+      expect(runner).not.toHaveBeenCalled();
+      expect(existsSync(join(tmp, "acme-shop"))).toBe(false);
+    },
+  );
+
+  it("a non-empty target is reported before a missing kitDir", async () => {
+    const dir = join(tmp, "acme-shop");
+    await mkdir(dir);
+    await writeFile(join(dir, "x.txt"), "x");
+    await expect(
+      create(
+        opts({ target: dir, kitDir: join(tmp, "no-such-kit"), yes: true }),
+      ),
+    ).rejects.toThrow(`Katalog ${dir} istnieje i nie jest pusty`);
+  });
+
+  it("a bad project name is reported before a missing kitDir", async () => {
+    await expect(
+      create(
+        opts({
+          target: join(tmp, "Zla Nazwa"),
+          kitDir: join(tmp, "no-such-kit"),
+          yes: true,
+        }),
+      ),
+    ).rejects.toThrow("Nazwa projektu");
   });
 });
 
@@ -985,24 +1051,90 @@ describe("create: pytania", () => {
 });
 
 describe("create: kroki końcowe", () => {
-  function indexesOf(fragments: string[]): number[] {
-    const joined = logs.join("\n");
-    return fragments.map((fragment) => joined.indexOf(fragment));
-  }
-
-  it("bez setup wypisuje pięć kroków w kolejności z twój-email przy braku emaila", async () => {
+  it("without install, with git: install, commit, database, migration, admin and dev in this order", async () => {
     const dir = join(tmp, "acme-shop");
-    await create(opts({ target: dir, yes: true }));
-    const positions = indexesOf([
+    await create(
+      opts({
+        target: dir,
+        yes: true,
+        install: false,
+        git: true,
+        setup: false,
+        adminEmail: null,
+      }),
+    );
+    expect(logs).toEqual([
+      `cd ${dir}`,
+      "npm install",
+      'git add -A && git commit -m "chore: initial commit"',
+      "docker compose up -d",
+      "npx prisma migrate dev --name init",
+      "npm run admin:create -- --email <your-email>",
+      "npm run dev",
+    ]);
+  });
+
+  it("without install and git: the same steps without the commit line", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true, install: false, git: false }));
+    expect(logs).toEqual([
+      `cd ${dir}`,
+      "npm install",
+      "docker compose up -d",
+      "npx prisma migrate dev --name init",
+      "npm run admin:create -- --email <your-email>",
+      "npm run dev",
+    ]);
+  });
+
+  it("after install and commit without setup: database, migration, admin with the email and dev", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(
+      opts({
+        target: dir,
+        yes: true,
+        install: true,
+        git: true,
+        setup: false,
+        adminEmail: "a@x.pl",
+      }),
+    );
+    expect(logs).toEqual([
       `cd ${dir}`,
       "docker compose up -d",
       "npx prisma migrate dev --name init",
-      "npm run admin:create -- --email twój-email",
+      "npm run admin:create -- --email a@x.pl",
       "npm run dev",
     ]);
-    expect(positions.every((position) => position >= 0)).toBe(true);
-    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
   });
+
+  it("after a successful setup only cd and npm run dev are left", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(
+      opts({
+        target: dir,
+        yes: true,
+        install: true,
+        git: true,
+        setup: true,
+        adminEmail: "a@x.pl",
+      }),
+    );
+    expect(logs).toEqual([`cd ${dir}`, "npm run dev"]);
+  });
+
+  it.each([
+    [false, false],
+    [false, true],
+    [true, false],
+    [true, true],
+  ])(
+    "no line mentions twój-email (install %s, git %s)",
+    async (install, git) => {
+      await create(opts({ yes: true, install, git }));
+      expect(logs.join("\n")).not.toContain("twój-email");
+    },
+  );
 
   it("bez setup z emailem wypisuje go w kroku admin:create", async () => {
     await create(opts({ yes: true, adminEmail: "a@x.pl" }));
@@ -1028,6 +1160,72 @@ describe("create: kroki końcowe", () => {
     expect(joined).not.toContain("docker compose up -d");
     expect(joined).not.toContain("prisma migrate");
     expect(joined).not.toContain("admin:create");
+  });
+});
+
+describe("create: setup failure", () => {
+  function failOn(failing: string, message: string): void {
+    runner.mockImplementation(async (command) => {
+      if (command === failing) throw new Error(message);
+    });
+  }
+
+  const SETUP_OPTIONS = {
+    yes: true,
+    install: true,
+    git: true,
+    setup: true,
+  } as const;
+
+  it("a docker failure rejects with the steps left to run", async () => {
+    failOn("docker", "docker down");
+    const dir = join(tmp, "acme-shop");
+    await expect(
+      messageOf(
+        create(opts({ ...SETUP_OPTIONS, target: dir, adminEmail: "a@x.pl" })),
+      ),
+    ).resolves.toBe(
+      `Project created at ${dir}, but the setup failed (docker down). Continue with:\ncd ${dir}\ndocker compose up -d\nnpx prisma migrate dev --name init\nnpm run admin:create -- --email a@x.pl\nnpm run dev`,
+    );
+  });
+
+  it("without an admin email the admin step names a placeholder", async () => {
+    failOn("docker", "docker down");
+    const dir = join(tmp, "acme-shop");
+    await expect(
+      messageOf(create(opts({ ...SETUP_OPTIONS, target: dir }))),
+    ).resolves.toBe(
+      `Project created at ${dir}, but the setup failed (docker down). Continue with:\ncd ${dir}\ndocker compose up -d\nnpx prisma migrate dev --name init\nnpm run admin:create -- --email <your-email>\nnpm run dev`,
+    );
+  });
+
+  it("a migration failure rejects with the same steps and its own error", async () => {
+    failOn("npx", "migrate failed");
+    const dir = join(tmp, "acme-shop");
+    await expect(
+      messageOf(
+        create(opts({ ...SETUP_OPTIONS, target: dir, adminEmail: "a@x.pl" })),
+      ),
+    ).resolves.toBe(
+      `Project created at ${dir}, but the setup failed (migrate failed). Continue with:\ncd ${dir}\ndocker compose up -d\nnpx prisma migrate dev --name init\nnpm run admin:create -- --email a@x.pl\nnpm run dev`,
+    );
+  });
+
+  it("a setup failure keeps the project, its kit state and the initial commit made before setup", async () => {
+    failOn("docker", "docker down");
+    const dir = join(tmp, "acme-shop");
+    await expect(
+      create(opts({ ...SETUP_OPTIONS, target: dir, adminEmail: "a@x.pl" })),
+    ).rejects.toThrow("docker down");
+    expect(existsSync(join(dir, ".wa/kit.json"))).toBe(true);
+    expect(existsSync(join(dir, ".env"))).toBe(true);
+    expect(commands()).toEqual([
+      "git init -q",
+      "npm install",
+      "git add -A",
+      COMMIT_COMMAND,
+      "docker compose up -d --wait",
+    ]);
   });
 });
 

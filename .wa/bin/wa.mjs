@@ -21455,14 +21455,35 @@ async function runSetup(options, projectDir, adminEmail) {
     );
   }
 }
-function logNextSteps(log, projectDir, setup, adminEmail) {
-  log(`cd ${projectDir}`);
-  if (!setup) {
-    log("docker compose up -d");
-    log("npx prisma migrate dev --name init");
-    log(`npm run admin:create -- --email ${adminEmail ?? "tw\xF3j-email"}`);
+var ADMIN_EMAIL_PLACEHOLDER = "<your-email>";
+function setupSteps(adminEmail) {
+  return [
+    "docker compose up -d",
+    "npx prisma migrate dev --name init",
+    `npm run admin:create -- --email ${adminEmail ?? ADMIN_EMAIL_PLACEHOLDER}`
+  ];
+}
+function nextSteps(input2) {
+  const steps = [`cd ${input2.projectDir}`];
+  if (!input2.install) {
+    steps.push("npm install");
+    if (input2.git) {
+      steps.push('git add -A && git commit -m "chore: initial commit"');
+    }
   }
-  log("npm run dev");
+  if (!input2.setupDone) {
+    steps.push(...setupSteps(input2.adminEmail));
+  }
+  steps.push("npm run dev");
+  return steps;
+}
+function assertKitDir(kitDir) {
+  if (!existsSync2(kitDir)) {
+    throw new Error(`--kit: ${kitDir} does not exist`);
+  }
+  if (!existsSync2(join8(kitDir, "kit/kit.json"))) {
+    throw new Error(`${kitDir} is not a GatoJS checkout (no kit/kit.json)`);
+  }
 }
 async function create(options) {
   const projectDir = resolve2(options.target);
@@ -21474,9 +21495,7 @@ async function create(options) {
   if (await isNonEmptyDirectory(projectDir)) {
     throw new Error(`Katalog ${projectDir} istnieje i nie jest pusty`);
   }
-  if (!existsSync2(join8(options.kitDir, "kit/kit.json"))) {
-    throw new Error("Uruchom create z klonu wa-kit albo podaj --kit <\u015Bcie\u017Cka>");
-  }
+  assertKitDir(options.kitDir);
   const config2 = await readKitConfig(options.kitDir);
   const available = await readKitManifests(options.kitDir);
   const answers = await collectAnswers(options, available, names);
@@ -21517,9 +21536,33 @@ async function create(options) {
     await commitInitial(options, projectDir, config2.version);
   }
   if (runSetupSteps) {
-    await runSetup(options, projectDir, answers.adminEmail);
+    try {
+      await runSetup(options, projectDir, answers.adminEmail);
+    } catch (error62) {
+      const message = error62 instanceof Error ? error62.message : String(error62);
+      const steps = nextSteps({
+        projectDir,
+        install: true,
+        git: false,
+        setupDone: false,
+        adminEmail: answers.adminEmail
+      });
+      throw new Error(
+        `Project created at ${projectDir}, but the setup failed (${message}). Continue with:
+${steps.join("\n")}`,
+        { cause: error62 }
+      );
+    }
   }
-  logNextSteps(options.log, projectDir, runSetupSteps, answers.adminEmail);
+  for (const step of nextSteps({
+    projectDir,
+    install: options.install,
+    git: options.git,
+    setupDone: runSetupSteps,
+    adminEmail: answers.adminEmail
+  })) {
+    options.log(step);
+  }
   return { projectDir, modules: resolved.map((manifest) => manifest.name) };
 }
 
