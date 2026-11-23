@@ -34,4 +34,5 @@ An ADR is not edited after it is accepted, except to fix a mistake or to add "Su
 | [54](54-kit-releases-are-cut-by-semantic-release.md) | Kit releases are cut by semantic-release from Conventional Commits on `main` | Accepted |
 | [55](55-code-review-does-not-depend-on-coderabbit.md) | Code review does not depend on CodeRabbit | Accepted |
 | [56](56-workspace-packages-replace-d29.md) | GatoJS code that needs its own package lives in `packages/`, as a tool package or a project package | Accepted (supersedes D29, part of D28) |
+| [57](57-the-agent-workflow-is-shipped-by-gatojs.md) | The agent task workflow is the `gato-task` skill shipped by GatoJS; the superpowers plugin is an optional recommendation | Proposed |
 | [58](58-organization-data-keys-are-wrapped-rows-created-on-first-use.md) | Each organization's data key is one wrapped row, created on first use, with no rotation yet | Accepted |
