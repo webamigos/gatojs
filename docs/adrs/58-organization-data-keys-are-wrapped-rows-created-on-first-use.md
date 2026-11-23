@@ -1,6 +1,6 @@
 # ADR-58: Each organization's data key is one wrapped row, created on first use, with no rotation yet
 
-**Status:** Proposed
+**Status:** Accepted (Patryk, 2026-11-23)
 **Date:** 2026-11-23
 **Decided by:** an agent with Patryk (packages spec 4.4, plan Task 4)
 

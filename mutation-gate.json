@@ -328,6 +328,13 @@
       "original": "[]",
       "replacement": "[\"Stryker was here\"]",
       "reason": "równoważny: lista zapasowa dla modelu bez ScalarFieldEnum nie zawiera organizationId, więc zbiór modeli pod guardem jest ten sam (gałąź nieosiągalna, każdy model ma enum)"
+    },
+    {
+      "file": "packages/crypto/src/aes-gcm.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{\n    authTagLength: AUTH_TAG_LENGTH,\n  }",
+      "replacement": "{}",
+      "reason": "równoważny: domyślna długość tagu AES-256-GCM to 16 bajtów, więc seal daje identyczny wynik; open zawsze podaje 16-bajtowy tag (subarray od końca, wywołujący odrzucają krótsze dane), więc deszyfrowanie zachowuje się tak samo"
     }
   ]
 }
