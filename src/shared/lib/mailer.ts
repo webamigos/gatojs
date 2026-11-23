@@ -6,7 +6,7 @@ import { OrganizationInvitationEmail } from "@/app/emails/organization-invitatio
 import { PasswordResetEmail } from "@/app/emails/password-reset-email";
 import { WelcomeSetPasswordEmail } from "@/app/emails/welcome-set-password-email";
 import { project } from "@/shared/config/project";
-import { env } from "@/shared/lib/env";
+import { env } from "@/env";
 import { logger } from "@/shared/lib/logger";
 
 let resendClient: Resend | null = null;

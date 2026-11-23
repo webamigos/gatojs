@@ -1,6 +1,6 @@
 import { redirect } from "@/i18n/routing";
 import { SignUpForm } from "@/features/auth/components/sign-up-form";
-import { env } from "@/shared/lib/env";
+import { env } from "@/env";
 
 interface SignUpPageProps {
   params: Promise<{ locale: string }>;

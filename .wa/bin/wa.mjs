@@ -41,9 +41,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// node_modules/cli-width/index.js
+// ../../node_modules/cli-width/index.js
 var require_cli_width = __commonJS({
-  "node_modules/cli-width/index.js"(exports, module) {
+  "../../node_modules/cli-width/index.js"(exports, module) {
     "use strict";
     module.exports = cliWidth2;
     function normalizeOpts(options) {
@@ -84,9 +84,9 @@ var require_cli_width = __commonJS({
   }
 });
 
-// node_modules/mute-stream/lib/index.js
+// ../../node_modules/mute-stream/lib/index.js
 var require_lib = __commonJS({
-  "node_modules/mute-stream/lib/index.js"(exports, module) {
+  "../../node_modules/mute-stream/lib/index.js"(exports, module) {
     var Stream = __require("stream");
     var MuteStream2 = class extends Stream {
       #isTTY = null;
@@ -207,13 +207,66 @@ var require_lib = __commonJS({
 });
 
 // src/bin.ts
-import { dirname as dirname6, join as join11, resolve as resolve4 } from "node:path";
+import { dirname as dirname7, join as join13, resolve as resolve6 } from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdtemp as mkdtemp2, rm as rm4 } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdtemp as mkdtemp4, rm as rm6 } from "node:fs/promises";
+import { tmpdir as tmpdir2 } from "node:os";
 
 // src/args.ts
 import { parseArgs } from "node:util";
+
+// src/update/version.ts
+var VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?$/;
+function parseVersion(value) {
+  if (!VERSION_PATTERN.test(value)) {
+    throw new Error(`Nieprawid\u0142owa wersja: ${value}; podaj na przyk\u0142ad 0.2.0`);
+  }
+  return value;
+}
+function compareIdentifiers(a, b) {
+  const aNumeric = /^\d+$/.test(a);
+  const bNumeric = /^\d+$/.test(b);
+  if (aNumeric && bNumeric) {
+    return Number(a) - Number(b);
+  }
+  if (aNumeric !== bNumeric) {
+    return aNumeric ? -1 : 1;
+  }
+  return Number(a > b) - Number(a < b);
+}
+function comparePrerelease(a, b) {
+  if (a.length === 0 || b.length === 0) {
+    return b.length - a.length;
+  }
+  for (let index = 0; index < Math.min(a.length, b.length); index++) {
+    const result = compareIdentifiers(a[index], b[index]);
+    if (result !== 0) {
+      return result;
+    }
+  }
+  return a.length - b.length;
+}
+function splitVersion(value) {
+  const [core, ...rest] = value.split("-");
+  const prerelease = rest.join("-");
+  return {
+    core: core.split(".").map(Number),
+    prerelease: prerelease === "" ? [] : prerelease.split(".")
+  };
+}
+function compareVersions(a, b) {
+  const left = splitVersion(a);
+  const right = splitVersion(b);
+  for (let index = 0; index < 3; index++) {
+    const result = left.core[index] - right.core[index];
+    if (result !== 0) {
+      return result;
+    }
+  }
+  return comparePrerelease(left.prerelease, right.prerelease);
+}
+
+// src/args.ts
 var LOCALES_ERROR = "--locales: dozwolone pl,en; pl jest wymagany";
 var ALLOWED_LOCALES = ["pl", "en"];
 function parseList(value) {
@@ -271,7 +324,8 @@ function parseCreateArgs(argv) {
     yes: { type: "boolean", default: false },
     "no-install": { type: "boolean", default: false },
     "no-git": { type: "boolean", default: false },
-    kit: { type: "string" }
+    kit: { type: "string" },
+    "cli-source": { type: "string" }
   });
   const [target] = positionals;
   if (target === void 0) {
@@ -291,7 +345,8 @@ function parseCreateArgs(argv) {
     setup: values.setup,
     install: !values["no-install"],
     git: !values["no-git"],
-    kit: optionalValue(values.kit, "--kit")
+    kit: optionalValue(values.kit, "--kit"),
+    cliSource: optionalValue(values["cli-source"], "--cli-source")
   };
 }
 function parseAddArgs(argv) {
@@ -328,6 +383,26 @@ function parseListArgs(argv) {
   });
   assertMaxPositionals(positionals, 0);
   return { kit: optionalValue(values.kit, "--kit") };
+}
+function parseUpdateArgs(argv) {
+  const { values, positionals } = parseOptions(argv, {
+    kit: { type: "string" },
+    "from-kit": { type: "string" },
+    "dry-run": { type: "boolean", default: false },
+    "no-install": { type: "boolean", default: false }
+  });
+  const [version2] = positionals;
+  if (version2 === void 0) {
+    throw new Error("Podaj wersj\u0119 kitu");
+  }
+  assertMaxPositionals(positionals, 1);
+  return {
+    version: parseVersion(version2),
+    kit: optionalValue(values.kit, "--kit"),
+    fromKit: optionalValue(values["from-kit"], "--from-kit"),
+    dryRun: values["dry-run"],
+    install: !values["no-install"]
+  };
 }
 
 // src/commands/add.ts
@@ -366,14 +441,14 @@ function compareModuleNames(a, b) {
 }
 
 // src/assemble/copy.ts
-import { chmod, mkdir, readFile as readFile2, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile as readFile2, stat as stat2, writeFile } from "node:fs/promises";
 import { dirname, join as join2 } from "node:path";
 
 // src/assemble/hash.ts
 import { createHash } from "node:crypto";
 
 // src/generate/targets.ts
-import { readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 // src/generate/regions.ts
@@ -461,6 +536,42 @@ async function ciStepsBody({
   }
   return parts.join("\n\n");
 }
+async function isFile(file2) {
+  try {
+    return (await stat(file2)).isFile();
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      return false;
+    }
+    throw error62;
+  }
+}
+async function packageDirectories(projectDir) {
+  const packagesDir = join(projectDir, "packages");
+  let entries;
+  try {
+    entries = await readdir(packagesDir, { withFileTypes: true });
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      return [];
+    }
+    throw error62;
+  }
+  const names = [];
+  for (const entry of entries) {
+    if (entry.isDirectory() && await isFile(join(packagesDir, entry.name, "package.json"))) {
+      names.push(entry.name);
+    }
+  }
+  return names.sort(compareCodePoint);
+}
+async function workspacesBody({
+  projectDir
+}) {
+  return (await packageDirectories(projectDir)).map(
+    (name) => `COPY packages/${name}/package.json ./packages/${name}/package.json`
+  ).join("\n");
+}
 var regionTargets = [
   {
     file: "prisma/schema/auth.prisma",
@@ -483,7 +594,8 @@ var regionTargets = [
     file: ".github/workflows/mutation.yml",
     marker: "ci-integration",
     body: ciStepsBody
-  }
+  },
+  { file: "Dockerfile", marker: "workspaces", body: workspacesBody }
 ];
 var REGION_FILES = regionTargets.map((target) => target.file).sort(compareCodePoint);
 function hasAnyRegionMarker(content, marker) {
@@ -543,14 +655,17 @@ function stripRegions(content) {
 function sha256(data) {
   return createHash("sha256").update(data).digest("hex");
 }
-function fileHash(file2, content, config2) {
-  if (config2.managedFiles.includes(file2)) {
-    return "managed";
-  }
+function contentHash(file2, content) {
   if (REGION_FILES.includes(file2)) {
     return sha256(stripRegions(content.toString("utf8")));
   }
   return sha256(content);
+}
+function fileHash(file2, content, config2) {
+  if (config2.managedFiles.includes(file2)) {
+    return "managed";
+  }
+  return contentHash(file2, content);
 }
 
 // src/assemble/placeholders.ts
@@ -563,25 +678,37 @@ function applyPlaceholders(file2, content, config2, names) {
 
 // src/assemble/copy.ts
 var PERMISSION_BITS = 511;
+async function readAssembledFile(input2) {
+  const source = join2(input2.kitDir, input2.file);
+  const original = await readFile2(source);
+  const text = original.toString("utf8");
+  const replaced = applyPlaceholders(
+    input2.file,
+    text,
+    input2.config,
+    input2.names
+  );
+  return {
+    content: replaced === text ? original : Buffer.from(replaced),
+    mode: (await stat2(source)).mode & PERMISSION_BITS
+  };
+}
 async function copyFiles(input2) {
   const hashes = {};
   for (const file2 of input2.files) {
-    const source = join2(input2.kitDir, file2);
     const destination = join2(input2.projectDir, file2);
-    const original = await readFile2(source);
-    const text = original.toString("utf8");
-    const content = applyPlaceholders(file2, text, input2.config, input2.names);
+    const { content, mode } = await readAssembledFile({ ...input2, file: file2 });
     await mkdir(dirname(destination), { recursive: true });
-    const written = content === text ? original : Buffer.from(content);
-    await writeFile(destination, written);
-    await chmod(destination, (await stat(source)).mode & PERMISSION_BITS);
-    hashes[file2] = fileHash(file2, written, input2.config);
+    await writeFile(destination, content);
+    await chmod(destination, mode);
+    hashes[file2] = fileHash(file2, content, input2.config);
   }
   return hashes;
 }
 
 // src/assemble/package-json.ts
 var SECTIONS = ["dependencies", "devDependencies"];
+var CLI_PACKAGE = "gato-cli";
 function sortedKeys(dependencies) {
   return Object.fromEntries(
     Object.entries(dependencies).sort(([a], [b]) => compareCodePoint(a, b))
@@ -603,6 +730,15 @@ function projectPackageJson(kitPackageJson, manifests, names) {
   packageJson.dependencies = sumDependencies(manifests, "dependencies");
   packageJson.devDependencies = sumDependencies(manifests, "devDependencies");
   return serialize(packageJson);
+}
+function withCliDependency(packageJson, value) {
+  if (value === null) {
+    return packageJson;
+  }
+  const parsed = JSON.parse(packageJson);
+  const existing = parsed.devDependencies ?? {};
+  parsed.devDependencies = sortedKeys({ ...existing, [CLI_PACKAGE]: value });
+  return serialize(parsed);
 }
 function addDependencies(packageJson, manifest) {
   const parsed = JSON.parse(packageJson);
@@ -734,14 +870,14 @@ function moduleFiles(manifest, files) {
 }
 
 // src/generate/index.ts
-import { mkdir as mkdir3, readFile as readFile4, stat as stat2, writeFile as writeFile3 } from "node:fs/promises";
+import { mkdir as mkdir3, readFile as readFile4, stat as stat3, writeFile as writeFile3 } from "node:fs/promises";
 import { dirname as dirname3, join as join4 } from "node:path";
 
 // src/manifest/kit-state.ts
 import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile2 } from "node:fs/promises";
 import { dirname as dirname2, join as join3 } from "node:path";
 
-// node_modules/zod/v4/classic/external.js
+// ../../node_modules/zod/v4/classic/external.js
 var external_exports = {};
 __export(external_exports, {
   $brand: () => $brand,
@@ -1004,7 +1140,7 @@ __export(external_exports, {
   xor: () => xor
 });
 
-// node_modules/zod/v4/core/index.js
+// ../../node_modules/zod/v4/core/index.js
 var core_exports2 = {};
 __export(core_exports2, {
   $ZodAny: () => $ZodAny,
@@ -1321,7 +1457,7 @@ __export(core_exports2, {
   withParser: () => withParser
 });
 
-// node_modules/zod/v4/core/util.js
+// ../../node_modules/zod/v4/core/util.js
 var util_exports = {};
 __export(util_exports, {
   BIGINT_FORMAT_RANGES: () => BIGINT_FORMAT_RANGES,
@@ -2177,7 +2313,7 @@ function constantCatch(value) {
   return fn;
 }
 
-// node_modules/zod/v4/core/core.js
+// ../../node_modules/zod/v4/core/core.js
 var _a;
 var NEVER = /* @__PURE__ */ Object.freeze({
   status: "aborted"
@@ -2299,7 +2435,7 @@ function config(newConfig) {
   return globalConfig;
 }
 
-// node_modules/zod/v4/core/errors.js
+// ../../node_modules/zod/v4/core/errors.js
 function _getMessage() {
   const internals = this._zod;
   internals.message ?? (internals.message = JSON.stringify(internals.def, jsonStringifyReplacer, 2));
@@ -2491,7 +2627,7 @@ function prettifyError(error62) {
   return lines.join("\n");
 }
 
-// node_modules/zod/v4/core/parse.js
+// ../../node_modules/zod/v4/core/parse.js
 function finalizeParams(callee, params) {
   return { callee: params?.callee ?? callee, Err: params?.Err };
 }
@@ -2651,7 +2787,7 @@ var _safeDecodeAsync = (_Err) => async (schema, value, _ctx) => {
 };
 var safeDecodeAsync = /* @__PURE__ */ _safeDecodeAsync($ZodRealError);
 
-// node_modules/zod/v4/core/regexes.js
+// ../../node_modules/zod/v4/core/regexes.js
 var regexes_exports = {};
 __export(regexes_exports, {
   anyString: () => anyString,
@@ -2823,7 +2959,7 @@ var sha512_hex = /^[0-9a-fA-F]{128}$/;
 var sha512_base64 = /* @__PURE__ */ fixedBase64(86, "==");
 var sha512_base64url = /* @__PURE__ */ fixedBase64url(86);
 
-// node_modules/zod/v4/core/checks.js
+// ../../node_modules/zod/v4/core/checks.js
 var $ZodCheck = /* @__PURE__ */ $constructor("$ZodCheck", (inst, def) => {
   var _a3;
   inst._zod ?? (inst._zod = {});
@@ -3299,7 +3435,7 @@ var $ZodCheckOverwrite = /* @__PURE__ */ $constructor("$ZodCheckOverwrite", (ins
   };
 });
 
-// node_modules/zod/v4/core/doc.js
+// ../../node_modules/zod/v4/core/doc.js
 var Doc = class {
   constructor(args = [], closed = {}) {
     this.content = [];
@@ -3340,14 +3476,14 @@ ${content.join("\n")}
   }
 };
 
-// node_modules/zod/v4/core/versions.js
+// ../../node_modules/zod/v4/core/versions.js
 var version = {
   major: 4,
   minor: 6,
   patch: 7
 };
 
-// node_modules/zod/v4/core/schemas.js
+// ../../node_modules/zod/v4/core/schemas.js
 var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
   var _a3;
   inst ?? (inst = {});
@@ -5789,7 +5925,7 @@ function handleRefineResult(result, payload, input2, inst) {
   }
 }
 
-// node_modules/zod/v4/core/memoizer.js
+// ../../node_modules/zod/v4/core/memoizer.js
 var $ZodCyclicError = class extends Error {
   constructor() {
     super(`Cannot parse a reference cycle that closes through a transform`);
@@ -5808,7 +5944,7 @@ var recursive = /* @__PURE__ */ new WeakMap();
 var NONE = 0;
 var ASSUMED = 1;
 var PROVEN = 2;
-function isRecursive(inst, stack, resolve5) {
+function isRecursive(inst, stack, resolve7) {
   const cached2 = recursive.get(inst);
   if (cached2 !== void 0)
     return cached2 ? PROVEN : NONE;
@@ -5818,7 +5954,7 @@ function isRecursive(inst, stack, resolve5) {
   let result = NONE;
   const check3 = (child) => {
     if (result !== PROVEN && child?._zod) {
-      const answer = isRecursive(child, stack, resolve5);
+      const answer = isRecursive(child, stack, resolve7);
       if (answer > result)
         result = answer;
     }
@@ -5829,7 +5965,7 @@ function isRecursive(inst, stack, resolve5) {
       const desc = Object.getOwnPropertyDescriptor(sh, key);
       if (spread && !desc.enumerable)
         continue;
-      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve5) : NONE;
+      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve7) : NONE;
       if (child > answer)
         answer = child;
     }
@@ -5893,7 +6029,7 @@ function isRecursive(inst, stack, resolve5) {
       break;
     // `$ZodLazy` caches its inner on the def, so a resolved edge is followed exactly
     case "lazy": {
-      const inner = def._cachedInner ?? (resolve5 ? inst._zod.innerType : void 0);
+      const inner = def._cachedInner ?? (resolve7 ? inst._zod.innerType : void 0);
       merge2(inner ? isRecursive(inner, stack, false) : ASSUMED);
       break;
     }
@@ -6066,7 +6202,7 @@ function isBackEdge(ctx, value) {
   return backEdges !== void 0 && isRef(value) && backEdges.has(value);
 }
 
-// node_modules/zod/v4/locales/index.js
+// ../../node_modules/zod/v4/locales/index.js
 var locales_exports = {};
 __export(locales_exports, {
   ar: () => ar_default,
@@ -6134,7 +6270,7 @@ __export(locales_exports, {
   zhTW: () => zh_TW_default
 });
 
-// node_modules/zod/v4/locales/ar.js
+// ../../node_modules/zod/v4/locales/ar.js
 var error = () => {
   const Sizable = {
     string: { unit: "\u062D\u0631\u0641", verb: "\u0623\u0646 \u064A\u062D\u0648\u064A" },
@@ -6246,7 +6382,7 @@ function ar_default() {
   };
 }
 
-// node_modules/zod/v4/locales/az.js
+// ../../node_modules/zod/v4/locales/az.js
 var error2 = () => {
   const Sizable = {
     string: { unit: "simvol", verb: "olmal\u0131d\u0131r" },
@@ -6357,7 +6493,7 @@ function az_default() {
   };
 }
 
-// node_modules/zod/v4/locales/be.js
+// ../../node_modules/zod/v4/locales/be.js
 function getBelarusianPlural(count, one, few, many) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -6526,7 +6662,7 @@ function be_default() {
   };
 }
 
-// node_modules/zod/v4/locales/bg.js
+// ../../node_modules/zod/v4/locales/bg.js
 var error4 = () => {
   const Sizable = {
     string: { unit: "\u0441\u0438\u043C\u0432\u043E\u043B\u0430", verb: "\u0434\u0430 \u0441\u044A\u0434\u044A\u0440\u0436\u0430" },
@@ -6652,7 +6788,7 @@ function bg_default() {
   };
 }
 
-// node_modules/zod/v4/locales/bn.js
+// ../../node_modules/zod/v4/locales/bn.js
 var error5 = () => {
   const Sizable = {
     string: { unit: "\u0985\u0995\u09CD\u09B7\u09B0", verb: "\u09A5\u09BE\u0995\u09A4\u09C7 \u09B9\u09AC\u09C7" },
@@ -6766,7 +6902,7 @@ function bn_default() {
   };
 }
 
-// node_modules/zod/v4/locales/ca.js
+// ../../node_modules/zod/v4/locales/ca.js
 var error6 = () => {
   const Sizable = {
     string: { unit: "car\xE0cters", verb: "contenir" },
@@ -6880,7 +7016,7 @@ function ca_default() {
   };
 }
 
-// node_modules/zod/v4/locales/ckb.js
+// ../../node_modules/zod/v4/locales/ckb.js
 var error7 = () => {
   const Sizable = {
     string: { unit: "\u067E\u06CC\u062A", verb: "\u0628\u06CE\u062A" },
@@ -7013,7 +7149,7 @@ function ckb_default() {
   };
 }
 
-// node_modules/zod/v4/locales/cs.js
+// ../../node_modules/zod/v4/locales/cs.js
 var error8 = () => {
   const Sizable = {
     string: { unit: "znak\u016F", verb: "m\xEDt" },
@@ -7130,7 +7266,7 @@ function cs_default() {
   };
 }
 
-// node_modules/zod/v4/locales/da.js
+// ../../node_modules/zod/v4/locales/da.js
 var error9 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "havde" },
@@ -7251,7 +7387,7 @@ function da_default() {
   };
 }
 
-// node_modules/zod/v4/locales/de.js
+// ../../node_modules/zod/v4/locales/de.js
 var error10 = () => {
   const Sizable = {
     string: { unit: "Zeichen", verb: "zu haben" },
@@ -7365,7 +7501,7 @@ function de_default() {
   };
 }
 
-// node_modules/zod/v4/locales/el.js
+// ../../node_modules/zod/v4/locales/el.js
 var error11 = () => {
   const Sizable = {
     string: { unit: "\u03C7\u03B1\u03C1\u03B1\u03BA\u03C4\u03AE\u03C1\u03B5\u03C2", verb: "\u03BD\u03B1 \u03AD\u03C7\u03B5\u03B9" },
@@ -7478,7 +7614,7 @@ function el_default() {
   };
 }
 
-// node_modules/zod/v4/locales/en.js
+// ../../node_modules/zod/v4/locales/en.js
 var error12 = () => {
   const Sizable = {
     string: { unit: "characters", verb: "to have" },
@@ -7603,7 +7739,7 @@ function en_default() {
   };
 }
 
-// node_modules/zod/v4/locales/eo.js
+// ../../node_modules/zod/v4/locales/eo.js
 var error13 = () => {
   const Sizable = {
     string: { unit: "karaktrojn", verb: "havi" },
@@ -7718,7 +7854,7 @@ function eo_default() {
   };
 }
 
-// node_modules/zod/v4/locales/es.js
+// ../../node_modules/zod/v4/locales/es.js
 var error14 = () => {
   const Sizable = {
     string: { unit: "caracteres", verb: "tener" },
@@ -7855,7 +7991,7 @@ function es_default() {
   };
 }
 
-// node_modules/zod/v4/locales/fa.js
+// ../../node_modules/zod/v4/locales/fa.js
 var error15 = () => {
   const Sizable = {
     string: { unit: "\u06A9\u0627\u0631\u0627\u06A9\u062A\u0631", verb: "\u062F\u0627\u0634\u062A\u0647 \u0628\u0627\u0634\u062F" },
@@ -7975,7 +8111,7 @@ function fa_default() {
   };
 }
 
-// node_modules/zod/v4/locales/fi.js
+// ../../node_modules/zod/v4/locales/fi.js
 var error16 = () => {
   const Sizable = {
     string: { unit: "merkki\xE4", subject: "merkkijonon" },
@@ -8093,7 +8229,7 @@ function fi_default() {
   };
 }
 
-// node_modules/zod/v4/locales/fr.js
+// ../../node_modules/zod/v4/locales/fr.js
 var error17 = () => {
   const Sizable = {
     string: { unit: "caract\xE8res", verb: "avoir" },
@@ -8223,7 +8359,7 @@ function fr_default() {
   };
 }
 
-// node_modules/zod/v4/locales/fr-CA.js
+// ../../node_modules/zod/v4/locales/fr-CA.js
 var error18 = () => {
   const Sizable = {
     string: { unit: "caract\xE8res", verb: "avoir" },
@@ -8336,7 +8472,7 @@ function fr_CA_default() {
   };
 }
 
-// node_modules/zod/v4/locales/gu.js
+// ../../node_modules/zod/v4/locales/gu.js
 var error19 = () => {
   const Sizable = {
     string: { unit: "\u0A85\u0A95\u0ACD\u0AB7\u0AB0", verb: "\u0AB9\u0ACB\u0AB5\u0ABE \u0A9C\u0ACB\u0A88\u0A8F" },
@@ -8450,7 +8586,7 @@ function gu_default() {
   };
 }
 
-// node_modules/zod/v4/locales/he.js
+// ../../node_modules/zod/v4/locales/he.js
 var error20 = () => {
   const TypeNames = {
     string: { label: "\u05DE\u05D7\u05E8\u05D5\u05D6\u05EA", gender: "f" },
@@ -8652,7 +8788,7 @@ function he_default() {
   };
 }
 
-// node_modules/zod/v4/locales/hi.js
+// ../../node_modules/zod/v4/locales/hi.js
 var error21 = () => {
   const Sizable = {
     string: { unit: "\u0905\u0915\u094D\u0937\u0930", verb: "\u0930\u0916\u0928\u0947 \u0915\u0947 \u0932\u093F\u090F" },
@@ -8764,7 +8900,7 @@ function hi_default() {
   };
 }
 
-// node_modules/zod/v4/locales/hr.js
+// ../../node_modules/zod/v4/locales/hr.js
 var error22 = () => {
   const Sizable = {
     string: { unit: "znakova", verb: "imati" },
@@ -8891,7 +9027,7 @@ function hr_default() {
   };
 }
 
-// node_modules/zod/v4/locales/hu.js
+// ../../node_modules/zod/v4/locales/hu.js
 var error23 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "legyen" },
@@ -9005,7 +9141,7 @@ function hu_default() {
   };
 }
 
-// node_modules/zod/v4/locales/hy.js
+// ../../node_modules/zod/v4/locales/hy.js
 function getArmenianPlural(count, one, many) {
   return Math.abs(count) === 1 ? one : many;
 }
@@ -9164,7 +9300,7 @@ function hy_default() {
   };
 }
 
-// node_modules/zod/v4/locales/id.js
+// ../../node_modules/zod/v4/locales/id.js
 var error25 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "memiliki" },
@@ -9276,7 +9412,7 @@ function id_default() {
   };
 }
 
-// node_modules/zod/v4/locales/is.js
+// ../../node_modules/zod/v4/locales/is.js
 var error26 = () => {
   const Sizable = {
     string: { unit: "stafi", verb: "a\xF0 hafa" },
@@ -9391,7 +9527,7 @@ function is_default() {
   };
 }
 
-// node_modules/zod/v4/locales/it.js
+// ../../node_modules/zod/v4/locales/it.js
 var error27 = () => {
   const Sizable = {
     string: { unit: "caratteri", verb: "avere" },
@@ -9505,7 +9641,7 @@ function it_default() {
   };
 }
 
-// node_modules/zod/v4/locales/ja.js
+// ../../node_modules/zod/v4/locales/ja.js
 var error28 = () => {
   const Sizable = {
     string: { unit: "\u6587\u5B57", verb: "\u3067\u3042\u308B" },
@@ -9618,7 +9754,7 @@ function ja_default() {
   };
 }
 
-// node_modules/zod/v4/locales/ka.js
+// ../../node_modules/zod/v4/locales/ka.js
 var error29 = () => {
   const Sizable = {
     string: { unit: "\u10E1\u10D8\u10DB\u10D1\u10DD\u10DA\u10DD", verb: "\u10E3\u10DC\u10D3\u10D0 \u10E8\u10D4\u10D8\u10EA\u10D0\u10D5\u10D3\u10D4\u10E1" },
@@ -9736,7 +9872,7 @@ function ka_default() {
   };
 }
 
-// node_modules/zod/v4/locales/km.js
+// ../../node_modules/zod/v4/locales/km.js
 var error30 = () => {
   const Sizable = {
     string: { unit: "\u178F\u17BD\u17A2\u1780\u17D2\u179F\u179A", verb: "\u1782\u17BD\u179A\u1798\u17B6\u1793" },
@@ -9852,12 +9988,12 @@ function km_default() {
   };
 }
 
-// node_modules/zod/v4/locales/kh.js
+// ../../node_modules/zod/v4/locales/kh.js
 function kh_default() {
   return km_default();
 }
 
-// node_modules/zod/v4/locales/kn.js
+// ../../node_modules/zod/v4/locales/kn.js
 var error31 = () => {
   const Sizable = {
     string: { unit: "\u0C85\u0C95\u0CCD\u0CB7\u0CB0\u0C97\u0CB3\u0CC1", verb: "\u0CB9\u0CCA\u0C82\u0CA6\u0CB2\u0CC1" },
@@ -9973,7 +10109,7 @@ function kn_default() {
   };
 }
 
-// node_modules/zod/v4/locales/ko.js
+// ../../node_modules/zod/v4/locales/ko.js
 var error32 = () => {
   const Sizable = {
     string: { unit: "\uBB38\uC790", verb: "to have" },
@@ -10090,7 +10226,7 @@ function ko_default() {
   };
 }
 
-// node_modules/zod/v4/locales/lt.js
+// ../../node_modules/zod/v4/locales/lt.js
 var capitalizeFirstCharacter = (text) => {
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
@@ -10298,7 +10434,7 @@ function lt_default() {
   };
 }
 
-// node_modules/zod/v4/locales/mk.js
+// ../../node_modules/zod/v4/locales/mk.js
 var error34 = () => {
   const Sizable = {
     string: { unit: "\u0437\u043D\u0430\u0446\u0438", verb: "\u0434\u0430 \u0438\u043C\u0430\u0430\u0442" },
@@ -10413,7 +10549,7 @@ function mk_default() {
   };
 }
 
-// node_modules/zod/v4/locales/ms.js
+// ../../node_modules/zod/v4/locales/ms.js
 var error35 = () => {
   const Sizable = {
     string: { unit: "aksara", verb: "mempunyai" },
@@ -10526,7 +10662,7 @@ function ms_default() {
   };
 }
 
-// node_modules/zod/v4/locales/ne.js
+// ../../node_modules/zod/v4/locales/ne.js
 var error36 = () => {
   const Sizable = {
     string: { unit: "\u0905\u0915\u094D\u0937\u0930", verb: "\u0939\u0941\u0928\u0941\u092A\u0930\u094D\u091B" },
@@ -10638,7 +10774,7 @@ function ne_default() {
   };
 }
 
-// node_modules/zod/v4/locales/nl.js
+// ../../node_modules/zod/v4/locales/nl.js
 var error37 = () => {
   const Sizable = {
     string: { unit: "tekens", verb: "heeft" },
@@ -10754,7 +10890,7 @@ function nl_default() {
   };
 }
 
-// node_modules/zod/v4/locales/nn.js
+// ../../node_modules/zod/v4/locales/nn.js
 var error38 = () => {
   const Sizable = {
     string: { unit: "teikn", verb: "\xE5 ha" },
@@ -10868,7 +11004,7 @@ function nn_default() {
   };
 }
 
-// node_modules/zod/v4/locales/no.js
+// ../../node_modules/zod/v4/locales/no.js
 var error39 = () => {
   const Sizable = {
     string: { unit: "tegn", verb: "\xE5 ha" },
@@ -10982,7 +11118,7 @@ function no_default() {
   };
 }
 
-// node_modules/zod/v4/locales/ota.js
+// ../../node_modules/zod/v4/locales/ota.js
 var error40 = () => {
   const Sizable = {
     string: { unit: "harf", verb: "olmal\u0131d\u0131r" },
@@ -11097,7 +11233,7 @@ function ota_default() {
   };
 }
 
-// node_modules/zod/v4/locales/ps.js
+// ../../node_modules/zod/v4/locales/ps.js
 var error41 = () => {
   const Sizable = {
     string: { unit: "\u062A\u0648\u06A9\u064A", verb: "\u0648\u0644\u0631\u064A" },
@@ -11217,7 +11353,7 @@ function ps_default() {
   };
 }
 
-// node_modules/zod/v4/locales/pl.js
+// ../../node_modules/zod/v4/locales/pl.js
 var error42 = () => {
   const Sizable = {
     string: { unit: "znak\xF3w", verb: "mie\u0107" },
@@ -11332,7 +11468,7 @@ function pl_default() {
   };
 }
 
-// node_modules/zod/v4/locales/pt.js
+// ../../node_modules/zod/v4/locales/pt.js
 var error43 = () => {
   const Sizable = {
     string: { unit: "caracteres" },
@@ -11476,7 +11612,7 @@ function pt_default() {
   };
 }
 
-// node_modules/zod/v4/locales/pt-BR.js
+// ../../node_modules/zod/v4/locales/pt-BR.js
 var error44 = () => {
   const Sizable = {
     string: { unit: "caracteres" },
@@ -11621,7 +11757,7 @@ function pt_BR_default() {
   };
 }
 
-// node_modules/zod/v4/locales/ro.js
+// ../../node_modules/zod/v4/locales/ro.js
 var error45 = () => {
   const Sizable = {
     string: { unit: "caractere", verb: "s\u0103 aib\u0103" },
@@ -11744,7 +11880,7 @@ function ro_default() {
   };
 }
 
-// node_modules/zod/v4/locales/ru.js
+// ../../node_modules/zod/v4/locales/ru.js
 function getRussianPlural(count, one, few, many) {
   const absCount = Math.abs(count);
   const lastDigit = absCount % 10;
@@ -11913,7 +12049,7 @@ function ru_default() {
   };
 }
 
-// node_modules/zod/v4/locales/sk.js
+// ../../node_modules/zod/v4/locales/sk.js
 var error47 = () => {
   const Sizable = {
     string: { unit: "znakov", verb: "ma\u0165" },
@@ -12030,7 +12166,7 @@ function sk_default() {
   };
 }
 
-// node_modules/zod/v4/locales/sl.js
+// ../../node_modules/zod/v4/locales/sl.js
 var error48 = () => {
   const Sizable = {
     string: { unit: "znakov", verb: "imeti" },
@@ -12145,7 +12281,7 @@ function sl_default() {
   };
 }
 
-// node_modules/zod/v4/locales/sv.js
+// ../../node_modules/zod/v4/locales/sv.js
 var error49 = () => {
   const Sizable = {
     string: { unit: "tecken", verb: "att ha" },
@@ -12261,7 +12397,7 @@ function sv_default() {
   };
 }
 
-// node_modules/zod/v4/locales/ta.js
+// ../../node_modules/zod/v4/locales/ta.js
 var error50 = () => {
   const Sizable = {
     string: { unit: "\u0B8E\u0BB4\u0BC1\u0BA4\u0BCD\u0BA4\u0BC1\u0B95\u0BCD\u0B95\u0BB3\u0BCD", verb: "\u0B95\u0BCA\u0BA3\u0BCD\u0B9F\u0BBF\u0BB0\u0BC1\u0B95\u0BCD\u0B95 \u0BB5\u0BC7\u0BA3\u0BCD\u0B9F\u0BC1\u0BAE\u0BCD" },
@@ -12377,7 +12513,7 @@ function ta_default() {
   };
 }
 
-// node_modules/zod/v4/locales/tg.js
+// ../../node_modules/zod/v4/locales/tg.js
 var error51 = () => {
   const Sizable = {
     string: { unit: "\u0430\u043B\u043E\u043C\u0430\u0442", verb: "\u0434\u043E\u0448\u0442\u0430 \u0431\u043E\u0448\u0430\u0434" },
@@ -12494,7 +12630,7 @@ function tg_default() {
   };
 }
 
-// node_modules/zod/v4/locales/th.js
+// ../../node_modules/zod/v4/locales/th.js
 var error52 = () => {
   const Sizable = {
     string: { unit: "\u0E15\u0E31\u0E27\u0E2D\u0E31\u0E01\u0E29\u0E23", verb: "\u0E04\u0E27\u0E23\u0E21\u0E35" },
@@ -12610,7 +12746,7 @@ function th_default() {
   };
 }
 
-// node_modules/zod/v4/locales/tk.js
+// ../../node_modules/zod/v4/locales/tk.js
 var error53 = () => {
   const Sizable = {
     string: { unit: "simwol", verb: "bolmaly" },
@@ -12718,7 +12854,7 @@ function tk_default() {
   };
 }
 
-// node_modules/zod/v4/locales/tr.js
+// ../../node_modules/zod/v4/locales/tr.js
 var error54 = () => {
   const Sizable = {
     string: { unit: "karakter", verb: "olmal\u0131" },
@@ -12829,7 +12965,7 @@ function tr_default() {
   };
 }
 
-// node_modules/zod/v4/locales/uk.js
+// ../../node_modules/zod/v4/locales/uk.js
 var error55 = () => {
   const Sizable = {
     string: { unit: "\u0441\u0438\u043C\u0432\u043E\u043B\u0456\u0432", verb: "\u043C\u0430\u0442\u0438\u043C\u0435" },
@@ -12943,12 +13079,12 @@ function uk_default() {
   };
 }
 
-// node_modules/zod/v4/locales/ua.js
+// ../../node_modules/zod/v4/locales/ua.js
 function ua_default() {
   return uk_default();
 }
 
-// node_modules/zod/v4/locales/ur.js
+// ../../node_modules/zod/v4/locales/ur.js
 var error56 = () => {
   const Sizable = {
     string: { unit: "\u062D\u0631\u0648\u0641", verb: "\u06C1\u0648\u0646\u0627" },
@@ -13064,7 +13200,7 @@ function ur_default() {
   };
 }
 
-// node_modules/zod/v4/locales/uz.js
+// ../../node_modules/zod/v4/locales/uz.js
 var error57 = () => {
   const Sizable = {
     string: { unit: "belgi", verb: "bo\u2018lishi kerak" },
@@ -13178,7 +13314,7 @@ function uz_default() {
   };
 }
 
-// node_modules/zod/v4/locales/vi.js
+// ../../node_modules/zod/v4/locales/vi.js
 var error58 = () => {
   const Sizable = {
     string: { unit: "k\xFD t\u1EF1", verb: "c\xF3" },
@@ -13292,7 +13428,7 @@ function vi_default() {
   };
 }
 
-// node_modules/zod/v4/locales/zh-CN.js
+// ../../node_modules/zod/v4/locales/zh-CN.js
 var error59 = () => {
   const Sizable = {
     string: { unit: "\u5B57\u7B26", verb: "\u5305\u542B" },
@@ -13407,7 +13543,7 @@ function zh_CN_default() {
   };
 }
 
-// node_modules/zod/v4/locales/zh-TW.js
+// ../../node_modules/zod/v4/locales/zh-TW.js
 var error60 = () => {
   const Sizable = {
     string: { unit: "\u5B57\u5143", verb: "\u64C1\u6709" },
@@ -13520,7 +13656,7 @@ function zh_TW_default() {
   };
 }
 
-// node_modules/zod/v4/locales/yo.js
+// ../../node_modules/zod/v4/locales/yo.js
 var error61 = () => {
   const Sizable = {
     string: { unit: "\xE0mi", verb: "n\xED" },
@@ -13633,7 +13769,7 @@ function yo_default() {
   };
 }
 
-// node_modules/zod/v4/core/registries.js
+// ../../node_modules/zod/v4/core/registries.js
 var _a2;
 var $output = /* @__PURE__ */ Symbol("ZodOutput");
 var $input = /* @__PURE__ */ Symbol("ZodInput");
@@ -13683,7 +13819,7 @@ function registry() {
 (_a2 = globalThis).__zod_globalRegistry ?? (_a2.__zod_globalRegistry = registry());
 var globalRegistry = globalThis.__zod_globalRegistry;
 
-// node_modules/zod/v4/core/compile.js
+// ../../node_modules/zod/v4/core/compile.js
 var INVALID = /* @__PURE__ */ Symbol.for("zod.compile.invalid");
 var FALLBACK_FLAG = /* @__PURE__ */ Symbol.for("zod.compile.fallback");
 var ZodCompileAsyncError = class extends Error {
@@ -15293,7 +15429,7 @@ function generateTransformCheck(doc, ctx, schema, accessor) {
   return accessor;
 }
 
-// node_modules/zod/v4/core/api.js
+// ../../node_modules/zod/v4/core/api.js
 function snapshotChecks(def) {
   if (def.checks)
     def.checks = [...def.checks];
@@ -16352,7 +16488,7 @@ function _stringFormat(Class2, format, fnOrRegex, _params = {}) {
   return inst;
 }
 
-// node_modules/zod/v4/core/to-json-schema.js
+// ../../node_modules/zod/v4/core/to-json-schema.js
 function assignProps(target, ...sources) {
   for (const source of sources) {
     for (const key of Reflect.ownKeys(source)) {
@@ -16882,7 +17018,7 @@ var createStandardJSONSchemaMethod = (schema, io, processors = {}) => (params) =
   return finalize(ctx, schema);
 };
 
-// node_modules/zod/v4/core/json-schema-processors.js
+// ../../node_modules/zod/v4/core/json-schema-processors.js
 var narrowMin = (agg, key, value) => {
   if (agg[key] === void 0 || value > agg[key])
     agg[key] = value;
@@ -17630,7 +17766,7 @@ function toJSONSchema(input2, params) {
   return finalize(ctx, input2);
 }
 
-// node_modules/zod/v4/core/json-schema-generator.js
+// ../../node_modules/zod/v4/core/json-schema-generator.js
 var JSONSchemaGenerator = class {
   /** @deprecated Access via ctx instead */
   get metadataRegistry() {
@@ -17708,10 +17844,10 @@ var JSONSchemaGenerator = class {
   }
 };
 
-// node_modules/zod/v4/core/json-schema.js
+// ../../node_modules/zod/v4/core/json-schema.js
 var json_schema_exports = {};
 
-// node_modules/zod/v4/classic/schemas.js
+// ../../node_modules/zod/v4/classic/schemas.js
 var schemas_exports2 = {};
 __export(schemas_exports2, {
   ZodAny: () => ZodAny,
@@ -17892,7 +18028,7 @@ __export(schemas_exports2, {
   xor: () => xor
 });
 
-// node_modules/zod/v4/classic/checks.js
+// ../../node_modules/zod/v4/classic/checks.js
 var checks_exports2 = {};
 __export(checks_exports2, {
   endsWith: () => _endsWith,
@@ -17927,7 +18063,7 @@ __export(checks_exports2, {
   uppercase: () => _uppercase
 });
 
-// node_modules/zod/v4/classic/errors.js
+// ../../node_modules/zod/v4/classic/errors.js
 var _installedErrorProtos = /* @__PURE__ */ new WeakSet([Object.prototype, Error.prototype]);
 function _lazyMethod(proto, key, make) {
   Object.defineProperty(proto, key, {
@@ -17973,7 +18109,7 @@ var ZodRealError = /* @__PURE__ */ $constructor("ZodError", initializer2, void 0
   Parent: Error
 });
 
-// node_modules/zod/v4/classic/parse.js
+// ../../node_modules/zod/v4/classic/parse.js
 var parse2 = /* @__PURE__ */ _parse(ZodRealError);
 var parseAsync2 = /* @__PURE__ */ _parseAsync(ZodRealError);
 var safeParse2 = /* @__PURE__ */ _safeParse(ZodRealError);
@@ -17987,7 +18123,7 @@ var safeDecode2 = /* @__PURE__ */ _safeDecode(ZodRealError);
 var safeEncodeAsync2 = /* @__PURE__ */ _safeEncodeAsync(ZodRealError);
 var safeDecodeAsync2 = /* @__PURE__ */ _safeDecodeAsync(ZodRealError);
 
-// node_modules/zod/v4/classic/schemas.js
+// ../../node_modules/zod/v4/classic/schemas.js
 function _ensureDefaultLocale() {
   if (!globalConfig.localeError)
     config(en_default());
@@ -19452,7 +19588,7 @@ function preprocess(fn, schema) {
   });
 }
 
-// node_modules/zod/v4/classic/compat.js
+// ../../node_modules/zod/v4/classic/compat.js
 var ZodIssueCode = {
   invalid_type: "invalid_type",
   too_big: "too_big",
@@ -19478,7 +19614,7 @@ var ZodFirstPartyTypeKind;
 /* @__PURE__ */ (function(ZodFirstPartyTypeKind2) {
 })(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
 
-// node_modules/zod/v4/classic/iso.js
+// ../../node_modules/zod/v4/classic/iso.js
 var iso_exports = {};
 __export(iso_exports, {
   ZodISODate: () => ZodISODate,
@@ -19503,7 +19639,7 @@ function duration2(params) {
   return _isoDuration(ZodISODuration, params);
 }
 
-// node_modules/zod/v4/classic/from-json-schema.js
+// ../../node_modules/zod/v4/classic/from-json-schema.js
 var z = {
   ...schemas_exports2,
   ...checks_exports2,
@@ -20236,7 +20372,7 @@ function fromJSONSchema(schema, params) {
   return convertSchema(normalized, ctx);
 }
 
-// node_modules/zod/v4/core/visit.js
+// ../../node_modules/zod/v4/core/visit.js
 var RESOLVING = /* @__PURE__ */ Symbol("z.visit/resolving");
 function visit(schema, fnOrHandlers) {
   const fn = typeof fnOrHandlers === "function" ? fnOrHandlers : (node2, rewritten) => {
@@ -20244,7 +20380,7 @@ function visit(schema, fnOrHandlers) {
     return h ? h(node2, rewritten) : node2;
   };
   const cache = /* @__PURE__ */ new Map();
-  function run2(s) {
+  function run3(s) {
     const cached2 = cache.get(s);
     if (cached2 === RESOLVING) {
       return new $ZodLazy({
@@ -20270,21 +20406,21 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newShape = {};
         for (const k of keys) {
-          const mapped = run2(oldShape[k]);
+          const mapped = run3(oldShape[k]);
           if (mapped !== oldShape[k])
             changed = true;
           newShape[k] = mapped;
         }
         let newCatchall = def.catchall;
         if (def.catchall) {
-          newCatchall = run2(def.catchall);
+          newCatchall = run3(def.catchall);
           if (newCatchall !== def.catchall)
             changed = true;
         }
         return changed ? clone(s, { ...def, shape: newShape, catchall: newCatchall }) : s;
       }
       case "array": {
-        const mapped = run2(def.element);
+        const mapped = run3(def.element);
         return mapped === def.element ? s : clone(s, { ...def, element: mapped });
       }
       case "tuple": {
@@ -20292,14 +20428,14 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newItems = [];
         for (const item of oldItems) {
-          const mapped = run2(item);
+          const mapped = run3(item);
           if (mapped !== item)
             changed = true;
           newItems.push(mapped);
         }
         let newRest = def.rest;
         if (def.rest) {
-          newRest = run2(def.rest);
+          newRest = run3(def.rest);
           if (newRest !== def.rest)
             changed = true;
         }
@@ -20307,12 +20443,12 @@ function visit(schema, fnOrHandlers) {
       }
       case "record":
       case "map": {
-        const newKey = run2(def.keyType);
-        const newVal = run2(def.valueType);
+        const newKey = run3(def.keyType);
+        const newVal = run3(def.valueType);
         return newKey === def.keyType && newVal === def.valueType ? s : clone(s, { ...def, keyType: newKey, valueType: newVal });
       }
       case "set": {
-        const newVal = run2(def.valueType);
+        const newVal = run3(def.valueType);
         return newVal === def.valueType ? s : clone(s, { ...def, valueType: newVal });
       }
       case "union": {
@@ -20320,7 +20456,7 @@ function visit(schema, fnOrHandlers) {
         let changed = false;
         const newOptions = [];
         for (const opt of oldOptions) {
-          const mapped = run2(opt);
+          const mapped = run3(opt);
           if (mapped !== opt)
             changed = true;
           newOptions.push(mapped);
@@ -20328,8 +20464,8 @@ function visit(schema, fnOrHandlers) {
         return changed ? clone(s, { ...def, options: newOptions }) : s;
       }
       case "intersection": {
-        const newLeft = run2(def.left);
-        const newRight = run2(def.right);
+        const newLeft = run3(def.left);
+        const newRight = run3(def.right);
         return newLeft === def.left && newRight === def.right ? s : clone(s, { ...def, left: newLeft, right: newRight });
       }
       case "optional":
@@ -20341,23 +20477,23 @@ function visit(schema, fnOrHandlers) {
       case "nonoptional":
       case "promise":
       case "success": {
-        const newInner = run2(def.innerType);
+        const newInner = run3(def.innerType);
         return newInner === def.innerType ? s : clone(s, { ...def, innerType: newInner });
       }
       case "pipe": {
-        const newIn = run2(def.in);
-        const newOut = run2(def.out);
+        const newIn = run3(def.in);
+        const newOut = run3(def.out);
         return newIn === def.in && newOut === def.out ? s : clone(s, { ...def, in: newIn, out: newOut });
       }
       case "function": {
-        const newInput = run2(def.input);
-        const newOutput = run2(def.output);
+        const newInput = run3(def.input);
+        const newOutput = run3(def.output);
         return newInput === def.input && newOutput === def.output ? s : clone(s, { ...def, input: newInput, output: newOutput });
       }
       case "lazy": {
         const original = def.getter;
         const { _cachedInner, ...rest } = def;
-        return clone(s, { ...rest, getter: () => run2(original()) });
+        return clone(s, { ...rest, getter: () => run3(original()) });
       }
       // A leaf by choice: `parts` are regex fragments, not data positions.
       case "template_literal":
@@ -20388,10 +20524,10 @@ function visit(schema, fnOrHandlers) {
       }
     }
   }
-  return run2(schema);
+  return run3(schema);
 }
 
-// node_modules/zod/v4/classic/deep-partial.js
+// ../../node_modules/zod/v4/classic/deep-partial.js
 function deepPartial(schema) {
   return visit(schema, {
     object: (s) => s.partial(),
@@ -20403,7 +20539,7 @@ function deepPartial(schema) {
   });
 }
 
-// node_modules/zod/v4/classic/in-out.js
+// ../../node_modules/zod/v4/classic/in-out.js
 function withChecks(side, checks) {
   if (!checks?.length)
     return side;
@@ -20433,7 +20569,7 @@ function output(schema) {
   });
 }
 
-// node_modules/zod/v4/classic/coerce.js
+// ../../node_modules/zod/v4/classic/coerce.js
 var coerce_exports = {};
 __export(coerce_exports, {
   bigint: () => bigint3,
@@ -20612,6 +20748,7 @@ function renderRegistry(modules, locales) {
   const server = [
     GENERATED_HEADER,
     'import type { Locale } from "@/i18n/config";',
+    'import { createEnv } from "@gatojs/env";',
     ...withModule.map(
       (m) => `import ${identifier(m.name, "Module")} from "@/features/${m.name}/module";`
     ),
@@ -20641,6 +20778,7 @@ function renderRegistry(modules, locales) {
       "auditSinks",
       withAuditSink.map((m) => identifier(m.name, "AuditSink"))
     ),
+    "export const env = createEnv(moduleEnvSchemas);",
     "",
     "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
     "",
@@ -20683,7 +20821,7 @@ var LOCALES_FILE = "src/i18n/locales.generated.ts";
 var FEATURE_GLOB = /^src\/features\/([^/*]+)\//;
 async function exists(path2) {
   try {
-    await stat2(path2);
+    await stat3(path2);
     return true;
   } catch {
     return false;
@@ -20772,7 +20910,7 @@ async function generate(projectDir) {
 }
 
 // src/kit/kit-config.ts
-import { readdir, readFile as readFile5 } from "node:fs/promises";
+import { readdir as readdir2, readFile as readFile5 } from "node:fs/promises";
 import { basename, join as join5 } from "node:path";
 var kitConfigSchema = external_exports.object({
   version: external_exports.string().min(1),
@@ -20803,7 +20941,7 @@ async function readKitConfig(kitDir) {
 }
 async function readKitManifests(kitDir) {
   const modulesDir = join5(kitDir, "kit/modules");
-  const entries = (await readdir(modulesDir)).filter((fileName) => fileName.endsWith(".json")).map((fileName) => ({ fileName, name: basename(fileName, ".json") })).sort((a, b) => compareModuleNames(a.name, b.name));
+  const entries = (await readdir2(modulesDir)).filter((fileName) => fileName.endsWith(".json")).map((fileName) => ({ fileName, name: basename(fileName, ".json") })).sort((a, b) => compareModuleNames(a.name, b.name));
   const manifests = [];
   for (const { fileName, name } of entries) {
     const manifest = moduleManifestSchema.parse(
@@ -20829,52 +20967,68 @@ function looksLikeTransport(source) {
   return source.includes("://") || source.includes("::");
 }
 async function cloneKit(input2) {
-  const target = join6(input2.tmpDir, "wa-kit");
+  const target = join6(input2.tmpDir, input2.name);
   try {
     await input2.runner(
       "git",
       [
+        "-c",
+        "advice.detachedHead=false",
         "clone",
-        "--depth",
-        "1",
+        ...isRemote(input2.source) ? ["--depth", "1"] : [],
         "--branch",
         `v${input2.version}`,
         "--quiet",
         "--",
-        input2.url,
+        input2.source,
         target
       ],
       input2.tmpDir
     );
-  } catch {
+  } catch (error62) {
     throw new Error(
-      `Nie uda\u0142o si\u0119 pobra\u0107 wa-kit v${input2.version} z ${input2.url}. Sprawd\u017A dost\u0119p (gh auth status) albo podaj --kit <\u015Bcie\u017Cka>`
+      `Nie uda\u0142o si\u0119 pobra\u0107 wa-kit v${input2.version} z ${input2.source}. Sprawd\u017A dost\u0119p (gh auth status) albo podaj --kit <\u015Bcie\u017Cka>`,
+      { cause: error62 }
     );
   }
   return target;
 }
-async function resolveKitSource(input2) {
-  const { state } = input2;
-  const source = input2.kitFlag ?? input2.envSource ?? state.kitRepo;
+async function cloneKitVersion(input2) {
+  const target = await cloneKit(input2);
+  const config2 = await readKitConfig(target);
+  if (config2.version !== input2.version) {
+    throw new Error(
+      `Kit w ${target} ma wersj\u0119 ${config2.version}, oczekiwano ${input2.version}`
+    );
+  }
+  return target;
+}
+function kitSourceLocation(input2) {
+  const source = input2.kitFlag ?? input2.envSource ?? input2.state.kitRepo;
   if (source.startsWith("-") || !isRemote(source) && looksLikeTransport(source)) {
     throw new Error(`Nieprawid\u0142owe \u017Ar\xF3d\u0142o wa-kit: ${source}`);
   }
+  return isRemote(source) ? source : resolve(source);
+}
+async function resolveKitSource(input2) {
+  const { state } = input2;
+  const source = kitSourceLocation(input2);
   if (isRemote(source)) {
     return cloneKit({
-      url: source,
+      source,
       version: state.kitVersion,
       runner: input2.runner,
-      tmpDir: input2.tmpDir
+      tmpDir: input2.tmpDir,
+      name: "wa-kit"
     });
   }
-  const kitDir = resolve(source);
-  const config2 = await readKitConfig(kitDir);
+  const config2 = await readKitConfig(source);
   if (config2.version !== state.kitVersion) {
     throw new Error(
-      `Kit w ${kitDir} ma wersj\u0119 ${config2.version}, projekt u\u017Cywa ${state.kitVersion}`
+      `Kit w ${source} ma wersj\u0119 ${config2.version}, projekt u\u017Cywa ${state.kitVersion}`
     );
   }
-  return kitDir;
+  return source;
 }
 
 // src/commands/add.ts
@@ -21073,7 +21227,7 @@ import { existsSync as existsSync2 } from "node:fs";
 import {
   chmod as chmod2,
   mkdir as mkdir4,
-  readdir as readdir2,
+  readdir as readdir3,
   readFile as readFile7,
   rm as rm2,
   writeFile as writeFile5
@@ -21107,7 +21261,7 @@ async function isNonEmptyDirectory(dir) {
   if (!existsSync2(dir)) {
     return false;
   }
-  return (await readdir2(dir)).length > 0;
+  return (await readdir3(dir)).length > 0;
 }
 var LOCALE_CHOICES = [
   { value: "pl", label: "pl", checked: true, locked: true },
@@ -21148,7 +21302,7 @@ async function collectAnswers(options, manifests, names) {
   return { modules, locales, title, adminEmail, setup };
 }
 async function removeDirectoryContents(dir) {
-  for (const entry of await readdir2(dir)) {
+  for (const entry of await readdir3(dir)) {
     await rm2(join8(dir, entry), { recursive: true });
   }
 }
@@ -21176,10 +21330,13 @@ async function assemble(input2) {
   const packageJsonPath = join8(projectDir, "package.json");
   await writeFile5(
     packageJsonPath,
-    projectPackageJson(
-      await readFile7(packageJsonPath, "utf8"),
-      manifests,
-      names
+    withCliDependency(
+      projectPackageJson(
+        await readFile7(packageJsonPath, "utf8"),
+        manifests,
+        names
+      ),
+      options.cliDependency ?? null
     )
   );
   await writeKitState(projectDir, {
@@ -21255,6 +21412,9 @@ function logNextSteps(log, projectDir, setup, adminEmail) {
 }
 async function create(options) {
   const projectDir = resolve2(options.target);
+  if (options.cliSource && !existsSync2(options.cliSource)) {
+    throw new Error(`--cli-source: ${options.cliSource} does not exist`);
+  }
   const names = projectNames(projectDir, options.title);
   const existed = existsSync2(projectDir);
   if (await isNonEmptyDirectory(projectDir)) {
@@ -21309,7 +21469,7 @@ async function create(options) {
   return { projectDir, modules: resolved.map((manifest) => manifest.name) };
 }
 
-// node_modules/@inquirer/core/dist/lib/key.js
+// ../../node_modules/@inquirer/core/dist/lib/key.js
 var keybindings = ["emacs", "vim"];
 var keybindingLookup = new Set(keybindings);
 function isKeybinding(value) {
@@ -21337,7 +21497,7 @@ var isSpaceKey = (key) => key.name === "space";
 var isNumberKey = (key) => "1234567890".includes(key.name);
 var isEnterKey = (key) => key.name === "enter" || key.name === "return";
 
-// node_modules/@inquirer/core/dist/lib/errors.js
+// ../../node_modules/@inquirer/core/dist/lib/errors.js
 var AbortPromptError = class extends Error {
   name = "AbortPromptError";
   message = "Prompt was aborted";
@@ -21360,11 +21520,12 @@ var ValidationError = class extends Error {
   name = "ValidationError";
 };
 
-// node_modules/@inquirer/core/dist/lib/use-state.js
+// ../../node_modules/@inquirer/core/dist/lib/use-state.js
 import { AsyncResource as AsyncResource2 } from "node:async_hooks";
 
-// node_modules/@inquirer/core/dist/lib/hook-engine.js
+// ../../node_modules/@inquirer/core/dist/lib/hook-engine.js
 import { AsyncLocalStorage, AsyncResource } from "node:async_hooks";
+var nativeQueueMicrotask = globalThis.queueMicrotask;
 var hookStorage = new AsyncLocalStorage();
 function createStore(rl) {
   const store = {
@@ -21374,7 +21535,8 @@ function createStore(rl) {
     hooksEffect: [],
     index: 0,
     handleChange() {
-    }
+    },
+    deferredPaint: null
   };
   return store;
 }
@@ -21404,17 +21566,39 @@ function withUpdates(fn) {
     const store = getStore();
     let shouldUpdate = false;
     const oldHandleChange = store.handleChange;
-    store.handleChange = () => {
+    const recordChange = () => {
       shouldUpdate = true;
     };
+    store.handleChange = recordChange;
     const returnValue = fn(...args);
     if (shouldUpdate) {
+      let flushedUpdate = false;
+      store.handleChange = () => {
+        flushedUpdate = true;
+      };
       oldHandleChange();
+      store.handleChange = oldHandleChange;
+      if (flushedUpdate) {
+        scheduleDeferredPaint(store, oldHandleChange);
+      }
+    } else {
+      store.handleChange = oldHandleChange;
     }
-    store.handleChange = oldHandleChange;
     return returnValue;
   };
   return AsyncResource.bind(wrapped);
+}
+function scheduleDeferredPaint(store, paint) {
+  if (store.deferredPaint !== null)
+    return;
+  store.deferredPaint = AsyncResource.bind(paint);
+  nativeQueueMicrotask(() => {
+    const pending = store.deferredPaint;
+    if (pending === null)
+      return;
+    store.deferredPaint = null;
+    pending();
+  });
 }
 function withPointer(cb) {
   const store = getStore();
@@ -21464,10 +21648,11 @@ var effectScheduler = {
     });
     store.hooksEffect.length = 0;
     store.hooksCleanup.length = 0;
+    store.deferredPaint = null;
   }
 };
 
-// node_modules/@inquirer/core/dist/lib/use-state.js
+// ../../node_modules/@inquirer/core/dist/lib/use-state.js
 function isFactory(value) {
   return typeof value === "function";
 }
@@ -21493,7 +21678,7 @@ function useState(defaultValue) {
   });
 }
 
-// node_modules/@inquirer/core/dist/lib/use-effect.js
+// ../../node_modules/@inquirer/core/dist/lib/use-effect.js
 function useEffect(cb, depArray) {
   withPointer((pointer) => {
     const oldDeps = pointer.get();
@@ -21505,10 +21690,10 @@ function useEffect(cb, depArray) {
   });
 }
 
-// node_modules/@inquirer/core/dist/lib/theme.js
+// ../../node_modules/@inquirer/core/dist/lib/theme.js
 import { styleText } from "node:util";
 
-// node_modules/@inquirer/figures/dist/index.js
+// ../../node_modules/@inquirer/figures/dist/index.js
 import process2 from "node:process";
 function isUnicodeSupported() {
   if (!process2.platform.startsWith("win")) {
@@ -21801,7 +21986,7 @@ var figures = shouldUseMain ? mainSymbols : fallbackSymbols;
 var dist_default = figures;
 var replacements = Object.entries(specialMainSymbols);
 
-// node_modules/@inquirer/core/dist/lib/theme.js
+// ../../node_modules/@inquirer/core/dist/lib/theme.js
 var defaultTheme = {
   prefix: {
     idle: styleText("blue", "?"),
@@ -21829,7 +22014,7 @@ function getDefaultTheme() {
   };
 }
 
-// node_modules/@inquirer/core/dist/lib/make-theme.js
+// ../../node_modules/@inquirer/core/dist/lib/make-theme.js
 function isPlainObject2(value) {
   if (typeof value !== "object" || value === null)
     return false;
@@ -21843,6 +22028,8 @@ function deepMerge(...objects) {
   const output2 = {};
   for (const obj of objects) {
     for (const [key, value] of Object.entries(obj)) {
+      if (value === void 0)
+        continue;
       const prevValue = output2[key];
       output2[key] = isPlainObject2(prevValue) && isPlainObject2(value) ? deepMerge(prevValue, value) : value;
     }
@@ -21857,7 +22044,7 @@ function makeTheme(...themes) {
   return deepMerge(...themesToMerge);
 }
 
-// node_modules/@inquirer/core/dist/lib/use-prefix.js
+// ../../node_modules/@inquirer/core/dist/lib/use-prefix.js
 function usePrefix({ status = "idle", theme }) {
   const [showLoader, setShowLoader] = useState(false);
   const [tick, setTick] = useState(0);
@@ -21888,7 +22075,7 @@ function usePrefix({ status = "idle", theme }) {
   return typeof prefix === "string" ? prefix : prefix[iconName] ?? prefix["idle"];
 }
 
-// node_modules/@inquirer/core/dist/lib/use-memo.js
+// ../../node_modules/@inquirer/core/dist/lib/use-memo.js
 function useMemo(fn, dependencies) {
   return withPointer((pointer) => {
     const prev = pointer.get();
@@ -21901,12 +22088,12 @@ function useMemo(fn, dependencies) {
   });
 }
 
-// node_modules/@inquirer/core/dist/lib/use-ref.js
+// ../../node_modules/@inquirer/core/dist/lib/use-ref.js
 function useRef(val) {
   return useState({ current: val })[0];
 }
 
-// node_modules/@inquirer/core/dist/lib/use-keypress.js
+// ../../node_modules/@inquirer/core/dist/lib/use-keypress.js
 function useKeypress(userHandler) {
   const signal = useRef(userHandler);
   signal.current = userHandler;
@@ -21925,10 +22112,10 @@ function useKeypress(userHandler) {
   }, []);
 }
 
-// node_modules/@inquirer/core/dist/lib/utils.js
+// ../../node_modules/@inquirer/core/dist/lib/utils.js
 var import_cli_width = __toESM(require_cli_width(), 1);
 
-// node_modules/fast-string-truncated-width/dist/utils.js
+// ../../node_modules/fast-string-truncated-width/dist/utils.js
 var getCodePointsLength = /* @__PURE__ */ (() => {
   const SURROGATE_PAIR_RE = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
   return (input2) => {
@@ -21947,7 +22134,7 @@ var isWideNotCJKTNotEmoji = (x) => {
   return x === 8987 || x === 9001 || x >= 12272 && x <= 12287 || x >= 12289 && x <= 12350 || x >= 12441 && x <= 12543 || x >= 12549 && x <= 12591 || x >= 12593 && x <= 12686 || x >= 12688 && x <= 12771 || x >= 12783 && x <= 12830 || x >= 12832 && x <= 12871 || x >= 12880 && x <= 19903 || x >= 65040 && x <= 65049 || x >= 65072 && x <= 65106 || x >= 65108 && x <= 65126 || x >= 65128 && x <= 65131 || x >= 127488 && x <= 127490 || x >= 127504 && x <= 127547 || x >= 127552 && x <= 127560 || x >= 131072 && x <= 196605 || x >= 196608 && x <= 262141;
 };
 
-// node_modules/fast-string-truncated-width/dist/index.js
+// ../../node_modules/fast-string-truncated-width/dist/index.js
 var ANSI_RE = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]|\u001b\]8;[^;]*;.*?(?:\u0007|\u001b\u005c)/y;
 var CONTROL_RE = /[\x00-\x08\x0A-\x1F\x7F-\x9F]{1,1000}/y;
 var CJKT_WIDE_RE = /(?:(?![\uFF61-\uFF9F\uFF00-\uFFEF])[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Tangut}]){1,1000}/yu;
@@ -22045,7 +22232,7 @@ var getStringTruncatedWidth = (input2, truncationOptions = {}, widthOptions = {}
 };
 var dist_default2 = getStringTruncatedWidth;
 
-// node_modules/fast-string-width/dist/index.js
+// ../../node_modules/fast-string-width/dist/index.js
 var NO_TRUNCATION2 = {
   limit: Infinity,
   ellipsis: "",
@@ -22056,7 +22243,7 @@ var fastStringWidth = (input2, options = {}) => {
 };
 var dist_default3 = fastStringWidth;
 
-// node_modules/fast-wrap-ansi/lib/main.js
+// ../../node_modules/fast-wrap-ansi/lib/main.js
 var ESC = "\x1B";
 var CSI = "\x9B";
 var END_CODE = 39;
@@ -22264,15 +22451,24 @@ function wrapAnsi(string4, columns, options) {
   return String(string4).normalize().split(CRLF_OR_LF).map((line) => exec(line, columns, options)).join("\n");
 }
 
-// node_modules/@inquirer/core/dist/lib/utils.js
+// ../../node_modules/@inquirer/core/dist/lib/utils.js
 function breakLines(content, width) {
-  return content.split("\n").flatMap((line) => wrapAnsi(line, width, { trim: false, wordWrap: false }).split("\n").map((str) => str.trimEnd())).join("\n");
+  return wrapContent(content, width).text;
+}
+function wrapContent(content, width) {
+  const wrappedLines = content.split("\n").map((line) => wrapAnsi(line, width, { trim: false, wordWrap: false }).split("\n"));
+  const finalLine = wrappedLines.at(-1) ?? [];
+  return {
+    text: wrappedLines.flat().map((line) => line.trimEnd()).join("\n"),
+    lastRow: finalLine.at(-1) ?? "",
+    finalLineRows: finalLine.length
+  };
 }
 function readlineWidth() {
   return (0, import_cli_width.default)({ defaultWidth: 80, output: readline().output });
 }
 
-// node_modules/@inquirer/core/dist/lib/pagination/use-pagination.js
+// ../../node_modules/@inquirer/core/dist/lib/pagination/use-pagination.js
 function usePointerPosition({ active, renderedItems, pageSize, loop }) {
   const state = useRef({
     lastPointer: active,
@@ -22361,25 +22557,25 @@ function usePagination({ items, active, renderItem, pageSize, loop = true }) {
   return pageBuffer.filter((line) => typeof line === "string").join("\n");
 }
 
-// node_modules/@inquirer/core/dist/lib/create-prompt.js
+// ../../node_modules/@inquirer/core/dist/lib/create-prompt.js
 import * as readline2 from "node:readline";
 import { AsyncResource as AsyncResource3 } from "node:async_hooks";
 
-// node_modules/@inquirer/type/dist/utils.js
+// ../../node_modules/@inquirer/core/node_modules/@inquirer/type/dist/utils.js
 function withResolver() {
-  let resolve5;
+  let resolve7;
   let reject;
   const promise2 = new Promise((res, rej) => {
-    resolve5 = res;
+    resolve7 = res;
     reject = rej;
   });
-  return { promise: promise2, resolve: resolve5, reject };
+  return { promise: promise2, resolve: resolve7, reject };
 }
 
-// node_modules/@inquirer/core/dist/lib/create-prompt.js
+// ../../node_modules/@inquirer/core/dist/lib/create-prompt.js
 var import_mute_stream = __toESM(require_lib(), 1);
 
-// node_modules/signal-exit/dist/mjs/signals.js
+// ../../node_modules/signal-exit/dist/mjs/signals.js
 var signals = [];
 signals.push("SIGHUP", "SIGINT", "SIGTERM");
 if (process.platform !== "win32") {
@@ -22403,7 +22599,7 @@ if (process.platform === "linux") {
   signals.push("SIGIO", "SIGPOLL", "SIGPWR", "SIGSTKFLT");
 }
 
-// node_modules/signal-exit/dist/mjs/index.js
+// ../../node_modules/signal-exit/dist/mjs/index.js
 var processOk = (process4) => !!process4 && typeof process4 === "object" && typeof process4.removeListener === "function" && typeof process4.emit === "function" && typeof process4.reallyExit === "function" && typeof process4.listeners === "function" && typeof process4.kill === "function" && typeof process4.pid === "number" && typeof process4.on === "function";
 var kExitEmitter = /* @__PURE__ */ Symbol.for("signal-exit emitter");
 var global = globalThis;
@@ -22630,10 +22826,10 @@ var {
   unload
 } = signalExitWrap(processOk(process3) ? new SignalExit(process3) : new SignalExitFallback());
 
-// node_modules/@inquirer/core/dist/lib/screen-manager.js
+// ../../node_modules/@inquirer/core/dist/lib/screen-manager.js
 import { stripVTControlCharacters } from "node:util";
 
-// node_modules/@inquirer/ansi/dist/index.js
+// ../../node_modules/@inquirer/ansi/dist/index.js
 var ESC2 = "\x1B[";
 var cursorLeft = ESC2 + "G";
 var cursorHide = ESC2 + "?25l";
@@ -22649,7 +22845,7 @@ var cursorTo = (x, y) => {
 var eraseLine = ESC2 + "2K";
 var eraseLines = (lines) => lines > 0 ? (eraseLine + cursorUp(1)).repeat(lines - 1) + eraseLine + cursorLeft : "";
 
-// node_modules/@inquirer/core/dist/lib/screen-manager.js
+// ../../node_modules/@inquirer/core/dist/lib/screen-manager.js
 var height = (content) => content.split("\n").length;
 var lastLine = (content) => content.split("\n").pop() ?? "";
 var ScreenManager = class {
@@ -22677,13 +22873,16 @@ var ScreenManager = class {
     this.rl.setPrompt(prompt);
     this.cursorPos = this.rl.getCursorPos();
     const width = readlineWidth();
-    content = breakLines(content, width);
+    const wrapped = wrapContent(content, width);
+    content = wrapped.text;
     bottomContent = breakLines(bottomContent, width);
-    if (rawPromptLine.length % width === 0) {
+    const lastRowWidth = dist_default3(stripVTControlCharacters(wrapped.lastRow));
+    const atRightEdge = lastRowWidth >= width;
+    if (atRightEdge || rawPromptLine.length === 0) {
       content += "\n";
     }
     let output2 = content + (bottomContent ? "\n" + bottomContent : "");
-    const promptLineUpDiff = Math.floor(rawPromptLine.length / width) - this.cursorPos.rows;
+    const promptLineUpDiff = wrapped.finalLineRows - 1 + Number(atRightEdge) - this.cursorPos.rows;
     const bottomContentHeight = promptLineUpDiff + (bottomContent ? height(bottomContent) : 0);
     if (bottomContentHeight > 0)
       output2 += cursorUp(bottomContentHeight);
@@ -22710,7 +22909,7 @@ var ScreenManager = class {
   }
 };
 
-// node_modules/@inquirer/core/dist/lib/create-prompt.js
+// ../../node_modules/@inquirer/core/dist/lib/create-prompt.js
 import path from "node:path";
 var nativeSetImmediate = globalThis.setImmediate;
 var nativeClearImmediate = globalThis.clearImmediate;
@@ -22752,7 +22951,7 @@ function createPrompt(view) {
     });
     output2.mute();
     const screen = new ScreenManager(rl);
-    const { promise: promise2, resolve: resolve5, reject } = withResolver();
+    const { promise: promise2, resolve: resolve7, reject } = withResolver();
     return withHooks(rl, (cycle) => {
       const clearEffects = AsyncResource3.bind(() => effectScheduler.clearAll());
       const settlePrompt = (settle2) => {
@@ -22763,7 +22962,7 @@ function createPrompt(view) {
           reject(error62);
         }
       };
-      const resolvePrompt = (value) => settlePrompt(() => resolve5(value));
+      const resolvePrompt = (value) => settlePrompt(() => resolve7(value));
       const rejectPrompt = (error62) => settlePrompt(() => reject(error62));
       const promptPromise = Object.assign(promise2.finally(() => {
         cleanups.forEach((cleanup) => cleanup());
@@ -22782,7 +22981,9 @@ function createPrompt(view) {
         rejectPrompt(new ExitPromptError(`User force closed the prompt with ${code} ${signal2}`));
       }));
       cleanups.add(listenTo(rl, "SIGINT", () => rejectPrompt(new ExitPromptError(`User force closed the prompt with SIGINT`))));
-      cleanups.add(listenTo(rl, "close", clearEffects));
+      const isTTY = "isTTY" in input2 && input2.isTTY;
+      const onReadlineClose = isTTY ? () => rejectPrompt(new ExitPromptError("User force closed the prompt with EOF")) : clearEffects;
+      cleanups.add(listenTo(rl, "close", onReadlineClose));
       const startCycle = () => {
         cleanups.add(listenTo(rl.input, "keypress", () => screen.checkCursorPos()));
         let pendingDone = null;
@@ -22818,7 +23019,7 @@ function createPrompt(view) {
           }
         });
       };
-      if ("readableFlowing" in input2 && input2.isTTY) {
+      if ("readableFlowing" in input2 && isTTY) {
         const immediate = nativeSetImmediate(startCycle);
         cleanups.add(() => nativeClearImmediate(immediate));
       } else {
@@ -22830,7 +23031,7 @@ function createPrompt(view) {
   return prompt;
 }
 
-// node_modules/@inquirer/core/dist/lib/Separator.js
+// ../../node_modules/@inquirer/core/dist/lib/Separator.js
 import { styleText as styleText2 } from "node:util";
 var Separator = class {
   separator = styleText2("dim", Array.from({ length: 15 }).join(dist_default.line));
@@ -22845,7 +23046,7 @@ var Separator = class {
   }
 };
 
-// node_modules/@inquirer/checkbox/dist/index.js
+// ../../node_modules/@inquirer/checkbox/dist/index.js
 import { styleText as styleText3 } from "node:util";
 var checkboxTheme = {
   icon: {
@@ -22968,8 +23169,10 @@ var dist_default4 = createPrompt((config2, done) => {
       }
     } else if (key.name === shortcuts.all) {
       const selectAll = items.some((choice) => isSelectable(choice) && !choice.checked);
+      setError(void 0);
       setItems(items.map(check2(selectAll)));
     } else if (key.name === shortcuts.invert) {
+      setError(void 0);
       setItems(items.map(toggle));
     } else if (isNumberKey(key)) {
       const selectedIndex = Number(key.name) - 1;
@@ -22981,9 +23184,14 @@ var dist_default4 = createPrompt((config2, done) => {
         return selectableIndex === selectedIndex;
       });
       const selectedItem = items[position];
-      if (selectedItem && isSelectable(selectedItem)) {
-        setActive(position);
-        setItems(items.map((choice, i) => i === position ? toggle(choice) : choice));
+      if (selectedItem && !Separator.isSeparator(selectedItem)) {
+        if (selectedItem.disabled) {
+          setError(theme.i18n.disabledError);
+        } else {
+          setError(void 0);
+          setActive(position);
+          setItems(items.map((choice, i) => i === position ? toggle(choice) : choice));
+        }
       }
     }
   });
@@ -23113,12 +23321,12 @@ var readlinePrompter = {
 
 // src/process/runner.ts
 import { spawn } from "node:child_process";
-var spawnRunner = (command, args, cwd) => new Promise((resolve5, reject) => {
+var spawnRunner = (command, args, cwd) => new Promise((resolve7, reject) => {
   const child = spawn(command, args, { cwd, stdio: "inherit" });
   child.on("error", reject);
   child.on("close", (code) => {
     if (code === 0) {
-      resolve5();
+      resolve7();
       return;
     }
     reject(
@@ -23210,7 +23418,8 @@ function list(options) {
 import {
   lstat as lstat2,
   readFile as readFile9,
-  readdir as readdir3,
+  readdir as readdir4,
+  readlink,
   realpath,
   rm as rm3,
   rmdir as rmdir2,
@@ -23240,6 +23449,16 @@ function assertRemovable(state, module) {
     );
   }
 }
+async function readLinkIfSymlink(path2) {
+  try {
+    return await readlink(path2);
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      return null;
+    }
+    throw error62;
+  }
+}
 async function realpathOfDeepestAncestor(path2) {
   let current = path2;
   for (; ; ) {
@@ -23248,6 +23467,12 @@ async function realpathOfDeepestAncestor(path2) {
     } catch (error62) {
       if (error62.code !== "ENOENT") {
         throw error62;
+      }
+      const linkTarget = await readLinkIfSymlink(current);
+      if (linkTarget !== null) {
+        return realpathOfDeepestAncestor(
+          join10(resolve3(dirname5(current), linkTarget), relative(current, path2))
+        );
       }
       current = dirname5(current);
     }
@@ -23304,7 +23529,7 @@ async function removeEmptyParents(projectDir, start) {
       if (!stats.isDirectory()) {
         return;
       }
-      if ((await readdir3(current)).length > 0) {
+      if ((await readdir4(current)).length > 0) {
         return;
       }
       await rmdir2(current);
@@ -23359,19 +23584,795 @@ ${changed.map((file2) => `  ${file2}`).join("\n")}`
   return { removed: [module] };
 }
 
+// src/commands/update.ts
+import { execFile as execFile3 } from "node:child_process";
+import { existsSync as existsSync3 } from "node:fs";
+import {
+  chmod as chmod3,
+  mkdir as mkdir5,
+  mkdtemp as mkdtemp3,
+  readFile as readFile10,
+  rm as rm5,
+  rmdir as rmdir3,
+  stat as stat4,
+  writeFile as writeFile8
+} from "node:fs/promises";
+import { dirname as dirname6, join as join12, relative as relative2, resolve as resolve4, sep as sep2 } from "node:path";
+import { promisify as promisify3 } from "node:util";
+
+// src/update/merge.ts
+import { execFile as execFile2 } from "node:child_process";
+import { mkdtemp as mkdtemp2, rm as rm4, writeFile as writeFile7 } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join as join11 } from "node:path";
+import { promisify as promisify2 } from "node:util";
+var run2 = promisify2(execFile2);
+var MAX_CONFLICT_EXIT_CODE = 127;
+function prepareSides(path2, sides) {
+  if (!REGION_FILES.includes(path2)) {
+    return sides;
+  }
+  const strip = (content) => Buffer.from(stripRegions(content.toString("utf8")));
+  return {
+    base: strip(sides.base),
+    ours: strip(sides.ours),
+    theirs: strip(sides.theirs)
+  };
+}
+async function mergeFile(input2) {
+  if ([input2.base, input2.ours, input2.theirs].some((side) => side.includes(0))) {
+    return { binary: true };
+  }
+  const sides = prepareSides(input2.path, input2);
+  const dir = await mkdtemp2(join11(tmpdir(), "wa-merge-"));
+  try {
+    const oursFile = join11(dir, "ours");
+    const baseFile = join11(dir, "base");
+    const theirsFile = join11(dir, "theirs");
+    await Promise.all([
+      writeFile7(oursFile, sides.ours),
+      writeFile7(baseFile, sides.base),
+      writeFile7(theirsFile, sides.theirs)
+    ]);
+    const args = [
+      "merge-file",
+      "-p",
+      "--diff3",
+      "-L",
+      input2.labels.ours,
+      "-L",
+      input2.labels.base,
+      "-L",
+      input2.labels.theirs,
+      oursFile,
+      baseFile,
+      theirsFile
+    ];
+    try {
+      const { stdout } = await run2("git", args, {
+        encoding: "buffer",
+        maxBuffer: 64 * 1024 * 1024
+      });
+      return { content: stdout, conflicts: 0 };
+    } catch (error62) {
+      const failure2 = error62;
+      if (typeof failure2.code === "number" && failure2.code <= MAX_CONFLICT_EXIT_CODE && Buffer.isBuffer(failure2.stdout)) {
+        return { content: failure2.stdout, conflicts: failure2.code };
+      }
+      const stderr = failure2.stderr.toString("utf8").trim();
+      throw new Error(`git merge-file: ${stderr || String(error62)}`, {
+        cause: error62
+      });
+    }
+  } finally {
+    await rm4(dir, { recursive: true });
+  }
+}
+
+// src/update/plan.ts
+var MANAGED = "managed";
+var UNCHANGED = { file: null, mismatchedBase: false };
+function planned(path2, action, fields = {}) {
+  return { path: path2, action, reason: null, content: null, mode: null, ...fields };
+}
+function undecided(path2, reason) {
+  return planned(path2, "do decyzji", { reason });
+}
+async function decideAdded(path2, kit, input2) {
+  const project = await input2.readProject(path2);
+  if (!project) {
+    return {
+      file: planned(path2, "dodano", { content: kit.content, mode: kit.mode }),
+      mismatchedBase: false
+    };
+  }
+  if (contentHash(path2, project) === contentHash(path2, kit.content)) {
+    return UNCHANGED;
+  }
+  return {
+    file: planned(path2, "konflikt", {
+      reason: "plik projektu na \u015Bcie\u017Cce nowego pliku kitu"
+    }),
+    mismatchedBase: false
+  };
+}
+async function mergeChanged(path2, base, project, kit, input2) {
+  const merged = await mergeFile({
+    path: path2,
+    base,
+    ours: project,
+    theirs: kit.content,
+    labels: {
+      ours: "projekt",
+      base: `v${input2.base.version}`,
+      theirs: `v${input2.target.version}`
+    }
+  });
+  if ("binary" in merged) {
+    return planned(path2, "konflikt", {
+      reason: "plik binarny zmieniony w projekcie i w kicie"
+    });
+  }
+  if (merged.conflicts > 0) {
+    return planned(path2, "konflikt", {
+      content: merged.content,
+      mode: kit.mode
+    });
+  }
+  if (contentHash(path2, merged.content) === contentHash(path2, project)) {
+    return null;
+  }
+  return planned(path2, "scalono", { content: merged.content, mode: kit.mode });
+}
+async function decideExisting(path2, base, kit, input2) {
+  const baseHash = contentHash(path2, base.content);
+  const kitContentUnchanged = kit !== void 0 && contentHash(path2, kit.content) === baseHash;
+  if (kitContentUnchanged && kit.mode === base.mode) {
+    return UNCHANGED;
+  }
+  const project = await input2.readProject(path2);
+  if (!project) {
+    if (!kit || kitContentUnchanged) {
+      return UNCHANGED;
+    }
+    return {
+      file: undecided(path2, "usuni\u0119ty w projekcie, zmieniony w kicie"),
+      mismatchedBase: false
+    };
+  }
+  const projectHash = contentHash(path2, project);
+  const recordedHash = input2.recordedHashes[path2];
+  const recordedMatchesBase = recordedHash === void 0 || recordedHash === MANAGED || recordedHash === baseHash;
+  const projectEqualsBase = projectHash === baseHash && recordedMatchesBase;
+  const mismatchedBase = projectHash === recordedHash && recordedHash !== baseHash;
+  if (!kit) {
+    const file3 = projectEqualsBase ? planned(path2, "usuni\u0119to") : undecided(path2, "zmieniony w projekcie, usuni\u0119ty w kicie");
+    return { file: file3, mismatchedBase };
+  }
+  if (projectEqualsBase) {
+    return {
+      file: planned(path2, "zaktualizowano", {
+        content: kit.content,
+        mode: kit.mode
+      }),
+      mismatchedBase
+    };
+  }
+  if (projectHash === contentHash(path2, kit.content)) {
+    return UNCHANGED;
+  }
+  const file2 = await mergeChanged(path2, base.content, project, kit, input2);
+  if (!file2) {
+    return UNCHANGED;
+  }
+  return { file: file2, mismatchedBase };
+}
+async function planUpdate(input2) {
+  const decisions = [];
+  for (const [path2, base] of input2.base.files) {
+    decisions.push([
+      path2,
+      await decideExisting(path2, base, input2.target.files.get(path2), input2)
+    ]);
+  }
+  for (const [path2, kit] of input2.target.files) {
+    if (!input2.base.files.has(path2)) {
+      decisions.push([path2, await decideAdded(path2, kit, input2)]);
+    }
+  }
+  decisions.sort(([a], [b]) => compareCodePoint(a, b));
+  const files = [];
+  const mismatchedBase = [];
+  for (const [path2, decision] of decisions) {
+    if (decision.file) {
+      files.push(decision.file);
+    }
+    if (decision.mismatchedBase) {
+      mismatchedBase.push(path2);
+    }
+  }
+  return { files, mismatchedBase };
+}
+
+// src/update/report.ts
+var ACTION_ORDER = [
+  "zaktualizowano",
+  "scalono",
+  "dodano",
+  "usuni\u0119to",
+  "konflikt",
+  "do decyzji"
+];
+var ACTION_WIDTH = "zaktualizowano".length;
+var SCHEMA_PREFIX = "prisma/schema/";
+function fileLine(file2) {
+  const reason = file2.reason === null ? "" : ` (${file2.reason})`;
+  return `  ${file2.action.padEnd(ACTION_WIDTH)} ${file2.path}${reason}`;
+}
+function mismatchedBaseWarning(count, from) {
+  const source = `od v${from} z tagu`;
+  if (count === 1) {
+    return `Uwaga: 1 plik r\xF3\u017Cni si\u0119 ${source}; potraktowano go jak zmieniony w projekcie`;
+  }
+  const lastDigit = count % 10;
+  const lastTwoDigits = count % 100;
+  const few = lastDigit >= 2 && lastDigit <= 4 && (lastTwoDigits < 12 || lastTwoDigits > 14);
+  const files = few ? "pliki r\xF3\u017Cni\u0105 si\u0119" : "plik\xF3w r\xF3\u017Cni si\u0119";
+  return `Uwaga: ${count} ${files} ${source}; potraktowano je jak zmienione w projekcie`;
+}
+function planReport(input2) {
+  const { plan, from, to } = input2;
+  const header = input2.dryRun ? `Plan aktualizacji wa-kit ${from} \u2192 ${to} (bez zmian w projekcie)` : `Aktualizacja wa-kit ${from} \u2192 ${to}`;
+  const items = ACTION_ORDER.flatMap(
+    (action) => plan.files.filter((file2) => file2.action === action).sort((a, b) => compareCodePoint(a.path, b.path)).map(fileLine)
+  );
+  const warning = plan.mismatchedBase.length > 0 ? [mismatchedBaseWarning(plan.mismatchedBase.length, from)] : [];
+  return [
+    header,
+    ...items.length > 0 ? items : ["  bez zmian w plikach"],
+    ...warning
+  ];
+}
+function schemaChanged(base, target) {
+  const paths = /* @__PURE__ */ new Set([...base.files.keys(), ...target.files.keys()]);
+  return [...paths].filter((path2) => path2.startsWith(SCHEMA_PREFIX)).some((path2) => {
+    const before = base.files.get(path2)?.content;
+    const after = target.files.get(path2)?.content;
+    return !before || !after || !before.equals(after);
+  });
+}
+function newEnvNames(base, target) {
+  const known = new Set(
+    base.manifests.flatMap((manifest) => manifest.env.map(({ name }) => name))
+  );
+  const added = target.manifests.flatMap((manifest) => manifest.env.map(({ name }) => name)).filter((name) => !known.has(name));
+  return [...new Set(added)].sort(compareCodePoint);
+}
+function successHints(base, target) {
+  const hints = [];
+  if (schemaChanged(base, target)) {
+    hints.push(`npx prisma migrate dev --name kit-${target.version}`);
+  }
+  const envNames = newEnvNames(base, target);
+  if (envNames.length > 0) {
+    hints.push(
+      `Nowe zmienne w .env.example: ${envNames.join(", ")}; uzupe\u0142nij .env`
+    );
+  }
+  return hints;
+}
+
+// src/update/snapshot.ts
+var PACKAGE_JSON2 = "package.json";
+var PACKAGE_LOCK = "package-lock.json";
+function selectManifests(modules, available, version2) {
+  const byName = new Map(
+    available.map((manifest) => [manifest.name, manifest])
+  );
+  return [...new Set(modules)].sort(compareModuleNames).map((name) => {
+    const manifest = byName.get(name);
+    if (!manifest) {
+      throw new Error(`Modu\u0142 ${name} nie istnieje w wa-kit ${version2}`);
+    }
+    return manifest;
+  });
+}
+async function readKitSnapshot(kitDir, modules, names) {
+  const config2 = await readKitConfig(kitDir);
+  const manifests = selectManifests(
+    modules,
+    await readKitManifests(kitDir),
+    config2.version
+  );
+  const available = await assemblableFiles(kitDir, config2);
+  const files = /* @__PURE__ */ new Map();
+  for (const manifest of manifests) {
+    for (const file2 of moduleFiles(manifest, available)) {
+      if (file2 !== PACKAGE_LOCK) {
+        files.set(
+          file2,
+          await readAssembledFile({ kitDir, file: file2, config: config2, names })
+        );
+      }
+    }
+  }
+  const packageJson = files.get(PACKAGE_JSON2);
+  if (packageJson) {
+    files.set(PACKAGE_JSON2, {
+      content: Buffer.from(
+        projectPackageJson(
+          packageJson.content.toString("utf8"),
+          manifests,
+          names
+        )
+      ),
+      mode: packageJson.mode
+    });
+  }
+  return { version: config2.version, config: config2, manifests, files };
+}
+
+// src/commands/update.ts
+var execFileAsync = promisify3(execFile3);
+var UNDO_HINT = "Sprawd\u017A git status; ca\u0142o\u015B\u0107 cofa: git restore . && git clean -fd";
+var PERMISSION_BITS2 = 511;
+var MANAGED2 = "managed";
+function checkVersions(current, target) {
+  const order = compareVersions(target, current);
+  if (order < 0) {
+    throw new Error(
+      `Projekt ma wa-kit ${current}, nowsz\u0105 ni\u017C ${target}; wa update nie obni\u017Ca wersji`
+    );
+  }
+  return order === 0 ? "same" : "newer";
+}
+async function assertCleanTree(projectDir) {
+  let status;
+  try {
+    ({ stdout: status } = await execFileAsync(
+      "git",
+      ["status", "--porcelain"],
+      {
+        cwd: projectDir
+      }
+    ));
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      throw new Error(
+        "Nie znaleziono polecenia git; zainstaluj git, \u017Ceby uruchomi\u0107 wa update",
+        { cause: error62 }
+      );
+    }
+    throw new Error(
+      `${projectDir} nie jest repozytorium git; wa update wymaga gita, \u017Ceby da\u0142o si\u0119 cofn\u0105\u0107 zmiany`,
+      { cause: error62 }
+    );
+  }
+  if (status !== "") {
+    throw new Error(
+      "Niezacommitowane zmiany w projekcie; zr\xF3b commit albo stash przed wa update"
+    );
+  }
+}
+function assertRequirementsInstalled(state, target) {
+  for (const manifest of target.manifests) {
+    const missing = manifest.requires.filter((name) => !(name in state.modules)).sort(compareCodePoint);
+    if (missing.length > 0) {
+      throw new Error(
+        `Modu\u0142 ${manifest.name} w wa-kit ${target.version} wymaga niezainstalowanych modu\u0142\xF3w: ${missing.join(", ")}`
+      );
+    }
+  }
+}
+async function readIfExists2(path2) {
+  try {
+    return await readFile10(path2);
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      return null;
+    }
+    throw error62;
+  }
+}
+async function writableInsideProject(projectDir, file2) {
+  const absolute = await insideProject(projectDir, file2);
+  let current = projectDir;
+  for (const segment of relative2(projectDir, absolute).split(sep2)) {
+    current = join12(current, segment);
+    if ((await lstatIfExists(current))?.isSymbolicLink()) {
+      throw new Error(`Dowi\u0105zanie symboliczne na \u015Bcie\u017Cce zapisu: ${file2}`);
+    }
+  }
+  return absolute;
+}
+async function rememberOriginal(absolute) {
+  const content = await readIfExists2(absolute);
+  if (!content) {
+    return null;
+  }
+  const mode = (await stat4(absolute)).mode & PERMISSION_BITS2;
+  return { path: absolute, content, mode };
+}
+async function applyWrite(projectDir, { file: file2, absolute }) {
+  if (file2.action === "usuni\u0119to") {
+    await rm5(absolute);
+    await removeEmptyParents(projectDir, absolute);
+    return;
+  }
+  await mkdir5(dirname6(absolute), { recursive: true });
+  await writeFile8(absolute, file2.content);
+  await chmod3(absolute, file2.mode);
+}
+async function restoreOriginal(original) {
+  const current = await readIfExists2(original.path);
+  if (!current?.equals(original.content)) {
+    await rm5(original.path, { force: true });
+    await mkdir5(dirname6(original.path), { recursive: true });
+    await writeFile8(original.path, original.content);
+  }
+  await chmod3(original.path, original.mode);
+}
+async function rollbackUpdate(input2) {
+  const { projectDir, originals } = input2;
+  const steps = [
+    ...input2.writes.map(({ file: file2, absolute }) => {
+      const original = originals.get(absolute);
+      return {
+        path: file2.path,
+        run: () => original ? restoreOriginal(original) : rm5(absolute, { force: true })
+      };
+    }),
+    ...input2.createdDirectories.filter((directory) => existsSync3(join12(projectDir, directory))).map((directory) => ({
+      path: directory,
+      run: () => rmdir3(join12(projectDir, directory))
+    })),
+    {
+      path: KIT_STATE_PATH,
+      run: () => restoreOriginal(
+        originals.get(join12(projectDir, KIT_STATE_PATH))
+      )
+    }
+  ];
+  for (const step of steps) {
+    try {
+      await step.run();
+    } catch (error62) {
+      const { code, message } = error62;
+      input2.log(`Nie uda\u0142o si\u0119 posprz\u0105ta\u0107: ${step.path} (${code ?? message})`);
+    }
+  }
+}
+function nextState(state, target, undecided2) {
+  const paths = [...target.files.keys()];
+  const modules = Object.fromEntries(
+    target.manifests.map((manifest) => {
+      const managed = Object.entries(state.modules[manifest.name].files).filter(
+        ([path2, hash2]) => hash2 === MANAGED2 && target.config.managedFiles.includes(path2)
+      );
+      const files = Object.fromEntries([
+        ...managed,
+        ...moduleFiles(manifest, paths).filter((path2) => !undecided2.has(path2)).map((path2) => [
+          path2,
+          fileHash(
+            path2,
+            target.files.get(path2).content,
+            target.config
+          )
+        ])
+      ]);
+      return [manifest.name, { version: manifest.version, manifest, files }];
+    })
+  );
+  return { ...state, kitVersion: target.version, modules };
+}
+async function writeUpdate(input2) {
+  const { projectDir, writes } = input2;
+  const kitStatePath = join12(projectDir, KIT_STATE_PATH);
+  const originals = /* @__PURE__ */ new Map();
+  for (const absolute of [
+    ...writes.map((write) => write.absolute),
+    kitStatePath
+  ]) {
+    const original = await rememberOriginal(absolute);
+    if (original) {
+      originals.set(absolute, original);
+    }
+  }
+  const createdDirectories = missingDirectories(
+    projectDir,
+    writes.map(({ file: file2 }) => file2.path)
+  );
+  try {
+    for (const write of writes) {
+      await applyWrite(projectDir, write);
+    }
+    await writeKitState(projectDir, input2.state);
+  } catch (error62) {
+    await rollbackUpdate({
+      projectDir,
+      writes,
+      originals,
+      createdDirectories,
+      log: input2.log
+    });
+    throw new Error(`${error62.message}
+${UNDO_HINT}`, {
+      cause: error62
+    });
+  }
+}
+async function update(options) {
+  const { projectDir, version: version2, runner, log } = options;
+  const state = await readKitState(projectDir);
+  if (checkVersions(state.kitVersion, version2) === "same") {
+    log(`Projekt ma ju\u017C wa-kit ${version2}`);
+    return { exitCode: 0 };
+  }
+  if (!options.dryRun) {
+    await assertCleanTree(projectDir);
+  }
+  const names = {
+    name: state.project.name,
+    slug: state.project.slug,
+    snake: state.project.slug.replaceAll("-", "_")
+  };
+  const modules = Object.keys(state.modules);
+  const base = await readKitSnapshot(options.baseKitDir, modules, names);
+  const target = await readKitSnapshot(options.targetKitDir, modules, names);
+  if (target.version !== version2) {
+    throw new Error(
+      `Kit docelowy ma wersj\u0119 ${target.version}, oczekiwano ${version2}`
+    );
+  }
+  assertRequirementsInstalled(state, target);
+  const recordedHashes = Object.assign(
+    {},
+    ...Object.values(state.modules).map((entry) => entry.files)
+  );
+  const plan = await planUpdate({
+    base,
+    target,
+    recordedHashes,
+    readProject: async (path2) => readIfExists2(await insideProject(projectDir, path2))
+  });
+  const report = planReport({
+    plan,
+    from: state.kitVersion,
+    to: version2,
+    dryRun: options.dryRun
+  });
+  if (options.dryRun) {
+    report.forEach((line) => log(line));
+    return { exitCode: 0 };
+  }
+  for (const path2 of [
+    KIT_STATE_PATH,
+    ...target.config.generatedFiles,
+    ...REGION_FILES
+  ]) {
+    await writableInsideProject(projectDir, path2);
+  }
+  const writes = [];
+  for (const file2 of plan.files) {
+    if (file2.content || file2.action === "usuni\u0119to") {
+      writes.push({
+        file: file2,
+        absolute: await writableInsideProject(projectDir, file2.path)
+      });
+    }
+  }
+  const undecided2 = new Set(
+    plan.files.filter((file2) => file2.action === "do decyzji").map((file2) => file2.path)
+  );
+  await writeUpdate({
+    projectDir,
+    writes,
+    state: nextState(state, target, undecided2),
+    log
+  });
+  report.forEach((line) => log(line));
+  if (plan.files.some((file2) => file2.action === "konflikt")) {
+    log("Rozwi\u0105\u017C konflikty, potem: npm run wa -- generate && npm install");
+    log("Cofni\u0119cie ca\u0142ej aktualizacji: git restore . && git clean -fd");
+    return { exitCode: 1 };
+  }
+  try {
+    await generate(projectDir);
+  } catch (error62) {
+    throw new Error(
+      `Zaktualizowano do wa-kit ${version2}, ale wa generate si\u0119 nie powi\xF3d\u0142. Uruchom: npm run wa -- generate`,
+      { cause: error62 }
+    );
+  }
+  successHints(base, target).forEach((line) => log(line));
+  if (options.install) {
+    try {
+      await runner("npm", ["install"], projectDir);
+    } catch (error62) {
+      throw new Error(
+        `Zaktualizowano do wa-kit ${version2}, ale npm install si\u0119 nie powi\xF3d\u0142. Uruchom: npm install`,
+        { cause: error62 }
+      );
+    }
+  }
+  return { exitCode: undecided2.size > 0 ? 1 : 0 };
+}
+async function bundleKitVersion(bundleKitDir2) {
+  if (!existsSync3(join12(bundleKitDir2, "kit", "kit.json"))) {
+    return null;
+  }
+  return (await readKitConfig(bundleKitDir2)).version;
+}
+async function delegateToTarget(input2) {
+  const { args, targetKitDir } = input2;
+  const flags = [
+    ...args.dryRun ? ["--dry-run"] : [],
+    ...args.install ? [] : ["--no-install"]
+  ];
+  try {
+    await input2.runner(
+      "node",
+      [
+        join12(targetKitDir, ".wa/bin/wa.mjs"),
+        "update",
+        args.version,
+        "--from-kit",
+        targetKitDir,
+        "--kit",
+        input2.source,
+        ...flags
+      ],
+      input2.projectDir
+    );
+  } catch (error62) {
+    const { code, message } = error62;
+    if (typeof code === "string") {
+      throw new Error(
+        `Nie uda\u0142o si\u0119 uruchomi\u0107 bundla wa-kit ${args.version}: ${message}`,
+        { cause: error62 }
+      );
+    }
+    return { exitCode: 1 };
+  }
+  return { exitCode: 0 };
+}
+async function updateFromSource(options) {
+  const { projectDir, args, runner } = options;
+  const state = await readKitState(projectDir);
+  if (checkVersions(state.kitVersion, args.version) === "same") {
+    options.log(`Projekt ma ju\u017C wa-kit ${args.version}`);
+    return { exitCode: 0 };
+  }
+  if (!args.dryRun) {
+    await assertCleanTree(projectDir);
+  }
+  const source = kitSourceLocation({
+    kitFlag: args.kit,
+    envSource: options.envSource,
+    state
+  });
+  const bundleVersion = args.fromKit === null ? await bundleKitVersion(options.bundleKitDir) : null;
+  if (bundleVersion !== null && bundleVersion !== args.version) {
+    throw new Error(
+      `Bundel pochodzi z wa-kit ${bundleVersion}, a aktualizacja prowadzi do ${args.version}`
+    );
+  }
+  const tmpDir = await mkdtemp3(join12(options.tmpRoot, "wa-update-"));
+  try {
+    const clone2 = (version2, name) => cloneKitVersion({ source, version: version2, runner, tmpDir, name });
+    if (args.fromKit === null && bundleVersion === null) {
+      return await delegateToTarget({
+        projectDir,
+        args,
+        source,
+        targetKitDir: await clone2(args.version, "target"),
+        runner
+      });
+    }
+    const targetKitDir = args.fromKit === null ? await clone2(args.version, "target") : resolve4(args.fromKit);
+    return await update({
+      projectDir,
+      version: args.version,
+      baseKitDir: await clone2(state.kitVersion, "base"),
+      targetKitDir,
+      dryRun: args.dryRun,
+      install: args.install,
+      runner,
+      log: options.log
+    });
+  } finally {
+    await rm5(tmpDir, { recursive: true });
+  }
+}
+
+// src/cli.ts
+import { resolve as resolve5 } from "node:path";
+var HELP_ALIASES = ["help", "--help", "-h"];
+var VERSION_ALIASES = ["version", "--version", "-v"];
+var COMMANDS = ["create", "add", "remove", "list", "update", "generate"];
+function usage(name) {
+  return [
+    `Usage: ${name} <command> [options]`,
+    "",
+    "Commands:",
+    `  ${name} create <dir> [--modules <a,b>] [--locales <pl,en>] [--title <title>] [--admin-email <email>] [--setup] [--yes] [--no-install] [--no-git] [--kit <path>] [--cli-source <tarball>]`,
+    `  ${name} add <module> [--kit <path|url>] [--no-install]`,
+    `  ${name} remove <module> [--force] [--no-install]`,
+    `  ${name} list [--kit <path|url>]`,
+    `  ${name} update <version> [--kit <path|url>] [--dry-run] [--no-install]`,
+    `  ${name} generate`,
+    `  ${name} kit sync`,
+    `  ${name} help`,
+    `  ${name} version`,
+    "",
+    "add, list and update read the kit from --kit, then GATO_KIT_SOURCE (or WA_KIT_SOURCE),",
+    "then the kitRepo from .wa/kit.json at tag v<kitVersion>."
+  ].join("\n");
+}
+function isKnownCommand(argv) {
+  const [command, subcommand] = argv;
+  if (command === "kit") {
+    return subcommand === "sync";
+  }
+  return COMMANDS.includes(command);
+}
+function unknownCommandName(argv) {
+  return argv[0] === "kit" ? argv.slice(0, 2).join(" ") : argv[0];
+}
+function runMetaCommand(argv, identity2) {
+  const [command] = argv;
+  if (command === void 0) {
+    return { exitCode: 1, stdout: null, stderr: usage(identity2.name) };
+  }
+  if (HELP_ALIASES.includes(command)) {
+    return { exitCode: 0, stdout: usage(identity2.name), stderr: null };
+  }
+  if (VERSION_ALIASES.includes(command)) {
+    return { exitCode: 0, stdout: identity2.version, stderr: null };
+  }
+  if (isKnownCommand(argv)) {
+    return null;
+  }
+  return {
+    exitCode: 1,
+    stdout: null,
+    stderr: `Unknown command: ${unknownCommandName(argv)}
+
+${usage(identity2.name)}`
+  };
+}
+function kitSourceFromEnv(env) {
+  return env["GATO_KIT_SOURCE"] || env["WA_KIT_SOURCE"] || void 0;
+}
+function createKitDir(input2) {
+  if (input2.kitFlag !== null) {
+    return resolve5(input2.kitFlag);
+  }
+  if (input2.name === "gato") {
+    throw new Error("gato create needs --kit <path to a GatoJS checkout>");
+  }
+  return resolve5(input2.bundleDir, "../..");
+}
+function cliDependency(input2) {
+  if (input2.cliSource !== null) {
+    return `file:${resolve5(input2.cwd, input2.cliSource)}`;
+  }
+  return input2.name === "gato" ? `^${input2.version}` : null;
+}
+
 // src/bin.ts
-var USAGE = "U\u017Cycie: wa generate | wa kit sync | wa create <katalog> [opcje] | wa add <modu\u0142> [--kit <\u015Bcie\u017Cka|url>] [--no-install] | wa remove <modu\u0142> [--force] [--no-install] | wa list [--kit <\u015Bcie\u017Cka|url>]";
+var identity = { name: "wa", version: "0.2.1" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);
-  const tmpDir = await mkdtemp2(join11(tmpdir(), "wa-list-"));
+  const tmpDir = await mkdtemp4(join13(tmpdir2(), "wa-list-"));
   try {
     let available = null;
     let availableError = null;
     try {
       const kitDir = await resolveKitSource({
         kitFlag: kit,
-        envSource: process.env["WA_KIT_SOURCE"],
+        envSource: kitSourceFromEnv(process.env),
         state,
         runner: spawnRunner,
         tmpDir
@@ -23382,12 +24383,25 @@ async function listCommand(kit) {
     }
     list({ state, available, availableError, log: console.log });
   } finally {
-    await rm4(tmpDir, { recursive: true });
+    await rm6(tmpDir, { recursive: true });
   }
 }
+function bundleKitDir() {
+  return resolve6(dirname7(fileURLToPath(import.meta.url)), "../..");
+}
 async function main(argv) {
-  const [command, subcommand] = argv;
-  if (command === "kit" && subcommand === "sync") {
+  const meta3 = runMetaCommand(argv, identity);
+  if (meta3 !== null) {
+    if (meta3.stdout !== null) {
+      console.log(meta3.stdout);
+    }
+    if (meta3.stderr !== null) {
+      console.error(meta3.stderr);
+    }
+    return meta3.exitCode;
+  }
+  const [command] = argv;
+  if (command === "kit") {
     const { changed: changed2 } = await kitSync(process.cwd());
     console.log(changed2 ? "Zaktualizowano .wa/kit.json" : "Bez zmian");
     return 0;
@@ -23398,11 +24412,11 @@ async function main(argv) {
       projectDir: process.cwd(),
       module,
       kitFlag: kit,
-      envSource: process.env["WA_KIT_SOURCE"],
+      envSource: kitSourceFromEnv(process.env),
       install,
       runner: spawnRunner,
       log: console.log,
-      tmpRoot: tmpdir()
+      tmpRoot: tmpdir2()
     });
     return 0;
   }
@@ -23422,24 +24436,39 @@ async function main(argv) {
     await listCommand(parseListArgs(argv.slice(1)).kit);
     return 0;
   }
+  if (command === "update") {
+    const { exitCode } = await updateFromSource({
+      projectDir: process.cwd(),
+      args: parseUpdateArgs(argv.slice(1)),
+      envSource: kitSourceFromEnv(process.env),
+      bundleKitDir: bundleKitDir(),
+      runner: spawnRunner,
+      log: console.log,
+      tmpRoot: tmpdir2()
+    });
+    return exitCode;
+  }
   if (command === "create") {
-    const { kit, ...parsed } = parseCreateArgs(argv.slice(1));
-    const defaultKit = resolve4(
-      dirname6(fileURLToPath(import.meta.url)),
-      "../.."
-    );
+    const { kit, cliSource, ...parsed } = parseCreateArgs(argv.slice(1));
     await create({
       ...parsed,
-      kitDir: kit === null ? defaultKit : resolve4(kit),
+      cliSource: cliSource === null ? null : resolve6(cliSource),
+      cliDependency: cliDependency({
+        name: identity.name,
+        version: identity.version,
+        cliSource,
+        cwd: process.cwd()
+      }),
+      kitDir: createKitDir({
+        kitFlag: kit,
+        name: identity.name,
+        bundleDir: dirname7(fileURLToPath(import.meta.url))
+      }),
       runner: spawnRunner,
       prompter: readlinePrompter,
       log: console.log
     });
     return 0;
-  }
-  if (command !== "generate") {
-    console.error(USAGE);
-    return 1;
   }
   const { changed } = await generate(process.cwd());
   if (changed.length === 0) {

@@ -1,5 +1,5 @@
 import { setRequestLocale } from "next-intl/server";
-import { env } from "@/shared/lib/env";
+import { env } from "@/env";
 import { requireModuleAccess } from "@/shared/lib/auth/require-module-access";
 import { isGlobalAdmin } from "@/shared/lib/auth/roles";
 import { UsersManager } from "@/features/users/components/users-manager";

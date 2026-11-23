@@ -22,9 +22,9 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 - `stryker.integration.config.json`
 - `vitest.setup.ts`
 - `src/__tests__/vitest-setup.test.ts`
-- `kit/cli/vitest.config.ts`
-- `kit/cli/vitest.setup.ts`
-- `kit/cli/src/__tests__/vitest-setup.test.ts`
+- `packages/gato-cli/vitest.config.ts`
+- `packages/gato-cli/vitest.setup.ts`
+- `packages/gato-cli/src/__tests__/vitest-setup.test.ts`
 - `mutation-gate.json`
 - `scripts/mutation-gate.ts`
 - `scripts/lib/mutation-gate.ts`
@@ -350,9 +350,9 @@ Co z tego wynika:
 - `fc.configureGlobal` zastępuje całą konfigurację globalną fast-check. Wywołanie bez `seed` w pliku testów usuwa stały seed dla tego pliku, więc jego testy właściwości znowu nie biorą udziału w przebiegach mutantów. Ustawienie dla jednego testu podawaj w drugim argumencie `test.prop`, jak `{ numRuns: 300 }` w `src/features/uploads/services/__tests__/content-disposition.test.ts`.
 - Nazwy testów właściwości są stałe także między przebiegami Strykera. Plik przyrostowy rozpoznaje test po pliku, pozycji i nazwie (`IncrementalDiffer` w `node_modules/@stryker-mutator/core`). Z losowym seedem każdy przebieg uznawałby testy właściwości za nowe i od nowa sprawdzał mutanty, które obejmują; ze stałym seedem tryb przyrostowy może użyć ich wyników z poprzedniego przebiegu.
 - `vitest.integration.config.ts` nie ładuje `vitest.setup.ts`, więc przebieg integracyjny nie ma stałego seeda. Testy integracyjne nie używają `test.prop`; test właściwości dopisany do testów integracyjnych potrzebowałby tego samego ustawienia w `src/test/integration/setup-env.ts`.
-- CLI kitu ma to samo ustawienie w `kit/cli/vitest.setup.ts` (`setupFiles` w `kit/cli/vitest.config.ts`), bo jego Stryker wybiera testy tak samo ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli)).
+- CLI kitu ma to samo ustawienie w `packages/gato-cli/vitest.setup.ts` (`setupFiles` w `packages/gato-cli/vitest.config.ts`), bo jego Stryker wybiera testy tak samo ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli)).
 
-Ustawienie sprawdzają `src/__tests__/vitest-setup.test.ts` i `kit/cli/src/__tests__/vitest-setup.test.ts`: plik ustawień jest wpisany w `setupFiles`, przy ustawionej zmiennej seed wynosi 42 dla każdego numeru procesu i przy każdym ładowaniu pliku, także przy innej dacie systemowej, a bez zmiennej seed nie jest ustawiony.
+Ustawienie sprawdzają `src/__tests__/vitest-setup.test.ts` i `packages/gato-cli/src/__tests__/vitest-setup.test.ts`: plik ustawień jest wpisany w `setupFiles`, przy ustawionej zmiennej seed wynosi 42 dla każdego numeru procesu i przy każdym ładowaniu pliku, także przy innej dacie systemowej, a bez zmiennej seed nie jest ustawiony.
 
 <a id="bramka"></a>
 
@@ -543,8 +543,8 @@ Katalog `.stryker-tmp/` sam w sobie nie jest problemem: każdy przebieg ma w nim
 | `.claude/settings.json` | Rejestracja hooków `PreToolUse` dla narzędzi `Edit` i `Write`. |
 | `.superpowers/phase` | Plik fazy, lokalny, poza git. |
 | `stryker.config.json`, `stryker.integration.config.json` | Konfiguracje Strykera. |
-| `vitest.setup.ts`, `kit/cli/vitest.setup.ts` | Stały seed testów właściwości w procesach Strykera ([Testy właściwości pod Strykerem](#seed)). |
-| `src/__tests__/vitest-setup.test.ts`, `kit/cli/src/__tests__/vitest-setup.test.ts` | Testy tego seeda (w `npm test` i `npm test --prefix kit/cli`). |
+| `vitest.setup.ts`, `packages/gato-cli/vitest.setup.ts` | Stały seed testów właściwości w procesach Strykera ([Testy właściwości pod Strykerem](#seed)). |
+| `src/__tests__/vitest-setup.test.ts`, `packages/gato-cli/src/__tests__/vitest-setup.test.ts` | Testy tego seeda (w `npm test` i `npm test --prefix packages/gato-cli`). |
 | `mutation-gate.json` | Pliki krytyczne i wpisy wyjątków. |
 | `scripts/mutation-gate.ts` | Wejście bramki: czyta raporty i konfigurację, wypisuje wynik. |
 | `scripts/lib/mutation-gate.ts` | Logika bramki: `mergeReports`, `checkMutationGate`, `mutantOriginal`. |

@@ -4,7 +4,7 @@ One file per decision: `docs/adrs/NN-kebab-case-title.md`, where the title state
 
 ## Numbering
 
-ADR numbers continue the kit's earlier decision log. Decisions `D01`–`D46` and `D48`–`D52` live in [`../decyzje.md`](../decyzje.md). `D47` (`wa update`) is recorded in PR #14; its number is reserved and it lands in `decyzje.md` with that PR. The English migration splits D01–D52 into `docs/adrs/01-…` … `docs/adrs/52-…` with the same numbers. New decisions start at **ADR-53**. A link to an old decision stays `decyzje.md#dNN` until then.
+ADR numbers continue the kit's earlier decision log. Decisions `D01`–`D52` live in [`../decyzje.md`](../decyzje.md); `D47` (`wa update`) landed there with PR #14. The English migration splits D01–D52 into `docs/adrs/01-…` … `docs/adrs/52-…` with the same numbers. New decisions start at **ADR-53**. A link to an old decision stays `decyzje.md#dNN` until then.
 
 Take the next free number when the ADR is written. Two branches can take the same number; the second one to merge renumbers its file and links before merging.
 
@@ -32,3 +32,5 @@ An ADR is not edited after it is accepted, except to fix a mistake or to add "Su
 | --- | --- | --- |
 | [53](53-decisions-are-adrs-and-lessons-are-a-catalog.md) | Decisions are ADR files; gotchas go to a lessons catalog | Accepted |
 | [54](54-kit-releases-are-cut-by-semantic-release.md) | Kit releases are cut by semantic-release from Conventional Commits on `main` | Accepted |
+| [55](55-code-review-does-not-depend-on-coderabbit.md) | Code review does not depend on CodeRabbit | Accepted |
+| [56](56-workspace-packages-replace-d29.md) | GatoJS code that needs its own package lives in `packages/`, as a tool package or a project package | Accepted (supersedes D29, part of D28) |

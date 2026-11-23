@@ -29,7 +29,7 @@ Zadanie → gdzie patrzeć. Ścieżki `docs/…` są w repo `webamigos/wa-kit`; 
 | Tryb serwisowy | `src/shared/lib/auth/service-mode.ts`, `src/shared/components/service-mode/use-service-mode-action.tsx`; `docs/04b-superadmin-i-tryb-serwisowy.md` |
 | Auth i role | `src/shared/lib/auth/`; `docs/04-auth-i-role.md` |
 | Migracja Prismy | `prisma/schema/`; `docs/03b-schemat-i-migracje.md` |
-| Zmienna środowiskowa | `src/shared/lib/env.ts`, `src/features/<x>/env.ts`, `.env.example`; `docs/07-i18n-mail-env.md` |
+| Zmienna środowiskowa | `packages/env/` (`@gatojs/env`: schemat rdzenia, `httpUrl()`, `blankAsUndefined()`, `allOrNone`, `requiredForProvider`), `src/env.ts` (`import { env } from "@/env"`), `src/features/<x>/env.ts`, `.env.example`; `docs/07-i18n-mail-env.md` |
 | i18n | `src/app/messages/`, `src/features/<x>/i18n/`; `docs/07-i18n-mail-env.md` |
 | Mail | `src/shared/lib/mailer.ts`, `src/app/emails/`; `docs/07-i18n-mail-env.md` |
 | Pliki (moduł `uploads`) | `docs/15-modul-uploads.md`, `docs/15b-modul-uploads-uzycie.md` |
@@ -38,7 +38,7 @@ Zadanie → gdzie patrzeć. Ścieżki `docs/…` są w repo `webamigos/wa-kit`; 
 | Pliki generowane, CLI `wa` | `npm run wa -- generate`; `docs/02b-rejestr-i-generator.md`, `docs/16-cli-wa.md` |
 | Podbicie zależności | skill `wa-upgrade-dependency` |
 | Testy i mutacje | „Testy” niżej; `.claude/agents/test-writer.md`, `.claude/agents/test-reviewer.md`, `mutation-gate.json`; `docs/08-testy.md`, `docs/08b-testy-adwersarialne.md` |
-| Recenzja zmiany | skill `wa-code-review` |
+| Recenzja zmiany | skill `wa-code-review` (`.claude/skills/wa-code-review/SKILL.md`, zwykły Markdown: czyta go każdy agent i człowiek); CodeRabbit jest opcjonalny, nie jest bramką |
 
 ## Komendy
 
@@ -55,6 +55,7 @@ npm run test:mutation:gate   # bramka plików krytycznych (mutation-gate.json) n
 npm run test:mutation:task -- src/a.ts,src/b.ts   # mutacje tylko w plikach zadania
 npm run admin:create -- --email <email>   # pierwszy admin + pierwsza organizacja
 npm run wa -- generate   # odśwież pliki generowane
+npm run wa -- update <wersja>   # przenosi projekt na nowszą wersję kitu (wa-kit)
 npx prisma migrate dev --name <nazwa>     # nowa migracja
 ```
 
@@ -132,6 +133,10 @@ src/app/[locale]/(auth|app)
 - Bez zagnieżdżonych ternary (`no-nested-ternary`), bez cichych `catch {}`, bez `any`.
 - `name` klasy błędu ustawiaj napisem (`this.name = "KeyLimitError"` albo pole `name = "KeyLimitError"`); ESLint odrzuca
   `this.constructor.name`, `new.target.name` i `KeyLimitError.name`, bo build minifikuje nazwy klas.
+- Klasa dziedzicząca wprost po `Error` ma własne `name`: pole `name = "KeyLimitError"` albo `this.name = "KeyLimitError"`
+  jako osobna instrukcja konstruktora (nie w `if` ani w funkcji). ESLint zgłasza klasę bez niego poza testami, `e2e/`
+  i plikami `*.d.ts`. Własne selektory `no-restricted-syntax` dopisuj do `restrictedSyntax` w `eslint.config.mjs`,
+  bo obiekt konfiguracji dla tych plików powtarza tę listę.
 
 ### Auth
 

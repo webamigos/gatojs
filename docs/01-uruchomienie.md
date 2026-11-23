@@ -27,7 +27,7 @@ Zweryfikowano z kodem: 6c05f1f, 2026-11-05
 - `scripts/admin-create.ts`
 - `scripts/lib/admin-create.ts`
 - `scripts/lib/__tests__/admin-create.test.ts`
-- `src/shared/lib/env.ts`
+- `packages/env/src/*.ts`, `src/env.ts`
 - `src/features/uploads/services/storage-env.ts`, `src/test/integration/setup-env.ts` (magazyn plików modułu `uploads`)
 - `src/shared/lib/__tests__/env.test.ts`
 - `src/instrumentation.ts`
@@ -280,7 +280,7 @@ Do pracy lokalnej nie musisz niczego zmieniać. Pusta linia `ADMIN_PASSWORD=` oz
 
 Pełną listę zmiennych i reguły ich parsowania opisuje [07-i18n-mail-env.md](07-i18n-mail-env.md).
 
-Zmienne sprawdza schemat z `src/shared/lib/env.ts`. Serwer Next.js (`npm run dev` albo zbudowana aplikacja) sprawdza je przy starcie, a obiekt `env` jeszcze raz przy pierwszym odczycie. Sam import `env` niczego nie sprawdza, więc nie przerywa `next build` ani testów, które nie mają pełnego środowiska ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Skutki:
+Zmienne sprawdza schemat z `packages/env/src/core-env-schema.ts`. Serwer Next.js (`npm run dev` albo zbudowana aplikacja) sprawdza je przy starcie, a obiekt `env` jeszcze raz przy pierwszym odczycie. Sam import `env` niczego nie sprawdza, więc nie przerywa `next build` ani testów, które nie mają pełnego środowiska ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Skutki:
 
 - `npm run build` nie sprawdza zmiennych.
 - `npm run dev` z błędnym `.env` nie startuje: wypisuje raport ze wszystkimi problemami i kończy się kodem 1 (sprawdzone 2026-11-04 w repozytorium kitu, [Komunikat `Nieprawidłowe zmienne środowiskowe`](#bledy-env)). `npm run admin:create` zgłasza błąd przy pierwszym odczycie `env`.
@@ -385,7 +385,7 @@ Problemy są ułożone w kolejności kroków [pierwszego uruchomienia](#pierwsze
 ### Komunikat `Nieprawidłowe zmienne środowiskowe`
 
 - **Objaw:** `npm run dev` albo zbudowany serwer kończy pracę zaraz po starcie, a w terminalu jest raport, który zaczyna się od `Nieprawidłowe zmienne środowiskowe (<liczba problemów>):`, z jedną linią `- <ZMIENNA>: <komunikat>` na problem. Linia `✓ Ready` przed raportem nie znaczy, że serwer działa. `npm run admin:create` kończy się stosem wyjątku z linią `Error: Nieprawidłowe zmienne środowiskowe: …`, w której problemy w postaci `<ZMIENNA>: <komunikat>` są rozdzielone średnikami.
-- **Przyczyna:** brak albo zła wartość zmiennej w `.env`. Komunikaty po angielsku pochodzą z biblioteki zod 4, polskie dodaje `src/shared/lib/env.ts`.
+- **Przyczyna:** brak albo zła wartość zmiennej w `.env`. Komunikaty po angielsku pochodzą z biblioteki zod 4, polskie dodaje `packages/env/src/core-env-schema.ts`.
 - **Rozwiązanie:** znajdź komunikat w tabeli, popraw `.env` i uruchom serwer ponownie.
 
 | Zmienna | Komunikat | Przyczyna i naprawa |

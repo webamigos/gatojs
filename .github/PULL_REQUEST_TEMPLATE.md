@@ -8,7 +8,8 @@
 
 ## Checklist
 
-- [ ] `npm run verify` passes (and `npm run verify --prefix kit/cli` for CLI changes)
+- [ ] `npm run verify` passes (and `npm run verify --prefix packages/gato-cli` or `--prefix packages/create-gato-app` for tool package changes)
+- [ ] Self-reviewed against `.claude/skills/wa-code-review/SKILL.md` (CodeRabbit is optional)
 - [ ] Tests added or updated; a bug fix has a test that fails without the fix
 - [ ] Queries and commands on organization data go through `getOrgContext()` / `requireModuleAccess()` and filter by `organizationId`; commands call `assertServiceModeConfirmed`
 - [ ] No edits to generated files or `wa:*` regions (`npm run wa -- generate` run instead)

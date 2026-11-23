@@ -1,0 +1,110 @@
+{
+  "critical": [
+    "src/generate/",
+    "src/manifest/",
+    "src/assemble/",
+    "src/commands/",
+    "src/kit/",
+    "src/update/"
+  ],
+  "allowed": [
+    {
+      "file": "src/generate/regions.ts",
+      "mutator": "ConditionalExpression",
+      "original": "start === undefined",
+      "replacement": "false",
+      "reason": "równoważny: starts.length !== 1 wyklucza wcześniej brak startu; warunek tylko zawęża typ dla TypeScript"
+    },
+    {
+      "file": "src/generate/regions.ts",
+      "mutator": "ConditionalExpression",
+      "original": "end === undefined",
+      "replacement": "false",
+      "reason": "równoważny: ends.length !== 1 wyklucza wcześniej brak końca; warunek tylko zawęża typ dla TypeScript"
+    },
+    {
+      "file": "src/commands/kit-sync.ts",
+      "mutator": "ConditionalExpression",
+      "original": "(error as NodeJS.ErrnoException).code === \"ENOENT\"",
+      "replacement": "true",
+      "reason": "równoważny: przy błędzie innym niż ENOENT writeKitState rzuca ten sam błąd przy zapisie; zmienia się najwyżej miejsce błędu"
+    },
+    {
+      "file": "src/manifest/schema.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{\n    message: 'locales musi zawierać \"pl\"',\n  }",
+      "replacement": "{}",
+      "reason": "tylko komunikat: odrzucenie locales bez pl jest testowane, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/manifest/schema.ts",
+      "mutator": "StringLiteral",
+      "original": "'locales musi zawierać \"pl\"'",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: odrzucenie locales bez pl jest testowane, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/manifest/schema.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{\n    message: \"locales nie może zawierać duplikatów\",\n  }",
+      "replacement": "{}",
+      "reason": "tylko komunikat: odrzucenie duplikatów jest testowane, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/manifest/schema.ts",
+      "mutator": "StringLiteral",
+      "original": "\"locales nie może zawierać duplikatów\"",
+      "replacement": "\"\"",
+      "reason": "tylko komunikat: odrzucenie duplikatów jest testowane, treść komunikatu nie jest kontraktem"
+    },
+    {
+      "file": "src/kit/files.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{\n      maxBuffer: 64 * 1024 * 1024,\n    }",
+      "replacement": "{}",
+      "reason": "świadoma stała konfiguracyjna: bufor dla dużych repozytoriów, fixture mieści się w domyślnym"
+    },
+    {
+      "file": "src/kit/files.ts",
+      "mutator": "ConditionalExpression",
+      "original": "(error as { code?: unknown }).code === GIT_FATAL_EXIT_CODE",
+      "replacement": "true",
+      "reason": "tylko komunikat: inny błąd gita (np. brak binarki) dostaje komunikat o braku repozytorium zamiast oryginalnego; zachowanie (odrzucenie) bez zmian"
+    },
+    {
+      "file": "src/kit/files.ts",
+      "mutator": "MethodExpression",
+      "original": "stdout.split(\"\\0\").filter(Boolean).sort(compareCodePoint)",
+      "replacement": "stdout.split(\"\\0\").filter(Boolean)",
+      "reason": "równoważny: git ls-files zwraca ścieżki już posortowane"
+    },
+    {
+      "file": "src/generate/index.ts",
+      "mutator": "ArrayDeclaration",
+      "original": "[]",
+      "replacement": "[\"Stryker was here\"]",
+      "reason": "równoważny: lista języków modułu jest filtrowana przez locales projektu w rendererach, dodatkowy element nie trafia do pliku generowanego"
+    },
+    {
+      "file": "src/generate/index.ts",
+      "mutator": "ConditionalExpression",
+      "original": "error.code === \"ENOENT\"",
+      "replacement": "true",
+      "reason": "równoważny: przy błędzie innym niż ENOENT zapis writeFile rzuca ten sam błąd; zmienia się najwyżej miejsce błędu"
+    },
+    {
+      "file": "src/commands/remove.ts",
+      "mutator": "ConditionalExpression",
+      "original": "(error as NodeJS.ErrnoException).code === \"ENOENT\"",
+      "replacement": "true",
+      "reason": "równoważny: każdy błąd systemu plików inny niż ENOENT odpada wcześniej przy walidacji ścieżek przez realpath; pozostaje tylko wyścig z zewnętrznym procesem"
+    },
+    {
+      "file": "src/commands/remove.ts",
+      "mutator": "ArrayDeclaration",
+      "original": "[]",
+      "replacement": "[\"Stryker was here\"]",
+      "reason": "równoważny: managedFiles w HASH_CONFIG zmienia hash tylko dla ścieżek z listy; ścieżka „Stryker was here” nie jest plikiem żadnego modułu"
+    }
+  ]
+}

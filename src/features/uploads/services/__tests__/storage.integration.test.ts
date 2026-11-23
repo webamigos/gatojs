@@ -10,7 +10,7 @@ const mockEnv = vi.hoisted(() => ({
   S3_FORCE_PATH_STYLE: true,
 }));
 
-vi.mock("@/shared/lib/env", async () => {
+vi.mock("@/env", async () => {
   const { project } = await import("@/shared/config/project");
   mockEnv.S3_BUCKET =
     process.env.INTEGRATION_S3_BUCKET ?? `${project.slug}-uploads`;

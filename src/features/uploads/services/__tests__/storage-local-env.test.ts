@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const mockEnv = vi.hoisted((): Record<string, unknown> => ({}));
 
-vi.mock("@/shared/lib/env", () => ({ env: mockEnv }));
+vi.mock("@/env", () => ({ env: mockEnv }));
 
 import { InvalidStorageKeyError } from "../local-storage";
 import { deleteObject, getObject, putObject } from "../storage";

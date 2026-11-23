@@ -1,4 +1,5 @@
-import { checkEnv } from "@/shared/lib/env";
+import { checkEnv } from "@gatojs/env";
+import { moduleEnvSchemas } from "@/modules.generated";
 import { parseDotenv } from "./dotenv";
 import { readRepoFile } from "./repo-files";
 
@@ -9,7 +10,7 @@ export function checkEnvExample(root: string): string[] {
     ...parseDotenv(readRepoFile(root, ENV_EXAMPLE_FILE)),
     NODE_ENV: "development",
   };
-  const result = checkEnv(source);
+  const result = checkEnv(source, moduleEnvSchemas);
   if (result.ok) {
     return [];
   }

@@ -26,8 +26,8 @@ Zweryfikowano z kodem: b0f6382, 2026-11-21 ([testy architektury](#architektura))
 - `src/features/organizations/services/__tests__/organization-isolation.integration.test.ts`
 - `playwright.config.ts`
 - `e2e/`
-- `kit/cli/vitest.config.ts`
-- `kit/cli/vitest.setup.ts`
+- `packages/gato-cli/vitest.config.ts`
+- `packages/gato-cli/vitest.setup.ts`
 - `turbo.json`
 - `.claude/hooks/block-comments.test.mjs`
 - `.claude/hooks/protect-tests.test.mjs`
@@ -52,11 +52,11 @@ Każdy rodzaj testu zastępuje inną część systemu, więc każdy łapie inne 
 | Testy architektury repo | Prawdziwe pliki projektu na dysku: instrukcje agentów, tłumaczenia, `.env.example`, wersja Node, importy plików klienckich ([D50](decyzje.md#d50), [niżej](#architektura)). | `src/__tests__/architecture/` | `npm test` | nie | tak |
 | Integracyjne | Prawdziwe: Postgres, Prisma, query, komendy i guardy, a w testach modułu `uploads` także magazyn S3 (MinIO). Zastąpione: nagłówki i przekierowania Next.js, język z next-intl, `auth.api.getSession`. | `*.integration.test.ts` | `npm run test:integration` | `_test`, czyści | nie |
 | E2E | Cała aplikacja po buildzie produkcyjnym, przeglądarka Chromium, baza i mailpit. Nic nie jest zastąpione. | `e2e/*.spec.ts` | `npm run test:e2e` | `_e2e`, kasuje | nie |
-| CLI | Generator i komendy `wa` na kopii plików w katalogu tymczasowym systemu. Tylko w repozytorium kitu. | `kit/cli/src/**/__tests__/` | `npm test --prefix kit/cli` | nie | nie (bramka CLI) |
+| CLI | Generator i komendy `wa` na kopii plików w katalogu tymczasowym systemu. Tylko w repozytorium kitu. | `packages/gato-cli/src/**/__tests__/` | `npm test --prefix packages/gato-cli` | nie | nie (bramka CLI) |
 | Hooki Claude Code | Funkcje i skrypty hooków z `.claude/hooks/`, także uruchamiane jako osobne procesy. | `.claude/hooks/*.test.mjs` | `npm run test:hooks` | nie | tak |
 | Mutacyjne (Stryker) | Testy jednostkowe albo integracyjne uruchamiane na kodzie z celowo wstrzykniętymi błędami ([08b](08b-testy-adwersarialne.md#stryker)). | konfiguracja w katalogu głównym | `npm run test:mutation` i pokrewne | integracyjny: `_test`, czyści | nie |
 
-`npm run verify` to bramka `verify`, którą uruchamiasz przed oddaniem pracy: lint, typecheck, `npm test`, build, `turbo run test typecheck` (workspace `packages/*`, który jest pusty, bo CLI ma własną bramkę: `npm run verify --prefix kit/cli`) oraz testy hooków. Testów integracyjnych, e2e i mutacyjnych nie uruchamia, bo wymagają bazy albo przeglądarki, a pełny przebieg mutacyjny trwa około godziny (2026-11-02, 8 rdzeni, bez cache przyrostowego: unitowy 38 minut, integracyjny 20 minut). Integracyjne i e2e działają w osobnych jobach CI, a mutacyjne tylko lokalnie albo po ręcznym uruchomieniu workflowu ([CI](#ci)), więc przed oddaniem zmiany w query, komendzie albo przepływie logowania uruchom je sam.
+`npm run verify` to bramka `verify`, którą uruchamiasz przed oddaniem pracy: lint, typecheck, `npm test`, build, `turbo run test typecheck lint` (skrypty pakietów w workspace `packages/*`; w repozytorium GatoJS to pakiet narzędzia `packages/gato-cli`, którego pełna bramka to `npm run verify --prefix packages/gato-cli`) oraz testy hooków. Testów integracyjnych, e2e i mutacyjnych nie uruchamia, bo wymagają bazy albo przeglądarki, a pełny przebieg mutacyjny trwa około godziny (2026-11-02, 8 rdzeni, bez cache przyrostowego: unitowy 38 minut, integracyjny 20 minut). Integracyjne i e2e działają w osobnych jobach CI, a mutacyjne tylko lokalnie albo po ręcznym uruchomieniu workflowu ([CI](#ci)), więc przed oddaniem zmiany w query, komendzie albo przepływie logowania uruchom je sam.
 
 <a id="jednostkowe"></a>
 
@@ -64,9 +64,9 @@ Każdy rodzaj testu zastępuje inną część systemu, więc każdy łapie inne 
 
 `npm test` uruchamia Vitest z `vitest.config.ts`. Najważniejsze ustawienia:
 
-- **Środowisko `jsdom`** dla wszystkich plików, żeby testy komponentów mogły renderować React. Plik, który potrzebuje czystego Node, zaczyna się od dyrektywy `// @vitest-environment node` (tak robi test architektury).
+- **Środowisko `jsdom`** dla plików projektu `app`, żeby testy komponentów mogły renderować React. Plik, który potrzebuje czystego Node, zaczyna się od dyrektywy `// @vitest-environment node` (tak robi test architektury).
 - **`vitest.setup.ts`** dodaje matchery Testing Library dla DOM (na przykład `toBeInTheDocument`) i wczytuje `.env.local` oraz `.env` przez dotenv. Testy widzą więc `DATABASE_URL` z `.env`, ale z bazą się nie łączą, bo Prisma jest w nich zastąpiona. W procesach Strykera (ze zmienną `STRYKER_MUTATOR_WORKER`) ustawia też stały seed testów właściwości ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#seed)).
-- **Pliki:** `src/**/*.test.ts`, `src/**/*.test.tsx`, `scripts/**/*.test.ts` i `e2e/**/*.test.ts`. Pominięte są `*.integration.test.ts`, `packages/**` (CLI ma własną konfigurację), `kit/**`, `docs/**`, `.superpowers/**` i `.stryker-tmp/**` (kopie projektu robione przez Strykera).
+- **Pliki:** projekt Vitest `app` obejmuje `src/**/*.test.ts`, `src/**/*.test.tsx`, `scripts/**/*.test.ts` i `e2e/**/*.test.ts`, a projekt `packages` (środowisko `node`) testy pakietów projektu `packages/*/src/**/*.test.ts` bez pakietów narzędzi `packages/gato-cli` i `packages/create-gato-app`, które mają własną konfigurację ([ADR-56](adrs/56-workspace-packages-replace-d29.md)). Pominięte są `*.integration.test.ts`, `packages/**` (w projekcie `app`), `kit/**`, `docs/**`, `.superpowers/**` i `.stryker-tmp/**` (kopie projektu robione przez Strykera).
 - **`globals: true`** udostępnia `describe`, `it` i `expect` bez importu, a **`clearMocks: true`** czyści historię wywołań mocków przed każdym testem.
 - **Alias `server-only`** wskazuje pusty plik `empty.js` z pakietu `server-only`, więc pliki serwerowe z `import "server-only"` dają się zaimportować w teście.
 
@@ -190,9 +190,9 @@ Testy w `src/__tests__/architecture/` sprawdzają spójność plików projektu, 
 | `documented-commands-exist` | Każde `npm run <skrypt>` w `AGENTS.md`, `CLAUDE.md`, `README.md` i plikach `.md` w `.claude/` istnieje w `scripts` w `package.json`. Argumenty po nazwie skryptu się nie liczą. |
 | `cited-paths-exist` | Każda ścieżka w backtickach albo w celu linku w `AGENTS.md`, `CLAUDE.md` i plikach `.md` w `.claude/` istnieje. |
 | `i18n-keys-exist-in-every-locale` | `src/app/messages/<locale>.json` i każde `src/features/*/i18n/<locale>.json` istnieją dla każdego języka z `src/i18n/locales.generated.ts` i mają ten sam zbiór kluczy (pełnych ścieżek liści, na przykład `form.title`). |
-| `env-example-passes-validation` | `checkEnv` z `src/shared/lib/env.ts`, ze schematami zmiennych modułów projektu, przyjmuje `.env.example` z `NODE_ENV=development`. |
+| `env-example-passes-validation` | `checkEnv` z `@gatojs/env`, ze schematami zmiennych modułów projektu, przyjmuje `.env.example` z `NODE_ENV=development`. |
 | `node-version-is-one-number` | Major z `.nvmrc` jest równy majorowi z każdej linii `FROM node:<tag>` w `Dockerfile`, a żaden workflow w `.github/workflows/` nie ma klucza `node-version:` (tylko `node-version-file: .nvmrc`). |
-| `client-bundles-stay-server-free` | Plik `.ts`/`.tsx` w `src/` (bez `src/generated/`) z dyrektywą `"use client"` jako pierwszą instrukcją nie importuje `@/shared/lib/prisma`, `@/shared/lib/env`, `@/generated/prisma`, `server-only`, `node:*` ani modułów `@/shared/lib/auth`. |
+| `client-bundles-stay-server-free` | Plik `.ts`/`.tsx` w `src/` (bez `src/generated/`) z dyrektywą `"use client"` jako pierwszą instrukcją nie importuje `@/shared/lib/prisma`, `@/env`, `@gatojs/env`, `@/generated/prisma`, `server-only`, `node:*` ani modułów `@/shared/lib/auth`. |
 
 Reguły, które wymagały doprecyzowania:
 
@@ -215,7 +215,7 @@ Test, który pada, podaje plik i wartość, na przykład `CLAUDE.md: npm run nop
 
 ## Testy CLI i hooków
 
-**CLI** (`kit/cli`, tylko w repozytorium kitu) ma własną konfigurację `kit/cli/vitest.config.ts`: środowisko `node`, pliki `src/**/*.test.ts` i plik ustawień `kit/cli/vitest.setup.ts`, który w procesach Strykera ustawia stały seed testów właściwości, tak jak `vitest.setup.ts` aplikacji ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#seed)). Testy generatora, manifestu i komend kopiują pliki do katalogu tymczasowego systemu (`mkdtemp`), więc nie zmieniają plików repozytorium. Wyjątek to test własności plików, który czyta prawdziwe repozytorium kitu ([D38](decyzje.md#d38)). Uruchomisz je komendą `npm test --prefix kit/cli`. Bramka CLI `npm run verify --prefix kit/cli` uruchamia po kolei lint (`eslint .` z `kit/cli/eslint.config.mjs`), typecheck, testy i build bundla; ta sama bramka działa w jobie `cli` workflowu `kit.yml`. CLI ma też własną konfigurację Strykera i bramkę mutacji (`kit/cli/stryker.config.json`, `kit/cli/mutation-gate.json`, komendy `npm run test:mutation:task --prefix kit/cli -- <pliki>` i `npm run test:mutation:gate --prefix kit/cli`); pełny przebieg uruchamia ręcznie `kit-mutation.yml`. Szczegóły: [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli). Główny `npm test` pomija `kit/**`.
+**CLI** (`packages/gato-cli`, tylko w repozytorium kitu) ma własną konfigurację `packages/gato-cli/vitest.config.ts`: środowisko `node`, pliki `src/**/*.test.ts` i plik ustawień `packages/gato-cli/vitest.setup.ts`, który w procesach Strykera ustawia stały seed testów właściwości, tak jak `vitest.setup.ts` aplikacji ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#seed)). Testy generatora, manifestu i komend kopiują pliki do katalogu tymczasowego systemu (`mkdtemp`), więc nie zmieniają plików repozytorium. Wyjątek to test własności plików, który czyta prawdziwe repozytorium kitu ([D38](decyzje.md#d38)). Uruchomisz je komendą `npm test --prefix packages/gato-cli`. Bramka CLI `npm run verify --prefix packages/gato-cli` uruchamia po kolei lint (`eslint .` z `packages/gato-cli/eslint.config.mjs`), typecheck, testy i build bundla; ta sama bramka działa w jobie `cli` workflowu `kit.yml`. CLI ma też własną konfigurację Strykera i bramkę mutacji (`packages/gato-cli/stryker.config.json`, `packages/gato-cli/mutation-gate.json`, komendy `npm run test:mutation:task --prefix packages/gato-cli -- <pliki>` i `npm run test:mutation:gate --prefix packages/gato-cli`); pełny przebieg uruchamia ręcznie `kit-mutation.yml`. Szczegóły: [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli). Główny `npm test` pomija `kit/**`.
 
 **Hooki Claude Code** testuje `npm run test:hooks`, czyli wbudowany runner Node (`node --test`) na `.claude/hooks/block-comments.test.mjs` i `.claude/hooks/protect-tests.test.mjs`. Testy wywołują funkcje hooka, a w części przypadków uruchamiają skrypt jako osobny proces z wejściem JSON, tak jak robi to Claude Code, i sprawdzają kod wyjścia. Co robią hooki: [D23](decyzje.md#d23) (komentarze) i [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza) (testy tylko do odczytu).
 
@@ -465,14 +465,14 @@ Izolację w interfejsie sprawdza też e2e `e2e/multi-org.spec.ts`: dwie rejestra
 
 ## Czas przebiegów
 
-Pomiary z 2026-10-28 na komputerze z 8 rdzeniami, na kodzie z commita `4a6ffcb`, chyba że zaznaczono inaczej. Ten commit poprzedza moduły kitu i wszystkie testy CLI: w repozytorium kitu po planie 3 jest 10 plików `*.integration.test.ts` i 28 plików testów w `kit/cli/src`, więc te przebiegi trwają dłużej (nie mierzono ich ponownie).
+Pomiary z 2026-10-28 na komputerze z 8 rdzeniami, na kodzie z commita `4a6ffcb`, chyba że zaznaczono inaczej. Ten commit poprzedza moduły kitu i wszystkie testy CLI: w repozytorium kitu po planie 3 jest 10 plików `*.integration.test.ts` i 28 plików testów w `packages/gato-cli/src`, więc te przebiegi trwają dłużej (nie mierzono ich ponownie).
 
 | Komenda | Czas | Zakres |
 | --- | --- | --- |
 | `npm test` | ok. 17 s | 55 plików, 1206 testów |
 | `npm run test:integration` | ok. 4 s | 1 plik, 38 testów, baza już założona |
 | `npm run test:hooks` | poniżej 1 s | 18 testów |
-| `npm test --prefix kit/cli` | poniżej 1 s | 5 plików, 35 testów |
+| `npm test --prefix packages/gato-cli` | poniżej 1 s | 5 plików, 35 testów |
 | `npm run test:mutation:task -- src/shared/lib/auth/service-mode.ts` | 1 min 16 s | 35 mutantów, 101 testów powiązanych z plikiem; `.claude/agents/test-reviewer.md` podaje 1–3 minuty na zadanie |
 | `npm run test:mutation:gate` | poniżej 1 s | dwa raporty |
 | `npm run test:mutation` bez [pliku przyrostowego](08b-testy-adwersarialne.md#przyrostowy) | ok. 12 min przy 996 mutantach | Pomiar z audytu testów rdzenia na commicie `50a4d9e` (8 rdzeni). Od audytu przybyło mutantów (lokalny plik przyrostowy z 2026-10-27 ma ich 1781), więc pełny przebieg trwa dłużej. Nie mierzono go na `4a6ffcb`. |
@@ -515,13 +515,13 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 | `npm run test:integration` | `vitest run -c vitest.integration.config.ts` | `_test`, czyści | nie | `ci.yml`, `integration` |
 | `npm run test:e2e` | `npm run build && rm -rf .next/standalone/.next/static && cp -R .next/static .next/standalone/.next/static && playwright test` | `_e2e`, kasuje | nie | `e2e.yml` |
 | `npm run test:hooks` | `node --test .claude/hooks/block-comments.test.mjs .claude/hooks/protect-tests.test.mjs` | nie | tak | `ci.yml`, `verify` |
-| `npm test --prefix kit/cli` | `vitest run` w `kit/cli/package.json` | nie | nie (bramka `verify` kitu) | `kit.yml`, `cli` |
-| `npm run verify --prefix kit/cli` | `npm run lint && npm run typecheck && npm test && npm run build` w `kit/cli/package.json` | nie | — | `kit.yml`, `cli` |
+| `npm test --prefix packages/gato-cli` | `vitest run` w `packages/gato-cli/package.json` | nie | nie (bramka `verify` kitu) | `kit.yml`, `cli` |
+| `npm run verify --prefix packages/gato-cli` | `npm run lint && npm run typecheck && npm test && npm run build` w `packages/gato-cli/package.json` | nie | — | `kit.yml`, `cli` |
 | `npm run test:mutation` | `stryker run` | nie | nie | `mutation.yml`, tylko ręcznie |
 | `npm run test:mutation:task -- <pliki>` | `stryker run --force --mutate` | nie | nie | nie |
 | `npm run test:mutation:integration` | `stryker run stryker.integration.config.json` | `_test`, czyści | nie | `mutation.yml`, tylko ręcznie |
 | `npm run test:mutation:gate` | `tsx scripts/mutation-gate.ts` | nie | nie | `mutation.yml`, tylko ręcznie |
-| `npm run verify` | `npm run lint && npm run typecheck && npm test && npm run build && turbo run test typecheck && npm run test:hooks` | nie | — | `ci.yml`, `verify` |
+| `npm run verify` | `npm run lint && npm run typecheck && npm test && npm run build && turbo run test typecheck lint && npm run test:hooks` | nie | — | `ci.yml`, `verify` |
 
 <a id="referencja-pliki"></a>
 
@@ -543,9 +543,9 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 | `e2e/global-setup.ts` | Reset bazy e2e, `admin:create`, czyszczenie mailpit. |
 | `e2e/database-guard.ts` | `assertE2eDatabase`. |
 | `e2e/helpers.ts` | `LABELS`, logowanie, rejestracja, ustawienie hasła, API mailpit. |
-| `kit/cli/vitest.config.ts` | Testy CLI: `node`, `src/**/*.test.ts`, plik ustawień `kit/cli/vitest.setup.ts`. |
-| `kit/cli/vitest.setup.ts` | Stały seed testów właściwości CLI w procesach Strykera. |
-| `kit/cli/eslint.config.mjs`, `kit/cli/stryker.config.json`, `kit/cli/mutation-gate.json` | Lint, Stryker i bramka mutacji CLI ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli)). |
+| `packages/gato-cli/vitest.config.ts` | Testy CLI: `node`, `src/**/*.test.ts`, plik ustawień `packages/gato-cli/vitest.setup.ts`. |
+| `packages/gato-cli/vitest.setup.ts` | Stały seed testów właściwości CLI w procesach Strykera. |
+| `packages/gato-cli/eslint.config.mjs`, `packages/gato-cli/stryker.config.json`, `packages/gato-cli/mutation-gate.json` | Lint, Stryker i bramka mutacji CLI ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli)). |
 | `turbo.json` | Zadania `build`, `lint`, `test` i `typecheck` w workspace `packages/*`, który jest pusty; każde po `^build`. |
 | `stryker.config.json`, `stryker.integration.config.json`, `mutation-gate.json` | Mutation testing i bramka mutacji: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#referencja). |
 

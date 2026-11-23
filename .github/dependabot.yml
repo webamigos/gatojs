@@ -1,6 +1,7 @@
 version: 2
 
 updates:
+  # The root entry also updates the workspaces (packages/gato-cli): they share the root lockfile.
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -20,29 +21,14 @@ updates:
         dependency-type: production
         update-types: [minor, patch]
     ignore:
-      - dependency-name: next
+      # Majors are upgraded deliberately with the wa-upgrade-dependency skill:
+      # the kit manifests and every assembled project move with them.
+      - dependency-name: "*"
         update-types: [version-update:semver-major]
-      - dependency-name: better-auth
-        update-types: [version-update:semver-major]
-      - dependency-name: prisma
-        update-types: [version-update:semver-major]
-      - dependency-name: "@prisma/*"
-        update-types: [version-update:semver-major]
-
-  - package-ecosystem: npm
-    directory: /kit/cli
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
-    labels:
-      - dependencies
-    commit-message:
-      prefix: chore
-      include: scope
-    groups:
-      cli:
-        update-types: [minor, patch]
+      # OpenTelemetry's 0.x packages break on minor versions and must move
+      # together with @opentelemetry/api, which better-auth also pins.
+      - dependency-name: "@opentelemetry/*"
+        update-types: [version-update:semver-minor]
 
   - package-ecosystem: github-actions
     directory: /

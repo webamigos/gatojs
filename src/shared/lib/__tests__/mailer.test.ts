@@ -23,7 +23,7 @@ vi.mock("@react-email/render", () => ({
 vi.mock("@/shared/lib/logger", () => ({
   logger: { info, error, warn: vi.fn(), debug: vi.fn() },
 }));
-vi.mock("@/shared/lib/env", () => ({ env: envMock }));
+vi.mock("@/env", () => ({ env: envMock }));
 
 import {
   sendOrganizationInvitationEmail,

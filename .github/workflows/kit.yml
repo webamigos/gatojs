@@ -14,7 +14,7 @@ jobs:
     name: CLI (verify + bundle)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -22,13 +22,13 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: kit/cli/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Install CLI dependencies
-        run: npm ci --prefix kit/cli
+      - name: Install dependencies (root and workspaces)
+        run: npm ci
 
       - name: Verify CLI
-        run: npm run verify --prefix kit/cli
+        run: npm run verify --prefix packages/gato-cli
 
       - name: Kit state and generated files are up to date
         run: npm run wa -- kit sync && npm run wa -- generate && git diff --exit-code
@@ -40,7 +40,7 @@ jobs:
     name: Release scripts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -55,6 +55,63 @@ jobs:
 
       - name: Test release scripts
         run: npm test --prefix kit/release
+
+  cli-package:
+    name: CLI package (pack + run gato)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies (root and workspaces)
+        run: npm ci
+
+      - name: Pack the CLI as npm would publish it
+        working-directory: packages/gato-cli
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          npm pack --pack-destination "$RUNNER_TEMP/pack"
+
+      - name: Install the tarball into an empty prefix
+        run: |
+          mkdir -p "$RUNNER_TEMP/gato"
+          cd "$RUNNER_TEMP/gato"
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/pack/gato-cli-*.tgz
+          echo "GATO=$RUNNER_TEMP/gato/node_modules/.bin/gato" >> "$GITHUB_ENV"
+
+      - name: Reports the version from package.json, prints help, rejects an unknown command
+        run: |
+          set -euo pipefail
+          declared=$(node -p "require('./packages/gato-cli/package.json').version")
+          reported=$("$GATO" --version)
+          if [ "$declared" != "$reported" ]; then
+            echo "Packed CLI reports $reported, package.json says $declared." >&2
+            exit 1
+          fi
+          "$GATO" --help
+          if "$GATO" nope >/dev/null 2>&1; then
+            echo "gato nope exited 0; a script would read that as success." >&2
+            exit 1
+          fi
+
+      - name: Creates a project from the checked-out kit
+        run: |
+          "$GATO" create "$RUNNER_TEMP/gato-app" --kit "$GITHUB_WORKSPACE" --yes --no-install --no-git
+          test -f "$RUNNER_TEMP/gato-app/.wa/kit.json"
+
+      - name: Lists modules and regenerates inside the project
+        working-directory: ${{ runner.temp }}/gato-app
+        run: |
+          "$GATO" list --kit "$GITHUB_WORKSPACE"
+          "$GATO" generate
 
   assemble:
     name: Assemble (${{ matrix.combo.name }})
@@ -89,7 +146,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -180,7 +237,7 @@ jobs:
       - name: Project module is registered without editing core tests
         working-directory: ${{ runner.temp }}/matrix-app
         run: |
-          cp -R "$GITHUB_WORKSPACE/kit/cli/src/__tests__/fixtures/project-module/." .
+          cp -R "$GITHUB_WORKSPACE/packages/gato-cli/src/__tests__/fixtures/project-module/." .
           node -e '
             const fs = require("node:fs");
             const state = JSON.parse(fs.readFileSync(".wa/kit.json", "utf8"));
