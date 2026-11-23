@@ -1,0 +1,13 @@
+{
+  "name": "@gatojs/observability",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenTelemetry logger and tracing helpers for GatoJS projects",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api-logs": "^0.218.0"
+  }
+}
