@@ -149,6 +149,32 @@ describe("generatedVariables", () => {
     ]);
   });
 
+  it("manifest z BETTER_AUTH_SECRET po demo nie dubluje zmiennej", () => {
+    const withAuthSecret = manifestOf("auth-extra", {
+      env: [
+        { name: "BETTER_AUTH_SECRET", example: "x", generate: "secret-32" },
+      ],
+    });
+    expect(generatedVariables([core, demo, withAuthSecret])).toEqual([
+      { name: "BETTER_AUTH_SECRET", kind: "secret-32" },
+      { name: "DEMO_SECRET", kind: "secret-64" },
+    ]);
+  });
+
+  it("dwa moduły z tą samą generowaną zmienną dają jeden wpis", () => {
+    const first = manifestOf("first", {
+      env: [{ name: "SHARED_KEY", example: "a", generate: "hex-32" }],
+    });
+    const second = manifestOf("second", {
+      env: [{ name: "SHARED_KEY", example: "b", generate: "hex-32" }],
+    });
+    expect(generatedVariables([core, first, demo, second])).toEqual([
+      { name: "BETTER_AUTH_SECRET", kind: "secret-32" },
+      { name: "SHARED_KEY", kind: "hex-32" },
+      { name: "DEMO_SECRET", kind: "secret-64" },
+    ]);
+  });
+
   it("zmienna bez generate nie trafia na listę", () => {
     const plain = manifestOf("plain", {
       env: [{ name: "PLAIN", example: "p", required: true }],
