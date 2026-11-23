@@ -238,6 +238,17 @@ test("the CLI blocks a test edit when the legacy .superpowers/phase is test but 
     assert.match(blocked.stderr.toString(), /\.gato\/phase/);
   }));
 
+test("the CLI names only .gato/phase when both phase files are implement", () =>
+  withProjectDir((dir) => {
+    enterImplementPhase(dir, NEW_PHASE);
+    enterImplementPhase(dir, LEGACY_PHASE);
+    const blocked = runInProject(dir, "src/__tests__/a.test.ts");
+    assert.equal(blocked.status, 2);
+    assert.match(blocked.stderr.toString(), /tests are read-only/);
+    assert.match(blocked.stderr.toString(), /\.gato\/phase/);
+    assert.doesNotMatch(blocked.stderr.toString(), /\.superpowers/);
+  }));
+
 for (const { phaseFile, named, label } of phaseFileCases) {
   test(`the CLI blocks a worktree test edit when that worktree has ${label} = implement and the session started in the main checkout`, () =>
     withCheckouts(({ main, worktree }) => {
