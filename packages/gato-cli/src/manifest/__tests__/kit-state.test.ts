@@ -26,6 +26,7 @@ function stateWith(names: string[], projectNames: string[] = []): KitState {
   return {
     kitVersion: "0.0.0",
     kitRepo: "https://github.com/webamigos/wa-kit.git",
+    kitFormat: 1,
     project: { name: "WA App", slug: "wa-app" },
     locales: ["pl", "en"],
     modules: Object.fromEntries(
@@ -55,6 +56,7 @@ function stateWith(names: string[], projectNames: string[] = []): KitState {
         },
       ]),
     ),
+    ejected: {},
   };
 }
 
@@ -133,38 +135,44 @@ describe("kit state", () => {
     expect(await readKitState(tmp)).toEqual({
       kitVersion: "0.0.0",
       kitRepo: "https://github.com/webamigos/wa-kit.git",
+      kitFormat: 1,
       project: { name: "WA App", slug: "wa-app" },
       locales: ["pl", "en"],
       modules: {},
       projectModules: {},
+      ejected: {},
     });
   });
 
-  it("writeKitState zapisuje klucze w kolejnosci kitVersion, kitRepo, project, locales, modules, projectModules", async () => {
+  it("writeKitState zapisuje klucze w kolejnosci kitVersion, kitRepo, kitFormat, project, locales, modules, projectModules, ejected", async () => {
     await writeKitState(tmp, {
       kitVersion: "1.2.3",
       kitRepo: "https://example.com/kit.git",
+      kitFormat: 2,
       project: { name: "Moj", slug: "moj" },
       locales: ["pl"],
       modules: {},
       projectModules: {},
+      ejected: {},
     });
     expect(await readFile(join(tmp, ".wa/kit.json"), "utf8")).toBe(
-      '{\n  "kitVersion": "1.2.3",\n  "kitRepo": "https://example.com/kit.git",\n  "project": {\n    "name": "Moj",\n    "slug": "moj"\n  },\n  "locales": [\n    "pl"\n  ],\n  "modules": {},\n  "projectModules": {}\n}\n',
+      '{\n  "kitVersion": "1.2.3",\n  "kitRepo": "https://example.com/kit.git",\n  "kitFormat": 2,\n  "project": {\n    "name": "Moj",\n    "slug": "moj"\n  },\n  "locales": [\n    "pl"\n  ],\n  "modules": {},\n  "projectModules": {},\n  "ejected": {}\n}\n',
     );
   });
 
   it("writeKitState zapisuje te same klucze niezaleznie od kolejnosci w wejsciu", async () => {
     await writeKitState(tmp, {
+      ejected: {},
       projectModules: {},
       modules: {},
       locales: ["pl"],
       project: { name: "Moj", slug: "moj" },
+      kitFormat: 2,
       kitRepo: "https://example.com/kit.git",
       kitVersion: "1.2.3",
     });
     expect(await readFile(join(tmp, ".wa/kit.json"), "utf8")).toBe(
-      '{\n  "kitVersion": "1.2.3",\n  "kitRepo": "https://example.com/kit.git",\n  "project": {\n    "name": "Moj",\n    "slug": "moj"\n  },\n  "locales": [\n    "pl"\n  ],\n  "modules": {},\n  "projectModules": {}\n}\n',
+      '{\n  "kitVersion": "1.2.3",\n  "kitRepo": "https://example.com/kit.git",\n  "kitFormat": 2,\n  "project": {\n    "name": "Moj",\n    "slug": "moj"\n  },\n  "locales": [\n    "pl"\n  ],\n  "modules": {},\n  "projectModules": {},\n  "ejected": {}\n}\n',
     );
   });
 
@@ -344,5 +352,139 @@ describe("kit state", () => {
         stateWith(["uploads", "core", "api-keys"], ["zeta", "alfa"]),
       ).map((m) => m.name),
     ).toEqual(["core", "api-keys", "uploads", "alfa", "zeta"]);
+  });
+});
+
+const UNSUPPORTED_FORMAT_99 =
+  "This project uses kit format 99; update gato-cli (npm i -D gato-cli@latest) or run: npx gato-cli@latest update <version>";
+
+const LOGIN_EJECTED = { reason: "custom login", ejectedAt: "2026-11-23" };
+const BUTTON_EJECTED = { reason: "brand button", ejectedAt: "2026-11-24" };
+
+describe("kit state: kitFormat and ejected", () => {
+  it("readKitState of a file without kitFormat and ejected gives format 1 and no ejected files", async () => {
+    await writeRawState({ modules: {} });
+    const state = await readKitState(tmp);
+    expect(state.kitFormat).toBe(1);
+    expect(state.ejected).toEqual({});
+  });
+
+  it("readKitState keeps kitFormat 2 and an ejected entry", async () => {
+    await writeRawState({
+      kitFormat: 2,
+      modules: {},
+      ejected: { "src/a.ts": LOGIN_EJECTED },
+    });
+    const state = await readKitState(tmp);
+    expect(state.kitFormat).toBe(2);
+    expect(state.ejected).toEqual({
+      "src/a.ts": { reason: "custom login", ejectedAt: "2026-11-23" },
+    });
+  });
+
+  it("readKitState of kitFormat 99 rejects with the update gato-cli message", async () => {
+    await writeRawState({ kitFormat: 99, modules: {} });
+    await expect(readKitState(tmp)).rejects.toMatchObject({
+      message: UNSUPPORTED_FORMAT_99,
+    });
+  });
+
+  it("readKitState of kitFormat 3 rejects with the update gato-cli message", async () => {
+    await writeRawState({ kitFormat: 3, modules: {} });
+    await expect(readKitState(tmp)).rejects.toThrow(
+      "This project uses kit format 3; update gato-cli (npm i -D gato-cli@latest)",
+    );
+  });
+
+  it("readKitState rejects an ejected entry with a blank reason", async () => {
+    await writeRawState({
+      modules: {},
+      ejected: { "src/a.ts": { reason: "  ", ejectedAt: "2026-11-23" } },
+    });
+    await expect(readKitState(tmp)).rejects.toThrow();
+  });
+
+  it("writeKitState writes the keys in the order kitVersion, kitRepo, kitFormat, project, locales, modules, projectModules, ejected", async () => {
+    await writeKitState(tmp, {
+      ...stateWith(["core"], ["notes"]),
+      kitFormat: 2,
+      ejected: { "src/a.ts": LOGIN_EJECTED },
+    });
+    const raw = await readFile(join(tmp, ".wa/kit.json"), "utf8");
+    expect(Object.keys(JSON.parse(raw))).toEqual([
+      "kitVersion",
+      "kitRepo",
+      "kitFormat",
+      "project",
+      "locales",
+      "modules",
+      "projectModules",
+      "ejected",
+    ]);
+    expect(raw).toContain(
+      '\n  "kitRepo": "https://github.com/webamigos/wa-kit.git",\n  "kitFormat": 2,\n  "project": {',
+    );
+  });
+
+  it("writeKitState writes ejected sorted by path: src/b.ts, src/a.ts -> src/a.ts, src/b.ts", async () => {
+    await writeKitState(tmp, {
+      ...stateWith([]),
+      ejected: { "src/b.ts": BUTTON_EJECTED, "src/a.ts": LOGIN_EJECTED },
+    });
+    const raw = await readFile(join(tmp, ".wa/kit.json"), "utf8");
+    expect(Object.keys(JSON.parse(raw).ejected)).toEqual([
+      "src/a.ts",
+      "src/b.ts",
+    ]);
+    expect(raw.indexOf('"src/a.ts"')).toBeGreaterThan(-1);
+    expect(raw.indexOf('"src/a.ts"')).toBeLessThan(raw.indexOf('"src/b.ts"'));
+  });
+
+  it("writeKitState sorts ejected by code point, so an uppercase path comes before a lowercase one", async () => {
+    await writeKitState(tmp, {
+      ...stateWith([]),
+      ejected: { "src/a.ts": LOGIN_EJECTED, "src/Z.ts": BUTTON_EJECTED },
+    });
+    const raw = await readFile(join(tmp, ".wa/kit.json"), "utf8");
+    expect(Object.keys(JSON.parse(raw).ejected)).toEqual([
+      "src/Z.ts",
+      "src/a.ts",
+    ]);
+  });
+
+  it("writeKitState writes the ejected entry as the last block of the file", async () => {
+    await writeKitState(tmp, {
+      ...stateWith([]),
+      ejected: { "src/a.ts": LOGIN_EJECTED },
+    });
+    expect(
+      (await readFile(join(tmp, ".wa/kit.json"), "utf8")).endsWith(
+        '  "projectModules": {},\n  "ejected": {\n    "src/a.ts": {\n      "reason": "custom login",\n      "ejectedAt": "2026-11-23"\n    }\n  }\n}\n',
+      ),
+    ).toBe(true);
+  });
+
+  it("an ejected entry survives readKitState and writeKitState byte for byte", async () => {
+    await writeKitState(tmp, {
+      ...stateWith(["core"]),
+      kitFormat: 2,
+      ejected: { "src/b.ts": BUTTON_EJECTED, "src/a.ts": LOGIN_EJECTED },
+    });
+    const first = await readFile(join(tmp, ".wa/kit.json"), "utf8");
+    const state = await readKitState(tmp);
+    expect(state.ejected).toEqual({
+      "src/a.ts": { reason: "custom login", ejectedAt: "2026-11-23" },
+      "src/b.ts": { reason: "brand button", ejectedAt: "2026-11-24" },
+    });
+    await writeKitState(tmp, state);
+    expect(await readFile(join(tmp, ".wa/kit.json"), "utf8")).toBe(first);
+  });
+
+  it("writeKitState keeps kitFormat 1 of an old project", async () => {
+    await writeRawState({ modules: {} });
+    await writeKitState(tmp, await readKitState(tmp));
+    expect(
+      JSON.parse(await readFile(join(tmp, ".wa/kit.json"), "utf8")).kitFormat,
+    ).toBe(1);
   });
 });

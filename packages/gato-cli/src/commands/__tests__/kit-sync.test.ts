@@ -41,10 +41,12 @@ describe("kitSync", () => {
     expect(Object.keys(state)).toEqual([
       "kitVersion",
       "kitRepo",
+      "kitFormat",
       "project",
       "locales",
       "modules",
       "projectModules",
+      "ejected",
     ]);
     expect(state.kitVersion).toBe("0.1.0");
     expect(state.kitRepo).toBe("https://github.com/webamigos/wa-kit.git");
@@ -167,6 +169,59 @@ describe("kitSync", () => {
       }),
     );
     await kitSync(kitDir);
+    expect(await kitSync(kitDir)).toEqual({ changed: false });
+  });
+
+  it("writes kitFormat 2 of the kit config", async () => {
+    await kitSync(kitDir);
+    const raw = JSON.parse(
+      await readFile(join(kitDir, ".wa/kit.json"), "utf8"),
+    );
+    expect(raw.kitFormat).toBe(2);
+    expect((await readKitState(kitDir)).kitFormat).toBe(2);
+  });
+
+  it("writes kitFormat 1 for a kit config without kitFormat", async () => {
+    const configPath = join(kitDir, "kit/kit.json");
+    const config = JSON.parse(await readFile(configPath, "utf8"));
+    delete config.kitFormat;
+    await writeFile(configPath, JSON.stringify(config));
+    await kitSync(kitDir);
+    expect(
+      JSON.parse(await readFile(join(kitDir, ".wa/kit.json"), "utf8"))
+        .kitFormat,
+    ).toBe(1);
+  });
+
+  it("moves an old state to the kitFormat of the kit config and reports a change", async () => {
+    await kitSync(kitDir);
+    const statePath = join(kitDir, ".wa/kit.json");
+    const state = JSON.parse(await readFile(statePath, "utf8"));
+    delete state.kitFormat;
+    await writeFile(statePath, JSON.stringify(state));
+    expect(await kitSync(kitDir)).toEqual({ changed: true });
+    expect(JSON.parse(await readFile(statePath, "utf8")).kitFormat).toBe(2);
+  });
+
+  it("keeps an existing ejected map byte for byte", async () => {
+    await mkdir(join(kitDir, ".wa"), { recursive: true });
+    await writeFile(
+      join(kitDir, ".wa/kit.json"),
+      JSON.stringify({
+        kitVersion: "0.0.0",
+        modules: {},
+        ejected: {
+          "src/a.ts": { reason: "custom login", ejectedAt: "2026-11-23" },
+        },
+      }),
+    );
+    await kitSync(kitDir);
+    const raw = await readFile(join(kitDir, ".wa/kit.json"), "utf8");
+    expect(
+      raw.endsWith(
+        '  "ejected": {\n    "src/a.ts": {\n      "reason": "custom login",\n      "ejectedAt": "2026-11-23"\n    }\n  }\n}\n',
+      ),
+    ).toBe(true);
     expect(await kitSync(kitDir)).toEqual({ changed: false });
   });
 });

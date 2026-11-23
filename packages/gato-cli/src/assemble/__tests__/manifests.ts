@@ -25,6 +25,7 @@ export function manifestOf(
 export const testConfig: KitConfig = {
   version: "0.1.0",
   repo: "https://github.com/webamigos/wa-kit.git",
+  kitFormat: 2,
   kitOnly: ["kit/**"],
   placeholders: {
     projectName: "WA App",
@@ -45,4 +46,5 @@ export const testConfig: KitConfig = {
   ],
   generatedFiles: ["src/modules.generated.ts"],
   managedFiles: ["package.json", "package-lock.json"],
+  seedFiles: [],
 };

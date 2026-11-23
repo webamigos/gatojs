@@ -162,6 +162,42 @@ describe("fileHash", () => {
     );
   });
 
+  it("a file listed in seedFiles has the hash seed", () => {
+    expect(
+      fileHash("README.md", Buffer.from("# Acme\n"), {
+        managedFiles: [],
+        seedFiles: ["README.md"],
+      }),
+    ).toBe("seed");
+  });
+
+  it("a file listed in both managedFiles and seedFiles stays managed", () => {
+    expect(
+      fileHash("package.json", Buffer.from("{}"), {
+        managedFiles: ["package.json"],
+        seedFiles: ["package.json"],
+      }),
+    ).toBe("managed");
+  });
+
+  it("a file outside managedFiles and seedFiles has the sha256 of its content", () => {
+    expect(
+      fileHash("src/a.ts", Buffer.from("abc"), {
+        managedFiles: ["package.json"],
+        seedFiles: ["README.md"],
+      }),
+    ).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  });
+
+  it("seedFiles matches whole paths, not a file with the same name in a subdirectory", () => {
+    expect(
+      fileHash("docs/README.md", Buffer.from("abc"), {
+        managedFiles: [],
+        seedFiles: ["README.md"],
+      }),
+    ).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  });
+
   it("zwykly plik nie dostaje managed", () => {
     expect(
       fileHash("src/package.json", Buffer.from("{}"), testConfig),

@@ -22,10 +22,12 @@ const git = promisify(execFile);
 const baseState: KitState = {
   kitVersion: "0.1.0",
   kitRepo: "https://github.com/webamigos/wa-kit.git",
+  kitFormat: 1,
   project: { name: "WA App", slug: "wa-app" },
   locales: ["pl", "en"],
   modules: {},
   projectModules: {},
+  ejected: {},
 };
 
 let tmpDir: string;

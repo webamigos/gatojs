@@ -1514,3 +1514,133 @@ describe("update: moduły i placeholdery", () => {
     );
   });
 });
+
+describe("update: kitFormat, ejected and seed files", () => {
+  const LOCALE_CONFIG = "src/i18n/config.ts";
+  const LOCALE_BASE = 'export type Locale = "pl" | "en";\n';
+  const LOCALE_KIT = 'export type Locale = "pl" | "en" | "de";\n';
+  const EJECTED_BLOCK =
+    '  "ejected": {\n    "src/a.ts": {\n      "reason": "custom login",\n      "ejectedAt": "2026-11-23"\n    }\n  }\n}\n';
+
+  const markLocaleConfigAsSeed = async (dir: string) => {
+    await editJson(dir, ".wa/kit.json", (json) => {
+      const core = (json.modules as RawState["modules"]).core;
+      if (core) core.files[LOCALE_CONFIG] = "seed";
+    });
+  };
+
+  const changeLocaleConfigAsSeed = async (kitDir: string) => {
+    await writeFile(join(kitDir, LOCALE_CONFIG), LOCALE_KIT);
+    await editJson(kitDir, "kit/kit.json", (json) => {
+      json.seedFiles = [LOCALE_CONFIG];
+    });
+  };
+
+  it("a project on kitFormat 1 gets kitFormat 2 of the target kit", async () => {
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        await editJson(dir, ".wa/kit.json", (json) => {
+          json.kitFormat = 1;
+        });
+      },
+    });
+
+    expect(await run(setup)).toEqual({ exitCode: 0 });
+
+    const raw = JSON.parse(await read(setup.dir, ".wa/kit.json")) as Record<
+      string,
+      unknown
+    >;
+    expect(raw.kitFormat).toBe(2);
+    expect(Object.keys(raw).slice(0, 3)).toEqual([
+      "kitVersion",
+      "kitRepo",
+      "kitFormat",
+    ]);
+  });
+
+  it("a target kit with kitFormat 99 stops with the update gato-cli message and changes nothing", async () => {
+    const setup = await prepare({
+      kit: async (kitDir) => {
+        await changeAuthModule(kitDir);
+        await editJson(kitDir, "kit/kit.json", (json) => {
+          json.kitFormat = 99;
+        });
+      },
+    });
+    const before = await snapshotTree(setup.dir);
+
+    await expect(run(setup)).rejects.toMatchObject({
+      message:
+        "This project uses kit format 99; update gato-cli (npm i -D gato-cli@latest) or run: npx gato-cli@latest update <version>",
+    });
+
+    expect(await snapshotTree(setup.dir)).toEqual(before);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("keeps an ejected entry byte for byte", async () => {
+    const setup = await prepare({
+      kit: changeAuthModule,
+      project: async (dir) => {
+        await editJson(dir, ".wa/kit.json", (json) => {
+          json.ejected = {
+            "src/a.ts": { reason: "custom login", ejectedAt: "2026-11-23" },
+          };
+        });
+      },
+    });
+
+    expect(await run(setup)).toEqual({ exitCode: 0 });
+
+    const raw = await read(setup.dir, ".wa/kit.json");
+    expect(raw.endsWith(EJECTED_BLOCK)).toBe(true);
+    expect(JSON.parse(raw).ejected).toEqual({
+      "src/a.ts": { reason: "custom login", ejectedAt: "2026-11-23" },
+    });
+  });
+
+  it("leaves a seed file equal to the base untouched when the kit changed it, and keeps it recorded as seed", async () => {
+    const setup = await prepare({
+      kit: async (kitDir) => {
+        await changeAuthModule(kitDir);
+        await changeLocaleConfigAsSeed(kitDir);
+      },
+      project: markLocaleConfigAsSeed,
+    });
+
+    expect(await run(setup)).toEqual({ exitCode: 0 });
+
+    expect(await read(setup.dir, LOCALE_CONFIG)).toBe(LOCALE_BASE);
+    expect((await rawState(setup.dir)).modules.core?.files[LOCALE_CONFIG]).toBe(
+      "seed",
+    );
+    expect(lines()).toEqual([
+      "Updating GatoJS 0.1.0 → 0.2.0",
+      "  updated        src/features/auth/module.ts",
+    ]);
+  });
+
+  it("does not merge a seed file changed in both the project and the kit", async () => {
+    const setup = await prepare({
+      kit: changeLocaleConfigAsSeed,
+      project: async (dir) => {
+        await markLocaleConfigAsSeed(dir);
+        await writeFile(
+          join(dir, LOCALE_CONFIG),
+          'export type Locale = "pl";\n',
+        );
+      },
+    });
+
+    expect(await run(setup)).toEqual({ exitCode: 0 });
+
+    expect(await read(setup.dir, LOCALE_CONFIG)).toBe(
+      'export type Locale = "pl";\n',
+    );
+    expect((await rawState(setup.dir)).modules.core?.files[LOCALE_CONFIG]).toBe(
+      "seed",
+    );
+  });
+});

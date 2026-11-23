@@ -702,3 +702,91 @@ describe("remove", () => {
     },
   );
 });
+
+const EJECTED_BLOCK =
+  '  "ejected": {\n    "src/a.ts": {\n      "reason": "custom login",\n      "ejectedAt": "2026-11-23"\n    }\n  }\n}\n';
+
+async function ejectLoginFile(dir: string): Promise<void> {
+  const path = join(dir, ".wa/kit.json");
+  const json = JSON.parse(await readFile(path, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  json.ejected = {
+    "src/a.ts": { reason: "custom login", ejectedAt: "2026-11-23" },
+  };
+  await writeFile(path, `${JSON.stringify(json, null, 2)}\n`);
+}
+
+async function recordDemoModuleAsSeed(dir: string): Promise<void> {
+  const path = join(dir, ".wa/kit.json");
+  const json = JSON.parse(await readFile(path, "utf8")) as {
+    modules: Record<string, { files: Record<string, string> }>;
+  };
+  const demo = json.modules["demo"];
+  if (demo) demo.files["src/features/demo/module.ts"] = "seed";
+  await writeFile(path, `${JSON.stringify(json, null, 2)}\n`);
+}
+
+describe("remove: ejected and seed files", () => {
+  it("keeps an ejected entry byte for byte after remove demo", async () => {
+    const dir = await createProject("app", ["demo"]);
+    await ejectLoginFile(dir);
+    await remove(removeOptions(dir, "demo"));
+    const raw = await readFile(join(dir, ".wa/kit.json"), "utf8");
+    expect(raw.endsWith(EJECTED_BLOCK)).toBe(true);
+    expect(Object.keys(JSON.parse(raw).modules)).toEqual(["core"]);
+  });
+
+  it("leaves an unchanged seed file on disk and removes the other module files", async () => {
+    const dir = await createProject("app", ["demo"]);
+    const seedContent = await readFile(
+      join(dir, "src/features/demo/module.ts"),
+      "utf8",
+    );
+    await recordDemoModuleAsSeed(dir);
+    await expect(remove(removeOptions(dir, "demo"))).resolves.toEqual({
+      removed: ["demo"],
+    });
+    expect(
+      await readFile(join(dir, "src/features/demo/module.ts"), "utf8"),
+    ).toBe(seedContent);
+    expect(existsSync(join(dir, "src/features/demo/env.ts"))).toBe(false);
+    expect(existsSync(join(dir, "src/features/demo/i18n"))).toBe(false);
+    expect(Object.keys((await readKitState(dir)).modules)).toEqual(["core"]);
+  });
+
+  it("does not count a changed seed file as a changed file and leaves it on disk without --force", async () => {
+    const dir = await createProject("app", ["demo"]);
+    await recordDemoModuleAsSeed(dir);
+    await writeFile(
+      join(dir, "src/features/demo/module.ts"),
+      'export default { key: "demo", custom: true };\n',
+    );
+    await expect(remove(removeOptions(dir, "demo"))).resolves.toEqual({
+      removed: ["demo"],
+    });
+    expect(
+      await readFile(join(dir, "src/features/demo/module.ts"), "utf8"),
+    ).toBe('export default { key: "demo", custom: true };\n');
+  });
+
+  it("lists only the non-seed changed files when a seed file also changed", async () => {
+    const dir = await createProject("app", ["demo"]);
+    await recordDemoModuleAsSeed(dir);
+    await appendFile(join(dir, "src/features/demo/module.ts"), "\n");
+    await appendFile(join(dir, "src/features/demo/env.ts"), "\n");
+    await expect(remove(removeOptions(dir, "demo"))).rejects.toMatchObject({
+      message:
+        "Changed files in module demo (use --force):\n  src/features/demo/env.ts",
+    });
+  });
+
+  it("leaves a seed file on disk also with --force", async () => {
+    const dir = await createProject("app", ["demo"]);
+    await recordDemoModuleAsSeed(dir);
+    await remove(removeOptions(dir, "demo", { force: true }));
+    expect(existsSync(join(dir, "src/features/demo/module.ts"))).toBe(true);
+    expect(existsSync(join(dir, "src/features/demo/env.ts"))).toBe(false);
+  });
+});

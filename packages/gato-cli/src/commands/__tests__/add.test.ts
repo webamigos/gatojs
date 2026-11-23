@@ -1235,3 +1235,51 @@ describe("add: plik w miejscu katalogu modułu", () => {
     expect(cleanupWarnings()).toEqual([]);
   });
 });
+
+const EJECTED_BLOCK =
+  '  "ejected": {\n    "src/a.ts": {\n      "reason": "custom login",\n      "ejectedAt": "2026-11-23"\n    }\n  }\n}\n';
+
+async function ejectLoginFile(dir: string): Promise<void> {
+  const path = join(dir, ".wa/kit.json");
+  const json = JSON.parse(await readFile(path, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  json.ejected = {
+    "src/a.ts": { reason: "custom login", ejectedAt: "2026-11-23" },
+  };
+  await writeFile(path, `${JSON.stringify(json, null, 2)}\n`);
+}
+
+describe("add: ejected files", () => {
+  it("keeps an ejected entry byte for byte after add demo", async () => {
+    const dir = await createProject("app", []);
+    await ejectLoginFile(dir);
+    await add({
+      projectDir: dir,
+      module: "demo",
+      kitDir,
+      install: false,
+      runner,
+      log,
+    });
+    const raw = await readFile(join(dir, ".wa/kit.json"), "utf8");
+    expect(raw.endsWith(EJECTED_BLOCK)).toBe(true);
+    expect(Object.keys(JSON.parse(raw).modules)).toEqual(["core", "demo"]);
+  });
+
+  it("keeps kitFormat 2 of the project after add demo", async () => {
+    const dir = await createProject("app", []);
+    await add({
+      projectDir: dir,
+      module: "demo",
+      kitDir,
+      install: false,
+      runner,
+      log,
+    });
+    expect(
+      JSON.parse(await readFile(join(dir, ".wa/kit.json"), "utf8")).kitFormat,
+    ).toBe(2);
+  });
+});
