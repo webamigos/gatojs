@@ -4,7 +4,7 @@ Twarde reguły tego repozytorium. Pełne instrukcje: @AGENTS.md
 
 ## Pochodzenie kodu
 
-Kod rdzenia i modułów pochodzi z wa-kit (`.wa/kit.json`); poprawki ogólne zgłaszaj do repo `webamigos/wa-kit`.
+Kod rdzenia i modułów pochodzi z wa-kit (`.wa/kit.json`); poprawki ogólne zgłaszaj do repo `webamigos/gatojs`.
 
 ## Dane
 
