@@ -18,7 +18,7 @@ const { mockPrisma, mockEnv, mockTrackServiceModeEntry } = vi.hoisted(() => ({
   mockTrackServiceModeEntry: vi.fn(),
 }));
 
-vi.mock("@/shared/lib/env", () => ({ env: mockEnv }));
+vi.mock("@/env", () => ({ env: mockEnv }));
 vi.mock("@/shared/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/shared/lib/mailer", () => ({
   sendOrganizationInvitationEmail: vi.fn(),

@@ -14,7 +14,7 @@ const { mockGetOrgContext, mockNotFound, mockEnv, mockRedirect } = vi.hoisted(
 );
 
 vi.mock("next/navigation", () => ({ notFound: mockNotFound }));
-vi.mock("@/shared/lib/env", () => ({ env: mockEnv }));
+vi.mock("@/env", () => ({ env: mockEnv }));
 vi.mock("@/i18n/routing", () => ({ redirect: mockRedirect }));
 vi.mock("next-intl/server", () => ({ getLocale: async () => "en" }));
 vi.mock("../org-context", () => {

@@ -22,7 +22,7 @@ Zweryfikowano z kodem: 25adbb8, 2026-10-28
 - `railway.toml`
 - `README.md`
 - `src/shared/lib/prisma.ts`
-- `src/shared/lib/env.ts`
+- `packages/env/src/*.ts`, `src/env.ts`
 - `src/app/api/healthcheck/route.ts`
 - `src/test/integration/global-setup.ts`
 - `e2e/global-setup.ts`
@@ -88,7 +88,7 @@ export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 globalForPrisma.prisma = prisma;
 ```
 
-- Prisma łączy się przez adapter `@prisma/adapter-pg` i pulę połączeń `pg`. Pula ma najwyżej `DATABASE_POOL_MAX` połączeń. Wartość czyta `parseInt`, a gdy wynik nie jest dodatnią liczbą całkowitą (także przy braku zmiennej), pula ma 10 połączeń. Zmienna nie przechodzi przez walidację w `src/shared/lib/env.ts` ([07-i18n-mail-env.md](07-i18n-mail-env.md)).
+- Prisma łączy się przez adapter `@prisma/adapter-pg` i pulę połączeń `pg`. Pula ma najwyżej `DATABASE_POOL_MAX` połączeń. Wartość czyta `parseInt`, a gdy wynik nie jest dodatnią liczbą całkowitą (także przy braku zmiennej), pula ma 10 połączeń. Zmienna nie przechodzi przez walidację w `packages/env/src/core-env-schema.ts` ([07-i18n-mail-env.md](07-i18n-mail-env.md)).
 - Połączenie bezczynne dłużej niż 30 sekund jest zamykane. Na wolne połączenie pula czeka do 10 sekund, a Postgres przerywa zapytanie, które trwa dłużej niż 30 sekund (`statement_timeout`).
 - Obiekt jest zapisany w `globalThis`, więc moduły przeładowywane przez `next dev` używają tej samej puli zamiast otwierać nowe połączenia po każdej zmianie pliku.
 

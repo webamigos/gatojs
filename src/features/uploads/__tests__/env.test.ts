@@ -172,6 +172,18 @@ describe("envSchema uploads: provider s3", () => {
     ]);
   });
 
+  it("s3 with a scheme-less S3_ENDPOINT reports one issue under S3_ENDPOINT", () => {
+    const result = envSchema.safeParse({
+      ...S3_MINIO,
+      S3_ENDPOINT: "localhost:9000",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([
+      { code: "custom", path: ["S3_ENDPOINT"], message: "Invalid URL" },
+    ]);
+  });
+
   it("s3 bez zmiennych S3_* zgłasza osobny problem dla każdej wymaganej", () => {
     const result = envSchema.safeParse({ STORAGE_PROVIDER: "s3" });
 
@@ -295,7 +307,7 @@ describe("envSchema uploads: zgodność z rejestrem env rdzenia", () => {
     >();
   });
 
-  it("rejestr z samym envSchema przechodzi rzutowanie z src/shared/lib/env.ts i parsuje pusty env do local", () => {
+  it("rejestr z samym envSchema przechodzi rzutowanie z @gatojs/env i parsuje pusty env do local", () => {
     const moduleEnvSchemas = [envSchema];
     const moduleSchemas = moduleEnvSchemas as readonly z.ZodType<
       Record<string, unknown>

@@ -29,7 +29,7 @@ Zadanie → gdzie patrzeć. Ścieżki `docs/…` są w repo `webamigos/wa-kit`; 
 | Tryb serwisowy | `src/shared/lib/auth/service-mode.ts`, `src/shared/components/service-mode/use-service-mode-action.tsx`; `docs/04b-superadmin-i-tryb-serwisowy.md` |
 | Auth i role | `src/shared/lib/auth/`; `docs/04-auth-i-role.md` |
 | Migracja Prismy | `prisma/schema/`; `docs/03b-schemat-i-migracje.md` |
-| Zmienna środowiskowa | `src/shared/lib/env.ts`, `src/features/<x>/env.ts`, `.env.example`; `docs/07-i18n-mail-env.md` |
+| Zmienna środowiskowa | `packages/env/` (`@gatojs/env`: schemat rdzenia, `httpUrl()`, `blankAsUndefined()`, `allOrNone`, `requiredForProvider`), `src/env.ts` (`import { env } from "@/env"`), `src/features/<x>/env.ts`, `.env.example`; `docs/07-i18n-mail-env.md` |
 | i18n | `src/app/messages/`, `src/features/<x>/i18n/`; `docs/07-i18n-mail-env.md` |
 | Mail | `src/shared/lib/mailer.ts`, `src/app/emails/`; `docs/07-i18n-mail-env.md` |
 | Pliki (moduł `uploads`) | `docs/15-modul-uploads.md`, `docs/15b-modul-uploads-uzycie.md` |

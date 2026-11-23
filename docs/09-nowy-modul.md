@@ -22,7 +22,7 @@ Zweryfikowano z kodem: 25adbb8, 2026-10-28
 - `src/shared/lib/auth/require-module-access.ts`
 - `src/shared/lib/auth/permissions.ts`
 - `src/shared/utils/error-handling.ts`
-- `src/shared/lib/env.ts`
+- `packages/env/src/*.ts`, `src/env.ts`
 - `src/features/account/module.ts`
 - `src/features/dashboard/module.ts`
 - `src/features/users/i18n/pl.json`
@@ -469,7 +469,7 @@ vi.mock("@/shared/lib/auth/org-context", () => ({
   NoOrganizationError,
   getOrgContext: () => mockGetOrgContext(),
 }));
-vi.mock("@/shared/lib/env", () => ({ env: { MULTI_ORG: false } }));
+vi.mock("@/env", () => ({ env: { MULTI_ORG: false } }));
 vi.mock("@/shared/lib/logger", () => ({ logger: mockLogger }));
 vi.mock("next-intl/server", () => ({ getLocale: async () => "pl" }));
 vi.mock("next/navigation", () => ({
@@ -489,7 +489,7 @@ vi.mock("@/i18n/routing", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 ```
 
-- **`env` jako mock.** `requireModuleAccess` czyta `env.MULTI_ORG`, a `env` przy pierwszym odczycie sprawdza wszystkie zmienne rdzenia. Job `verify` w CI nie ma pliku `.env` ani tych zmiennych, więc prawdziwy `env` zgłosiłby tam błąd walidacji, chociaż lokalnie, z `.env`, test przechodzi (wniosek z `src/shared/lib/env.ts` i `.github/workflows/ci.yml`).
+- **`env` jako mock.** `requireModuleAccess` czyta `env.MULTI_ORG`, a `env` przy pierwszym odczycie sprawdza wszystkie zmienne rdzenia. Job `verify` w CI nie ma pliku `.env` ani tych zmiennych, więc prawdziwy `env` zgłosiłby tam błąd walidacji, chociaż lokalnie, z `.env`, test przechodzi (wniosek z `packages/env/src/core-env-schema.ts` i `.github/workflows/ci.yml`).
 - **Błędy z `digest`.** `handleCommandError` rozpoznaje przekierowanie po polu `digest` zaczynającym się od `NEXT_REDIRECT`, tak jak w Next.js. Atrapa bez `digest` zrobiłaby z przekierowania komunikat domyślny i test sprawdzałby zachowanie, którego w aplikacji nie ma.
 
 Dwa testy z pliku. Oczekiwane wartości są literałami:

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { env } from "@/shared/lib/env";
+import { env } from "@/env";
 import { getOrgContext } from "@/shared/lib/auth/org-context";
 import { canAccessModule, moduleByKey } from "@/shared/lib/auth/permissions";
 import { prisma } from "@/shared/lib/prisma";

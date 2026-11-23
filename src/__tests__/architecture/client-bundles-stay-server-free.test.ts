@@ -122,15 +122,35 @@ describe("findServerImportsInClient", () => {
     expect(
       findServerImportsInClient(
         client(
-          'import { env } from "@/shared/lib/env";\nimport { Prisma } from "@/generated/prisma";\nimport { Role } from "@/generated/prisma/enums";\nimport "server-only";',
+          'import { env } from "@/env";\nimport { Prisma } from "@/generated/prisma";\nimport { Role } from "@/generated/prisma/enums";\nimport "server-only";',
         ),
       ),
     ).toEqual([
-      "@/shared/lib/env",
+      "@/env",
       "@/generated/prisma",
       "@/generated/prisma/enums",
       "server-only",
     ]);
+  });
+
+  it("@gatojs/env and its subpaths are forbidden in a client module", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import { checkEnv } from "@gatojs/env";\nimport { httpUrl } from "@gatojs/env/fragments";',
+        ),
+      ),
+    ).toEqual(["@gatojs/env", "@gatojs/env/fragments"]);
+  });
+
+  it("segment boundary: @/environment and @gatojs/environment are not forbidden", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import { a } from "@/environment";\nimport { b } from "@gatojs/environment";\nimport { c } from "@/envs/x";',
+        ),
+      ),
+    ).toEqual([]);
   });
 
   it("granica segmentu: @/shared/lib/prismatic nie jest zakazane", () => {
@@ -165,15 +185,10 @@ describe("findServerImportsInClient", () => {
     expect(
       findServerImportsInClient(
         client(
-          'import "server-only";\nexport { prisma } from "@/shared/lib/prisma";\nexport * from "@/shared/lib/env";\nconst load = () => import("node:crypto");',
+          'import "server-only";\nexport { prisma } from "@/shared/lib/prisma";\nexport * from "@/env";\nconst load = () => import("node:crypto");',
         ),
       ),
-    ).toEqual([
-      "server-only",
-      "@/shared/lib/prisma",
-      "@/shared/lib/env",
-      "node:crypto",
-    ]);
+    ).toEqual(["server-only", "@/shared/lib/prisma", "@/env", "node:crypto"]);
   });
 
   it("dynamiczny import modułu serwerowego to naruszenie", () => {
@@ -247,10 +262,10 @@ describe("checkClientBundles", () => {
   it("zgłasza plik .ts w podkatalogu", () => {
     write(
       "src/features/a/components/use-x.ts",
-      client('import { env } from "@/shared/lib/env";'),
+      client('import { env } from "@/env";'),
     );
     expect(checkClientBundles(root)).toEqual([
-      "src/features/a/components/use-x.ts: @/shared/lib/env",
+      "src/features/a/components/use-x.ts: @/env",
     ]);
   });
 

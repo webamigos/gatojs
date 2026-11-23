@@ -44,7 +44,7 @@ vi.mock("../../prepare-upload-body", async (importOriginal) => {
   };
 });
 
-vi.mock("@/shared/lib/env", () => ({ env: { MULTI_ORG: false } }));
+vi.mock("@/env", () => ({ env: { MULTI_ORG: false } }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
 vi.mock("next-intl/server", () => ({ getLocale: vi.fn(async () => "pl") }));
 vi.mock("@/i18n/routing", () => ({ redirect: mockRedirect }));

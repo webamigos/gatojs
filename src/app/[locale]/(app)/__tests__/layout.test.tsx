@@ -26,7 +26,7 @@ const {
 }));
 
 vi.mock("@/i18n/routing", () => ({ redirect: mockRedirect }));
-vi.mock("@/shared/lib/env", () => ({ env: mockEnv }));
+vi.mock("@/env", () => ({ env: mockEnv }));
 vi.mock("@/shared/lib/auth/helpers", () => ({
   getCurrentUserWithImpersonation: mockGetCurrentUserWithImpersonation,
 }));
