@@ -52,6 +52,43 @@ describe("moduleManifestSchema", () => {
   });
 });
 
+describe("moduleManifestSchema: generate w env", () => {
+  const base = { name: "demo", version: "1.0.0", description: "Demo" };
+
+  it.each([["secret-32"], ["secret-64"], ["hex-32"]])(
+    "zmienna z generate %s jest poprawna i zachowuje pole",
+    (generate) => {
+      const parsed = moduleManifestSchema.parse({
+        ...base,
+        env: [{ name: "DEMO_SECRET", example: "x", generate }],
+      });
+      expect(parsed.env).toEqual([
+        { name: "DEMO_SECRET", example: "x", generate },
+      ]);
+    },
+  );
+
+  it("zmienna bez generate nie dostaje tego pola", () => {
+    const parsed = moduleManifestSchema.parse({
+      ...base,
+      env: [{ name: "DEMO_TOKEN", example: "t" }],
+    });
+    expect(parsed.env).toEqual([{ name: "DEMO_TOKEN", example: "t" }]);
+  });
+
+  it.each([["secret-16"], ["hex-64"], [""], [32], [true]])(
+    "generate %j konczy sie bledem walidacji",
+    (generate) => {
+      expect(
+        moduleManifestSchema.safeParse({
+          ...base,
+          env: [{ name: "DEMO_SECRET", example: "x", generate }],
+        }).success,
+      ).toBe(false);
+    },
+  );
+});
+
 describe("kitStateSchema", () => {
   const base = { kitVersion: "0.0.0", modules: {} };
 

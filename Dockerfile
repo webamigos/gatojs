@@ -6,8 +6,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 # wa:workspaces:start
 COPY packages/create-gato-app/package.json ./packages/create-gato-app/package.json
+COPY packages/crypto/package.json ./packages/crypto/package.json
 COPY packages/env/package.json ./packages/env/package.json
+COPY packages/eslint-config/package.json ./packages/eslint-config/package.json
 COPY packages/gato-cli/package.json ./packages/gato-cli/package.json
+COPY packages/observability/package.json ./packages/observability/package.json
 # wa:workspaces:end
 RUN npm ci --ignore-scripts
 

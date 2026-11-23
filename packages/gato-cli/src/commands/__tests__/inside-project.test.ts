@@ -42,7 +42,7 @@ describe("insideProject: zwykłe ścieżki", () => {
     await project();
 
     await expect(insideProject(dir, "../x.ts")).rejects.toThrow(
-      "Ścieżka poza projektem: ../x.ts",
+      "Path outside the project: ../x.ts",
     );
   });
 });
@@ -57,7 +57,7 @@ describe("insideProject: wiszące dowiązania", () => {
     await symlink(join(outside, "missing.ts"), join(dir, "src/new.ts"));
 
     await expect(insideProject(dir, "src/new.ts")).rejects.toThrow(
-      "Ścieżka poza projektem: src/new.ts",
+      "Path outside the project: src/new.ts",
     );
     expect(existsSync(join(outside, "missing.ts"))).toBe(false);
   });
@@ -67,7 +67,7 @@ describe("insideProject: wiszące dowiązania", () => {
     await symlink(join(outside, "gone/x.ts"), join(dir, "src/new.ts"));
 
     await expect(insideProject(dir, "src/new.ts")).rejects.toThrow(
-      "Ścieżka poza projektem: src/new.ts",
+      "Path outside the project: src/new.ts",
     );
   });
 
@@ -76,7 +76,7 @@ describe("insideProject: wiszące dowiązania", () => {
     await symlink(`../../${basename(outside)}/x.ts`, join(dir, "src/new.ts"));
 
     await expect(insideProject(dir, "src/new.ts")).rejects.toThrow(
-      "Ścieżka poza projektem: src/new.ts",
+      "Path outside the project: src/new.ts",
     );
   });
 
@@ -85,7 +85,7 @@ describe("insideProject: wiszące dowiązania", () => {
     await symlink(join(outside, "gone"), join(dir, "src/dir"));
 
     await expect(insideProject(dir, "src/dir/a.ts")).rejects.toThrow(
-      "Ścieżka poza projektem: src/dir/a.ts",
+      "Path outside the project: src/dir/a.ts",
     );
   });
 
@@ -95,7 +95,7 @@ describe("insideProject: wiszące dowiązania", () => {
     await symlink("b.ts", join(dir, "src/a.ts"));
 
     await expect(insideProject(dir, "src/a.ts")).rejects.toThrow(
-      "Ścieżka poza projektem: src/a.ts",
+      "Path outside the project: src/a.ts",
     );
   });
 
@@ -160,7 +160,7 @@ describe("insideProject: niezmienniki", () => {
     async (segments) => {
       const file = ["..", ...segments, "x.ts"].join("/");
       await expect(insideProject(dir, file)).rejects.toThrow(
-        `Ścieżka poza projektem: ${file}`,
+        `Path outside the project: ${file}`,
       );
     },
   );

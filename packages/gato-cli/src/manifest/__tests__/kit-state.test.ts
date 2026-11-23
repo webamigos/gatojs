@@ -95,7 +95,7 @@ async function writeRawState(raw: Record<string, unknown>): Promise<void> {
 describe("kit state", () => {
   it("readKitState zgłasza brak pliku z nazwą katalogu", async () => {
     await expect(readKitState(tmp)).rejects.toThrow(
-      `Brak .wa/kit.json w ${tmp}`,
+      `No .wa/kit.json in ${tmp}`,
     );
   });
 
@@ -184,7 +184,7 @@ describe("kit state", () => {
       (e: Error) => e,
     );
     expect(error?.message).toContain("EISDIR");
-    expect(error?.message).not.toContain("Brak .wa/kit.json");
+    expect(error?.message).not.toContain("No .wa/kit.json");
   });
   it("writeKitState sortuje moduly projektu: zeta, alfa -> alfa, zeta", async () => {
     await writeKitState(tmp, stateWith([], ["zeta", "alfa"]));
@@ -224,7 +224,7 @@ describe("kit state", () => {
       },
     });
     await expect(readKitState(tmp)).rejects.toThrow(
-      'projectModules.notes: name "inne" nie zgadza się z kluczem',
+      'projectModules.notes: name "inne" does not match the key',
     );
   });
 
@@ -236,7 +236,7 @@ describe("kit state", () => {
       },
     });
     await expect(readKitState(tmp)).rejects.toThrow(
-      "Moduł demo jest jednocześnie modułem kitu i modułem projektu",
+      "Module demo is both a kit module and a project module",
     );
   });
 
@@ -248,7 +248,7 @@ describe("kit state", () => {
       },
     });
     await expect(readKitState(tmp)).rejects.toThrow(
-      "Moduł projektu notes wymaga niezainstalowanego modułu: uploads",
+      "Project module notes requires a module that is not installed: uploads",
     );
   });
 
@@ -260,7 +260,7 @@ describe("kit state", () => {
       },
     });
     await expect(readKitState(tmp)).rejects.toThrow(
-      "Moduł projektu notes: files musi obejmować src/features/notes/**",
+      "Project module notes: files must cover src/features/notes/**",
     );
   });
 
@@ -277,7 +277,7 @@ describe("kit state", () => {
       },
     });
     await expect(readKitState(tmp)).rejects.toThrow(
-      "Moduł projektu notes: files musi obejmować src/features/notes/**",
+      "Project module notes: files must cover src/features/notes/**",
     );
   });
 
@@ -291,7 +291,7 @@ describe("kit state", () => {
       },
     });
     await expect(readKitState(tmp)).rejects.toThrow(
-      "Moduł projektu notes: files musi obejmować src/features/notes/**",
+      "Project module notes: files must cover src/features/notes/**",
     );
   });
 

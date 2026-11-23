@@ -34,7 +34,7 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 - `src/shared/lib/auth/*.ts` (`helpers.ts`, `index.ts`, `client.ts`, `permissions.ts`, `require-module-access.ts`, `service-mode.ts`, `roles.ts`, `impersonation-policy.ts`)
 - `src/shared/lib/modules/` (`define-module.ts`, `nav.ts`)
 - `src/shared/lib/mailer.ts`
-- `src/shared/lib/logger.ts`
+- `src/shared/lib/logger.ts`, `packages/observability/src/*.ts`
 - `src/instrumentation.ts`
 - `scripts/lib/admin-create.ts`
 - `src/components/ui/`

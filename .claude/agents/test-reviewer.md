@@ -1,6 +1,6 @@
 ---
 name: test-reviewer
-description: Sprawdza siłę testów zadania mutation testingiem i checklistą. Używaj w subagent-driven-development po implementacji, przed oceną kodu. Nie edytuje plików.
+description: Checks the strength of a task's tests with mutation testing and a checklist. Use in the `gato-task` workflow after the implementation, before the code review. Does not edit files.
 tools: Read, Grep, Glob, Bash
 ---
 

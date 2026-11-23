@@ -63,7 +63,7 @@ const AUTH_MODULE = "src/features/auth/module.ts";
 const BIN = ".wa/bin/wa.mjs";
 const ADDED = "src/shared/lib/rate-limit.ts";
 const UNDO_HINT =
-  "Sprawdź git status; całość cofa: git restore . && git clean -fd";
+  "Check git status; to undo everything: git restore . && git clean -fd";
 
 let log: ReturnType<typeof vi.fn<(line: string) => void>>;
 const runner = vi.fn<Runner>(async () => {});
@@ -84,7 +84,7 @@ afterEach(async () => {
 function cleanupWarnings(): string[] {
   return log.mock.calls
     .map(([line]) => line)
-    .filter((line) => line.includes("Nie udało się posprzątać"));
+    .filter((line) => line.includes("Could not clean up"));
 }
 
 async function cloneTag(kitDir: string, version: string): Promise<string> {
@@ -179,7 +179,7 @@ describe("update: błąd zapisu cofa wszystkie zmiany", () => {
     });
 
     expect(cleanupWarnings()).toContain(
-      "Nie udało się posprzątać: src/shared/lib/rate-limit.ts (EBUSY)",
+      "Could not clean up: src/shared/lib/rate-limit.ts (EBUSY)",
     );
     const after = await snapshotDir(setup.dir, IGNORE);
     expect(after[AUTH_MODULE]).toBe(before[AUTH_MODULE]);

@@ -4,7 +4,8 @@ Po przeczytaniu będziesz wiedzieć:
 
 - dokąd trafiają wpisy `logger` zależnie od `NODE_ENV` i `OTEL_EXPORTER_OTLP_ENDPOINT` i dlaczego na produkcji trzeba ustawić endpoint;
 - skąd `logger` bierze typ błędu w atrybucie `<klucz>.type` i kiedy na produkcji jest w nim zminifikowana nazwa klasy;
-- jak `src/instrumentation.ts` eksportuje logi protokołem OTLP i czego ten eksport nie obejmuje;
+- jak `src/instrumentation.ts` eksportuje logi i ślady protokołem OTLP i czego ten eksport nie obejmuje;
+- jak opakować operację w ślad funkcją `withSpan` z `@gatojs/observability`;
 - dlaczego `LOG_LEVEL` niczego nie zmienia;
 - jakie nagłówki bezpieczeństwa dostaje każda odpowiedź;
 - co sprawdza `/api/healthcheck`, a czego nie.
@@ -13,7 +14,7 @@ Zweryfikowano z kodem: 3e92d1f, 2026-11-12 (dwa akapity o selektorze `unnamedErr
 
 Źródła:
 
-- logi: `src/shared/lib/logger.ts`, `src/shared/lib/__tests__/logger.test.ts`, `src/instrumentation.ts`, `src/__tests__/instrumentation.test.ts`, `src/shared/config/project.ts`, `packages/env/src/core-env-schema.ts`, `.env.example`, `e2e/env.ts`, `src/shared/utils/error-handling.ts`, `src/shared/utils/__tests__/error-handling.test.ts`, `src/shared/lib/auth/org-context.ts`, `src/shared/lib/auth/service-mode.ts`, `src/shared/lib/mailer.ts`, `src/features/users/services/commands/invite-user-command.ts`, `src/features/users/services/commands/impersonation-commands.ts`, `src/features/organizations/services/queries/default-organization-query.ts`, `src/app/[locale]/accept-invitation/[id]/page.tsx`, `src/features/api-keys/services/commands/api-key-commands.ts`, `src/features/uploads/services/commands/upload-commands.ts`, `src/features/uploads/services/commands/create-upload.ts`, `src/features/uploads/services/s3-storage.ts`, `eslint.config.mjs`;
+- logi i ślady: `packages/observability/src/` (`create-logger.ts`, `normalize-attributes.ts`, `create-telemetry.ts` i testy w `__tests__/`), `src/shared/lib/logger.ts`, `src/shared/lib/__tests__/logger.test.ts`, `src/instrumentation.ts`, `src/__tests__/instrumentation.test.ts`, `src/shared/config/project.ts`, `packages/env/src/core-env-schema.ts`, `.env.example`, `e2e/env.ts`, `src/shared/utils/error-handling.ts`, `src/shared/utils/__tests__/error-handling.test.ts`, `src/shared/lib/auth/org-context.ts`, `src/shared/lib/auth/service-mode.ts`, `src/shared/lib/mailer.ts`, `src/features/users/services/commands/invite-user-command.ts`, `src/features/users/services/commands/impersonation-commands.ts`, `src/features/organizations/services/queries/default-organization-query.ts`, `src/app/[locale]/accept-invitation/[id]/page.tsx`, `src/features/api-keys/services/commands/api-key-commands.ts`, `src/features/uploads/services/commands/upload-commands.ts`, `src/features/uploads/services/commands/create-upload.ts`, `src/features/uploads/services/s3-storage.ts`, `eslint.config.mjs`, `packages/eslint-config/src/error-name.mjs`, `packages/eslint-config/src/rules.mjs`;
 - nagłówki i healthcheck: `src/shared/lib/security-headers.ts`, `next.config.ts`, `src/proxy.ts`, `src/app/api/healthcheck/route.ts`, `src/app/api/healthcheck/__tests__/route.test.ts`, `src/shared/lib/prisma.ts`, `railway.toml`, `Dockerfile`;
 - biblioteki (wersje w `package-lock.json`): `node_modules/@opentelemetry/api-logs/build/src/api/logs.js` (0.218.0), `node_modules/@opentelemetry/sdk-logs/build/src/export/BatchLogRecordProcessorBase.js` (0.218.0), `node_modules/@opentelemetry/otlp-exporter-base/build/src/configuration/otlp-node-http-env-configuration.js` (0.218.0), `node_modules/next/dist/server/lib/start-server.js` (Next.js 16.3.8, `cleanup`), `node_modules/next/dist/server/route-modules/app-route/helpers/auto-implement-methods.js`, `node_modules/@aws-sdk/client-s3/dist-cjs/index.js` (3.1159.0, `S3ServiceException`), `node_modules/@aws-sdk/core/dist-cjs/submodules/protocols/index.js` (3.978.7, `loadRestXmlErrorCode`, `getErrorSchemaOrThrowBaseException`), `node_modules/@smithy/core/dist-cjs/submodules/client/index.js` (3.37.0, `ServiceException`).
 
@@ -25,21 +26,22 @@ Oznaczenie „(sprawdzone)” znaczy, że zachowanie potwierdziło uruchomienie 
 
 ## Logi i OpenTelemetry
 
-`logger` z `src/shared/lib/logger.ts` ma metody `debug`, `info`, `warn` i `error` przyjmujące komunikat i opcjonalne atrybuty. Wpis idzie przez API logów OpenTelemetry (OTel, otwarty standard zbierania logów, metryk i śladów), a na konsolę tylko w jednym przypadku ([D15](decyzje.md#d15)):
+`logger` z `src/shared/lib/logger.ts` to `createLogger(project.slug)` z pakietu `@gatojs/observability` (`packages/observability`, należy do rdzenia). Ma metody `debug`, `info`, `warn` i `error` przyjmujące komunikat i opcjonalne atrybuty. Wpis idzie przez API logów OpenTelemetry (OTel, otwarty standard zbierania logów, metryk i śladów), a na konsolę tylko w jednym przypadku ([D15](decyzje.md#d15)):
 
-`src/shared/lib/logger.ts`
+`packages/observability/src/create-logger.ts`
 
 ```ts
-const IS_DEV = process.env.NODE_ENV !== "production";
-const HAS_OTEL = Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
+  const isDev = process.env.NODE_ENV !== "production";
+  const hasOtlpEndpoint = Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
+  const printsToConsole = isDev && !hasOtlpEndpoint;
 // …
-  apiLogger.emit({
+    otelLogger.emit({
 // …
-  if (IS_DEV && !HAS_OTEL) {
+    if (printsToConsole) {
 // …
 ```
 
-`emit` zawsze oddaje wpis do API logów (`apiLogger.emit`), a na konsolę pisze tylko przy obu warunkach naraz. Obie stałe powstają przy imporcie modułu, więc zmiana tych zmiennych wymaga restartu.
+`emit` zawsze oddaje wpis do API logów (`otelLogger.emit`), a na konsolę pisze tylko przy obu warunkach naraz. Oba warunki są czytane raz, w `createLogger`, czyli dla `logger` przy imporcie `src/shared/lib/logger.ts`, więc zmiana tych zmiennych wymaga restartu.
 
 <a id="logger-cel"></a>
 
@@ -58,21 +60,22 @@ Ostatni wiersz wynika z budowy OTel: `logger` oddaje wpis do API logów, a gdy n
 
 Wyjątkiem od tej reguły jest raport startowy walidacji zmiennych środowiskowych. `register()` wypisuje go przez `console.error` niezależnie od `NODE_ENV` i endpointu, bo powstaje przed konfiguracją eksportu, a proces kończy się zaraz po nim ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Wyjątek od [D15](decyzje.md#d15) obejmuje tylko ten raport ([D48](decyzje.md#d48)); wpisy kodu aplikacji w czasie działania serwera idą przez `logger`.
 
-Na konsoli wpis ma postać `[<POZIOM>] <komunikat>` i obiekt atrybutów bez zmian. Do eksportu atrybuty przechodzą przez `toAttrs`: błąd daje trzy atrybuty `<klucz>.type`, `<klucz>.message` i `<klucz>.stacktrace`, data napis ISO, obiekt napis JSON, a `null` i `undefined` są pomijane. Komunikaty rdzenia są po angielsku i zaczynają się od prefiksu obszaru (`[MAILER]`, `[USERS]`, `[AUTH]`, `[ORG]`). Wyjątkiem jest `handleCommandError`: zapisuje polski komunikat domyślny komendy bez prefiksu, na przykład `Nie udało się zaprosić użytkownika`. Pełna lista: [Referencja](#referencja-logi).
+Na konsoli wpis ma postać `[<POZIOM>] <komunikat>` i obiekt atrybutów bez zmian. Do eksportu atrybuty przechodzą przez `normalizeAttributes`: błąd daje trzy atrybuty `<klucz>.type`, `<klucz>.message` i `<klucz>.stacktrace`, data napis ISO, obiekt napis JSON, a `null` i `undefined` są pomijane. Komunikaty rdzenia są po angielsku i zaczynają się od prefiksu obszaru (`[MAILER]`, `[USERS]`, `[AUTH]`, `[ORG]`). Wyjątkiem jest `handleCommandError`: zapisuje polski komunikat domyślny komendy bez prefiksu, na przykład `Nie udało się zaprosić użytkownika`. Pełna lista: [Referencja](#referencja-logi).
 
 <a id="logger-typ-bledu"></a>
 
 ### Typ błędu w `<klucz>.type`
 
-`toAttrs` bierze typ błędu z `name`, gdy jest niepuste i różne od `"Error"`. W przeciwnym razie bierze nazwę konstruktora, czyli klasy błędu, a gdy i ona jest pusta (klasa anonimowa), wpisuje `"Error"`:
+`normalizeAttributes` bierze typ błędu z `name`, gdy jest niepustym napisem różnym od `"Error"`. W przeciwnym razie bierze nazwę konstruktora, czyli klasy błędu, a gdy i ona jest pusta (klasa anonimowa), wpisuje `"Error"`:
 
-`src/shared/lib/logger.ts`
+`packages/observability/src/normalize-attributes.ts`
 
 ```ts
-      result[`${key}.type`] =
-        value.name && value.name !== "Error"
-          ? value.name
-          : value.constructor.name || "Error";
+  const name: unknown = error.name;
+  if (typeof name === "string" && name !== "" && name !== "Error") {
+    return name;
+  }
+  return error.constructor.name || "Error";
 ```
 
 `name` stoi na pierwszym miejscu z powodu minifikacji w buildzie produkcyjnym. `npm run build` minifikuje kod serwera: zastępuje nazwy klas krótkimi nazwami, a napisy zostawia. Napis wpisany do `name` zostaje więc w kodzie, a nazwa klasy znika: w plikach `.js` w `.next/server` napisy `NoOrganizationError` i `DomainError` występują tylko jako wartości wpisane do `name` (sprawdzone; wynik `npm run build`). W jednym z plików `.next/server/chunks/` klasa `NoOrganizationError` ma na przykład postać:
@@ -83,13 +86,13 @@ class d extends Error{constructor(){super("Użytkownik nie należy do aktywnej o
 
 `d` to przykład z jednego buildu, a nie stała nazwa: w dwóch innych plikach tego samego buildu ta klasa nazywa się `m`. Minifikację przetrwa tylko napis wpisany do `name` wprost w kodzie: przypisanie `this.name = this.constructor.name` albo `this.name = new.target.name` daje w buildzie produkcyjnym tę samą skróconą nazwę co klasa.
 
-Klasa, która nie ustawia `name`, dostaje je od najbliższej klasy nadrzędnej, która je ustawia. Klasa dziedzicząca bezpośrednio po `Error` bez własnego `name` ma więc `name` równe `"Error"`, a `toAttrs` bierze wtedy nazwę konstruktora, na produkcji zminifikowaną. Podklasa `TypeError` ma za to w `<klucz>.type` `"TypeError"`, a podklasa klasy, która wpisuje do `name` napis, ma ten sam napis, w obu przypadkach także w `npm run dev`. Gdy klasa nadrzędna przypisuje `this.name = this.constructor.name` albo `this.name = new.target.name`, podklasa ma w `name` swoją nazwę, na produkcji zminifikowaną. Własna klasa błędu ma więc na produkcji w `<klucz>.type` swoją nazwę tylko wtedy, gdy sama wpisuje ją napisem do `name`, tak jak `NoOrganizationError` w konstruktorze albo `DomainError` w polu klasy.
+Klasa, która nie ustawia `name`, dostaje je od najbliższej klasy nadrzędnej, która je ustawia. Klasa dziedzicząca bezpośrednio po `Error` bez własnego `name` ma więc `name` równe `"Error"`, a `normalizeAttributes` bierze wtedy nazwę konstruktora, na produkcji zminifikowaną. Podklasa `TypeError` ma za to w `<klucz>.type` `"TypeError"`, a podklasa klasy, która wpisuje do `name` napis, ma ten sam napis, w obu przypadkach także w `npm run dev`. Gdy klasa nadrzędna przypisuje `this.name = this.constructor.name` albo `this.name = new.target.name`, podklasa ma w `name` swoją nazwę, na produkcji zminifikowaną. Własna klasa błędu ma więc na produkcji w `<klucz>.type` swoją nazwę tylko wtedy, gdy sama wpisuje ją napisem do `name`, tak jak `NoOrganizationError` w konstruktorze albo `DomainError` w polu klasy.
 
-`npm run lint` zatrzymuje zapisy, które biorą `name` z nazwy klasy. Reguła `no-restricted-syntax` w `eslint.config.mjs` zgłasza błąd, gdy przypisanie do `this.name` albo pole klasy `name` dostaje wartość `this.constructor.name` (także `<wyrażenie>.constructor.name`), `new.target.name` albo `<Nazwa>.name`, gdzie `<Nazwa>` zaczyna się wielką literą, jak nazwa klasy. Przypisanie `this.name = data.name` przechodzi, bo `data` zaczyna się małą literą. Ceną tego przybliżenia jest zgłoszenie odczytu ze stałej pisanej wielkimi literami, na przykład `this.name = CONFIG.name`; wtedy wpisz napis albo wyłącz regułę dla tej linii dyrektywą `// eslint-disable-next-line no-restricted-syntax -- <powód>`. Reguła rozpoznaje tylko te zapisy wprost, więc nie zatrzyma nazwy klasy podanej okrężnie, na przykład przez zmienną, w getterze `get name()`, zapisem `this["name"]` albo przez `Object.defineProperty(this, "name", { value: new.target.name })`; w klasie dziedziczącej wprost po `Error` część z nich zatrzymuje jednak selektor opisany w następnym akapicie.
+`npm run lint` zatrzymuje zapisy, które biorą `name` z nazwy klasy. Reguła `no-restricted-syntax` z `@gatojs/eslint-config` (`packages/eslint-config/src/error-name.mjs`, dołączona w `eslint.config.mjs`) zgłasza błąd, gdy przypisanie do `this.name` albo pole klasy `name` dostaje wartość `this.constructor.name` (także `<wyrażenie>.constructor.name`), `new.target.name` albo `<Nazwa>.name`, gdzie `<Nazwa>` zaczyna się wielką literą, jak nazwa klasy. Przypisanie `this.name = data.name` przechodzi, bo `data` zaczyna się małą literą. Ceną tego przybliżenia jest zgłoszenie odczytu ze stałej pisanej wielkimi literami, na przykład `this.name = CONFIG.name`; wtedy wpisz napis albo wyłącz regułę dla tej linii dyrektywą `// eslint-disable-next-line no-restricted-syntax -- <powód>`. Reguła rozpoznaje tylko te zapisy wprost, więc nie zatrzyma nazwy klasy podanej okrężnie, na przykład przez zmienną, w getterze `get name()`, zapisem `this["name"]` albo przez `Object.defineProperty(this, "name", { value: new.target.name })`; w klasie dziedziczącej wprost po `Error` część z nich zatrzymuje jednak selektor opisany w następnym akapicie.
 
-`npm run lint` zatrzymuje też klasę, która dziedziczy wprost po `Error` i nie ma własnego `name`. Osobny selektor tej reguły, `unnamedErrorClass` w `eslint.config.mjs`, uznaje za własne `name` tylko pole klasy `name` z wartością, na przykład `name = "KeyLimitError"`, albo przypisanie `this.name = …` zapisane jako osobna instrukcja w treści konstruktora. Wartości nie sprawdza, bo nazwę klasy wpisaną w tych miejscach zatrzymuje selektor z poprzedniego akapitu. Liczy się tylko `name` samej klasy, ustawiane przy tworzeniu każdego jej obiektu. Dlatego nie wystarczy `name` klasy zagnieżdżonej ani przypisanie w zwykłej metodzie, w funkcji wewnątrz konstruktora albo w bloku `if`. Nie wystarczy też pole `name` bez wartości (na przykład `declare name`), klucz wyliczany (`[name]`, `this[name]`) ani prywatne `#name`. Selektor zgłasza więc również klasę, która ustawia `name` okrężnie: getterem `get name()`, zapisem `this["name"]` albo przez `Object.defineProperty`; wtedy wpisz napis w polu albo w konstruktorze. Przepuszcza natomiast nazwę klasy podaną przez zmienną (`const name = new.target.name; this.name = name`), której nie wykrywa żaden z selektorów.
+`npm run lint` zatrzymuje też klasę, która dziedziczy wprost po `Error` i nie ma własnego `name`. Osobny selektor tej reguły, `unnamedErrorClass` w `packages/eslint-config/src/error-name.mjs`, uznaje za własne `name` tylko pole klasy `name` z wartością, na przykład `name = "KeyLimitError"`, albo przypisanie `this.name = …` zapisane jako osobna instrukcja w treści konstruktora. Wartości nie sprawdza, bo nazwę klasy wpisaną w tych miejscach zatrzymuje selektor z poprzedniego akapitu. Liczy się tylko `name` samej klasy, ustawiane przy tworzeniu każdego jej obiektu. Dlatego nie wystarczy `name` klasy zagnieżdżonej ani przypisanie w zwykłej metodzie, w funkcji wewnątrz konstruktora albo w bloku `if`. Nie wystarczy też pole `name` bez wartości (na przykład `declare name`), klucz wyliczany (`[name]`, `this[name]`) ani prywatne `#name`. Selektor zgłasza więc również klasę, która ustawia `name` okrężnie: getterem `get name()`, zapisem `this["name"]` albo przez `Object.defineProperty`; wtedy wpisz napis w polu albo w konstruktorze. Przepuszcza natomiast nazwę klasy podaną przez zmienną (`const name = new.target.name; this.name = name`), której nie wykrywa żaden z selektorów.
 
-Selektor obejmuje tylko klasy z `extends Error`. Podklasa `TypeError`, `DomainError` albo innej klasy z napisem w `name` dziedziczy ten napis, co opisuje akapit o klasie bez `name` wyżej. Wyłączone z selektora są pliki testów (katalogi `__tests__/` oraz pliki `*.test.*` i `*.spec.*` z rozszerzeniem kodu), katalog `e2e/` i deklaracje typów `*.d.ts`. Testy i `e2e/` nie trafiają do buildu, więc nazwy ich klas nie są minifikowane, a testy loggera i mocki w fabrykach `vi.mock`, na przykład `class NoOrganizationError extends Error {}`, celowo tworzą klasy bez `name`. W deklaracji typów reguły nie da się spełnić, bo pole nie może tam mieć wartości, a konstruktor nie ma treści. Klasę ambient w zwykłym pliku `.ts` (`declare class` albo klasa w bloku `declare module`) selektor zgłasza; jej miejsce jest w pliku `.d.ts`. Wyłączenie robi osobny obiekt konfiguracji dla tych plików, który powtarza listę `restrictedSyntax` bez `unnamedErrorClass`. Własne selektory `no-restricted-syntax` dopisuj więc do stałej `restrictedSyntax`; selektor dopisany tylko do listy w głównym obiekcie nie zadziała w tych plikach.
+Selektor obejmuje tylko klasy z `extends Error`. Podklasa `TypeError`, `DomainError` albo innej klasy z napisem w `name` dziedziczy ten napis, co opisuje akapit o klasie bez `name` wyżej. Wyłączone z selektora są pliki testów (katalogi `__tests__/` oraz pliki `*.test.*` i `*.spec.*` z rozszerzeniem kodu), katalog `e2e/` i deklaracje typów `*.d.ts`. Testy i `e2e/` nie trafiają do buildu, więc nazwy ich klas nie są minifikowane, a testy loggera i mocki w fabrykach `vi.mock`, na przykład `class NoOrganizationError extends Error {}`, celowo tworzą klasy bez `name`. W deklaracji typów reguły nie da się spełnić, bo pole nie może tam mieć wartości, a konstruktor nie ma treści. Klasę ambient w zwykłym pliku `.ts` (`declare class` albo klasa w bloku `declare module`) selektor zgłasza; jej miejsce jest w pliku `.d.ts`. Wyłączenie robi osobny obiekt konfiguracji dla tych plików, który zwraca funkcja `restrictedSyntax(extra)` z `packages/eslint-config/src/rules.mjs`: powtarza pozostałe selektory bez `unnamedErrorClass`. Własne selektory `no-restricted-syntax` dodawaj więc w `eslint.config.mjs` przez `...restrictedSyntax([{ selector, message }])` z `@gatojs/eslint-config`; selektor dopisany tylko do jednego obiektu nie zadziała w tych plikach.
 
 W rdzeniu `name` ustawiają `NoOrganizationError` (`src/shared/lib/auth/org-context.ts`) i `ServiceModeConfirmationError` (`src/shared/lib/auth/service-mode.ts`) w konstruktorze oraz `DomainError` (`src/shared/utils/error-handling.ts`) w polu klasy `name = "DomainError"`. Napis z pola klasy też przetrwa minifikację: w buildzie `DomainError` ma na przykład postać `class c extends Error{name="DomainError"}` (sprawdzone; wynik `npm run build`). Wpis `warn` z `handleCommandError` dla błędu rzuconego wprost jako `DomainError` ma więc w `err.type` napis `DomainError`, także na produkcji. Rdzeń rzuca `DomainError` tylko jako `ServiceModeConfirmationError`; wprost rzucają go komendy modułów `api-keys` i `uploads`.
 
@@ -97,13 +100,13 @@ Klasa, która dziedziczy bezpośrednio po `DomainError` i nie ustawia `name`, do
 
 Błąd z biblioteki albo z Node.js, który ma w `name` niepusty napis inny niż `"Error"`, ma w `<klucz>.type` ten napis także wtedy, gdy różni się on od nazwy klasy: przerwane żądanie `fetch` daje błąd klasy `DOMException` z `name` równym `AbortError` albo `TimeoutError`. Błąd zwrócony przez S3, który moduł `uploads` zapisuje pod kluczem `err`, ma w `name` kod błędu z odpowiedzi S3, na przykład `SignatureDoesNotMatch`, także gdy jego klasą jest ogólne `S3ServiceException`, a gdy odpowiedź nie ma kodu, `NotFound` przy statusie 404 i `Unknown` przy innym statusie.
 
-Regułę sprawdzają testy w `src/shared/lib/__tests__/logger.test.ts`, w tym przypadek klasy zminifikowanej do `d` z `name` ustawionym w konstruktorze. `name` klasy `DomainError` i jej podklasy bez własnego `name` oraz `err.type` we wpisie `warn` z `handleCommandError` sprawdzają testy w `src/shared/utils/__tests__/error-handling.test.ts`.
+Regułę sprawdzają testy w `packages/observability/src/__tests__/normalize-attributes.test.ts`, w tym przypadek klasy zminifikowanej do `d` z `name` ustawionym w konstruktorze. `name` klasy `DomainError` i jej podklasy bez własnego `name` oraz `err.type` we wpisie `warn` z `handleCommandError` sprawdzają testy w `src/shared/utils/__tests__/error-handling.test.ts`.
 
 <a id="otel"></a>
 
 ### Eksport OTLP
 
-Next.js wywołuje `register()` z `src/instrumentation.ts` raz przy starcie serwera, osobno dla każdego środowiska uruchomieniowego. Funkcja działa tylko w Node.js (`NEXT_RUNTIME` równe `nodejs`). Najpierw sprawdza zmienne środowiskowe i przy błędzie kończy proces kodem 1 ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)), a eksport logów konfiguruje tylko przy ustawionym endpoincie:
+Next.js wywołuje `register()` z `src/instrumentation.ts` raz przy starcie serwera, osobno dla każdego środowiska uruchomieniowego. Funkcja działa tylko w Node.js (`NEXT_RUNTIME` równe `nodejs`). Najpierw sprawdza zmienne środowiskowe i przy błędzie kończy proces kodem 1 ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)), a eksport logów i śladów konfiguruje tylko przy ustawionym endpoincie:
 
 `src/instrumentation.ts`
 
@@ -122,6 +125,10 @@ Next.js wywołuje `register()` z `src/instrumentation.ts` raz przy starcie serwe
   });
 // …
         new OTLPLogExporter({ url: `${normalizedEndpoint}/v1/logs` }),
+// …
+        new OTLPTraceExporter({ url: `${normalizedEndpoint}/v1/traces` }),
+// …
+  tracerProvider.register();
 ```
 
 Jak działa eksport (sprawdzone):
@@ -132,7 +139,26 @@ Jak działa eksport (sprawdzone):
 - `logger` pobiera swój obiekt z API przy imporcie, ale wpisy trafiają do dostawcy zarejestrowanego później w `register()`.
 - Wpisy idą paczkami co 5 sekund (domyślne `scheduledDelayMillis` w `BatchLogRecordProcessorBase`). Kod nie wywołuje `forceFlush()` ani `shutdown()` dostawcy, więc wpisy z ostatnich sekund przed zakończeniem procesu mogą nie dotrzeć: proces zakończony pół sekundy po wpisie nie wysłał niczego. Przy `SIGTERM` serwer Next.js zamyka połączenia i kończy proces przez `process.exit(143)` (`cleanup` w `start-server.js`), bez wywołania dostawcy logów.
 
-Kit eksportuje tylko logi. Nie rejestruje śladów ani metryk.
+- Ślady idą tak samo: `POST <endpoint>/v1/traces`, z tym samym zasobem, paczkami (`BatchSpanProcessor`). `tracerProvider.register()` z `@opentelemetry/sdk-trace-node` ustawia globalnego dostawcę śladów, menedżer kontekstu oparty na `AsyncLocalStorage` (zagnieżdżone ślady mają rodzica) i propagator W3C. Bez endpointu nie powstaje żaden eksporter, a API śladów zostaje przy dostawcy, który niczego nie robi.
+
+Kit nie rejestruje metryk: `meter` z `createTelemetry` działa, ale bez dostawcy metryk jego pomiary nigdzie nie trafiają. Nie instrumentuje też automatycznie zapytań Prismy ani żądań HTTP; ślad powstaje tylko tam, gdzie kod sam go otworzy.
+
+<a id="withspan"></a>
+
+### Ślady w kodzie: `createTelemetry` i `withSpan`
+
+`createTelemetry(serviceName)` z `@gatojs/observability` zwraca `tracer`, `meter` i `withSpan(name, attributes, fn)`:
+
+```ts
+import { createTelemetry } from "@gatojs/observability";
+import { project } from "@/shared/config/project";
+
+const { withSpan } = createTelemetry(project.slug);
+
+const invoice = await withSpan("invoice.send", { invoiceId }, () => sendInvoice(invoiceId));
+```
+
+`withSpan` otwiera aktywny ślad o nazwie `name` z atrybutami po `normalizeAttributes`, przekazuje go do `fn` i zwraca jej wynik (także z funkcji synchronicznej, zawsze jako `Promise`). Po sukcesie ustawia status `OK`. Gdy `fn` rzuci wyjątek albo zwróci odrzucony `Promise`, zapisuje wyjątek w śladzie, ustawia status `ERROR` z komunikatem błędu i rzuca dalej ten sam obiekt; wartość, która nie jest `Error`, zapisuje jako `new Error(String(wartość))`, ale rzuca ją bez zmian. Ślad kończy się w każdym przypadku.
 
 <a id="log-level"></a>
 

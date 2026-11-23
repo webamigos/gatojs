@@ -18,7 +18,7 @@ export function projectNames(
   const slug = basename(target);
   if (!SLUG_PATTERN.test(slug)) {
     throw new Error(
-      `Nazwa projektu "${slug}": dozwolone małe litery, cyfry i myślniki, pierwsza litera, 2–50 znaków`,
+      `Project name "${slug}": use lowercase letters, digits and hyphens, start with a letter, 2–50 characters`,
     );
   }
   return {

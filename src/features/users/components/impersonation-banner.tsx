@@ -34,6 +34,7 @@ export function ImpersonationBanner({
       // WHY: the stop is recorded first because ending impersonation clears the session's impersonatedBy marker.
       const auditResult = await onStopLogged();
       if (!auditResult.success) {
+        // eslint-disable-next-line no-console -- client components have no server logger
         console.error("Impersonation-stop logging failed:", auditResult.error);
       }
       const { error } = await authClient.admin.stopImpersonating();
@@ -44,6 +45,7 @@ export function ImpersonationBanner({
       router.push("/users");
       router.refresh();
     } catch (error) {
+      // eslint-disable-next-line no-console -- client components have no server logger
       console.error("Unexpected error while stopping impersonation:", error);
       toast.error(t("banner-stop-error"));
     } finally {

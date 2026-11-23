@@ -222,7 +222,7 @@ describe("updateFromSource — bundel projektu", () => {
         await spawnRunner(command, commandArgs, cwd);
         return;
       }
-      throw new Error("node zakończone kodem 1");
+      throw new Error("node exited with code 1");
     });
     const result = await run();
     expect(result).toEqual({ exitCode: 1 });
@@ -244,7 +244,7 @@ describe("updateFromSource — bundel projektu", () => {
     });
     const result = run();
     await expect(result).rejects.toThrow(
-      "Nie udało się uruchomić bundla wa-kit 0.2.0: spawn node ENOENT",
+      "Could not run the bundle of GatoJS 0.2.0: spawn node ENOENT",
     );
     await expect(result).rejects.toMatchObject({ cause: spawnError });
     expect(callsOf("node")).toHaveLength(1);
@@ -267,7 +267,7 @@ describe("updateFromSource — kontrole przed klonem", () => {
   it("brudne drzewo kończy się błędem, zanim runner zostanie wywołany", async () => {
     await writeFile(join(dir, "notes.txt"), "roboczy\n");
     await expect(run()).rejects.toThrow(
-      "Niezacommitowane zmiany w projekcie; zrób commit albo stash przed wa update",
+      "Uncommitted changes in the project; commit or stash them before updating",
     );
     expect(runner).not.toHaveBeenCalled();
     expect(await readdir(tmpRoot)).toEqual([]);
@@ -283,14 +283,14 @@ describe("updateFromSource — kontrole przed klonem", () => {
   it("ta sama wersja kończy się kodem 0 bez klonowania i bez delegacji", async () => {
     const result = await run({ version: "0.1.0" });
     expect(result).toEqual({ exitCode: 0 });
-    expect(log).toHaveBeenCalledWith("Projekt ma już wa-kit 0.1.0");
+    expect(log).toHaveBeenCalledWith("Project is already on GatoJS 0.1.0");
     expect(runner).not.toHaveBeenCalled();
     expect(await readdir(tmpRoot)).toEqual([]);
   });
 
   it("starsza wersja docelowa kończy się błędem bez wywołania runnera", async () => {
     await expect(run({ version: "0.0.9" })).rejects.toThrow(
-      "Projekt ma wa-kit 0.1.0, nowszą niż 0.0.9; wa update nie obniża wersji",
+      "Project has GatoJS 0.1.0, newer than 0.0.9; update does not downgrade",
     );
     expect(runner).not.toHaveBeenCalled();
   });
@@ -302,7 +302,7 @@ describe("updateFromSource — bundel z klonu kitu", () => {
     await setKitVersion(bundleKit, "0.3.0");
     const before = await snapshotDir(dir, IGNORE);
     await expect(run({}, { bundleKitDir: bundleKit })).rejects.toThrow(
-      "Bundel pochodzi z wa-kit 0.3.0, a aktualizacja prowadzi do 0.2.0",
+      "The bundle comes from GatoJS 0.3.0, but the update targets 0.2.0",
     );
     expect(callsOf("node")).toEqual([]);
     expect(await snapshotDir(dir, IGNORE)).toEqual(before);

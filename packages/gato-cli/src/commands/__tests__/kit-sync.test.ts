@@ -93,7 +93,7 @@ describe("kitSync", () => {
     const empty = await mkdtemp(join(tmpdir(), "wa-kit-sync-empty-"));
     try {
       await expect(kitSync(empty)).rejects.toThrow(
-        `Brak kit/kit.json w ${empty} — to nie jest repozytorium wa-kit`,
+        `No kit/kit.json in ${empty} — this is not a GatoJS repository`,
       );
       await expect(
         readFile(join(empty, ".wa/kit.json"), "utf8"),
@@ -109,7 +109,7 @@ describe("kitSync", () => {
       JSON.stringify({ name: "inny", version: "0.3.0", description: "x" }),
     );
     await expect(kitSync(kitDir)).rejects.toThrow(
-      'kit/modules/demo.json: name "inny" nie zgadza się z nazwą pliku',
+      'kit/modules/demo.json: name "inny" does not match the file name',
     );
     await expect(
       readFile(join(kitDir, ".wa/kit.json"), "utf8"),

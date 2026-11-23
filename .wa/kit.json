@@ -1,5 +1,5 @@
 {
-  "kitVersion": "0.7.0",
+  "kitVersion": "0.11.0",
   "kitRepo": "https://github.com/webamigos/gatojs.git",
   "project": {
     "name": "WA App",
@@ -11,11 +11,11 @@
   ],
   "modules": {
     "api-keys": {
-      "version": "0.1.1",
+      "version": "0.1.2",
       "manifest": {
         "name": "api-keys",
-        "version": "0.1.1",
-        "description": "Klucze API organizacji: model ApiKey, sekret z pepperem i zakresy",
+        "version": "0.1.2",
+        "description": "Organization API keys: ApiKey model, peppered secret and scopes",
         "requires": [],
         "files": [
           "prisma/schema/api-keys.prisma",
@@ -29,7 +29,8 @@
           {
             "name": "API_KEY_PEPPER",
             "example": "dev-only-api-key-pepper-change-me-0123456789",
-            "required": true
+            "required": true,
+            "generate": "secret-32"
           }
         ],
         "schemaRelations": [
@@ -53,7 +54,7 @@
       "manifest": {
         "name": "audit-logs",
         "version": "0.1.2",
-        "description": "Dziennik zdarzeń organizacji: model AuditLog, sink i redakcja danych wrażliwych",
+        "description": "Organization audit log: AuditLog model, sink and redaction of sensitive data",
         "requires": [],
         "files": [
           "prisma/schema/audit-logs.prisma",
@@ -82,11 +83,11 @@
       "files": {}
     },
     "core": {
-      "version": "0.10.0",
+      "version": "0.14.0",
       "manifest": {
         "name": "core",
-        "version": "0.10.0",
-        "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
+        "version": "0.14.0",
+        "description": "GatoJS core: auth, organizations, users, account, dashboard",
         "requires": [],
         "files": [
           ".claude/agents/test-reviewer.md",
@@ -125,6 +126,8 @@
           "package-lock.json",
           "package.json",
           "packages/env/**",
+          "packages/eslint-config/**",
+          "packages/observability/**",
           "playwright.config.ts",
           "postcss.config.mjs",
           "prisma.config.ts",
@@ -143,6 +146,7 @@
           "src/__tests__/architecture/**",
           "src/__tests__/env-example.test.ts",
           "src/__tests__/eslint-error-name.test.ts",
+          "src/__tests__/eslint-shared-config.test.ts",
           "src/__tests__/instrumentation.test.ts",
           "src/__tests__/proxy-matcher.test.ts",
           "src/__tests__/server-entrypoints-guard.test.ts",
@@ -180,8 +184,10 @@
           "@hookform/resolvers": "^5.9.2",
           "@opentelemetry/api-logs": "^0.218.0",
           "@opentelemetry/exporter-logs-otlp-http": "^0.218.0",
+          "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
           "@opentelemetry/resources": "^2.12.1",
           "@opentelemetry/sdk-logs": "^0.218.0",
+          "@opentelemetry/sdk-trace-node": "^2.7.1",
           "@prisma/adapter-pg": "^7.4.2",
           "@prisma/client": "^7.4.2",
           "@react-email/components": "^1.0.11",
@@ -196,7 +202,7 @@
           "dotenv": "^17.3.1",
           "lucide-react": "^0.577.0",
           "next": "16.4.6",
-          "next-intl": "^4.15.1",
+          "next-intl": "^4.15.3",
           "next-themes": "^0.4.6",
           "nodemailer": "^10.6.0",
           "pg": "^8.20.0",
@@ -208,7 +214,7 @@
           "server-only": "^0.0.1",
           "shadcn": "^4.23.0",
           "sonner": "^2.0.7",
-          "tailwind-merge": "^3.5.0",
+          "tailwind-merge": "^3.7.1",
           "tw-animate-css": "^1.4.0",
           "zod": "^4.3.6"
         },
@@ -252,12 +258,51 @@
       },
       "files": {}
     },
+    "encryption": {
+      "version": "0.1.1",
+      "manifest": {
+        "name": "encryption",
+        "version": "0.1.1",
+        "description": "Per-organization envelope encryption (AES-256-GCM) with data keys wrapped by a master key",
+        "requires": [],
+        "files": [
+          "packages/crypto/**",
+          "prisma/schema/encryption.prisma",
+          "src/features/encryption/**"
+        ],
+        "dependencies": {},
+        "devDependencies": {},
+        "env": [
+          {
+            "name": "ENCRYPTION_PROVIDER",
+            "example": "local",
+            "required": false
+          },
+          {
+            "name": "ENCRYPTION_MASTER_KEY",
+            "example": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+            "required": true,
+            "generate": "hex-32"
+          }
+        ],
+        "schemaRelations": [
+          {
+            "model": "Organization",
+            "field": "dataKey OrganizationDataKey?"
+          }
+        ],
+        "compose": null,
+        "ciSteps": null,
+        "workspaces": []
+      },
+      "files": {}
+    },
     "uploads": {
-      "version": "0.2.5",
+      "version": "0.2.7",
       "manifest": {
         "name": "uploads",
-        "version": "0.2.5",
-        "description": "Pliki organizacji na dysku albo w magazynie S3",
+        "version": "0.2.7",
+        "description": "Organization files on disk or in S3 storage",
         "requires": [],
         "files": [
           "prisma/schema/uploads.prisma",
@@ -267,7 +312,7 @@
           "ci/uploads.integration-steps.yml"
         ],
         "dependencies": {
-          "@aws-sdk/client-s3": "^3.1172.0",
+          "@aws-sdk/client-s3": "^3.1173.0",
           "file-type": "^22.3.0",
           "sharp": "^0.35.5"
         },

@@ -143,7 +143,7 @@ describe("checkNodeVersion", () => {
   it("zgłasza Dockerfile bez FROM node:", () => {
     write("Dockerfile", "FROM debian:12\n");
     expect(checkNodeVersion(root)).toEqual([
-      "Dockerfile: brak FROM node:<wersja>",
+      "Dockerfile: no FROM node:<version>",
     ]);
   });
 

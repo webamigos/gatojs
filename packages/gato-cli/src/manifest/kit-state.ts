@@ -13,7 +13,7 @@ export async function readKitState(projectDir: string): Promise<KitState> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       throw new Error(
-        `Brak .wa/kit.json w ${projectDir} — to nie jest projekt wa-kit`,
+        `No .wa/kit.json in ${projectDir} — this is not a GatoJS project`,
       );
     }
     throw error;
@@ -27,18 +27,18 @@ function validateProjectModules(state: KitState): void {
   for (const [key, { manifest }] of Object.entries(state.projectModules)) {
     if (manifest.name !== key) {
       throw new Error(
-        `projectModules.${key}: name "${manifest.name}" nie zgadza się z kluczem`,
+        `projectModules.${key}: name "${manifest.name}" does not match the key`,
       );
     }
     if (key in state.modules) {
       throw new Error(
-        `Moduł ${key} jest jednocześnie modułem kitu i modułem projektu`,
+        `Module ${key} is both a kit module and a project module`,
       );
     }
     for (const required of manifest.requires) {
       if (!(required in state.modules) && !(required in state.projectModules)) {
         throw new Error(
-          `Moduł projektu ${key} wymaga niezainstalowanego modułu: ${required}`,
+          `Project module ${key} requires a module that is not installed: ${required}`,
         );
       }
     }
@@ -46,7 +46,7 @@ function validateProjectModules(state: KitState): void {
       !manifest.files.some((glob) => glob.startsWith(`src/features/${key}/`))
     ) {
       throw new Error(
-        `Moduł projektu ${key}: files musi obejmować src/features/${key}/**`,
+        `Project module ${key}: files must cover src/features/${key}/**`,
       );
     }
   }

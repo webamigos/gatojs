@@ -44,7 +44,7 @@ export async function listKitFiles(kitDir: string): Promise<string[]> {
     }));
   } catch (error) {
     if ((error as { code?: unknown }).code === GIT_FATAL_EXIT_CODE) {
-      throw new Error(`${kitDir} nie jest repozytorium git`);
+      throw new Error(`${kitDir} is not a git repository`);
     }
     throw error;
   }

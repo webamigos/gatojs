@@ -1,5 +1,5 @@
 import { logger } from "@/shared/lib/logger";
-import { OperationResult } from "@/shared/types/common";
+import type { OperationResult } from "@/shared/types/common";
 
 export class DomainError extends Error {
   name = "DomainError";

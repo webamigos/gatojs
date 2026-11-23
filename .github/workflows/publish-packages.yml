@@ -98,7 +98,7 @@ jobs:
             echo "$PACKAGE@$VERSION is already on npm; nothing to publish."
             exit 0
           fi
-          npm publish --provenance --access public
+          npm stage publish . --provenance --access public
 
   confirm:
     name: Confirm the release is live on npm

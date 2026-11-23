@@ -74,10 +74,10 @@ describe("add: obcy plik w katalogu utworzonym przez add", () => {
     ).toBe("obcy\n");
     const cleanupLines = log.mock.calls
       .map(([line]) => line)
-      .filter((line) => line.includes("Nie udało się posprzątać"));
+      .filter((line) => line.includes("Could not clean up"));
     expect(cleanupLines).toEqual([
-      "Nie udało się posprzątać: src/features/demo/i18n (ENOTEMPTY)",
-      "Nie udało się posprzątać: src/features/demo (ENOTEMPTY)",
+      "Could not clean up: src/features/demo/i18n (ENOTEMPTY)",
+      "Could not clean up: src/features/demo (ENOTEMPTY)",
     ]);
     expect(await readFile(join(dir, "package.json"), "utf8")).toBe(
       packageBefore,

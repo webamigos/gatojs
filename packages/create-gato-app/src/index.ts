@@ -1,11 +1,15 @@
 #!/usr/bin/env node
+/* eslint-disable no-console -- the CLI entry point: the console is its output */
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { clackPrompter, clackUi, plainUi } from "./clack-ui.js";
 import { run } from "./cli.js";
 import { gatoBinPath } from "./gato-bin.js";
+import { isPortBusy } from "./port-probe.js";
 import { ghAuthToken, spawnProcess } from "./process.js";
 
 const packageJson = JSON.parse(
@@ -20,6 +24,8 @@ const gatoBin = gatoBinPath(
   JSON.parse(readFileSync(gatoPackageJsonPath, "utf8")),
 );
 
+const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+
 run(process.argv.slice(2), {
   nodeVersion: process.version,
   nodePath: process.execPath,
@@ -32,6 +38,11 @@ run(process.argv.slice(2), {
   ghAuthToken,
   makeTempDir: () => mkdtemp(join(tmpdir(), "create-gato-app-")),
   removeDir: (dir) => rm(dir, { recursive: true, force: true }),
+  interactive,
+  prompter: clackPrompter,
+  ui: process.stdout.isTTY ? clackUi : plainUi,
+  isPortBusy,
+  randomBytes: (size) => randomBytes(size),
   log: (line) => console.log(line),
   error: (line) => console.error(line),
 }).then(

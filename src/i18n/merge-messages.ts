@@ -12,10 +12,10 @@ export function mergeMessages(
   const merged: Record<string, unknown> = { ...core };
   for (const { key, messages } of modules) {
     if (!NAMESPACE_KEY.test(key)) {
-      throw new Error(`Nieprawidłowy klucz namespace i18n: ${key}`);
+      throw new Error(`Invalid i18n namespace key: ${key}`);
     }
     if (Object.hasOwn(merged, key)) {
-      throw new Error(`Kolizja namespace i18n: ${key}`);
+      throw new Error(`i18n namespace collision: ${key}`);
     }
     merged[key] = messages;
   }

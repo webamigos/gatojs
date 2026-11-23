@@ -138,7 +138,7 @@ describe("checkI18nKeys", () => {
   it("zgłasza brak pliku dla locale", () => {
     writeJson("src/features/x/i18n/pl.json", { a: "x" });
     expect(checkI18nKeys(root, ["pl", "en"])).toEqual([
-      "src/features/x/i18n/en.json: brak pliku",
+      "src/features/x/i18n/en.json: file missing",
     ]);
   });
 
@@ -157,8 +157,8 @@ describe("checkI18nKeys", () => {
     writeJson("src/features/x/i18n/pl.json", { a: "x" });
     writeJson("src/features/x/i18n/en.json", { a: "x" });
     expect([...checkI18nKeys(root, ["pl", "en", "de"])].sort()).toEqual([
-      "src/app/messages/de.json: brak pliku",
-      "src/features/x/i18n/de.json: brak pliku",
+      "src/app/messages/de.json: file missing",
+      "src/features/x/i18n/de.json: file missing",
     ]);
   });
 });

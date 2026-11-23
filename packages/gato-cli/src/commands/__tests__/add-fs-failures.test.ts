@@ -73,7 +73,7 @@ afterEach(async () => {
 function cleanupWarnings(): string[] {
   return log.mock.calls
     .map(([line]) => line)
-    .filter((line) => line.includes("Nie udało się posprzątać"));
+    .filter((line) => line.includes("Could not clean up"));
 }
 
 const DEMO_FILES = [
@@ -168,7 +168,7 @@ describe("add: awaria usuwania pliku modułu przy sprzątaniu", () => {
     );
     expect(error).toMatchObject({ code: "ENOENT" });
     expect(cleanupWarnings()).toEqual([
-      "Nie udało się posprzątać: src/features/demo/module.ts (dysk odłączony)",
+      "Could not clean up: src/features/demo/module.ts (dysk odłączony)",
     ]);
     expect(existsSync(join(dir, "src/features/demo/env.ts"))).toBe(false);
     expect(existsSync(join(dir, "src/features/demo/compose.yml"))).toBe(false);
@@ -181,7 +181,7 @@ describe("add: awaria usuwania pliku modułu przy sprzątaniu", () => {
     );
     expect(error).toMatchObject({ code: "ENOENT" });
     expect(cleanupWarnings()).toEqual([
-      "Nie udało się posprzątać: src/features/demo/module.ts (EBUSY)",
+      "Could not clean up: src/features/demo/module.ts (EBUSY)",
     ]);
     expect(existsSync(join(dir, "src/features/demo/env.ts"))).toBe(false);
   });

@@ -14,6 +14,7 @@ export const moduleManifestSchema = z.object({
         name: z.string().min(1),
         example: z.string(),
         required: z.boolean().optional(),
+        generate: z.enum(["secret-32", "secret-64", "hex-32"]).optional(),
       }),
     )
     .default([]),
@@ -33,10 +34,10 @@ const localesSchema = z
   .array(z.enum(["pl", "en"]))
   .min(1)
   .refine((locales) => locales.includes("pl"), {
-    message: 'locales musi zawierać "pl"',
+    message: 'locales must include "pl"',
   })
   .refine((locales) => new Set(locales).size === locales.length, {
-    message: "locales nie może zawierać duplikatów",
+    message: "locales must not contain duplicates",
   });
 
 export const kitStateSchema = z.object({

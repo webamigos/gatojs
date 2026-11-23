@@ -18,7 +18,7 @@ import { create } from "../create.js";
 import type { CreateOptions } from "../create.js";
 
 const COMMIT_COMMAND =
-  "git commit -q --no-verify -m chore: initial commit from wa-kit v0.1.0";
+  "git commit -q --no-verify -m chore: initial commit from GatoJS v0.1.0";
 const SECRET_LINE = /^BETTER_AUTH_SECRET=([A-Za-z0-9_-]{43})$/m;
 
 let kit: string;
@@ -89,6 +89,15 @@ function commands(): string[] {
   return runner.mock.calls.map(([command, args]) =>
     [command, ...args].join(" "),
   );
+}
+
+async function messageOf(promise: Promise<unknown>): Promise<string> {
+  try {
+    await promise;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  throw new Error("expected a rejection");
 }
 
 async function read(dir: string, path: string): Promise<string> {
@@ -290,16 +299,163 @@ describe("create: składanie projektu", () => {
     const dir = join(tmp, "acme-shop");
     await expect(
       create(opts({ target: dir, modules: ["nope"], yes: true })),
-    ).rejects.toThrow("Nieznany moduł: nope");
+    ).rejects.toThrow("Unknown module: nope");
     expect(existsSync(dir)).toBe(false);
   });
 
-  it("kitDir bez kit/kit.json zgłasza wskazówkę o klonie wa-kit", async () => {
+  it("a kitDir without kit/kit.json is rejected as not a GatoJS checkout", async () => {
     const emptyKit = await makeTempDir();
-    await expect(create(opts({ kitDir: emptyKit, yes: true }))).rejects.toThrow(
-      "Uruchom create z klonu wa-kit albo podaj --kit <ścieżka>",
-    );
+    await expect(
+      messageOf(create(opts({ kitDir: emptyKit, yes: true }))),
+    ).resolves.toBe(`${emptyKit} is not a GatoJS checkout (no kit/kit.json)`);
     expect(existsSync(join(tmp, "acme-shop"))).toBe(false);
+  });
+
+  it("a kitDir that does not exist is rejected with the --kit path", async () => {
+    const missingKit = join(tmp, "no-such-kit");
+    await expect(
+      messageOf(create(opts({ kitDir: missingKit, yes: true }))),
+    ).resolves.toBe(`--kit: ${missingKit} does not exist`);
+    expect(existsSync(join(tmp, "acme-shop"))).toBe(false);
+  });
+
+  it.each([
+    ["missing", false],
+    ["without kit/kit.json", true],
+  ])(
+    "a bad kitDir (%s) fails before any question or command",
+    async (_case, exists) => {
+      const badKit = join(tmp, "bad-kit");
+      if (exists) await mkdir(badKit);
+      const { prompter, questions } = scriptedPrompter([]);
+      await expect(
+        create(
+          opts({
+            kitDir: badKit,
+            modules: null,
+            install: true,
+            git: true,
+            prompter,
+          }),
+        ),
+      ).rejects.toThrow(badKit);
+      expect(questions).toEqual([]);
+      expect(runner).not.toHaveBeenCalled();
+      expect(existsSync(join(tmp, "acme-shop"))).toBe(false);
+    },
+  );
+
+  it("a non-empty target is reported before a missing kitDir", async () => {
+    const dir = join(tmp, "acme-shop");
+    await mkdir(dir);
+    await writeFile(join(dir, "x.txt"), "x");
+    await expect(
+      create(
+        opts({ target: dir, kitDir: join(tmp, "no-such-kit"), yes: true }),
+      ),
+    ).rejects.toThrow(`Directory ${dir} exists and is not empty`);
+  });
+
+  it("a bad project name is reported before a missing kitDir", async () => {
+    await expect(
+      create(
+        opts({
+          target: join(tmp, "Zla Nazwa"),
+          kitDir: join(tmp, "no-such-kit"),
+          yes: true,
+        }),
+      ),
+    ).rejects.toThrow("Project name");
+  });
+});
+
+describe("create: package-lock.json", () => {
+  const TOOL_LOCK = {
+    name: "wa-app",
+    version: "9.9.9",
+    lockfileVersion: 3,
+    requires: true,
+    packages: {
+      "": {
+        name: "wa-app",
+        version: "9.9.9",
+        workspaces: ["packages/*"],
+        dependencies: { zod: "^4.3.6" },
+      },
+      "node_modules/@gatojs/env": { resolved: "packages/env", link: true },
+      "node_modules/create-gato-app": {
+        resolved: "packages/create-gato-app",
+        link: true,
+      },
+      "node_modules/gato-cli": { resolved: "packages/gato-cli", link: true },
+      "node_modules/zod": {
+        version: "4.3.6",
+        resolved: "https://registry.npmjs.org/zod/-/zod-4.3.6.tgz",
+        integrity: "sha512-zod",
+      },
+      "packages/create-gato-app": { version: "0.1.0" },
+      "packages/create-gato-app/node_modules/globals": { version: "17.14.0" },
+      "packages/env": { name: "@gatojs/env", version: "0.1.0" },
+      "packages/gato-cli": { version: "0.2.1" },
+    },
+  };
+
+  async function addToolWorkspacesToKit(): Promise<void> {
+    await writeFile(
+      join(kit, "package-lock.json"),
+      `${JSON.stringify(TOOL_LOCK, null, 2)}\n`,
+    );
+    const configPath = join(kit, "kit/kit.json");
+    const config = JSON.parse(await readFile(configPath, "utf8")) as {
+      kitOnly: string[];
+    };
+    config.kitOnly.push("packages/gato-cli/**", "packages/create-gato-app/**");
+    await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
+    for (const workspace of ["gato-cli", "create-gato-app"]) {
+      await mkdir(join(kit, "packages", workspace), { recursive: true });
+      await writeFile(
+        join(kit, "packages", workspace, "package.json"),
+        `{"name":"${workspace}"}\n`,
+      );
+    }
+    await promisify(execFile)("git", ["-C", kit, "add", "-A"]);
+  }
+
+  it("the project lock has no tool workspace entries and is named after the project", async () => {
+    await addToolWorkspacesToKit();
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true }));
+    const lock = JSON.parse(await read(dir, "package-lock.json")) as {
+      name: string;
+      packages: Record<string, { name?: string; version?: string }>;
+    };
+    expect(lock.name).toBe("acme-shop");
+    expect(lock.packages[""]?.name).toBe("acme-shop");
+    expect(lock.packages[""]?.version).toBe("0.1.0");
+    expect(Object.keys(lock.packages)).toEqual([
+      "",
+      "node_modules/@gatojs/env",
+      "node_modules/zod",
+      "packages/env",
+    ]);
+    expect(existsSync(join(dir, "packages/gato-cli"))).toBe(false);
+  });
+
+  it("the lock stays managed in .wa/kit.json", async () => {
+    await addToolWorkspacesToKit();
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true }));
+    expect(
+      (await readKitState(dir)).modules["core"]?.files["package-lock.json"],
+    ).toBe("managed");
+  });
+
+  it("the fixture kit lock without workspaces gets only the project name", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true }));
+    expect(await read(dir, "package-lock.json")).toBe(
+      '{\n  "name": "acme-shop",\n  "lockfileVersion": 3,\n  "packages": {}\n}\n',
+    );
   });
 });
 
@@ -357,13 +513,66 @@ describe("create: .env", () => {
   });
 });
 
+describe("create: generowane sekrety modułów", () => {
+  const DEMO_SECRET_LINE = /^DEMO_SECRET=([A-Za-z0-9_-]{86})$/m;
+
+  it("demo: DEMO_SECRET ma 86 znaków base64url zamiast wartości przykładowej", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, modules: ["demo"], yes: true }));
+    const env = await read(dir, ".env");
+    expect(env).toMatch(DEMO_SECRET_LINE);
+    expect(env.match(/^DEMO_SECRET=/gm)).toHaveLength(1);
+    expect(env).not.toContain("demo-secret-example");
+  });
+
+  it("demo: DEMO_TOKEN bez generate zachowuje wartość przykładową", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, modules: ["demo"], yes: true }));
+    expect(await read(dir, ".env")).toMatch(/^DEMO_TOKEN=acme-shop_demo_$/m);
+  });
+
+  it("demo: BETTER_AUTH_SECRET nadal jest jedną linią z 43 znakami", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, modules: ["demo"], yes: true }));
+    const env = await read(dir, ".env");
+    expect(env).toMatch(SECRET_LINE);
+    expect(env.match(/BETTER_AUTH_SECRET=/g)).toHaveLength(1);
+  });
+
+  it("demo: .env.example w projekcie zostaje z wartością przykładową", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, modules: ["demo"], yes: true }));
+    expect(await read(dir, ".env.example")).toMatch(
+      /^DEMO_SECRET=demo-secret-example$/m,
+    );
+  });
+
+  it("dwa wywołania create z demo dają różne DEMO_SECRET", async () => {
+    const first = join(tmp, "first-app");
+    const second = join(tmp, "second-app");
+    await create(opts({ target: first, modules: ["demo"], yes: true }));
+    await create(opts({ target: second, modules: ["demo"], yes: true }));
+    const firstSecret = DEMO_SECRET_LINE.exec(await read(first, ".env"))?.[1];
+    const secondSecret = DEMO_SECRET_LINE.exec(await read(second, ".env"))?.[1];
+    expect(firstSecret).toHaveLength(86);
+    expect(secondSecret).toHaveLength(86);
+    expect(firstSecret).not.toBe(secondSecret);
+  });
+
+  it("bez demo .env nie ma DEMO_SECRET", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, modules: [], yes: true }));
+    expect(await read(dir, ".env")).not.toContain("DEMO_SECRET");
+  });
+});
+
 describe("create: katalog docelowy", () => {
   it("niepusty katalog → błąd, istniejące pliki nietknięte", async () => {
     const dir = join(tmp, "zajety");
     await mkdir(dir);
     await writeFile(join(dir, "x.txt"), "x");
     await expect(create(opts({ target: dir, yes: true }))).rejects.toThrow(
-      `Katalog ${dir} istnieje i nie jest pusty`,
+      `Directory ${dir} exists and is not empty`,
     );
     expect(await readdir(dir)).toEqual(["x.txt"]);
   });
@@ -373,7 +582,7 @@ describe("create: katalog docelowy", () => {
     await mkdir(dir);
     await writeFile(join(dir, "package.json"), "moje");
     await expect(create(opts({ target: dir, yes: true }))).rejects.toThrow(
-      "istnieje i nie jest pusty",
+      "exists and is not empty",
     );
     expect(await read(dir, "package.json")).toBe("moje");
     expect(await readdir(dir)).toEqual(["package.json"]);
@@ -384,7 +593,7 @@ describe("create: katalog docelowy", () => {
     await mkdir(dir);
     await writeFile(join(dir, ".hidden"), "x");
     await expect(create(opts({ target: dir, yes: true }))).rejects.toThrow(
-      "istnieje i nie jest pusty",
+      "exists and is not empty",
     );
     expect(await readdir(dir)).toEqual([".hidden"]);
   });
@@ -404,7 +613,7 @@ describe("create: katalog docelowy", () => {
           prompter,
         }),
       ),
-    ).rejects.toThrow("istnieje i nie jest pusty");
+    ).rejects.toThrow("exists and is not empty");
     expect(runner).not.toHaveBeenCalled();
     expect(prompter.ask).not.toHaveBeenCalled();
     expect(prompter.select).not.toHaveBeenCalled();
@@ -417,10 +626,10 @@ describe("create: katalog docelowy", () => {
     expect(existsSync(join(dir, ".wa/kit.json"))).toBe(true);
   });
 
-  it("zła nazwa → błąd Nazwa projektu i katalog nie powstaje", async () => {
+  it("zła nazwa → błąd Project name i katalog nie powstaje", async () => {
     await expect(
       create(opts({ target: join(tmp, "Zla Nazwa"), yes: true })),
-    ).rejects.toThrow("Nazwa projektu");
+    ).rejects.toThrow("Project name");
     expect(existsSync(join(tmp, "Zla Nazwa"))).toBe(false);
   });
 
@@ -436,7 +645,7 @@ describe("create: katalog docelowy", () => {
           prompter,
         }),
       ),
-    ).rejects.toThrow("Nazwa projektu");
+    ).rejects.toThrow("Project name");
     expect(prompter.ask).not.toHaveBeenCalled();
     expect(prompter.select).not.toHaveBeenCalled();
     expect(runner).not.toHaveBeenCalled();
@@ -456,7 +665,7 @@ describe("create: błąd podczas składania", () => {
     await writeFile(join(tmp, "sasiad.txt"), "s");
     const dir = join(tmp, "acme-shop");
     await expect(create(opts({ target: dir, yes: true }))).rejects.toThrow(
-      "uszkodzony region wa:modules",
+      "malformed region wa:modules",
     );
     expect(existsSync(dir)).toBe(false);
     expect(await readdir(tmp)).toContain("sasiad.txt");
@@ -467,7 +676,7 @@ describe("create: błąd podczas składania", () => {
     const dir = join(tmp, "acme-shop");
     await mkdir(dir);
     await expect(create(opts({ target: dir, yes: true }))).rejects.toThrow(
-      "uszkodzony region wa:modules",
+      "malformed region wa:modules",
     );
     expect(existsSync(dir)).toBe(true);
     expect(await readdir(dir)).toEqual([]);
@@ -477,7 +686,7 @@ describe("create: błąd podczas składania", () => {
     await breakEnvRegion();
     await expect(
       create(opts({ yes: true, install: true, git: true, setup: true })),
-    ).rejects.toThrow("uszkodzony region wa:modules");
+    ).rejects.toThrow("malformed region wa:modules");
     expect(runner).not.toHaveBeenCalled();
   });
 });
@@ -503,9 +712,9 @@ describe("create: polecenia", () => {
     expect(commands()).toEqual(["npm install"]);
   });
 
-  it("tylko git: init, add i commit bez npm install", async () => {
+  it("git without install only initialises the repository and does not commit", async () => {
     await create(opts({ yes: true, install: false, git: true }));
-    expect(commands()).toEqual(["git init -q", "git add -A", COMMIT_COMMAND]);
+    expect(commands()).toEqual(["git init -q"]);
   });
 
   it("wszystkie polecenia idą w katalogu projektu", async () => {
@@ -574,12 +783,12 @@ describe("create: polecenia", () => {
   });
 
   it("npm install pada → komunikat z instrukcją, kit.json zapisany, katalog zostaje", async () => {
-    runner.mockRejectedValueOnce(new Error("npm install zakończone kodem 1"));
+    runner.mockRejectedValueOnce(new Error("npm install exited with code 1"));
     const dir = join(tmp, "broken-install");
     await expect(
       create(opts({ target: dir, yes: true, install: true })),
     ).rejects.toThrow(
-      `Projekt utworzony w ${dir}, ale npm install się nie powiódł. Uruchom: cd ${dir} && npm install`,
+      `Project created at ${dir}, but npm install failed. Run: cd ${dir} && npm install`,
     );
     expect(existsSync(join(dir, ".wa/kit.json"))).toBe(true);
     expect(existsSync(join(dir, ".env"))).toBe(true);
@@ -588,12 +797,12 @@ describe("create: polecenia", () => {
   it("npm install pada → nie ma commita ani setupu", async () => {
     runner.mockImplementation(async (command, args) => {
       if (command === "npm" && args[0] === "install") {
-        throw new Error("npm install zakończone kodem 1");
+        throw new Error("npm install exited with code 1");
       }
     });
     await expect(
       create(opts({ yes: true, install: true, git: true, setup: true })),
-    ).rejects.toThrow("Uruchom: cd");
+    ).rejects.toThrow("Run: cd");
     expect(commands()).toEqual(["git init -q", "npm install"]);
   });
 
@@ -607,7 +816,7 @@ describe("create: polecenia", () => {
     );
     expect(result.projectDir).toBe(dir);
     expect(logs).toContain(
-      "Uwaga: nie utworzono commita (boom). Skonfiguruj git i zrób commit ręcznie.",
+      "Warning: no commit created (boom). Configure git and commit by hand.",
     );
   });
 
@@ -624,7 +833,7 @@ describe("create: polecenia", () => {
 
   it("udany commit nie loguje ostrzeżenia", async () => {
     await create(opts({ yes: true, install: true, git: true }));
-    expect(logs.join("\n")).not.toContain("nie utworzono commita");
+    expect(logs.join("\n")).not.toContain("no commit created");
   });
 
   it.each([
@@ -650,7 +859,7 @@ describe("create: polecenia", () => {
       };
       await expect(
         create(opts({ target: dir, modules: null, prompter })),
-      ).rejects.toThrow(`Katalog ${dir} istnieje i nie jest pusty`);
+      ).rejects.toThrow(`Directory ${dir} exists and is not empty`);
       expect(await readdir(dir)).toEqual(["obcy.txt"]);
       expect(await read(dir, "obcy.txt")).toBe("cudze");
       expect(runner).not.toHaveBeenCalled();
@@ -688,12 +897,13 @@ describe("create: pytania", () => {
     const { prompter, questions } = scriptedPrompter([], []);
     await create(opts({ modules: null, install: true, prompter }));
     expect(questions).toEqual([
-      { question: "Moduły", choices: MODULE_CHOICES },
-      { question: "Języki", choices: LOCALE_CHOICES },
-      { question: "Nazwa wyświetlana", fallback: "Acme Shop" },
-      { question: "Email admina (puste = pomiń)", fallback: "" },
+      { question: "Modules", choices: MODULE_CHOICES },
+      { question: "Languages", choices: LOCALE_CHOICES },
+      { question: "Display name", fallback: "Acme Shop" },
+      { question: "Admin email (empty = skip)", fallback: "" },
       {
-        question: "Uruchomić bazę, migrację i admin:create teraz? [t/N]",
+        question:
+          "Start the database, run migrations and admin:create now? [y/N]",
         fallback: false,
       },
     ]);
@@ -703,7 +913,7 @@ describe("create: pytania", () => {
     const { prompter, selections } = scriptedPrompter([]);
     await create(opts({ modules: null, prompter }));
     expect(selections[0]).toEqual({
-      question: "Moduły",
+      question: "Modules",
       choices: MODULE_CHOICES,
     });
   });
@@ -712,7 +922,7 @@ describe("create: pytania", () => {
     const { prompter, selections } = scriptedPrompter([]);
     await create(opts({ modules: null, prompter }));
     expect(selections[1]).toEqual({
-      question: "Języki",
+      question: "Languages",
       choices: LOCALE_CHOICES,
     });
   });
@@ -748,7 +958,7 @@ describe("create: pytania", () => {
     const { prompter, selections } = scriptedPrompter([]);
     await create(opts({ target: dir, modules: null, prompter }));
     expect(selections.map((selection) => selection.question)).toEqual([
-      "Języki",
+      "Languages",
     ]);
     expect(Object.keys((await readKitState(dir)).modules)).toEqual(["core"]);
   });
@@ -777,7 +987,7 @@ describe("create: pytania", () => {
   it("wybór języków bez pl daje błąd walidacji bez ponawiania pytania", async () => {
     const { prompter, questions } = scriptedPrompter([], [], [[], ["en"]]);
     await expect(create(opts({ modules: null, prompter }))).rejects.toThrow(
-      "--locales: dozwolone pl,en; pl jest wymagany",
+      "--locales: allowed values are pl,en; pl is required",
     );
     expect(questions).toHaveLength(2);
     expect(existsSync(join(tmp, "acme-shop"))).toBe(false);
@@ -786,7 +996,7 @@ describe("create: pytania", () => {
   it("wybór języka spoza pl,en daje błąd walidacji", async () => {
     const { prompter } = scriptedPrompter([], [], [[], ["pl", "de"]]);
     await expect(create(opts({ modules: null, prompter }))).rejects.toThrow(
-      "--locales: dozwolone pl,en; pl jest wymagany",
+      "--locales: allowed values are pl,en; pl is required",
     );
   });
 
@@ -795,7 +1005,7 @@ describe("create: pytania", () => {
     const { prompter } = scriptedPrompter([], [], [[], ["pl", "pl"]]);
     await expect(
       create(opts({ target: dir, modules: null, prompter })),
-    ).rejects.toThrow("--locales: dozwolone pl,en; pl jest wymagany");
+    ).rejects.toThrow("--locales: allowed values are pl,en; pl is required");
     expect(existsSync(dir)).toBe(false);
     expect(runner).not.toHaveBeenCalled();
   });
@@ -805,29 +1015,29 @@ describe("create: pytania", () => {
     await create(opts({ modules: null, prompter }));
     expect(
       vi.mocked(prompter.ask).mock.calls.map(([question]) => question),
-    ).toEqual(["Nazwa wyświetlana", "Email admina (puste = pomiń)"]);
+    ).toEqual(["Display name", "Admin email (empty = skip)"]);
   });
 
   it("z podanymi modułami lista pojawia się tylko dla języków", async () => {
     const { prompter, selections } = scriptedPrompter([]);
     await create(opts({ modules: ["demo"], prompter }));
-    expect(selections.map(({ question }) => question)).toEqual(["Języki"]);
+    expect(selections.map(({ question }) => question)).toEqual(["Languages"]);
   });
 
   it("z podanymi językami lista pojawia się tylko dla modułów", async () => {
     const { prompter, selections } = scriptedPrompter([]);
     await create(opts({ modules: null, locales: ["pl"], prompter }));
-    expect(selections.map(({ question }) => question)).toEqual(["Moduły"]);
+    expect(selections.map(({ question }) => question)).toEqual(["Modules"]);
   });
 
   it("bez install nie pyta o setup, ale pyta o moduły, języki, nazwę i email", async () => {
     const { prompter, questions } = scriptedPrompter([]);
     await create(opts({ modules: null, install: false, prompter }));
     expect(questions.map(({ question }) => question)).toEqual([
-      "Moduły",
-      "Języki",
-      "Nazwa wyświetlana",
-      "Email admina (puste = pomiń)",
+      "Modules",
+      "Languages",
+      "Display name",
+      "Admin email (empty = skip)",
     ]);
     expect(prompter.confirm).not.toHaveBeenCalled();
   });
@@ -836,7 +1046,7 @@ describe("create: pytania", () => {
     const { prompter } = scriptedPrompter([]);
     await create(opts({ modules: [], install: true, prompter }));
     expect(prompter.confirm).toHaveBeenCalledWith(
-      "Uruchomić bazę, migrację i admin:create teraz? [t/N]",
+      "Start the database, run migrations and admin:create now? [y/N]",
       false,
     );
   });
@@ -856,6 +1066,19 @@ describe("create: pytania", () => {
     await create(opts({ install: true, git: false, prompter }));
     expect(commands()).toEqual(["npm install"]);
   });
+
+  it.each([true, false])(
+    "with --yes and without setup no setup question is asked (install %s)",
+    async (install) => {
+      const { prompter, questions } = scriptedPrompter([], [true]);
+      await create(
+        opts({ yes: true, install, git: false, setup: false, prompter }),
+      );
+      expect(questions).toEqual([]);
+      expect(prompter.confirm).not.toHaveBeenCalled();
+      expect(commands().join("\n")).not.toMatch(/docker|prisma|admin:create/);
+    },
+  );
 
   it("z --yes nie zadaje żadnych pytań", async () => {
     const { prompter } = scriptedPrompter([]);
@@ -886,33 +1109,99 @@ describe("create: pytania", () => {
     const { prompter, questions } = scriptedPrompter([]);
     await create(opts({ modules: ["demo"], install: true, prompter }));
     expect(questions.map(({ question }) => question)).toEqual([
-      "Języki",
-      "Nazwa wyświetlana",
-      "Email admina (puste = pomiń)",
-      "Uruchomić bazę, migrację i admin:create teraz? [t/N]",
+      "Languages",
+      "Display name",
+      "Admin email (empty = skip)",
+      "Start the database, run migrations and admin:create now? [y/N]",
     ]);
   });
 });
 
 describe("create: kroki końcowe", () => {
-  function indexesOf(fragments: string[]): number[] {
-    const joined = logs.join("\n");
-    return fragments.map((fragment) => joined.indexOf(fragment));
-  }
-
-  it("bez setup wypisuje pięć kroków w kolejności z twój-email przy braku emaila", async () => {
+  it("without install, with git: install, commit, database, migration, admin and dev in this order", async () => {
     const dir = join(tmp, "acme-shop");
-    await create(opts({ target: dir, yes: true }));
-    const positions = indexesOf([
+    await create(
+      opts({
+        target: dir,
+        yes: true,
+        install: false,
+        git: true,
+        setup: false,
+        adminEmail: null,
+      }),
+    );
+    expect(logs).toEqual([
+      `cd ${dir}`,
+      "npm install",
+      'git add -A && git commit -m "chore: initial commit"',
+      "docker compose up -d",
+      "npx prisma migrate dev --name init",
+      "npm run admin:create -- --email <your-email>",
+      "npm run dev",
+    ]);
+  });
+
+  it("without install and git: the same steps without the commit line", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true, install: false, git: false }));
+    expect(logs).toEqual([
+      `cd ${dir}`,
+      "npm install",
+      "docker compose up -d",
+      "npx prisma migrate dev --name init",
+      "npm run admin:create -- --email <your-email>",
+      "npm run dev",
+    ]);
+  });
+
+  it("after install and commit without setup: database, migration, admin with the email and dev", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(
+      opts({
+        target: dir,
+        yes: true,
+        install: true,
+        git: true,
+        setup: false,
+        adminEmail: "a@x.pl",
+      }),
+    );
+    expect(logs).toEqual([
       `cd ${dir}`,
       "docker compose up -d",
       "npx prisma migrate dev --name init",
-      "npm run admin:create -- --email twój-email",
+      "npm run admin:create -- --email a@x.pl",
       "npm run dev",
     ]);
-    expect(positions.every((position) => position >= 0)).toBe(true);
-    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
   });
+
+  it("after a successful setup only cd and npm run dev are left", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(
+      opts({
+        target: dir,
+        yes: true,
+        install: true,
+        git: true,
+        setup: true,
+        adminEmail: "a@x.pl",
+      }),
+    );
+    expect(logs).toEqual([`cd ${dir}`, "npm run dev"]);
+  });
+
+  it.each([
+    [false, false],
+    [false, true],
+    [true, false],
+    [true, true],
+  ])(
+    "no line mentions twój-email (install %s, git %s)",
+    async (install, git) => {
+      await create(opts({ yes: true, install, git }));
+      expect(logs.join("\n")).not.toContain("twój-email");
+    },
+  );
 
   it("bez setup z emailem wypisuje go w kroku admin:create", async () => {
     await create(opts({ yes: true, adminEmail: "a@x.pl" }));
@@ -941,6 +1230,87 @@ describe("create: kroki końcowe", () => {
   });
 });
 
+describe("create: setup failure", () => {
+  function failOn(failing: string, message: string): void {
+    runner.mockImplementation(async (command) => {
+      if (command === failing) throw new Error(message);
+    });
+  }
+
+  const SETUP_OPTIONS = {
+    yes: true,
+    install: true,
+    git: true,
+    setup: true,
+  } as const;
+
+  it("the setup error keeps the runner error as its cause", async () => {
+    const dockerDown = new Error("docker down");
+    runner.mockImplementation(async (command) => {
+      if (command === "docker") throw dockerDown;
+    });
+    const rejection = await create(
+      opts({ ...SETUP_OPTIONS, adminEmail: "a@x.pl" }),
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).cause).toBe(dockerDown);
+  });
+
+  it("a docker failure rejects with the steps left to run", async () => {
+    failOn("docker", "docker down");
+    const dir = join(tmp, "acme-shop");
+    await expect(
+      messageOf(
+        create(opts({ ...SETUP_OPTIONS, target: dir, adminEmail: "a@x.pl" })),
+      ),
+    ).resolves.toBe(
+      `Project created at ${dir}, but the setup failed (docker down). Continue with:\ncd ${dir}\ndocker compose up -d\nnpx prisma migrate dev --name init\nnpm run admin:create -- --email a@x.pl\nnpm run dev`,
+    );
+  });
+
+  it("without an admin email the admin step names a placeholder", async () => {
+    failOn("docker", "docker down");
+    const dir = join(tmp, "acme-shop");
+    await expect(
+      messageOf(create(opts({ ...SETUP_OPTIONS, target: dir }))),
+    ).resolves.toBe(
+      `Project created at ${dir}, but the setup failed (docker down). Continue with:\ncd ${dir}\ndocker compose up -d\nnpx prisma migrate dev --name init\nnpm run admin:create -- --email <your-email>\nnpm run dev`,
+    );
+  });
+
+  it("a migration failure rejects with the same steps and its own error", async () => {
+    failOn("npx", "migrate failed");
+    const dir = join(tmp, "acme-shop");
+    await expect(
+      messageOf(
+        create(opts({ ...SETUP_OPTIONS, target: dir, adminEmail: "a@x.pl" })),
+      ),
+    ).resolves.toBe(
+      `Project created at ${dir}, but the setup failed (migrate failed). Continue with:\ncd ${dir}\ndocker compose up -d\nnpx prisma migrate dev --name init\nnpm run admin:create -- --email a@x.pl\nnpm run dev`,
+    );
+  });
+
+  it("a setup failure keeps the project, its kit state and the initial commit made before setup", async () => {
+    failOn("docker", "docker down");
+    const dir = join(tmp, "acme-shop");
+    await expect(
+      create(opts({ ...SETUP_OPTIONS, target: dir, adminEmail: "a@x.pl" })),
+    ).rejects.toThrow("docker down");
+    expect(existsSync(join(dir, ".wa/kit.json"))).toBe(true);
+    expect(existsSync(join(dir, ".env"))).toBe(true);
+    expect(commands()).toEqual([
+      "git init -q",
+      "npm install",
+      "git add -A",
+      COMMIT_COMMAND,
+      "docker compose up -d --wait",
+    ]);
+  });
+});
+
 describe("readlinePrompter", () => {
   let originalIsTTY: boolean | undefined;
 
@@ -953,15 +1323,15 @@ describe("readlinePrompter", () => {
     process.stdin.isTTY = originalIsTTY as boolean;
   });
 
-  it("ask bez terminala zgłasza Brak terminala: użyj --yes", async () => {
+  it("ask bez terminala zgłasza No terminal: use --yes", async () => {
     await expect(readlinePrompter.ask("Pytanie?", "x")).rejects.toThrow(
-      "Brak terminala: użyj --yes",
+      "No terminal: use --yes",
     );
   });
 
-  it("confirm bez terminala zgłasza Brak terminala: użyj --yes", async () => {
+  it("confirm bez terminala zgłasza No terminal: use --yes", async () => {
     await expect(readlinePrompter.confirm("Pytanie?", false)).rejects.toThrow(
-      "Brak terminala: użyj --yes",
+      "No terminal: use --yes",
     );
   });
 
@@ -969,7 +1339,7 @@ describe("readlinePrompter", () => {
     const dir = join(tmp, "acme-shop");
     await expect(
       create(opts({ target: dir, modules: null, prompter: readlinePrompter })),
-    ).rejects.toThrow("Brak terminala: użyj --yes");
+    ).rejects.toThrow("No terminal: use --yes");
     expect(existsSync(dir)).toBe(false);
   });
 });
@@ -979,11 +1349,12 @@ describe("create: pytania i kotwice linii .env", () => {
     const { prompter, questions } = scriptedPrompter([]);
     await create(opts({ modules: [], install: true, prompter }));
     expect(questions.slice(0, 4)).toEqual([
-      { question: "Języki", choices: LOCALE_CHOICES },
-      { question: "Nazwa wyświetlana", fallback: "Acme Shop" },
-      { question: "Email admina (puste = pomiń)", fallback: "" },
+      { question: "Languages", choices: LOCALE_CHOICES },
+      { question: "Display name", fallback: "Acme Shop" },
+      { question: "Admin email (empty = skip)", fallback: "" },
       {
-        question: "Uruchomić bazę, migrację i admin:create teraz? [t/N]",
+        question:
+          "Start the database, run migrations and admin:create now? [y/N]",
         fallback: false,
       },
     ]);
