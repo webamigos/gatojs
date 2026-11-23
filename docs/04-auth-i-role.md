@@ -14,7 +14,7 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 Źródła:
 
 - `src/shared/lib/auth/*.ts`
-- `src/shared/lib/env.ts`
+- `packages/env/src/*.ts`, `src/env.ts`
 - `src/shared/lib/mailer.ts`
 - `src/shared/lib/modules/nav.ts`
 - `src/app/api/auth/[...all]/route.ts`

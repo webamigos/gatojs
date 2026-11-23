@@ -1,5 +1,5 @@
 import { redirect } from "@/i18n/routing";
-import { env } from "@/shared/lib/env";
+import { env } from "@/env";
 import { getCurrentUserWithImpersonation } from "@/shared/lib/auth/helpers";
 import {
   getOrgContext,

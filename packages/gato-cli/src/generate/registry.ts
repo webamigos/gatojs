@@ -48,6 +48,7 @@ export function renderRegistry(
   const server = [
     GENERATED_HEADER,
     'import type { Locale } from "@/i18n/config";',
+    'import { createEnv } from "@gatojs/env";',
     ...withModule.map(
       (m) =>
         `import ${identifier(m.name, "Module")} from "@/features/${m.name}/module";`,
@@ -81,6 +82,7 @@ export function renderRegistry(
       "auditSinks",
       withAuditSink.map((m) => identifier(m.name, "AuditSink")),
     ),
+    "export const env = createEnv(moduleEnvSchemas);",
     "",
     "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
     "",

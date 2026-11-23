@@ -15,7 +15,7 @@ Zweryfikowano z kodem: 734391b, 2026-11-04
 - `src/features/api-keys/` (`module.ts`, `env.ts`, `services/authenticate-api-key.ts`, `services/api-scopes.ts`, `services/organization-api.ts`, `services/commands/api-key-commands.ts`, `components/api-keys-manager.tsx`, `i18n/`) z testami w `__tests__/`, w tym `__tests__/organization-route.integration.test.ts` i `services/__tests__/api-keys-isolation.integration.test.ts`
 - `src/app/api/v1/organization/route.ts`
 - `src/shared/lib/audit.ts`
-- `src/instrumentation.ts`, `src/shared/lib/env.ts` (sprawdzenie zmiennych przy starcie)
+- `src/instrumentation.ts`, `packages/env/src/check-env.ts` (sprawdzenie zmiennych przy starcie)
 - `src/test/integration/` (`setup-env.ts`, `database.ts`, `global-setup.ts`), `e2e/env.ts`
 - `src/__tests__/server-entrypoints-guard.test.ts`
 - `mutation-gate.json`
@@ -275,7 +275,7 @@ describe("GET /api/v1/deliveries", () => {
 - Test izolacji ma dwie organizacje i sprawdza, że klucz jednej nie widzi i nie zmienia danych drugiej ([08](08-testy.md#izolacja)).
 - Projekt potrzebuje własnej bazy z nazwą kończącą się na `_test`: `globalSetup` uruchamia `prisma db push` ze schematem projektu, które usuwa puste tabele spoza schematu, a odmawia, gdy dopasowanie skasowałoby dane (na przykład niepustą tabelę modułu, którego projekt nie ma) ([08](08-testy.md#baza-integracja)).
 - Test kodu, który woła komendy kluczy z sesją (a nie trasy), mockuje sesję przez `vi.spyOn(auth.api, "getSession")`, I/O frameworka i `trackAudit` (żeby sprawdzić treść zdarzenia bez ujścia), jak `api-keys-isolation.integration.test.ts` ([08](08-testy.md#integracyjne)).
-- Test nie potrzebuje `API_KEY_PEPPER` w `.env`: integracyjne testy biorą wartość z `setup-env.ts`, jednostkowe mockują `@/shared/lib/env`.
+- Test nie potrzebuje `API_KEY_PEPPER` w `.env`: integracyjne testy biorą wartość z `setup-env.ts`, jednostkowe mockują `@/env`.
 
 <a id="problemy"></a>
 

@@ -19,7 +19,7 @@ Zweryfikowano z kodem: 2c83429, 2026-11-21 (guard organizacji w [Kontrakcie `aut
 - `src/app/[locale]/(app)/api-keys/page.tsx`
 - `src/shared/lib/modules/define-module.ts`, `src/shared/lib/audit.ts`, `src/shared/utils/error-handling.ts`
 - `src/test/integration/setup-env.ts`, `e2e/env.ts`, `.env.example`
-- `src/shared/lib/env.ts`, `src/instrumentation.ts`
+- `packages/env/src/*.ts`, `src/env.ts`, `src/instrumentation.ts`
 - `src/__tests__/server-entrypoints-guard.test.ts`
 - `mutation-gate.json`, `.github/workflows/kit.yml`
 - [spec planu 3](superpowers/specs/2026-10-28-wa-kit-plan-3-modules-design.md), §6

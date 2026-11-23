@@ -9,7 +9,8 @@ export const CLIENT_SAFE_AUTH_MODULES = [
 
 const SERVER_MODULES = [
   "@/shared/lib/prisma",
-  "@/shared/lib/env",
+  "@/env",
+  "@gatojs/env",
   "@/shared/lib/auth",
   "@/generated/prisma",
   "server-only",

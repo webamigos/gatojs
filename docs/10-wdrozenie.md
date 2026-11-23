@@ -21,7 +21,7 @@ Zweryfikowano z kodem: 6c05f1f, 2026-11-05
 - `package-lock.json` (wersje `prisma` i `dotenv`)
 - `.gitignore`
 - `README.md` (sekcja „Railway”)
-- `src/shared/lib/env.ts`
+- `packages/env/src/*.ts`, `src/env.ts`
 - `src/shared/lib/prisma.ts`
 - `src/shared/lib/logger.ts`
 - `src/shared/lib/mailer.ts`
@@ -214,7 +214,7 @@ Dlatego po pierwszym wdrożeniu i po każdej zmianie zmiennych wykonaj ręczne s
 
 ## Zmienne produkcyjne
 
-Zmienne ustawiasz w usłudze aplikacji na Railway. Schemat w `src/shared/lib/env.ts` sprawdza je przy starcie procesu, a przy błędzie proces kończy się, zanim obsłuży pierwsze żądanie ([kiedy zobaczysz błąd](#blad-env)). Wynik pierwszego odczytu `env` proces zapamiętuje do końca działania ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Nowe wartości działają więc dopiero po ponownym wdrożeniu. Railway może trzymać zmiany zmiennych i ustawień jako oczekujące (staged), dopóki ich nie zatwierdzisz wdrożeniem (niesprawdzone). Pełny opis każdej zmiennej jest w [tabeli zmiennych](07-i18n-mail-env.md#referencja-env).
+Zmienne ustawiasz w usłudze aplikacji na Railway. Schemat w `packages/env/src/core-env-schema.ts` sprawdza je przy starcie procesu, a przy błędzie proces kończy się, zanim obsłuży pierwsze żądanie ([kiedy zobaczysz błąd](#blad-env)). Wynik pierwszego odczytu `env` proces zapamiętuje do końca działania ([07-i18n-mail-env.md](07-i18n-mail-env.md#walidacja-env)). Nowe wartości działają więc dopiero po ponownym wdrożeniu. Railway może trzymać zmiany zmiennych i ustawień jako oczekujące (staged), dopóki ich nie zatwierdzisz wdrożeniem (niesprawdzone). Pełny opis każdej zmiennej jest w [tabeli zmiennych](07-i18n-mail-env.md#referencja-env).
 
 | Zmienna | Na produkcji | Wartość | Skutek braku albo złej wartości |
 | --- | --- | --- | --- |

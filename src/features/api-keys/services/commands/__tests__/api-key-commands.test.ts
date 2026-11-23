@@ -40,7 +40,7 @@ const {
   };
 });
 
-vi.mock("@/shared/lib/env", () => ({
+vi.mock("@/env", () => ({
   env: { MULTI_ORG: false, API_KEY_PEPPER: PEPPER },
 }));
 vi.mock("@/shared/lib/prisma", () => ({ prisma: mockPrisma }));

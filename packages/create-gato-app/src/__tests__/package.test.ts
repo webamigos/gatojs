@@ -23,8 +23,8 @@ const gatoCli = () =>
   );
 
 describe("create-gato-app pins gato-cli", () => {
-  it("depends on gato-cli 0.2.0 exactly", async () => {
-    expect((await creator()).dependencies?.["gato-cli"]).toBe("0.2.0");
+  it("depends on gato-cli 0.2.1 exactly", async () => {
+    expect((await creator()).dependencies?.["gato-cli"]).toBe("0.2.1");
   });
 
   it("the pin is a bare x.y.z, not a range", async () => {
@@ -38,7 +38,7 @@ describe("create-gato-app pins gato-cli", () => {
       creator(),
       gatoCli(),
     ]);
-    expect(gatoCliJson.version).toBe("0.2.0");
+    expect(gatoCliJson.version).toBe("0.2.1");
     expect(creatorJson.dependencies?.["gato-cli"]).toBe(gatoCliJson.version);
   });
 

@@ -71,7 +71,7 @@ const {
   };
 });
 
-vi.mock("@/shared/lib/env", () => ({ env: { MULTI_ORG: false } }));
+vi.mock("@/env", () => ({ env: { MULTI_ORG: false } }));
 vi.mock("@/shared/lib/prisma", () => ({ prisma: prismaFake }));
 vi.mock("@/shared/lib/auth/org-context", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/shared/lib/auth/org-context")>()),

@@ -25,7 +25,7 @@ Zweryfikowano z kodem: 6c05f1f, 2026-11-05
 - `src/shared/lib/audit.ts`
 - `src/shared/lib/modules/define-module.ts`
 - `src/shared/components/service-mode/use-service-mode-action.tsx`
-- `src/shared/lib/env.ts`
+- `packages/env/src/*.ts`, `src/env.ts`
 - `src/shared/lib/auth/index.ts`
 - `src/shared/lib/auth/client.ts`
 - `src/shared/lib/auth/permissions.ts`
@@ -158,7 +158,7 @@ Po każdej z tych komend schemat bazy się zmienia, więc migrację tworzy i com
 | --- | --- | --- | --- |
 | `modules` w `src/modules.generated.ts` | `module.ts` | Moduły: `knownApiScopes` (`api-keys`), `listUploadPurposes` (`uploads`), `<AuditTrail>` (`audit-logs`). Rdzeń go nie czyta. | Tylko pięć feature rdzenia i moduły projektu. |
 | `clientModules` w `src/modules.client.generated.ts` | `module.ts` | Rdzeń: guard stron i `requireModuleAccess` (`src/shared/lib/auth/permissions.ts`), menu (`src/shared/lib/modules/nav.ts`), filtr testów rdzenia (`src/test/core-modules.ts`). Moduły: widok `/audit-log`, formularz kluczy API. | Jak wyżej. `requireModuleAccess` z kluczem modułu, którego nie ma, kończy się dla użytkownika z aktywną organizacją zawsze 404 (`notFound()`). |
-| `moduleEnvSchemas` | `env.ts` (eksport `envSchema`) | `src/shared/lib/env.ts`: łączy schemat rdzenia ze schematami modułów w jeden. | Pusta (sprawdzone: `never[]`): walidowane są tylko zmienne rdzenia. |
+| `moduleEnvSchemas` | `env.ts` (eksport `envSchema`) | `createEnv` z `@gatojs/env` (linia `export const env` w rejestrze): łączy schemat rdzenia ze schematami modułów w jeden. | Pusta (sprawdzone: `never[]`): walidowane są tylko zmienne rdzenia. |
 | `authPlugins` | `auth.ts` (eksport `authPlugin`) | Lista `plugins` better-auth w `src/shared/lib/auth/index.ts`. | Pusta (sprawdzone: `never[]`): better-auth działa tylko z pluginami rdzenia. |
 | `authClientPlugins` | `auth-client.ts` (eksport `authClientPlugin`) | Lista `plugins` klienta better-auth w `src/shared/lib/auth/client.ts`. | Pusta; żaden moduł kitu nie ma tego pliku. |
 | `auditSinks` | `audit-sink.ts` (eksport `auditSink`) | `trackAudit` w `src/shared/lib/audit.ts`. | Pusta: `trackAudit` nic nie zapisuje (sprawdzone). |

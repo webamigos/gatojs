@@ -22,7 +22,7 @@ vi.mock("@aws-sdk/client-s3", async (importOriginal) => {
   };
 });
 // WHY: createObjectStorage must build storage from its argument; a process env that differs from every config exposes reading env instead.
-vi.mock("@/shared/lib/env", () => ({
+vi.mock("@/env", () => ({
   env: {
     STORAGE_PROVIDER: "s3",
     S3_ENDPOINT: "http://env.invalid:9000",

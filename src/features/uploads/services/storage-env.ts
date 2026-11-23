@@ -1,4 +1,5 @@
 import path from "node:path";
+import { httpUrl } from "@gatojs/env";
 import { z } from "zod";
 import type { StorageEnv } from "../contracts/storage.types";
 import { isPathInside } from "./path-inside";
@@ -21,7 +22,7 @@ const pathStyleFlag = z
   .transform((value) => value === "true");
 
 const s3EnvSchema = z.object({
-  S3_ENDPOINT: z.url(),
+  S3_ENDPOINT: httpUrl(),
   S3_REGION: z.string().min(1).default("auto"),
   S3_ACCESS_KEY_ID: z.string().min(1),
   S3_SECRET_ACCESS_KEY: z.string().min(1),
