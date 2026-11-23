@@ -13,6 +13,7 @@ model Organization {
   // wa:relations:start
   apiKeys ApiKey[]
   auditLogs AuditLog[]
+  dataKey OrganizationDataKey?
   uploads Upload[]
   // wa:relations:end
 

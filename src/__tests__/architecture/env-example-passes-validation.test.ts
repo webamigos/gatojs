@@ -141,11 +141,22 @@ describe("checkEnvExample", () => {
           `BETTER_AUTH_SECRET=${"s".repeat(32)}`,
           "APP_URL=http://localhost:3000",
           "EMAIL_FROM=WA App <noreply@example.com>",
+          `ENCRYPTION_MASTER_KEY=${"ab".repeat(32)}`,
           "",
         ].join("\n"),
       );
       expect(checkEnvExample(root)).toEqual([
         expect.stringMatching(/^\.env\.example: API_KEY_PEPPER: \S/),
+      ]);
+    },
+  );
+
+  it.skipIf(!isModuleInstalled("encryption"))(
+    "validates module variables too: .env.example without ENCRYPTION_MASTER_KEY reports that variable",
+    () => {
+      writeEnvExample(withoutVariable(realEnvExample, "ENCRYPTION_MASTER_KEY"));
+      expect(checkEnvExample(root)).toEqual([
+        expect.stringMatching(/^\.env\.example: ENCRYPTION_MASTER_KEY: \S/),
       ]);
     },
   );

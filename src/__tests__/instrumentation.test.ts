@@ -168,6 +168,8 @@ describe("register: walidacja env przy starcie", () => {
     vi.stubEnv("API_KEY_PEPPER", "p".repeat(32));
     vi.stubEnv("STORAGE_PROVIDER", "local");
     vi.stubEnv("STORAGE_LOCAL_PATH", undefined);
+    vi.stubEnv("ENCRYPTION_PROVIDER", undefined);
+    vi.stubEnv("ENCRYPTION_MASTER_KEY", "ab".repeat(32));
   }
 
   it.skipIf(!isModuleInstalled("uploads"))(
@@ -207,6 +209,39 @@ describe("register: walidacja env przy starcie", () => {
       expect(output.error).toHaveBeenCalledTimes(1);
       expect(output.error.mock.calls[0][0]).toMatch(
         /^Invalid environment variables \(1\):\n- API_KEY_PEPPER: /,
+      );
+    },
+  );
+
+  it.skipIf(!isModuleInstalled("encryption"))(
+    "nodejs runtime with a valid core env but no ENCRYPTION_MASTER_KEY → a single ENCRYPTION_MASTER_KEY issue and process.exit(1)",
+    async () => {
+      stubValidCoreEnv();
+      vi.stubEnv("ENCRYPTION_MASTER_KEY", undefined);
+      const output = spyOnStartupOutput();
+
+      await register();
+
+      expect(output.exit.mock.calls).toEqual([[1]]);
+      expect(output.error).toHaveBeenCalledTimes(1);
+      expect(output.error.mock.calls[0][0]).toMatch(
+        /^Invalid environment variables \(1\):\n- ENCRYPTION_MASTER_KEY: /,
+      );
+    },
+  );
+
+  it.skipIf(!isModuleInstalled("encryption"))(
+    "nodejs runtime with an ENCRYPTION_MASTER_KEY of the wrong length → the report names ENCRYPTION_MASTER_KEY and process.exit(1)",
+    async () => {
+      stubValidCoreEnv();
+      vi.stubEnv("ENCRYPTION_MASTER_KEY", "ab".repeat(16));
+      const output = spyOnStartupOutput();
+
+      await register();
+
+      expect(output.exit.mock.calls).toEqual([[1]]);
+      expect(output.error.mock.calls[0][0]).toMatch(
+        /^Invalid environment variables \(1\):\n- ENCRYPTION_MASTER_KEY: .*32 bytes/,
       );
     },
   );

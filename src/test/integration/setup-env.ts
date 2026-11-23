@@ -7,6 +7,7 @@ Object.assign(process.env, {
   APP_URL: "http://localhost:3000",
   EMAIL_FROM: "WA Test <noreply@example.com>",
   API_KEY_PEPPER: "integration-pepper-".padEnd(48, "x"),
+  ENCRYPTION_MASTER_KEY: "1f".repeat(32),
   STORAGE_PROVIDER: "s3",
   S3_ENDPOINT: process.env.INTEGRATION_S3_ENDPOINT ?? "http://localhost:9000",
   S3_ACCESS_KEY_ID: "minioadmin",
