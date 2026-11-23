@@ -115,8 +115,19 @@ describe("encryptForOrganization", () => {
 
     const ciphertext = await encryptForOrganization(ORG_A, "x");
 
-    expect(ciphertext).not.toContain("x");
+    expect(Buffer.from(ciphertext, "base64").length).toBe(12 + 1 + 16);
     await expect(decryptForOrganization(ORG_A, ciphertext)).resolves.toBe("x");
+  });
+
+  it("does not leak the plaintext bytes into the payload", async () => {
+    const { encryptForOrganization } = await loadFresh();
+    const plaintext = "plaintext-marker-0123456789";
+
+    const ciphertext = await encryptForOrganization(ORG_A, plaintext);
+
+    const payload = Buffer.from(ciphertext, "base64");
+    expect(payload.length).toBe(12 + 27 + 16);
+    expect(payload.includes(Buffer.from(plaintext, "utf8"))).toBe(false);
   });
 
   it("encrypts with the data key stored for the organization", async () => {
