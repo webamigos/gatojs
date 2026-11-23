@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   checkNodeVersion,
   enginesRange,
+  parseEnginesRange,
   parseNodeVersion,
   SUPPORTED_NODE_RANGES,
 } from "../node-version.js";
@@ -214,7 +215,7 @@ describe("checkNodeVersion with a closed range", () => {
 });
 
 describe("checkNodeVersion with a gap between ranges", () => {
-  it("v25.3.0 falls into an unsupported release line", () => {
+  it("v25.3.0 falls into an unsupported odd-numbered release line", () => {
     const verdict = checkNodeVersion({
       version: "v25.3.0",
       willInstall: true,
@@ -222,12 +223,12 @@ describe("checkNodeVersion with a gap between ranges", () => {
     });
     expect(verdict.kind).toBe("refuse");
     if (verdict.kind === "ok") throw new Error("expected a message");
-    expect(verdict.message).toContain("unsupported release line");
+    expect(verdict.message).toContain("unsupported odd-numbered release line");
     expect(verdict.message).not.toContain("too old");
     expect(verdict.message).not.toContain("too new");
   });
 
-  it("v23.1.0 between two closed ranges is an unsupported release line, not too new", () => {
+  it("v23.1.0 between two closed ranges is an unsupported odd-numbered release line, not too new", () => {
     const verdict = checkNodeVersion({
       version: "v23.1.0",
       willInstall: true,
@@ -238,18 +239,18 @@ describe("checkNodeVersion with a gap between ranges", () => {
     });
     expect(verdict.kind).toBe("refuse");
     if (verdict.kind === "ok") throw new Error("expected a message");
-    expect(verdict.message).toContain("unsupported release line");
+    expect(verdict.message).toContain("unsupported odd-numbered release line");
     expect(verdict.message).not.toContain("too new");
   });
 
-  it("v25.0.0 falls into an unsupported release line", () => {
+  it("v25.0.0 falls into an unsupported odd-numbered release line", () => {
     const verdict = checkNodeVersion({
       version: "v25.0.0",
       willInstall: true,
       ranges: WITH_GAP,
     });
     if (verdict.kind === "ok") throw new Error("expected a message");
-    expect(verdict.message).toContain("unsupported release line");
+    expect(verdict.message).toContain("unsupported odd-numbered release line");
   });
 
   it.each(["v24.14.0", "v24.14.99"])("%s is too old", (version) => {
@@ -320,5 +321,127 @@ describe("checkNodeVersion without install", () => {
     expect(
       checkNodeVersion({ version: "v22.11.0", willInstall: false }),
     ).toEqual({ kind: "ok" });
+  });
+});
+
+describe("parseEnginesRange", () => {
+  it.each([
+    [">=22", [{ from: "22.0.0" }]],
+    [">= 22.12", [{ from: "22.12.0" }]],
+    [">=22.12.1", [{ from: "22.12.1" }]],
+    ["^22", [{ from: "22.0.0", belowMajor: 23 }]],
+    ["^22.12.0", [{ from: "22.12.0", belowMajor: 23 }]],
+    [
+      "^24.0.0 || ^22.12.0",
+      [
+        { from: "22.12.0", belowMajor: 23 },
+        { from: "24.0.0", belowMajor: 25 },
+      ],
+    ],
+    [
+      "^22.12.0 || ^24.0.0 || ^26.0.0",
+      [
+        { from: "22.12.0", belowMajor: 23 },
+        { from: "24.0.0", belowMajor: 25 },
+        { from: "26.0.0", belowMajor: 27 },
+      ],
+    ],
+    [
+      ">=26 || ^22.12.0",
+      [{ from: "22.12.0", belowMajor: 23 }, { from: "26.0.0" }],
+    ],
+  ])("%j daje %j", (range, expected) => {
+    expect(parseEnginesRange(range)).toEqual(expected);
+  });
+
+  it.each(["22.x", "~22.1.0", "*", "", "^22 ||", "|| ^22", ">=", "^", "22", "<24", ">=22 <24", "^22.x"])(
+    "%j nie jest zakresem, który kreator rozumie",
+    (range) => {
+      expect(parseEnginesRange(range)).toBeNull();
+    },
+  );
+});
+
+const KIT_RANGES = [
+  { from: "22.12.0", belowMajor: 23 },
+  { from: "24.0.0", belowMajor: 25 },
+  { from: "26.0.0", belowMajor: 27 },
+];
+const KIT_RANGE_TEXT = "^22.12.0 || ^24.0.0 || ^26.0.0";
+
+function refusalOf(version: string, ranges = KIT_RANGES): string {
+  const verdict = checkNodeVersion({ version, willInstall: true, ranges });
+  if (verdict.kind !== "refuse") {
+    throw new Error(`expected a refusal for ${version}, got ${verdict.kind}`);
+  }
+  return verdict.message;
+}
+
+describe("checkNodeVersion with the kit range ^22.12.0 || ^24.0.0 || ^26.0.0", () => {
+  it.each(["20.11.0", "22.11.0", "22.11.99"])("v%s jest za stary", (version) => {
+    expect(refusalOf(`v${version}`).split("\n")[0]).toBe(
+      `Node ${version} is too old: GatoJS needs Node ${KIT_RANGE_TEXT}.`,
+    );
+  });
+
+  it.each(["23.3.0", "25.1.0", "23.0.0"])("v%s to nieparzysta linia wydań", (version) => {
+    expect(refusalOf(`v${version}`).split("\n")[0]).toBe(
+      `Node ${version} is an unsupported odd-numbered release line: GatoJS supports Node ${KIT_RANGE_TEXT}.`,
+    );
+  });
+
+  it("v27.0.0 jest za nowy, mimo że jest nieparzysty", () => {
+    expect(refusalOf("v27.0.0").split("\n")[0]).toBe(
+      `Node 27.0.0 is too new: GatoJS supports Node ${KIT_RANGE_TEXT}.`,
+    );
+  });
+
+  it.each(["v22.12.0", "v22.99.0", "v24.15.0", "v24.0.0", "v26.1.0"])("%s jest obsługiwany", (version) => {
+    expect(checkNodeVersion({ version, willInstall: true, ranges: KIT_RANGES })).toEqual({ kind: "ok" });
+  });
+
+  it("^22 nie przyjmuje Node 23", () => {
+    const verdict = checkNodeVersion({
+      version: "v23.0.0",
+      willInstall: true,
+      ranges: [{ from: "22.0.0", belowMajor: 23 }],
+    });
+    expect(verdict.kind).toBe("refuse");
+  });
+
+  it.each(["v20.11.0", "v23.3.0", "v27.0.0"])(
+    "odmowa dla %s mówi, że create-gato-app instaluje zależności, i podpowiada nvm",
+    (version) => {
+      const message = refusalOf(version);
+      expect(message).toContain(
+        "Stopping before anything is downloaded: create-gato-app runs npm install under this Node.",
+      );
+      expect(message).toContain("nvm install 22");
+      expect(message).toContain("--skip-install");
+      expect(message).not.toContain("`gato create` runs npm install");
+    },
+  );
+
+  it("parzysta linia między zakresami to nieobsługiwana linia wydań, nie nieparzysta", () => {
+    const message = refusalOf("v22.1.0", [
+      { from: "20.0.0", belowMajor: 21 },
+      { from: "24.0.0", belowMajor: 25 },
+    ]);
+    expect(message.split("\n")[0]).toBe(
+      "Node 22.1.0 is an unsupported release line: GatoJS supports Node ^20.0.0 || ^24.0.0.",
+    );
+  });
+
+  it("bez instalacji za stary Node tylko ostrzega i wskazuje --skip-install", () => {
+    const verdict = checkNodeVersion({ version: "v22.11.0", willInstall: false, ranges: KIT_RANGES });
+    expect(verdict.kind).toBe("warn");
+    if (verdict.kind === "ok") throw new Error("expected a message");
+    expect(verdict.message.startsWith("Warning: Node 22.11.0 is too old")).toBe(true);
+    expect(verdict.message).toContain("--skip-install");
+  });
+
+  it("bez instalacji nieparzysty Node też tylko ostrzega", () => {
+    const verdict = checkNodeVersion({ version: "v25.1.0", willInstall: false, ranges: KIT_RANGES });
+    expect(verdict.kind).toBe("warn");
   });
 });

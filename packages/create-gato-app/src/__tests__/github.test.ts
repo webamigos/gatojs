@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  fetchKitPackageJson,
   fetchKitTarball,
   fetchTagNames,
+  GitHubTokenRejectedError,
   githubHeaders,
   KIT_REPO,
+  packageJsonUrl,
   resolveKitVersion,
   resolveToken,
   tagsUrl,
@@ -17,6 +20,7 @@ import {
   jsonResponse,
   statusResponse,
 } from "./fake-http.js";
+import { base64Wrapped } from "./kit-fixture.js";
 
 const SECRET = "ghp_SECRET_TOKEN_123";
 const TAGS_PAGE_1 =
@@ -423,5 +427,113 @@ describe("HTTP errors on a later tag page", () => {
     });
     const message = await messageOf(fetchTagNames({ fetch, token: null }));
     expect(message).toContain("500");
+  });
+});
+
+const CONTENTS_090 =
+  "https://api.github.com/repos/webamigos/gatojs/contents/package.json?ref=v0.9.0";
+
+describe("packageJsonUrl", () => {
+  it("wskazuje package.json kitu w contents API dla tagu v<wersja>", () => {
+    expect(packageJsonUrl("0.9.0")).toBe(CONTENTS_090);
+    expect(packageJsonUrl("1.20.3")).toBe(
+      "https://api.github.com/repos/webamigos/gatojs/contents/package.json?ref=v1.20.3",
+    );
+  });
+});
+
+describe("fetchKitPackageJson", () => {
+  const KIT_PACKAGE_JSON = {
+    name: "gatojs",
+    version: "0.9.0",
+    description: "Kit z polskimi znakami: zażółć gęślą jaźń",
+    engines: { node: "^22.12.0 || ^24.0.0 || ^26.0.0" },
+  };
+
+  it("dekoduje base64 z podziałem na linie do obiektu i wysyła token", async () => {
+    const { fetch, requests } = fakeFetch({
+      [CONTENTS_090]: jsonResponse({
+        type: "file",
+        encoding: "base64",
+        content: base64Wrapped(JSON.stringify(KIT_PACKAGE_JSON, null, 2)),
+      }),
+    });
+    await expect(
+      fetchKitPackageJson({ fetch, token: "t", version: "0.9.0" }),
+    ).resolves.toEqual(KIT_PACKAGE_JSON);
+    expect(requests).toEqual([
+      {
+        url: CONTENTS_090,
+        headers: {
+          "User-Agent": "create-gato-app",
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          Authorization: "Bearer t",
+        },
+      },
+    ]);
+  });
+
+  it("bez tokenu nie wysyła Authorization", async () => {
+    const { fetch, requests } = fakeFetch({
+      [CONTENTS_090]: jsonResponse({
+        encoding: "base64",
+        content: base64Wrapped(JSON.stringify({ name: "gatojs" })),
+      }),
+    });
+    await expect(
+      fetchKitPackageJson({ fetch, token: null, version: "0.9.0" }),
+    ).resolves.toEqual({ name: "gatojs" });
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.headers).not.toHaveProperty("Authorization");
+  });
+
+  it.each([
+    ["obiekt bez treści", { message: "x" }],
+    ["null", null],
+    ["tablica", []],
+    ["inne kodowanie", { encoding: "utf-8", content: "{}" }],
+    ["treść nie jest napisem", { encoding: "base64", content: 5 }],
+    ["base64 z treścią, która nie jest JSON", { encoding: "base64", content: base64Wrapped("not json") }],
+  ])("%s to nieoczekiwany package.json", async (_label, body) => {
+    const { fetch } = fakeFetch({ [CONTENTS_090]: jsonResponse(body) });
+    await expect(
+      fetchKitPackageJson({ fetch, token: null, version: "0.9.0" }),
+    ).rejects.toThrow("GitHub returned an unexpected package.json for kit v0.9.0");
+  });
+
+  it("401 z tokenem to GitHubTokenRejectedError", async () => {
+    const { fetch } = fakeFetch({ [CONTENTS_090]: statusResponse(401) });
+    await expect(
+      fetchKitPackageJson({ fetch, token: SECRET, version: "0.9.0" }),
+    ).rejects.toBeInstanceOf(GitHubTokenRejectedError);
+  });
+
+  it("401 bez tokenu to zwykły błąd, nie GitHubTokenRejectedError", async () => {
+    const { fetch } = fakeFetch({ [CONTENTS_090]: statusResponse(401) });
+    const error = await fetchKitPackageJson({ fetch, token: null, version: "0.9.0" }).then(
+      () => null,
+      (rejection: unknown) => rejection,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(GitHubTokenRejectedError);
+  });
+
+  it("404 bez tokenu podpowiada prywatne repozytorium i nie zdradza tokenu", async () => {
+    const { fetch } = fakeFetch({ [CONTENTS_090]: statusResponse(404) });
+    const message = await messageOf(
+      fetchKitPackageJson({ fetch, token: null, version: "0.9.0" }),
+    );
+    expect(message).toContain("GitHub returned 404");
+    expect(message).toContain("may be private");
+  });
+
+  it("404 z tokenem nie wypisuje tokenu", async () => {
+    const { fetch } = fakeFetch({ [CONTENTS_090]: statusResponse(404) });
+    const message = await messageOf(
+      fetchKitPackageJson({ fetch, token: SECRET, version: "0.9.0" }),
+    );
+    expect(message).toContain("GitHub returned 404");
+    expect(message).not.toContain(SECRET);
   });
 });
