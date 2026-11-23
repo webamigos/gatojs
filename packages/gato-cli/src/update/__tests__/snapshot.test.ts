@@ -183,6 +183,6 @@ describe("readKitSnapshot", () => {
   it("moduł spoza kitu kończy się błędem z wersją kitu", async () => {
     await expect(
       readKitSnapshot(kit, ["core", "ghost"], names),
-    ).rejects.toThrow("Moduł ghost nie istnieje w wa-kit 0.1.0");
+    ).rejects.toThrow("Module ghost does not exist in GatoJS 0.1.0");
   });
 });

@@ -11,7 +11,7 @@ describe("mergeMessages", () => {
   it("throws on collision with a core key", () => {
     expect(() =>
       mergeMessages({ common: {} }, [{ key: "common", messages: {} }]),
-    ).toThrow("Kolizja namespace i18n: common");
+    ).toThrow("i18n namespace collision: common");
   });
 
   it("throws on collision between modules", () => {
@@ -20,7 +20,7 @@ describe("mergeMessages", () => {
         { key: "auth", messages: {} },
         { key: "auth", messages: {} },
       ]),
-    ).toThrow("Kolizja namespace i18n: auth");
+    ).toThrow("i18n namespace collision: auth");
   });
 
   it("klucze z prototypu Object nieobecne w core trafiają do wyniku jako własne", () => {
@@ -45,7 +45,7 @@ describe("mergeMessages", () => {
     (key) => {
       expect(() =>
         mergeMessages({ common: {} }, [{ key, messages: { a: 1 } }]),
-      ).toThrow(`Nieprawidłowy klucz namespace i18n: ${key}`);
+      ).toThrow(`Invalid i18n namespace key: ${key}`);
     },
   );
 

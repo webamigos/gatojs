@@ -35,15 +35,15 @@ const HASH_CONFIG = { managedFiles: [] };
 
 function assertRemovable(state: KitState, module: string): void {
   if (module === "core") {
-    throw new Error("Nie można usunąć rdzenia");
+    throw new Error("Cannot remove core");
   }
   if (module in state.projectModules) {
     throw new Error(
-      `Moduł ${module} należy do projektu; wa remove usuwa tylko moduły kitu. Usuń jego pliki i wpis w projectModules ręcznie`,
+      `Module ${module} belongs to the project; remove only handles kit modules. Delete its files and its projectModules entry by hand`,
     );
   }
   if (!(module in state.modules)) {
-    throw new Error(`Moduł ${module} nie jest zainstalowany`);
+    throw new Error(`Module ${module} is not installed`);
   }
   const requiredBy = [
     ...Object.values(state.modules).map((entry) => entry.manifest),
@@ -54,7 +54,7 @@ function assertRemovable(state: KitState, module: string): void {
     .sort(compareCodePoint);
   if (requiredBy.length > 0) {
     throw new Error(
-      `Moduł ${module} jest wymagany przez: ${requiredBy.join(", ")}`,
+      `Module ${module} is required by: ${requiredBy.join(", ")}`,
     );
   }
 }
@@ -98,7 +98,7 @@ export async function insideProject(
   const absolute = resolve(projectDir, file);
   const real = await realpathOfDeepestAncestor(absolute);
   if (!real.startsWith(root + sep)) {
-    throw new Error(`Ścieżka poza projektem: ${file}`);
+    throw new Error(`Path outside the project: ${file}`);
   }
   return absolute;
 }
@@ -178,7 +178,7 @@ export async function remove(
   const changed = await changedFiles(projectDir, entry.files);
   if (changed.length > 0 && !options.force) {
     throw new Error(
-      `Zmienione pliki modułu ${module} (użyj --force):\n${changed
+      `Changed files in module ${module} (use --force):\n${changed
         .map((file) => `  ${file}`)
         .join("\n")}`,
     );
@@ -211,7 +211,7 @@ export async function remove(
       await runner("npm", ["install"], projectDir);
     } catch {
       throw new Error(
-        "Moduł usunięty, ale npm install się nie powiódł. Uruchom: npm install",
+        "Module removed, but npm install failed. Run: npm install",
       );
     }
   }

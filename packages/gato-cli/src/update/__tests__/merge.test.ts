@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { REGION_FILES } from "../../generate/targets.js";
 import { mergeFile } from "../merge.js";
 
-const labels = { ours: "projekt", base: "v0.1.0", theirs: "v0.2.0" };
+const labels = { ours: "project", base: "v0.1.0", theirs: "v0.2.0" };
 const originalPath = process.env.PATH;
 
 afterEach(() => {
@@ -70,7 +70,7 @@ describe("mergeFile", () => {
     );
     expect(result).toEqual({
       content:
-        "a\n<<<<<<< projekt\nprojekt\n||||||| v0.1.0\nb\n=======\nkit\n>>>>>>> v0.2.0\nc\n",
+        "a\n<<<<<<< project\nprojekt\n||||||| v0.1.0\nb\n=======\nkit\n>>>>>>> v0.2.0\nc\n",
       conflicts: 1,
     });
   });
@@ -86,8 +86,8 @@ describe("mergeFile", () => {
     );
     expect(result).toEqual({
       content:
-        "l1\n<<<<<<< projekt\nP2\n||||||| v0.1.0\nl2\n=======\nK2\n>>>>>>> v0.2.0\nl3\nl4\nl5\nl6\nl7\nl8\n" +
-        "<<<<<<< projekt\nP9\n||||||| v0.1.0\nl9\n=======\nK9\n>>>>>>> v0.2.0\nl10\n",
+        "l1\n<<<<<<< project\nP2\n||||||| v0.1.0\nl2\n=======\nK2\n>>>>>>> v0.2.0\nl3\nl4\nl5\nl6\nl7\nl8\n" +
+        "<<<<<<< project\nP9\n||||||| v0.1.0\nl9\n=======\nK9\n>>>>>>> v0.2.0\nl10\n",
       conflicts: 2,
     });
   });
@@ -241,7 +241,7 @@ describe("mergeFile z fałszywym gitem", () => {
       "-p",
       "--diff3",
       "-L",
-      "projekt",
+      "project",
       "-L",
       "v0.1.0",
       "-L",

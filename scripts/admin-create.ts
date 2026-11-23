@@ -29,7 +29,7 @@ async function main(): Promise<void> {
 
   const email = values.email ?? process.env.ADMIN_EMAIL;
   if (!email) {
-    console.error("Podaj --email albo ustaw ADMIN_EMAIL");
+    console.error("Pass --email or set ADMIN_EMAIL");
     process.exit(1);
   }
 
@@ -48,17 +48,17 @@ async function main(): Promise<void> {
     });
     console.log(
       result.createdUser
-        ? `Utworzono administratora ${email}`
-        : `Administrator ${email} gotowy`,
+        ? `Created administrator ${email}`
+        : `Administrator ${email} is ready`,
     );
     console.log(
       result.createdOrganization
-        ? `Utworzono organizację ${result.organizationId}`
-        : `Organizacja ${result.organizationId}`,
+        ? `Created organization ${result.organizationId}`
+        : `Organization ${result.organizationId}`,
     );
     if (result.generatedPassword) {
       console.log(
-        `Wygenerowane hasło (pokazane raz): ${result.generatedPassword}`,
+        `Generated password (shown once): ${result.generatedPassword}`,
       );
     }
   } finally {
@@ -70,7 +70,7 @@ main().catch(async (error: unknown) => {
   const { AdminCreateError } = await import("./lib/admin-create");
   if (error instanceof AdminCreateError && error.generatedPassword) {
     console.error(
-      `Użytkownik został utworzony. Wygenerowane hasło (pokazane raz): ${error.generatedPassword}`,
+      `The user was created. Generated password (shown once): ${error.generatedPassword}`,
     );
   }
   console.error(error instanceof Error ? error.message : error);

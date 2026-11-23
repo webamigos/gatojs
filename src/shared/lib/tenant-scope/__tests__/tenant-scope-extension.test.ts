@@ -302,7 +302,7 @@ describe("withoutTenantScope", () => {
     expect(result).toEqual([{ id: "a" }, { id: "b" }]);
     expect(query).toHaveBeenCalledTimes(1);
     expect(mockLogger.debug).toHaveBeenCalledWith(
-      "Zapytanie bez filtra organizacji w withoutTenantScope",
+      "Query without organization filter inside withoutTenantScope",
       {
         model: "Scoped",
         operation: "findMany",

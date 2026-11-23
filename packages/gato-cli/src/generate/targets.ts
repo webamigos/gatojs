@@ -189,7 +189,7 @@ export async function renderRegionTarget(
       return null;
     }
     throw new Error(
-      `${target.file}: brak regionu wa:${target.marker}; dodaj linie ze znacznikami wa:${target.marker}:start i wa:${target.marker}:end`,
+      `${target.file}: missing region wa:${target.marker}; add lines with the markers wa:${target.marker}:start and wa:${target.marker}:end`,
     );
   }
   return {

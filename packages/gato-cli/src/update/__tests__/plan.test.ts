@@ -93,7 +93,7 @@ describe("planUpdate", () => {
       files: [
         {
           path: "bin/run.sh",
-          action: "zaktualizowano",
+          action: "updated",
           reason: null,
           content: Buffer.from("a\nb\nc\nd\ne\nKIT\n"),
           mode: 0o755,
@@ -115,7 +115,7 @@ describe("planUpdate", () => {
       files: [
         {
           path: "bin/run.sh",
-          action: "zaktualizowano",
+          action: "updated",
           reason: null,
           content: Buffer.from("a\nb\nc\nd\ne\nf\n"),
           mode: 0o755,
@@ -147,7 +147,7 @@ describe("planUpdate", () => {
       files: [
         {
           path: "src/a.ts",
-          action: "zaktualizowano",
+          action: "updated",
           reason: null,
           content: Buffer.from("a\nb\nc\nd\ne\nKIT\n"),
           mode: 0o600,
@@ -180,7 +180,7 @@ describe("planUpdate", () => {
       files: [
         {
           path: "src/a.ts",
-          action: "scalono",
+          action: "merged",
           reason: null,
           content: Buffer.from("a\nPROJEKT\nc\nd\ne\nKIT\n"),
           mode: 0o755,
@@ -202,10 +202,10 @@ describe("planUpdate", () => {
       files: [
         {
           path: "src/a.ts",
-          action: "konflikt",
+          action: "conflict",
           reason: null,
           content: Buffer.from(
-            "a\n<<<<<<< projekt\nprojekt\n||||||| v0.1.0\nb\n=======\nkit\n>>>>>>> v0.2.0\nc\n",
+            "a\n<<<<<<< project\nprojekt\n||||||| v0.1.0\nb\n=======\nkit\n>>>>>>> v0.2.0\nc\n",
           ),
           mode: 0o755,
         },
@@ -226,8 +226,8 @@ describe("planUpdate", () => {
       files: [
         {
           path: "src/a.ts",
-          action: "do decyzji",
-          reason: "usunięty w projekcie, zmieniony w kicie",
+          action: "needs decision",
+          reason: "deleted in the project, changed in the kit",
           content: null,
           mode: null,
         },
@@ -248,7 +248,7 @@ describe("planUpdate", () => {
       files: [
         {
           path: "src/a.ts",
-          action: "usunięto",
+          action: "removed",
           reason: null,
           content: null,
           mode: null,
@@ -270,8 +270,8 @@ describe("planUpdate", () => {
       files: [
         {
           path: "src/a.ts",
-          action: "do decyzji",
-          reason: "zmieniony w projekcie, usunięty w kicie",
+          action: "needs decision",
+          reason: "changed in the project, deleted in the kit",
           content: null,
           mode: null,
         },
@@ -302,7 +302,7 @@ describe("planUpdate", () => {
       files: [
         {
           path: "bin/new.sh",
-          action: "dodano",
+          action: "added",
           reason: null,
           content: Buffer.from("echo nowy\n"),
           mode: 0o755,
@@ -333,8 +333,8 @@ describe("planUpdate", () => {
       files: [
         {
           path: "src/new.ts",
-          action: "konflikt",
-          reason: "plik projektu na ścieżce nowego pliku kitu",
+          action: "conflict",
+          reason: "project file at the path of a new kit file",
           content: null,
           mode: null,
         },
@@ -362,8 +362,8 @@ describe("planUpdate", () => {
       files: [
         {
           path: "public/logo.png",
-          action: "konflikt",
-          reason: "plik binarny zmieniony w projekcie i w kicie",
+          action: "conflict",
+          reason: "binary file changed in both the project and the kit",
           content: null,
           mode: null,
         },
@@ -391,7 +391,7 @@ describe("planUpdate", () => {
       files: [
         {
           path: "public/logo.png",
-          action: "zaktualizowano",
+          action: "updated",
           reason: null,
           content: Buffer.from([0, 1, 4]),
           mode: 0o600,
@@ -423,7 +423,7 @@ describe("planUpdate", () => {
       files: [
         {
           path: ".env.example",
-          action: "zaktualizowano",
+          action: "updated",
           reason: null,
           content: Buffer.from(
             "A=2\n# wa:modules:start\nBASE=0\n# wa:modules:end\n",
@@ -464,7 +464,7 @@ describe("planUpdate", () => {
       files: [
         {
           path: "src/a.ts",
-          action: "scalono",
+          action: "merged",
           reason: null,
           content: Buffer.from("a\nPROJEKT\nc\nd\ne\nKIT\n"),
           mode: 0o755,
@@ -486,8 +486,8 @@ describe("planUpdate", () => {
       files: [
         {
           path: "src/a.ts",
-          action: "do decyzji",
-          reason: "zmieniony w projekcie, usunięty w kicie",
+          action: "needs decision",
+          reason: "changed in the project, deleted in the kit",
           content: null,
           mode: null,
         },
@@ -508,7 +508,7 @@ describe("planUpdate", () => {
       files: [
         {
           path: "src/a.ts",
-          action: "scalono",
+          action: "merged",
           reason: null,
           content: Buffer.from("a\nb\nc\nd\ne\nKIT\n"),
           mode: 0o755,
@@ -530,8 +530,8 @@ describe("planUpdate", () => {
       files: [
         {
           path: "src/a.ts",
-          action: "do decyzji",
-          reason: "zmieniony w projekcie, usunięty w kicie",
+          action: "needs decision",
+          reason: "changed in the project, deleted in the kit",
           content: null,
           mode: null,
         },
@@ -602,7 +602,7 @@ describe("planUpdate", () => {
       files: [
         {
           path: "package.json",
-          action: "zaktualizowano",
+          action: "updated",
           reason: null,
           content: Buffer.from(
             '{\n  "name": "app",\n  "scripts": {\n    "dev": "next dev"\n  },\n  "dependencies": {\n    "next": "15.1.0"\n  }\n}\n',
@@ -629,7 +629,7 @@ describe("planUpdate", () => {
       files: [
         {
           path: "package.json",
-          action: "scalono",
+          action: "merged",
           reason: null,
           content: Buffer.from(
             '{\n  "name": "app",\n  "scripts": {\n    "dev": "next dev",\n    "lint": "eslint"\n  },\n  "dependencies": {\n    "next": "15.1.0"\n  }\n}\n',
@@ -658,11 +658,11 @@ describe("planUpdate", () => {
       },
     });
     expect(result.files.map((file) => [file.path, file.action])).toEqual([
-      ["src/B.ts", "dodano"],
-      ["src/a.ts", "dodano"],
-      ["src/b.ts", "dodano"],
-      ["src/m.ts", "zaktualizowano"],
-      ["src/z.ts", "usunięto"],
+      ["src/B.ts", "added"],
+      ["src/a.ts", "added"],
+      ["src/b.ts", "added"],
+      ["src/m.ts", "updated"],
+      ["src/z.ts", "removed"],
     ]);
   });
 });

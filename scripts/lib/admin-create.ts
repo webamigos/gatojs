@@ -59,7 +59,7 @@ const ROLE_RANK: Record<string, number> = {
 function assertKnownRole(role: string): asserts role is GlobalAdminRole {
   if (!GLOBAL_ADMIN_ROLES.includes(role)) {
     throw new Error(
-      `Nieznana rola: ${role} (dozwolone: ${GLOBAL_ADMIN_ROLES.join(", ")})`,
+      `Unknown role: ${role} (allowed: ${GLOBAL_ADMIN_ROLES.join(", ")})`,
     );
   }
 }
@@ -98,10 +98,10 @@ async function ensureUser(
     const approved =
       options.yes ||
       (await options.confirm(
-        `Użytkownik ${options.email} istnieje. Nadać rolę ${options.role}? [t/N]`,
+        `User ${options.email} already exists. Grant role ${options.role}? [y/N]`,
       ));
     if (!approved) {
-      throw new Error("Przerwano");
+      throw new Error("Aborted");
     }
     await prisma.user.update({
       where: { id: existing.id },

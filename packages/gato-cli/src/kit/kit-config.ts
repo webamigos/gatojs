@@ -28,7 +28,7 @@ export async function readKitConfig(kitDir: string): Promise<KitConfig> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       throw new Error(
-        `Brak kit/kit.json w ${kitDir} — to nie jest repozytorium wa-kit`,
+        `No kit/kit.json in ${kitDir} — this is not a GatoJS repository`,
       );
     }
     throw error;
@@ -51,7 +51,7 @@ export async function readKitManifests(
     );
     if (manifest.name !== name) {
       throw new Error(
-        `kit/modules/${fileName}: name "${manifest.name}" nie zgadza się z nazwą pliku`,
+        `kit/modules/${fileName}: name "${manifest.name}" does not match the file name`,
       );
     }
     manifests.push(manifest);

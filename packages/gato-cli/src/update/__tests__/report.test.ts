@@ -12,7 +12,7 @@ function warningFor(count: number): string | undefined {
     to: "0.2.0",
     dryRun: false,
   });
-  return lines.find((line) => line.startsWith("Uwaga:"));
+  return lines.find((line) => line.startsWith("Warning:"));
 }
 
 describe("planReport: linia Uwaga", () => {
@@ -20,23 +20,17 @@ describe("planReport: linia Uwaga", () => {
     expect(warningFor(0)).toBeUndefined();
   });
 
-  it("1 plik dostaje liczbę pojedynczą i zaimek go", () => {
+  it("1 plik dostaje liczbę pojedynczą i zaimek it", () => {
     expect(warningFor(1)).toBe(
-      "Uwaga: 1 plik różni się od v0.1.0 z tagu; potraktowano go jak zmieniony w projekcie",
+      "Warning: 1 file differs from the v0.1.0 tag; treated it as changed in the project",
     );
   });
 
-  it.each([2, 4, 22])("%i pliki dostają formę pliki i zaimek je", (count) => {
-    expect(warningFor(count)).toBe(
-      `Uwaga: ${count} pliki różnią się od v0.1.0 z tagu; potraktowano je jak zmienione w projekcie`,
-    );
-  });
-
-  it.each([5, 10, 11, 12, 13, 14, 21, 25, 112])(
-    "%i plików dostaje formę plików",
+  it.each([2, 4, 5, 11, 22, 112])(
+    "%i plików dostaje liczbę mnogą i zaimek them",
     (count) => {
       expect(warningFor(count)).toBe(
-        `Uwaga: ${count} plików różni się od v0.1.0 z tagu; potraktowano je jak zmienione w projekcie`,
+        `Warning: ${count} files differ from the v0.1.0 tag; treated them as changed in the project`,
       );
     },
   );
@@ -50,9 +44,9 @@ describe("planReport: linia Uwaga", () => {
         dryRun: true,
       }),
     ).toEqual([
-      "Plan aktualizacji wa-kit 0.1.0 → 0.2.0 (bez zmian w projekcie)",
-      "  bez zmian w plikach",
-      "Uwaga: 2 pliki różnią się od v0.1.0 z tagu; potraktowano je jak zmienione w projekcie",
+      "Update plan for GatoJS 0.1.0 → 0.2.0 (project not changed)",
+      "  no file changes",
+      "Warning: 2 files differ from the v0.1.0 tag; treated them as changed in the project",
     ]);
   });
 });
@@ -67,11 +61,11 @@ describe("planReport: kolejność linii", () => {
       planReport({
         plan: {
           files: [
-            planned("src/z.ts", "dodano"),
-            planned("src/y.ts", "zaktualizowano"),
-            planned("src/a.ts", "dodano"),
-            planned("src/c.ts", "zaktualizowano"),
-            planned("src/B.ts", "dodano"),
+            planned("src/z.ts", "added"),
+            planned("src/y.ts", "updated"),
+            planned("src/a.ts", "added"),
+            planned("src/c.ts", "updated"),
+            planned("src/B.ts", "added"),
           ],
           mismatchedBase: [],
         },
@@ -80,12 +74,12 @@ describe("planReport: kolejność linii", () => {
         dryRun: true,
       }),
     ).toEqual([
-      "Plan aktualizacji wa-kit 0.1.0 → 0.2.0 (bez zmian w projekcie)",
-      "  zaktualizowano src/c.ts",
-      "  zaktualizowano src/y.ts",
-      "  dodano         src/B.ts",
-      "  dodano         src/a.ts",
-      "  dodano         src/z.ts",
+      "Update plan for GatoJS 0.1.0 → 0.2.0 (project not changed)",
+      "  updated        src/c.ts",
+      "  updated        src/y.ts",
+      "  added          src/B.ts",
+      "  added          src/a.ts",
+      "  added          src/z.ts",
     ]);
   });
 });

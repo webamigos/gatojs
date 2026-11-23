@@ -23,7 +23,7 @@ export type OwnershipReport = {
   composeOutsideModule: string[];
 };
 
-const MISSING_IN_PACKAGE_JSON = "<brak>";
+const MISSING_IN_PACKAGE_JSON = "<missing>";
 
 export async function checkOwnership(kitDir: string): Promise<OwnershipReport> {
   const config = await readKitConfig(kitDir);

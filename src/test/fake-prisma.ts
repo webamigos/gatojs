@@ -89,7 +89,7 @@ function matchesScalar(value: unknown, condition: unknown): boolean {
     if (operator === "notIn") {
       return !(operand as unknown[]).some((item) => sameValue(value, item));
     }
-    throw new Error(`fake-prisma: nieobsługiwany operator ${operator}`);
+    throw new Error(`fake-prisma: unsupported operator ${operator}`);
   });
 }
 
@@ -104,7 +104,7 @@ export function createFakePrisma(initial: FakeTables) {
   function related(table: TableName, row: Row, field: string): Row[] {
     const relation = RELATIONS[table][field];
     if (!relation) {
-      throw new Error(`fake-prisma: nieznana relacja ${table}.${field}`);
+      throw new Error(`fake-prisma: unknown relation ${table}.${field}`);
     }
     return tables[relation.table].filter((candidate) =>
       sameValue(candidate[relation.foreignKey], row[relation.localKey]),
@@ -279,7 +279,7 @@ export function createFakePrisma(initial: FakeTables) {
   }
 
   function notFound(table: TableName): Error {
-    return Object.assign(new Error(`fake-prisma: brak rekordu w ${table}`), {
+    return Object.assign(new Error(`fake-prisma: no record in ${table}`), {
       code: "P2025",
     });
   }

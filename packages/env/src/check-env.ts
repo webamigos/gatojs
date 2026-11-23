@@ -45,7 +45,7 @@ export function checkEnv(
 
 export function formatEnvReport(issues: readonly EnvIssue[]): string {
   return [
-    `Nieprawidłowe zmienne środowiskowe (${issues.length}):`,
+    `Invalid environment variables (${issues.length}):`,
     ...issues.map(({ name, message }) => `- ${name}: ${message}`),
   ].join("\n");
 }
@@ -59,7 +59,7 @@ export function parseEnv(
     const details = result.issues
       .map(({ name, message }) => `${name}: ${message}`)
       .join("; ");
-    throw new Error(`Nieprawidłowe zmienne środowiskowe: ${details}`);
+    throw new Error(`Invalid environment variables: ${details}`);
   }
   return result.env;
 }

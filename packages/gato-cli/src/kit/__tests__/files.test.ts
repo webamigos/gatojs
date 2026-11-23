@@ -152,7 +152,7 @@ describe("listKitFiles", () => {
   it("katalog bez .git zgłasza, że nie jest repozytorium git", async () => {
     const dir = await makeTempDir();
     await expect(listKitFiles(dir)).rejects.toThrow(
-      new Error(`${dir} nie jest repozytorium git`),
+      new Error(`${dir} is not a git repository`),
     );
   });
 });
