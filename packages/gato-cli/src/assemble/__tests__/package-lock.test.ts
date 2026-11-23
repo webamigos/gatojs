@@ -1,6 +1,5 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { test } from "@fast-check/vitest";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -250,11 +249,21 @@ describe("projectPackageLock", () => {
   });
 });
 
+function findRepoRoot(start: string): string {
+  let dir = resolve(start);
+  while (!(
+    existsSync(join(dir, "kit/kit.json")) &&
+    existsSync(join(dir, "packages/gato-cli/package.json"))
+  )) {
+    const parent = dirname(dir);
+    if (parent === dir) throw new Error("Repository root not found");
+    dir = parent;
+  }
+  return dir;
+}
+
 describe("projectPackageLock on the real kit lock", () => {
-  const repoRoot = join(
-    dirname(fileURLToPath(import.meta.url)),
-    "../../../../..",
-  );
+  const repoRoot = findRepoRoot(import.meta.dirname);
   const kitConfig = JSON.parse(
     readFileSync(join(repoRoot, "kit/kit.json"), "utf8"),
   ) as { kitOnly: string[] };
