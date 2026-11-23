@@ -54,6 +54,7 @@ export function UsersManager({
         }
         const loggingResult = await logImpersonationStartCommand();
         if (!loggingResult.success) {
+          // eslint-disable-next-line no-console -- client components have no server logger
           console.error(
             "Impersonation-start logging failed:",
             loggingResult.error,

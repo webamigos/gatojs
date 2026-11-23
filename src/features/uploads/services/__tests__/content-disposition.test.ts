@@ -95,7 +95,7 @@ describe("contentDisposition", () => {
         );
       expect(match).not.toBeNull();
       expect(match![1]).toBe(disposition);
-      expect(match![2]).toMatch(/^[ !#-:<-\[\]-~]*$/);
+      expect(match![2]).toMatch(/^[ !#-:<-[\]-~]*$/);
       expect(match![3]).toMatch(/^(?:[A-Za-z0-9!#$&+\-.^_`|~]|%[0-9A-F]{2})*$/);
       expect(decodeURIComponent(match![3]!)).toBe(fileName);
       expect(header).toMatch(/^[\x20-\x7e]*$/);

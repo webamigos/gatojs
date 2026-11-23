@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable no-console -- the CLI entry point: the console is its output */
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";

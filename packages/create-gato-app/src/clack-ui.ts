@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- the terminal UI: the console is its output */
 import * as clack from "@clack/prompts";
 import { CancelledError, type Prompter } from "./questions.js";
 import type { Ui } from "./ui.js";
