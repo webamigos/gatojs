@@ -222,7 +222,7 @@ async function askStorage(
             {
               value: "s3",
               label: "s3",
-              hint: "S3-compatible storage (local MinIO, AWS, R2, …)",
+              hint: "S3-compatible storage: local MinIO, AWS, R2, …",
             },
           ],
           initialValue: "local",
