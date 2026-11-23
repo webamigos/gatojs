@@ -25,7 +25,7 @@ npx create-gato-app@latest acme-crm --setup
 cd acme-crm && npm run dev
 ```
 
-Needs Node.js 22 and Docker. Full documentation: **[docs.gatojs.com](https://docs.gatojs.com)**.
+Needs Node.js 22.12+ (or 24) and Docker. Full documentation: **[docs.gatojs.com](https://docs.gatojs.com)**.
 
 > **Work in progress.** GatoJS is the open-source release of the kit Web Amigos builds client apps on (working name `wa-kit`). Breaking changes can land before 1.0.
 
@@ -77,6 +77,7 @@ Add them when a project needs them, remove them when it doesn't. A module only a
 | `audit-logs` | Who changed what, and when, in each organization: a ready audit log page plus one call to record events from your own code | Ready |
 | `api-keys` | Organization API keys with scopes, stored as hashes; your endpoints declare the scopes they need and get the organization from the key | Ready |
 | `uploads` | Organization files on local disk or S3-compatible storage, with public and private files | Ready |
+| `encryption` | Per-organization encryption of sensitive fields (AES-256-GCM, one data key per organization under a master key) | Ready |
 | Background jobs | A job queue and scheduled tasks, including retention and cleanup | Planned |
 | MCP | Expose your app to AI assistants over MCP with OAuth, built on better-auth 1.7 | Planned |
 | Legal pages | Terms, privacy policy and a cookie banner | Planned |
@@ -104,15 +105,13 @@ Coming soon.
 ## 🚀 Quick start
 
 ```bash
-npx create-gato-app@latest acme-crm           # asks for modules, languages and the first admin
-cd acme-crm
-docker compose up -d                          # PostgreSQL and mailpit
-npx prisma migrate dev --name init
-npm run admin:create -- --email you@example.com
-npm run dev                                   # http://localhost:3000
+npx create-gato-app@latest acme-crm   # asks for modules, languages, file storage and the first admin
+cd acme-crm && npm run dev            # http://localhost:3000
 ```
 
-`--setup` starts Docker, runs the first migration and creates the admin for you. The full guide is in the [quickstart](https://docs.gatojs.com/quickstart); every flag is in the [CLI reference](https://docs.gatojs.com/cli/overview).
+The wizard checks your Node version, generates the secrets in `.env`, gives the project its own Docker Compose name, checks that the ports are free, starts PostgreSQL and mailpit, runs the first migration, creates the first admin and makes the first commit. `--yes` accepts the defaults, `--skip-docker` and `--skip-install` leave those steps to you (the wizard prints what is left). The full guide is in the [quickstart](https://docs.gatojs.com/quickstart); every flag is in the [CLI reference](https://docs.gatojs.com/cli/overview).
+
+In a project, `npx gato` adds and removes modules (`gato add uploads`), regenerates the registry and pulls in a newer GatoJS release with `gato update`, keeping your local changes.
 
 ## 🧰 Built on tools you already know
 
@@ -122,7 +121,7 @@ Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · shadcn/ui · Prisma 7 
 
 - Extending kit behaviour without editing kit files: slots, component overrides, events and command hooks
 - Background jobs and MCP modules
-- A guided upgrade command for existing projects
+- Encryption keys in a cloud KMS and key rotation
 
 ## 📚 Documentation
 
