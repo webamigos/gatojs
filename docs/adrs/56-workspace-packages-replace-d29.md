@@ -26,8 +26,9 @@ could hold a package: the `Dockerfile` copied only the root `package.json` and l
   - *Project packages* (`@gatojs/<name>`, `private: true`): copied into projects like any GatoJS file and owned by
     a manifest. No build step: `exports` point at TypeScript sources, consumed through `transpilePackages`.
 - **One lockfile.** Every workspace present in the GatoJS repository is in the root `package-lock.json`;
-  `packages/gato-cli/package-lock.json` is gone. `wa create` copies the lockfile and `npm install` drops the
-  `kitOnly` tool packages from it.
+  `packages/gato-cli/package-lock.json` is gone. `wa create` copies the lockfile without the `kitOnly` workspaces,
+  their nested `node_modules` and their `node_modules/<name>` links, and renames it to the project
+  (`projectPackageLock` in `packages/gato-cli/src/assemble/package-lock.ts`; amended 2026-11-23, see below).
 - **Dockerfile region.** The `deps` stage has a `# wa:workspaces:start` / `# wa:workspaces:end` region between
   `COPY package.json package-lock.json ./` and `RUN npm ci`. `wa generate` fills it with
   `COPY packages/<name>/package.json ./packages/<name>/package.json` for every `packages/<name>` directory with a
@@ -60,8 +61,12 @@ could hold a package: the `Dockerfile` copied only the root `package.json` and l
 - `npm run verify` runs `turbo run test typecheck lint`, which now includes the tool packages' own scripts.
 - A new tool package goes into `TOOL_PACKAGES`, `kitOnly`, the root ignores (`tsconfig.json`, `eslint.config.mjs`,
   `vitest.config.ts`, `stryker.config.json`) and, if it has its own ESLint config, `.lintstagedrc.json`.
-- A project created with `--no-install` keeps the GatoJS lockfile, which still lists the tool packages, until its
-  first `npm install`.
+- A project lockfile never lists the tool packages. Amended 2026-11-23: copying the lockfile verbatim and relying
+  on `npm install` to drop them was wrong. npm keeps a lockfile workspace link (`node_modules/gato-cli` →
+  `packages/gato-cli`) even when the folder is missing and `package.json` asks for `gato-cli@^x`, so `npx gato`
+  failed in every project created without `--cli-source`. Rewriting the lockfile was chosen over not copying it:
+  the project keeps the dependency versions the kit was tested with, and `npm ci` in its Docker build stays
+  reproducible.
 
 ## Enforcement
 

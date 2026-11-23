@@ -21234,6 +21234,52 @@ import {
 } from "node:fs/promises";
 import { join as join8, resolve as resolve2 } from "node:path";
 
+// src/assemble/package-lock.ts
+var PROJECT_VERSION = "0.1.0";
+var ROOT = "";
+function isKitOnlyPath(path2, kitOnly) {
+  return kitOnly.some((pattern) => pattern.test(`${path2}/package.json`));
+}
+function isLinkTo(entry, removed) {
+  return entry.link === true && typeof entry.resolved === "string" && removed.has(entry.resolved);
+}
+function withoutKitOnly(packages, kitOnly) {
+  const removed = new Set(
+    Object.keys(packages).filter(
+      (path2) => path2 !== ROOT && isKitOnlyPath(path2, kitOnly)
+    )
+  );
+  return Object.fromEntries(
+    Object.entries(packages).filter(
+      ([path2, entry]) => !removed.has(path2) && !isLinkTo(entry, removed)
+    )
+  );
+}
+function projectPackageLock(kitLock, input2) {
+  const lock = JSON.parse(kitLock);
+  lock.name = input2.names.slug;
+  if (lock.version !== void 0) {
+    lock.version = PROJECT_VERSION;
+  }
+  if (lock.packages !== void 0) {
+    const packages = withoutKitOnly(
+      lock.packages,
+      input2.kitOnly.map(globToRegExp)
+    );
+    const root = packages[ROOT];
+    if (root !== void 0) {
+      packages[ROOT] = {
+        ...root,
+        name: input2.names.slug,
+        version: PROJECT_VERSION
+      };
+    }
+    lock.packages = packages;
+  }
+  return `${JSON.stringify(lock, null, 2)}
+`;
+}
+
 // src/assemble/project-names.ts
 import { basename as basename2 } from "node:path";
 var SLUG_PATTERN = /^[a-z][a-z0-9-]{1,49}$/;
@@ -21338,6 +21384,14 @@ async function assemble(input2) {
       ),
       options.cliDependency ?? null
     )
+  );
+  const packageLockPath = join8(projectDir, "package-lock.json");
+  await writeFile5(
+    packageLockPath,
+    projectPackageLock(await readFile7(packageLockPath, "utf8"), {
+      kitOnly: config2.kitOnly,
+      names
+    })
   );
   await writeKitState(projectDir, {
     kitVersion: config2.version,

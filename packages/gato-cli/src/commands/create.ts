@@ -16,6 +16,7 @@ import {
   projectPackageJson,
   withCliDependency,
 } from "../assemble/package-json.js";
+import { projectPackageLock } from "../assemble/package-lock.js";
 import { projectNames } from "../assemble/project-names.js";
 import type { ProjectNames } from "../assemble/project-names.js";
 import { moduleFiles, resolveModules } from "../assemble/resolve-modules.js";
@@ -160,6 +161,14 @@ async function assemble(input: {
       ),
       options.cliDependency ?? null,
     ),
+  );
+  const packageLockPath = join(projectDir, "package-lock.json");
+  await writeFile(
+    packageLockPath,
+    projectPackageLock(await readFile(packageLockPath, "utf8"), {
+      kitOnly: config.kitOnly,
+      names,
+    }),
   );
   await writeKitState(projectDir, {
     kitVersion: config.version,

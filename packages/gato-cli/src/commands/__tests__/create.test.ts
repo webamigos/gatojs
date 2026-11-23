@@ -303,6 +303,96 @@ describe("create: składanie projektu", () => {
   });
 });
 
+describe("create: package-lock.json", () => {
+  const TOOL_LOCK = {
+    name: "wa-app",
+    version: "9.9.9",
+    lockfileVersion: 3,
+    requires: true,
+    packages: {
+      "": {
+        name: "wa-app",
+        version: "9.9.9",
+        workspaces: ["packages/*"],
+        dependencies: { zod: "^4.3.6" },
+      },
+      "node_modules/@gatojs/env": { resolved: "packages/env", link: true },
+      "node_modules/create-gato-app": {
+        resolved: "packages/create-gato-app",
+        link: true,
+      },
+      "node_modules/gato-cli": { resolved: "packages/gato-cli", link: true },
+      "node_modules/zod": {
+        version: "4.3.6",
+        resolved: "https://registry.npmjs.org/zod/-/zod-4.3.6.tgz",
+        integrity: "sha512-zod",
+      },
+      "packages/create-gato-app": { version: "0.1.0" },
+      "packages/create-gato-app/node_modules/globals": { version: "17.14.0" },
+      "packages/env": { name: "@gatojs/env", version: "0.1.0" },
+      "packages/gato-cli": { version: "0.2.1" },
+    },
+  };
+
+  async function addToolWorkspacesToKit(): Promise<void> {
+    await writeFile(
+      join(kit, "package-lock.json"),
+      `${JSON.stringify(TOOL_LOCK, null, 2)}\n`,
+    );
+    const configPath = join(kit, "kit/kit.json");
+    const config = JSON.parse(await readFile(configPath, "utf8")) as {
+      kitOnly: string[];
+    };
+    config.kitOnly.push("packages/gato-cli/**", "packages/create-gato-app/**");
+    await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
+    for (const workspace of ["gato-cli", "create-gato-app"]) {
+      await mkdir(join(kit, "packages", workspace), { recursive: true });
+      await writeFile(
+        join(kit, "packages", workspace, "package.json"),
+        `{"name":"${workspace}"}\n`,
+      );
+    }
+    await promisify(execFile)("git", ["-C", kit, "add", "-A"]);
+  }
+
+  it("the project lock has no tool workspace entries and is named after the project", async () => {
+    await addToolWorkspacesToKit();
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true }));
+    const lock = JSON.parse(await read(dir, "package-lock.json")) as {
+      name: string;
+      packages: Record<string, { name?: string; version?: string }>;
+    };
+    expect(lock.name).toBe("acme-shop");
+    expect(lock.packages[""]?.name).toBe("acme-shop");
+    expect(lock.packages[""]?.version).toBe("0.1.0");
+    expect(Object.keys(lock.packages)).toEqual([
+      "",
+      "node_modules/@gatojs/env",
+      "node_modules/zod",
+      "packages/env",
+    ]);
+    expect(existsSync(join(dir, "packages/gato-cli"))).toBe(false);
+  });
+
+  it("the lock stays managed in .wa/kit.json", async () => {
+    await addToolWorkspacesToKit();
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true }));
+    expect(
+      (await readKitState(dir)).modules["core"]?.files["package-lock.json"],
+    ).toBe("managed");
+  });
+
+  it("the fixture kit lock without workspaces gets only the project name", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true }));
+    expect(await read(dir, "package-lock.json")).toBe(
+      '{\n  "name": "acme-shop",\n  "lockfileVersion": 3,\n  "packages": {}\n}\n',
+    );
+  });
+});
+
 describe("create: .env", () => {
   it("BETTER_AUTH_SECRET ma 43 znaki base64url i nie zawiera change-me", async () => {
     const dir = join(tmp, "acme-shop");

@@ -5,7 +5,7 @@ set -euo pipefail
 # projects from a local GatoJS checkout with the packed gato-cli. Never touches the npm registry
 # for these two packages.
 # Usage: scripts/smoke-pack.sh <gatojs-checkout> [extra create-gato-app flags]
-# SMOKE_INSTALL=1 also runs npm install in the project and checks its gato-cli.
+# SMOKE_INSTALL=1 also runs npm install in both projects and checks their gato-cli.
 
 kit_dir=$(cd "${1:?usage: smoke-pack.sh <gatojs-checkout>}" && pwd)
 shift
@@ -78,11 +78,24 @@ registry_app="$work_dir/registry-app"
 "$creator" "$registry_app" --kit "$kit_dir" --yes --no-install --no-git
 [ "$(dependency_of "$registry_app")" = "^$gato_version" ] ||
   fail "a project without --cli-source should depend on gato-cli ^$gato_version"
+kit_only_lock_entries=$(node -e '
+  const lock = require(process.argv[1]);
+  const kitOnly = Object.keys(lock.packages).filter((key) => /(^|\/)(gato-cli|create-gato-app)$/.test(key) || /^packages\/(gato-cli|create-gato-app)\//.test(key));
+  if (lock.name !== "registry-app") kitOnly.push(`name ${lock.name}`);
+  console.log(kitOnly.join(" "));
+' "$registry_app/package-lock.json")
+[ -z "$kit_only_lock_entries" ] ||
+  fail "the project lockfile keeps kit-only entries: $kit_only_lock_entries"
 
 if [ "${SMOKE_INSTALL:-0}" = "1" ]; then
   (cd "$app" && npm install --no-audit --no-fund --ignore-scripts --silent)
   [ "$(cd "$app" && npx --no-install gato --version)" = "$gato_version" ] ||
     fail "the project's gato is not $gato_version"
+  # WHY: the project depends on gato-cli from the registry, which may not have this version yet;
+  # --no-save installs the packed one under the same name without touching package.json.
+  (cd "$registry_app" && npm install --no-save --no-audit --no-fund --ignore-scripts --silent "$gato_tarball")
+  [ "$(cd "$registry_app" && npx --no-install gato --version)" = "$gato_version" ] ||
+    fail "the gato of a project created without --cli-source is not $gato_version"
 fi
 
 echo "smoke test passed: gato-cli $gato_version, create-gato-app $creator_version"
