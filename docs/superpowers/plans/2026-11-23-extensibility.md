@@ -72,6 +72,13 @@ Parallel tasks that touch the generator (`packages/gato-cli/src/generate/registr
 
 **Mutations to kill:** `ejected` dropped by `writeKitState`; `kitFormat` default changed from 1; supported-format check inverted or skipped; `seed` checked before `managed`; a `seed` file planned as `updated`; blank reason accepted; `ejected` keys left unsorted.
 
+**Refinements found while implementing (2026-11-24):**
+- `kitConfigSchema.kitFormat` defaults to `1` instead of being required: `wa update` reads the base snapshot of the project's current kit version, and every kit released before this task has no `kitFormat`. `readKitConfig` of such a kit → `kitFormat: 1`, `seedFiles: []`.
+- The §6 message also names the fallback for a project whose bundled CLI is older than the target (open question 4): `This project uses kit format <n>; update gato-cli (npm i -D gato-cli@latest) or run: npx gato-cli@latest update <version>`. `assertSupportedKitFormat(format)` takes no CLI name: both bundles print the same text.
+- `create` from a kit whose `kitFormat` is not supported stops before creating the project directory, with the same message.
+- `remove` neither deletes a `"seed"` file nor counts it as a changed file.
+- `kit sync` writes the kit's `kitFormat` and keeps an existing `ejected` map, as it keeps `projectModules`.
+
 **Done when:** CLI gate green, `.wa/kit.json` diff limited to the new fields, ADR-59 merged with the code.
 
 ---
@@ -555,8 +562,8 @@ Parallel tasks that touch the generator (`packages/gato-cli/src/generate/registr
 
 1. **Slots without a host page.** `users.detail.sections` and `organizations.settings.sections` (spec §5.3) have no page in the code: there is no users detail page and no organization settings page. The plan defers them until those pages exist. Patryk: build the pages now, or keep the slots deferred?
 2. **`users.table.*` target two views.** `src/app/[locale]/(app)/users/page.tsx` renders `UsersManager` for global admins and `OrganizationMembers` for everyone else. T16 puts the slots only on `UsersManager` (the one with a `DataTable`). Should `OrganizationMembers` get its own `organizations.members.row-actions` slot?
-3. **Hook warning mode.** T3 uses the PreToolUse `ask` decision so a human confirms; under bypass-permissions mode (Orca workers) `ask` may pass silently. Is a warning that a worker can ignore acceptable for the one-release warning period?
-4. **`kitFormat` and the bundled CLI.** A project's `npm run wa -- update` runs the project's own bundled CLI, which may not know the target's newer `kitFormat`. T1 makes it stop with the gato-cli spec §6 message, which tells the user to install `gato-cli@latest`. Confirm that projects created before T1 (format 1, CLI without the check) are expected to update through `npx gato-cli@latest update`.
+3. **Hook warning mode.** T3 uses the PreToolUse `ask` decision so a human confirms; under bypass-permissions mode (Orca workers) `ask` may pass silently. Is a warning that a worker can ignore acceptable for the one-release warning period? **Resolved (Patryk, 2026-11-23):** warning mode also prints a visible warning in the tool result, so it does not rely only on an `ask` decision that bypass permissions may skip.
+4. **`kitFormat` and the bundled CLI.** A project's `npm run wa -- update` runs the project's own bundled CLI, which may not know the target's newer `kitFormat`. T1 makes it stop with the gato-cli spec §6 message, which tells the user to install `gato-cli@latest`. Confirm that projects created before T1 (format 1, CLI without the check) are expected to update through `npx gato-cli@latest update`. **Resolved (Patryk, 2026-11-23):** yes; T1 puts `npx gato-cli@latest update <version>` into the §6 message and the docs.
 5. **`gato doctor` and missing setup rows.** Spec §5.8 puts the "organizations with missing setup" check in `gato doctor`, but the CLI bundle has no database access. T11 puts it in `npm run setup:organizations -- --check` instead.
 6. **Event origin.** Spec §5.5 says `emitEvent` takes `organizationId` "from the context"; better-auth hooks and `scripts/lib/admin-create.ts` have no `OrgContext`. T9 uses an origin `{ organizationId, actorUserId }` built by core code; module code gets it only through `eventOrigin(context)`. Acceptable?
 7. **Commands outside `defineCommand`.** `changePasswordCommand`, `enterOrganizationCommand`, the impersonation log commands, `joinOrganizationCommand` and `createOrganizationWithOwnerCommand` do not follow the `(input, confirmation)` contract and stay as they are; `createUpload` waits for `defineRoute` (spec §5.6, second step). They are listed in the catalog as not hookable.
