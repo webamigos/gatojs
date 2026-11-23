@@ -21513,7 +21513,7 @@ async function create(options) {
       );
     }
   }
-  if (options.git) {
+  if (options.git && options.install) {
     await commitInitial(options, projectDir, config2.version);
   }
   if (runSetupSteps) {

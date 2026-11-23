@@ -593,9 +593,9 @@ describe("create: polecenia", () => {
     expect(commands()).toEqual(["npm install"]);
   });
 
-  it("tylko git: init, add i commit bez npm install", async () => {
+  it("git without install only initialises the repository and does not commit", async () => {
     await create(opts({ yes: true, install: false, git: true }));
-    expect(commands()).toEqual(["git init -q", "git add -A", COMMIT_COMMAND]);
+    expect(commands()).toEqual(["git init -q"]);
   });
 
   it("wszystkie polecenia idą w katalogu projektu", async () => {

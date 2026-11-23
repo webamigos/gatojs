@@ -315,7 +315,7 @@ export async function create(
       );
     }
   }
-  if (options.git) {
+  if (options.git && options.install) {
     await commitInitial(options, projectDir, config.version);
   }
   if (runSetupSteps) {

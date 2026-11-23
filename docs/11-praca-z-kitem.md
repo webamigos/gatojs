@@ -328,15 +328,9 @@ Gdzie dokumentacja wyjaśnia sekcje `AGENTS.md`:
 
 ### `next dev` uruchomione przez agenta zmienia `AGENTS.md`
 
-Next.js 16.3.8 przy starcie `next dev` sprawdza, czy uruchomił go agent AI, na przykład sesja Claude Code. Jeśli tak, a ani `AGENTS.md`, ani `CLAUDE.md` nie ma aktualnego bloku reguł Next.js, funkcja `writeAgentFiles` dopisuje ten blok na końcu `AGENTS.md`. `next.config.ts` kitu nie wyłącza tego ustawieniem `agentRules: false`. Uruchomienie przez człowieka w zwykłym terminalu niczego nie zmienia.
+Next.js od 16.3 przy starcie `next dev` sprawdza, czy uruchomił go agent AI, na przykład sesja Claude Code. Jeśli tak, dopisuje na końcu `AGENTS.md` blok między liniami `<!-- BEGIN:nextjs-agent-rules -->` i `<!-- END:nextjs-agent-rules -->`. `AGENTS.md` pochodzi z kitu, a zmieniony plik zatrzymuje `gato update` („niezacommitowane zmiany”), dlatego `next.config.ts` kitu ustawia `agentRules: false`. Przy tym ustawieniu `next dev` niczego nie dopisuje, a blok dopisany wcześniej usuwa przy następnym starcie (Next.js 16.4, dokumentacja: `node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/agentRules.md`).
 
-Po czym to poznasz:
-
-- terminal `next dev` wypisuje ``✓ Generated AGENTS.md for AI agents. Set `agentRules: false` in next.config to disable.``;
-- `git status --short` pokazuje `AGENTS.md` jako zmieniony (` M AGENTS.md`);
-- na końcu `AGENTS.md` jest blok między liniami `<!-- BEGIN:nextjs-agent-rules -->` i `<!-- END:nextjs-agent-rules -->`.
-
-Co zrobić: `AGENTS.md` pochodzi z kitu, a `AGENTS.md` kitu tego bloku nie zawiera, więc nie commituj go razem z inną zmianą, choć tekst bloku do tego zachęca. Jeśli sam nie zmieniasz `AGENTS.md`, przed `git add` przywróć plik komendą `git restore AGENTS.md`. Gdy zmiana jest już w indeksie, samo `git restore AGENTS.md` nic nie da, bo przywraca plik z indeksu. Wtedy użyj `git restore --staged --worktree AGENTS.md`. Obie komendy kasują też Twoje niezacommitowane zmiany w `AGENTS.md`, więc gdy je masz, usuń blok ręcznie. Blok wraca przy każdym starcie `next dev` przez agenta. **Zalecenie:** przed każdym commitem sprawdź `git status`. Tę samą sytuację z przebiegu tutorialu opisuje [09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#krok-8-przegladarka).
+Projekt sprzed tej zmiany (rdzeń w wersji niższej niż ta, która dodała `agentRules: false`) dostaje ustawienie z `gato update`. Do tego czasu, gdy `git status --short` pokazuje ` M AGENTS.md`, przywróć plik komendą `git restore AGENTS.md`, a gdy zmiana jest już w indeksie: `git restore --staged --worktree AGENTS.md`. Obie komendy kasują też Twoje niezacommitowane zmiany w `AGENTS.md`, więc gdy je masz, usuń blok ręcznie.
 
 <a id="hooki"></a>
 
