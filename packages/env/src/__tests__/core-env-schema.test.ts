@@ -25,6 +25,8 @@ describe("coreEnvSchema", () => {
       AUTH_PUBLIC_SIGNUP: false,
       MULTI_ORG: false,
       ADMIN_IMPERSONATION: false,
+      SMTP_PORT: 587,
+      SMTP_SECURE: false,
     });
   });
 });
@@ -208,6 +210,28 @@ describe("parseEnv: APP_URL and BETTER_AUTH_SECRET", () => {
     ).toThrow(/BETTER_AUTH_SECRET/);
   });
 
+  it("production with the .env.example BETTER_AUTH_SECRET and MAIL_PROVIDER=console → the D48 message on that variable", () => {
+    expect(
+      checkEnv(
+        {
+          ...validCore,
+          NODE_ENV: "production",
+          MAIL_PROVIDER: "console",
+          BETTER_AUTH_SECRET: EXAMPLE_BETTER_AUTH_SECRET,
+        },
+        [],
+      ),
+    ).toEqual({
+      ok: false,
+      issues: [
+        {
+          name: "BETTER_AUTH_SECRET",
+          message: "must not be the .env.example value in production",
+        },
+      ],
+    });
+  });
+
   it("production with the .env.example BETTER_AUTH_SECRET → the D48 message on that variable", () => {
     expect(
       checkEnv(
@@ -267,10 +291,20 @@ describe("parseEnv: required variables", () => {
 });
 
 describe("parseEnv: optional variables and production rules", () => {
-  it("production without RESEND_API_KEY → error naming the variable", () => {
+  it("production without any mail provider → error naming MAIL_PROVIDER", () => {
     expect(() => parseCore({ ...validCore, NODE_ENV: "production" })).toThrow(
-      /RESEND_API_KEY/,
+      /MAIL_PROVIDER/,
     );
+  });
+
+  it("production with only SMTP_HOST passes without RESEND_API_KEY", () => {
+    expect(
+      parseCore({
+        ...validCore,
+        NODE_ENV: "production",
+        SMTP_HOST: "relay.internal",
+      }).RESEND_API_KEY,
+    ).toBeUndefined();
   });
 
   it("optional variables with a value keep it unchanged", () => {
@@ -314,6 +348,10 @@ describe("parseEnv: optional variables and production rules", () => {
       ADMIN_PASSWORD: "",
       LOG_LEVEL: "",
       OTEL_EXPORTER_OTLP_ENDPOINT: "",
+      MAIL_PROVIDER: "",
+      SMTP_HOST: "",
+      SMTP_USER: "",
+      SMTP_PASS: "",
     });
     expect(e.RESEND_API_KEY).toBeUndefined();
     expect(e.SMTP_URL).toBeUndefined();
@@ -321,6 +359,10 @@ describe("parseEnv: optional variables and production rules", () => {
     expect(e.ADMIN_PASSWORD).toBeUndefined();
     expect(e.LOG_LEVEL).toBeUndefined();
     expect(e.OTEL_EXPORTER_OTLP_ENDPOINT).toBeUndefined();
+    expect(e.MAIL_PROVIDER).toBeUndefined();
+    expect(e.SMTP_HOST).toBeUndefined();
+    expect(e.SMTP_USER).toBeUndefined();
+    expect(e.SMTP_PASS).toBeUndefined();
   });
 
   it("whitespace-only optional variables count as missing", () => {
@@ -332,6 +374,10 @@ describe("parseEnv: optional variables and production rules", () => {
       ADMIN_PASSWORD: "  ",
       LOG_LEVEL: " ",
       OTEL_EXPORTER_OTLP_ENDPOINT: "   ",
+      MAIL_PROVIDER: "  ",
+      SMTP_HOST: "\t",
+      SMTP_USER: " ",
+      SMTP_PASS: " \n ",
     });
     expect(e.RESEND_API_KEY).toBeUndefined();
     expect(e.SMTP_URL).toBeUndefined();
@@ -339,15 +385,19 @@ describe("parseEnv: optional variables and production rules", () => {
     expect(e.ADMIN_PASSWORD).toBeUndefined();
     expect(e.LOG_LEVEL).toBeUndefined();
     expect(e.OTEL_EXPORTER_OTLP_ENDPOINT).toBeUndefined();
+    expect(e.MAIL_PROVIDER).toBeUndefined();
+    expect(e.SMTP_HOST).toBeUndefined();
+    expect(e.SMTP_USER).toBeUndefined();
+    expect(e.SMTP_PASS).toBeUndefined();
   });
 
-  it("production with an empty RESEND_API_KEY → error naming the variable", () => {
+  it("production with an empty RESEND_API_KEY → error naming MAIL_PROVIDER", () => {
     expect(() =>
       parseCore({ ...validCore, NODE_ENV: "production", RESEND_API_KEY: "" }),
-    ).toThrow(/RESEND_API_KEY/);
+    ).toThrow(/MAIL_PROVIDER/);
   });
 
-  it("production with a whitespace-only RESEND_API_KEY → the production rule on RESEND_API_KEY", () => {
+  it("production with a whitespace-only RESEND_API_KEY → the production mail rule on MAIL_PROVIDER", () => {
     expect(
       checkEnv(
         { ...validCore, NODE_ENV: "production", RESEND_API_KEY: "   " },
@@ -355,7 +405,13 @@ describe("parseEnv: optional variables and production rules", () => {
       ),
     ).toEqual({
       ok: false,
-      issues: [{ name: "RESEND_API_KEY", message: "required in production" }],
+      issues: [
+        {
+          name: "MAIL_PROVIDER",
+          message:
+            "no mail provider configured for production: set SMTP_HOST, SMTP_URL or RESEND_API_KEY, or MAIL_PROVIDER=console to send no mail",
+        },
+      ],
     });
   });
 });
