@@ -1,16 +1,29 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { PHASE_FILE, isBlocked, isTestPath, readPhase } from "./protect-tests.mjs";
+import * as protectTests from "./protect-tests.mjs";
+
+const { isBlocked, isTestPath, readPhase } = protectTests;
+
+const NEW_PHASE = join(".gato", "phase");
+const LEGACY_PHASE = join(".superpowers", "phase");
 
 const edit = (file_path) => ({ tool_name: "Edit", tool_input: { file_path } });
 
-const hookScript = fileURLToPath(new URL("./protect-tests.mjs", import.meta.url));
+const hookScript = fileURLToPath(
+  new URL("./protect-tests.mjs", import.meta.url),
+);
 
 const withCheckouts = (run) => {
   const root = mkdtempSync(join(tmpdir(), "protect tests "));
@@ -19,17 +32,32 @@ const withCheckouts = (run) => {
   try {
     mkdirSync(join(main, ".git", "worktrees", "task"), { recursive: true });
     mkdirSync(worktree, { recursive: true });
-    writeFileSync(join(worktree, ".git"), `gitdir: ${join(main, ".git", "worktrees", "task")}\n`);
+    writeFileSync(
+      join(worktree, ".git"),
+      `gitdir: ${join(main, ".git", "worktrees", "task")}\n`,
+    );
     run({ main, worktree });
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 };
 
-const enterImplementPhase = (checkout) => {
-  mkdirSync(join(checkout, ".superpowers"));
-  writeFileSync(join(checkout, ".superpowers", "phase"), "implement\n");
+const withProjectDir = (run) => {
+  const dir = mkdtempSync(join(tmpdir(), "protect tests "));
+  try {
+    run(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 };
+
+const writePhase = (checkout, phaseFile, phase) => {
+  mkdirSync(dirname(join(checkout, phaseFile)), { recursive: true });
+  writeFileSync(join(checkout, phaseFile), phase);
+};
+
+const enterImplementPhase = (checkout, phaseFile) =>
+  writePhase(checkout, phaseFile, "implement\n");
 
 const runHook = ({ sessionDir, cwd, filePath }) =>
   spawnSync(process.execPath, [hookScript], {
@@ -38,6 +66,18 @@ const runHook = ({ sessionDir, cwd, filePath }) =>
     env: { ...process.env, CLAUDE_PROJECT_DIR: sessionDir },
     timeout: 10_000,
   });
+
+const runInProject = (dir, relativePath) =>
+  runHook({ sessionDir: dir, cwd: dir, filePath: join(dir, relativePath) });
+
+const phaseFileCases = [
+  { phaseFile: NEW_PHASE, named: /\.gato\/phase/, label: ".gato/phase" },
+  {
+    phaseFile: LEGACY_PHASE,
+    named: /\.superpowers\/phase/,
+    label: "legacy .superpowers/phase",
+  },
+];
 
 test("recognises unit, spec and e2e test paths", () => {
   for (const path of [
@@ -70,88 +110,211 @@ test("blocks a test edit only in the implement phase", () => {
   assert.equal(isBlocked(testEdit, "test"), false);
   assert.equal(isBlocked(testEdit, null), false);
   assert.equal(isBlocked(edit("src/a.ts"), "implement"), false);
-  assert.equal(isBlocked({ tool_name: "Write", tool_input: {} }, "implement"), false);
+  assert.equal(
+    isBlocked({ tool_name: "Write", tool_input: {} }, "implement"),
+    false,
+  );
 });
 
-test("reads a trimmed phase from the project directory", () => {
-  const dir = mkdtempSync(join(tmpdir(), "protect-tests-"));
-  try {
+test("the phase file is .gato/phase and the legacy one is .superpowers/phase", () => {
+  assert.equal(protectTests.PHASE_FILE, join(".gato", "phase"));
+  assert.equal(protectTests.LEGACY_PHASE_FILE, join(".superpowers", "phase"));
+  assert.equal(protectTests.IMPLEMENT_PHASE, "implement");
+});
+
+test("PHASE_FILES lists the new phase file first and the legacy one second", () => {
+  assert.deepEqual(protectTests.PHASE_FILES, [
+    join(".gato", "phase"),
+    join(".superpowers", "phase"),
+  ]);
+});
+
+test(
+  "on posix the phase files are .gato/phase and .superpowers/phase",
+  { skip: process.platform === "win32" },
+  () => {
+    assert.equal(protectTests.PHASE_FILE, ".gato/phase");
+    assert.equal(protectTests.LEGACY_PHASE_FILE, ".superpowers/phase");
+    assert.deepEqual(protectTests.PHASE_FILES, [
+      ".gato/phase",
+      ".superpowers/phase",
+    ]);
+  },
+);
+
+test("reads a trimmed phase from .gato/phase by default", () =>
+  withProjectDir((dir) => {
     assert.equal(readPhase(dir), null);
-    mkdirSync(join(dir, ".superpowers"));
-    writeFileSync(join(dir, PHASE_FILE), "implement\n");
+    writePhase(dir, NEW_PHASE, "implement\n");
     assert.equal(readPhase(dir), "implement");
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test("the CLI exits 2 on a test edit in the implement phase and 0 otherwise", () => {
-  const dir = mkdtempSync(join(tmpdir(), "protect tests "));
-  const hook = fileURLToPath(new URL("./protect-tests.mjs", import.meta.url));
-  const run = (file_path) =>
-    spawnSync(process.execPath, [hook], {
-      input: JSON.stringify(edit(join(dir, file_path))),
-      env: { ...process.env, CLAUDE_PROJECT_DIR: dir },
-    });
-  try {
-    assert.equal(run("src/__tests__/a.test.ts").status, 0);
-    mkdirSync(join(dir, ".superpowers"));
-    writeFileSync(join(dir, PHASE_FILE), "implement");
-    const blocked = run("src/__tests__/a.test.ts");
-    assert.equal(blocked.status, 2);
-    assert.match(blocked.stderr.toString(), /tests are read-only/);
-    assert.equal(run("src/a.ts").status, 0);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test("the CLI blocks a worktree test edit when that worktree is in the implement phase and the session started in the main checkout", () =>
-  withCheckouts(({ main, worktree }) => {
-    enterImplementPhase(worktree);
-    const blocked = runHook({ sessionDir: main, cwd: main, filePath: join(worktree, "src/__tests__/a.test.ts") });
-    assert.equal(blocked.status, 2);
-    assert.match(blocked.stderr.toString(), /tests are read-only/);
   }));
 
-test("the CLI allows a production edit in a worktree that is in the implement phase", () =>
-  withCheckouts(({ main, worktree }) => {
-    enterImplementPhase(worktree);
-    assert.equal(runHook({ sessionDir: main, cwd: main, filePath: join(worktree, "src/a.ts") }).status, 0);
+test("readPhase without a phase file argument ignores the legacy file", () =>
+  withProjectDir((dir) => {
+    enterImplementPhase(dir, LEGACY_PHASE);
+    assert.equal(readPhase(dir), null);
   }));
 
-test("the CLI allows a main checkout test edit when only a nested worktree is in the implement phase", () =>
-  withCheckouts(({ main, worktree }) => {
-    enterImplementPhase(worktree);
-    assert.equal(runHook({ sessionDir: main, cwd: main, filePath: join(main, "src/__tests__/a.test.ts") }).status, 0);
+test("readPhase reads the phase file passed as the second argument", () =>
+  withProjectDir((dir) => {
+    enterImplementPhase(dir, LEGACY_PHASE);
+    assert.equal(readPhase(dir, LEGACY_PHASE), "implement");
+    assert.equal(readPhase(dir, NEW_PHASE), null);
   }));
 
-test("the CLI blocks a worktree test edit when the session start directory is in the implement phase", () =>
-  withCheckouts(({ main, worktree }) => {
-    enterImplementPhase(main);
-    const blocked = runHook({ sessionDir: main, cwd: worktree, filePath: join(worktree, "src/__tests__/a.test.ts") });
-    assert.equal(blocked.status, 2);
-    assert.match(blocked.stderr.toString(), /tests are read-only/);
+test("readPhase with the legacy file argument ignores .gato/phase", () =>
+  withProjectDir((dir) => {
+    writePhase(dir, NEW_PHASE, "  implement \n");
+    assert.equal(readPhase(dir, LEGACY_PHASE), null);
+    assert.equal(readPhase(dir, NEW_PHASE), "implement");
   }));
 
-test("the CLI allows a worktree test edit when only the enclosing main checkout is in the implement phase and the session started in the worktree", () =>
-  withCheckouts(({ main, worktree }) => {
-    enterImplementPhase(main);
-    const result = runHook({
-      sessionDir: worktree,
-      cwd: worktree,
-      filePath: join(worktree, "src/__tests__/a.test.ts"),
-    });
+test("the CLI exits 0 on a test edit when neither phase file exists", () =>
+  withProjectDir((dir) => {
+    const result = runInProject(dir, "src/__tests__/a.test.ts");
     assert.equal(result.status, 0);
+    assert.equal(result.stderr.toString(), "");
   }));
 
-test("the CLI blocks a new test file reached through a directory symlink into a worktree that is in the implement phase", () =>
-  withCheckouts(({ main, worktree }) => {
-    enterImplementPhase(worktree);
-    mkdirSync(join(worktree, "src"));
-    const link = join(main, "..", "src-link");
-    symlinkSync(join(worktree, "src"), link, "junction");
-    const blocked = runHook({ sessionDir: main, cwd: main, filePath: join(link, "__tests__/a.test.ts") });
+test("the CLI exits 2 on a test edit when .gato/phase is implement and names that file", () =>
+  withProjectDir((dir) => {
+    enterImplementPhase(dir, NEW_PHASE);
+    const blocked = runInProject(dir, "src/__tests__/a.test.ts");
     assert.equal(blocked.status, 2);
     assert.match(blocked.stderr.toString(), /tests are read-only/);
+    assert.match(blocked.stderr.toString(), /\.gato\/phase/);
+    assert.doesNotMatch(blocked.stderr.toString(), /\.superpowers/);
   }));
+
+test("the CLI exits 0 on a production edit when .gato/phase is implement", () =>
+  withProjectDir((dir) => {
+    enterImplementPhase(dir, NEW_PHASE);
+    assert.equal(runInProject(dir, "src/a.ts").status, 0);
+  }));
+
+test("the CLI exits 2 on a test edit when only the legacy .superpowers/phase is implement and names that file", () =>
+  withProjectDir((dir) => {
+    enterImplementPhase(dir, LEGACY_PHASE);
+    const blocked = runInProject(dir, "src/__tests__/a.test.ts");
+    assert.equal(blocked.status, 2);
+    assert.match(blocked.stderr.toString(), /tests are read-only/);
+    assert.match(blocked.stderr.toString(), /\.superpowers\/phase/);
+    assert.doesNotMatch(blocked.stderr.toString(), /\.gato/);
+  }));
+
+test("the CLI exits 0 on a production edit when only the legacy .superpowers/phase is implement", () =>
+  withProjectDir((dir) => {
+    enterImplementPhase(dir, LEGACY_PHASE);
+    assert.equal(runInProject(dir, "src/a.ts").status, 0);
+  }));
+
+test("the CLI exits 0 on a test edit when .gato/phase holds a phase other than implement", () =>
+  withProjectDir((dir) => {
+    writePhase(dir, NEW_PHASE, "test\n");
+    assert.equal(runInProject(dir, "src/__tests__/a.test.ts").status, 0);
+  }));
+
+test("the CLI exits 0 on a test edit when the legacy .superpowers/phase holds a phase other than implement", () =>
+  withProjectDir((dir) => {
+    writePhase(dir, LEGACY_PHASE, "test\n");
+    assert.equal(runInProject(dir, "src/__tests__/a.test.ts").status, 0);
+  }));
+
+test("the CLI blocks a test edit when .gato/phase is test but the legacy .superpowers/phase is implement", () =>
+  withProjectDir((dir) => {
+    writePhase(dir, NEW_PHASE, "test\n");
+    enterImplementPhase(dir, LEGACY_PHASE);
+    const blocked = runInProject(dir, "src/__tests__/a.test.ts");
+    assert.equal(blocked.status, 2);
+    assert.match(blocked.stderr.toString(), /\.superpowers\/phase/);
+  }));
+
+test("the CLI blocks a test edit when the legacy .superpowers/phase is test but .gato/phase is implement", () =>
+  withProjectDir((dir) => {
+    writePhase(dir, LEGACY_PHASE, "test\n");
+    enterImplementPhase(dir, NEW_PHASE);
+    const blocked = runInProject(dir, "src/__tests__/a.test.ts");
+    assert.equal(blocked.status, 2);
+    assert.match(blocked.stderr.toString(), /\.gato\/phase/);
+  }));
+
+for (const { phaseFile, named, label } of phaseFileCases) {
+  test(`the CLI blocks a worktree test edit when that worktree has ${label} = implement and the session started in the main checkout`, () =>
+    withCheckouts(({ main, worktree }) => {
+      enterImplementPhase(worktree, phaseFile);
+      const blocked = runHook({
+        sessionDir: main,
+        cwd: main,
+        filePath: join(worktree, "src/__tests__/a.test.ts"),
+      });
+      assert.equal(blocked.status, 2);
+      assert.match(blocked.stderr.toString(), /tests are read-only/);
+      assert.match(blocked.stderr.toString(), named);
+    }));
+
+  test(`the CLI allows a production edit in a worktree that has ${label} = implement`, () =>
+    withCheckouts(({ main, worktree }) => {
+      enterImplementPhase(worktree, phaseFile);
+      assert.equal(
+        runHook({
+          sessionDir: main,
+          cwd: main,
+          filePath: join(worktree, "src/a.ts"),
+        }).status,
+        0,
+      );
+    }));
+
+  test(`the CLI allows a main checkout test edit when only a nested worktree has ${label} = implement`, () =>
+    withCheckouts(({ main, worktree }) => {
+      enterImplementPhase(worktree, phaseFile);
+      assert.equal(
+        runHook({
+          sessionDir: main,
+          cwd: main,
+          filePath: join(main, "src/__tests__/a.test.ts"),
+        }).status,
+        0,
+      );
+    }));
+
+  test(`the CLI blocks a worktree test edit when the session start directory has ${label} = implement`, () =>
+    withCheckouts(({ main, worktree }) => {
+      enterImplementPhase(main, phaseFile);
+      const blocked = runHook({
+        sessionDir: main,
+        cwd: worktree,
+        filePath: join(worktree, "src/__tests__/a.test.ts"),
+      });
+      assert.equal(blocked.status, 2);
+      assert.match(blocked.stderr.toString(), /tests are read-only/);
+      assert.match(blocked.stderr.toString(), named);
+    }));
+
+  test(`the CLI allows a worktree test edit when only the enclosing main checkout has ${label} = implement and the session started in the worktree`, () =>
+    withCheckouts(({ main, worktree }) => {
+      enterImplementPhase(main, phaseFile);
+      const result = runHook({
+        sessionDir: worktree,
+        cwd: worktree,
+        filePath: join(worktree, "src/__tests__/a.test.ts"),
+      });
+      assert.equal(result.status, 0);
+    }));
+
+  test(`the CLI blocks a new test file reached through a directory symlink into a worktree that has ${label} = implement`, () =>
+    withCheckouts(({ main, worktree }) => {
+      enterImplementPhase(worktree, phaseFile);
+      mkdirSync(join(worktree, "src"));
+      const link = join(main, "..", "src-link");
+      symlinkSync(join(worktree, "src"), link, "junction");
+      const blocked = runHook({
+        sessionDir: main,
+        cwd: main,
+        filePath: join(link, "__tests__/a.test.ts"),
+      });
+      assert.equal(blocked.status, 2);
+      assert.match(blocked.stderr.toString(), /tests are read-only/);
+      assert.match(blocked.stderr.toString(), named);
+    }));
+}
