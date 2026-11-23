@@ -583,6 +583,8 @@ describe("collectAnswers: przycinanie i puste odpowiedzi", () => {
     await answers;
     const endpoint = validatorOf(callFor(calls, M_ENDPOINT));
     expect(endpoint("")).toBeUndefined();
+    expect(endpoint("   ")).toBeUndefined();
+    expect(endpoint(" https://s3.example.com ")).toBeUndefined();
     for (const value of ["https://x y", "https://x\nA=1", "see https://x"]) {
       expect(endpoint(value)).toEqual(expect.any(String));
     }

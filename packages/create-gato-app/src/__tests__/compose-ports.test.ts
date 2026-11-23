@@ -248,3 +248,19 @@ describe("busyPortsReport: bez ustawień", () => {
     ]);
   });
 });
+
+describe("publishedPorts: koniec listy ports", () => {
+  it("lista expose po ports w tej samej usłudze nie dokłada portów", () => {
+    const compose = `services:
+  api:
+    image: node
+    ports:
+      - "5432:5432"
+    expose:
+      - "9229:9229"
+`;
+    expect(publishedPorts(compose, { profiles: [], env: {} })).toEqual([
+      { service: "api", variable: null, port: 5432 },
+    ]);
+  });
+});

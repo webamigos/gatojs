@@ -214,3 +214,17 @@ describe("compareNames", () => {
     },
   );
 });
+
+describe("withRequired: wymaganie core", () => {
+  it("wymaganie core jest pomijane, a pozostałe dołączane bez błędu", () => {
+    expect(
+      withRequired(
+        ["x"],
+        [
+          { name: "demo", description: "", requires: [] },
+          { name: "x", description: "", requires: ["core", "demo"] },
+        ],
+      ),
+    ).toEqual(["demo", "x"]);
+  });
+});
