@@ -37,6 +37,7 @@ Task → where to look. Documentation pages live under https://docs.gatojs.com; 
 | Audit log | `trackAudit` in `src/shared/lib/audit.ts`; `audit-logs` module: https://docs.gatojs.com/modules/audit-logs |
 | Generated files, `wa` CLI | `npm run wa -- generate`; https://docs.gatojs.com/concepts/module-registry, https://docs.gatojs.com/cli/overview |
 | Dependency upgrade | skill `wa-upgrade-dependency` |
+| Task with tests (feature, fix, module) | skill `gato-task` (`.claude/skills/gato-task/SKILL.md`); without skills: "Running a task" below |
 | Tests and mutations | "Tests" below; `.claude/agents/test-writer.md`, `.claude/agents/test-reviewer.md`, `mutation-gate.json`; https://docs.gatojs.com/guides/testing, https://docs.gatojs.com/guides/ai-agents |
 | Reviewing a change | skill `wa-code-review` (`.claude/skills/wa-code-review/SKILL.md`, plain Markdown: any agent or human can read it); CodeRabbit is optional, not a gate |
 
@@ -218,6 +219,18 @@ A test written by the code's author, after the code, reproduces the author's ass
   `implement` to `.superpowers/phase` in the implementer's working copy (its worktree, not the main copy),
   and the `.claude/hooks/protect-tests.mjs` hook blocks edits to `__tests__/`, `*.test.*`, `*.spec.*` and `e2e/`.
   After the implementation the orchestrator deletes the file. The implementer reports a wrong test instead of fixing it.
+- **Running a task** (the `gato-task` skill; an agent without skills follows these steps). The orchestrator,
+  the main agent session, writes neither tests nor code:
+  1. plan with "Behaviors" and "Mutations to kill", saved as a spec or plan file;
+  2. `test-writer` writes the tests from the plan and signatures and shows a red run for the right reason;
+  3. the orchestrator writes `implement` to `.superpowers/phase` in the implementer's working copy;
+  4. the implementer makes the tests green without touching them and reports a wrong test;
+  5. the orchestrator removes the phase file;
+  6. `test-reviewer` runs `npm run test:mutation:task -- <files>` and `npm run test:mutation:gate`;
+     gaps go back to `test-writer`, `allowed` entries are only proposed;
+  7. gates: `npm run verify`, `npm run test:integration` for data code, the `wa-code-review` skill.
+  The superpowers plugin (recommended in `.claude/settings.json`) can help with planning and with running
+  subagents, but it is optional: nothing in GatoJS depends on it.
 - **The expected value is a literal** or a value from the spec. Never compute it with production code,
   a copy of its algorithm, a loop or a helper.
 - **Boundaries get negative tests:** invalid input, no session, another organization, too low a role,
