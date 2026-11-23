@@ -48,6 +48,7 @@
     "test:smoke": "bash scripts/smoke-pack.sh"
   },
   "dependencies": {
+    "@clack/prompts": "^1.9.0",
     "gato-cli": "0.2.2"
   },
   "devDependencies": {
