@@ -1,17 +1,12 @@
+import type { Answers } from "./questions.js";
+
 export function gatoCreateCommand(input: {
   nodePath: string;
   gatoBin: string;
   kitDir: string;
-  passthrough: string[];
+  projectDir: string;
+  answers: Pick<Answers, "modules" | "locales" | "title" | "adminEmail">;
+  cliSource: string | null;
 }): { command: string; args: string[] } {
-  return {
-    command: input.nodePath,
-    args: [
-      input.gatoBin,
-      "create",
-      ...input.passthrough,
-      "--kit",
-      input.kitDir,
-    ],
-  };
+  throw new Error(`not implemented: ${input.projectDir}`);
 }

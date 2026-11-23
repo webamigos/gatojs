@@ -10,6 +10,8 @@ import {
 import { downloadKit, type Spawn } from "./kit-download.js";
 import { checkNodeVersion } from "./node-version.js";
 import { assertProjectName } from "./project-name.js";
+import type { Prompter } from "./questions.js";
+import type { Ui } from "./ui.js";
 
 export type CliDeps = {
   nodeVersion: string;
@@ -23,6 +25,11 @@ export type CliDeps = {
   ghAuthToken: () => Promise<string | null>;
   makeTempDir: () => Promise<string>;
   removeDir: (dir: string) => Promise<void>;
+  interactive: boolean;
+  prompter: Prompter;
+  ui: Ui;
+  isPortBusy: (port: number) => Promise<boolean>;
+  randomBytes: (size: number) => Uint8Array;
   log: (line: string) => void;
   error: (line: string) => void;
 };

@@ -173,3 +173,15 @@ export async function fetchKitTarball(input: {
   );
   return new Uint8Array(await response.arrayBuffer());
 }
+
+export function packageJsonUrl(version: string): string {
+  throw new Error(`not implemented: ${version}`);
+}
+
+export async function fetchKitPackageJson(input: {
+  fetch: FetchLike;
+  token: string | null;
+  version: string;
+}): Promise<unknown> {
+  throw new Error(`not implemented: ${input.version}`);
+}

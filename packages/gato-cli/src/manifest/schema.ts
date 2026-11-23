@@ -14,6 +14,7 @@ export const moduleManifestSchema = z.object({
         name: z.string().min(1),
         example: z.string(),
         required: z.boolean().optional(),
+        generate: z.enum(["secret-32", "secret-64", "hex-32"]).optional(),
       }),
     )
     .default([]),

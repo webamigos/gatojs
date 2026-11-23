@@ -130,3 +130,7 @@ export function checkNodeVersion(input: {
     ].join("\n"),
   };
 }
+
+export function parseEnginesRange(range: string): NodeRange[] | null {
+  throw new Error(`not implemented: ${range}`);
+}
