@@ -222,6 +222,108 @@ const API_KEYS_SYNCED = `{
 }
 `;
 
+const QUOTED_DESCRIPTION_AT_BASE = `{
+  "name": "uploads",
+  "version": "0.2.6",
+  "description": "Files \\"on disk\\" or in S3 storage",
+  "requires": [],
+  "files": ["src/features/uploads/**"],
+  "dependencies": {
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {},
+  "env": [],
+  "schemaRelations": [],
+  "compose": null,
+  "workspaces": []
+}
+`;
+
+const QUOTED_DESCRIPTION_SYNCED = `{
+  "name": "uploads",
+  "version": "0.2.7",
+  "description": "Files \\"on disk\\" or in S3 storage",
+  "requires": [],
+  "files": ["src/features/uploads/**"],
+  "dependencies": {
+    "sharp": "^0.35.6"
+  },
+  "devDependencies": {},
+  "env": [],
+  "schemaRelations": [],
+  "compose": null,
+  "workspaces": []
+}
+`;
+
+const DESCRIPTION_NAMED_DEPENDENCIES_AT_BASE = `{
+  "name": "uploads",
+  "version": "0.2.6",
+  "description": "dependencies",
+  "requires": [],
+  "files": ["src/features/uploads/**"],
+  "dependencies": {
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {},
+  "env": [],
+  "schemaRelations": [],
+  "compose": null,
+  "workspaces": []
+}
+`;
+
+const DESCRIPTION_NAMED_DEPENDENCIES_SYNCED = `{
+  "name": "uploads",
+  "version": "0.2.7",
+  "description": "dependencies",
+  "requires": [],
+  "files": ["src/features/uploads/**"],
+  "dependencies": {
+    "sharp": "^0.35.6"
+  },
+  "devDependencies": {},
+  "env": [],
+  "schemaRelations": [],
+  "compose": null,
+  "workspaces": []
+}
+`;
+
+const DESCRIPTION_NAMED_VERSION_AT_BASE = `{
+  "name": "uploads",
+  "description": "version",
+  "version": "0.2.6",
+  "requires": [],
+  "files": ["src/features/uploads/**"],
+  "dependencies": {
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {},
+  "env": [],
+  "schemaRelations": [],
+  "compose": null,
+  "workspaces": []
+}
+`;
+
+const DESCRIPTION_NAMED_VERSION_SYNCED = `{
+  "name": "uploads",
+  "description": "version",
+  "version": "0.2.7",
+  "requires": [],
+  "files": ["src/features/uploads/**"],
+  "dependencies": {
+    "sharp": "^0.35.6"
+  },
+  "devDependencies": {},
+  "env": [],
+  "schemaRelations": [],
+  "compose": null,
+  "workspaces": []
+}
+`;
+
 function rootPackageJson(dependencies: Pins, devDependencies: Pins): string {
   return `${JSON.stringify(
     {
@@ -270,7 +372,14 @@ function coreManifest(
   )}\n`;
 }
 
-function encryptionManifest(version: string): string {
+function encryptionManifest(
+  version: string,
+  files: string[] = [
+    "packages/crypto/**",
+    "prisma/schema/encryption.prisma",
+    "src/features/encryption/**",
+  ],
+): string {
   return `${JSON.stringify(
     {
       name: "encryption",
@@ -278,11 +387,7 @@ function encryptionManifest(version: string): string {
       description:
         "Per-organization envelope encryption (AES-256-GCM) with data keys wrapped by a master key",
       requires: [],
-      files: [
-        "packages/crypto/**",
-        "prisma/schema/encryption.prisma",
-        "src/features/encryption/**",
-      ],
+      files,
       dependencies: {},
       devDependencies: {},
       env: [
@@ -317,6 +422,44 @@ function workspacePackage(
       description,
       exports: { ".": "./src/index.ts" },
       dependencies,
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+function workspacePackageWithSections(
+  name: string,
+  sections: Record<string, Pins>,
+): string {
+  return `${JSON.stringify(
+    {
+      name,
+      version: "0.1.0",
+      private: true,
+      description: "Workspace package for GatoJS projects",
+      exports: { ".": "./src/index.ts" },
+      ...sections,
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+function uploadsManifestWithPins(entries: [string, string][]): string {
+  return `${JSON.stringify(
+    {
+      name: "uploads",
+      version: "0.2.6",
+      description: "Organization files on disk or in S3 storage",
+      requires: [],
+      files: ["prisma/schema/uploads.prisma", "src/features/uploads/**"],
+      dependencies: Object.fromEntries(entries),
+      devDependencies: {},
+      env: [],
+      schemaRelations: [],
+      compose: null,
+      workspaces: [],
     },
     null,
     2,
@@ -517,7 +660,7 @@ describe("syncManifestDependencies: pins from the root package.json", () => {
     expect(result).toEqual({ files: [], updates: [], bumps: [], warnings: [] });
   });
 
-  it("drugie uruchomienie na wyniku pierwszego niczego nie zmienia", () => {
+  it("the second run on the output of the first changes nothing", () => {
     const result = syncManifestDependencies({
       rootPackageJson: rootPackageJson(
         { ...UPLOADS_ROOT_DEPENDENCIES, sharp: "^0.35.6" },
@@ -763,6 +906,109 @@ describe("syncManifestDependencies: pins from the root package.json", () => {
     expect(uploads.version).toBe("0.2.6");
     expect(uploads.dependencies.sharp).toBe("^0.35.6");
   });
+
+  it("syncs a manifest with an escaped quote in a string value", () => {
+    const result = syncManifestDependencies({
+      rootPackageJson: rootPackageJson({ sharp: "^0.35.6" }, {}),
+      manifests: [{ path: UPLOADS_PATH, text: QUOTED_DESCRIPTION_AT_BASE }],
+      workspacePackages: [],
+      readBase: readBaseFrom({ [UPLOADS_PATH]: QUOTED_DESCRIPTION_AT_BASE }),
+    });
+
+    expect(result.files).toEqual([
+      { path: UPLOADS_PATH, text: QUOTED_DESCRIPTION_SYNCED },
+    ]);
+  });
+
+  it.each([
+    [
+      "dependencies",
+      DESCRIPTION_NAMED_DEPENDENCIES_AT_BASE,
+      DESCRIPTION_NAMED_DEPENDENCIES_SYNCED,
+    ],
+    [
+      "version",
+      DESCRIPTION_NAMED_VERSION_AT_BASE,
+      DESCRIPTION_NAMED_VERSION_SYNCED,
+    ],
+  ])(
+    "a top-level string value %j is not mistaken for a key: the real section and version change",
+    (_value, atBase, synced) => {
+      const result = syncManifestDependencies({
+        rootPackageJson: rootPackageJson({ sharp: "^0.35.6" }, {}),
+        manifests: [{ path: UPLOADS_PATH, text: atBase }],
+        workspacePackages: [],
+        readBase: readBaseFrom({ [UPLOADS_PATH]: atBase }),
+      });
+
+      expect(result.files).toEqual([{ path: UPLOADS_PATH, text: synced }]);
+    },
+  );
+
+  it("manifest pins equal to the base in a different key order cause no bump", () => {
+    const atBase = uploadsManifestWithPins([
+      ["@aws-sdk/client-s3", "^3.1173.0"],
+      ["file-type", "^22.3.0"],
+      ["sharp", "^0.35.5"],
+    ]);
+    const reordered = uploadsManifestWithPins([
+      ["sharp", "^0.35.5"],
+      ["@aws-sdk/client-s3", "^3.1173.0"],
+      ["file-type", "^22.3.0"],
+    ]);
+    const result = syncManifestDependencies({
+      rootPackageJson: rootPackageJson(
+        { ...UPLOADS_ROOT_DEPENDENCIES, sharp: "^0.35.5" },
+        {},
+      ),
+      manifests: [{ path: UPLOADS_PATH, text: reordered }],
+      workspacePackages: [],
+      readBase: readBaseFrom({ [UPLOADS_PATH]: atBase }),
+    });
+
+    expect(result.bumps).toEqual([]);
+    expect(result.files).toEqual([]);
+  });
+
+  test.prop([
+    fc.shuffledSubarray(
+      [
+        ["@aws-sdk/client-s3", "^3.1173.0"],
+        ["file-type", "^22.3.0"],
+        ["sharp", "^0.35.5"],
+        ["zod", "^4.3.6"],
+      ] satisfies [string, string][],
+      { minLength: 4, maxLength: 4 },
+    ),
+  ])(
+    "any key order of pins equal to the base and the root changes nothing",
+    (shuffled) => {
+      const atBase = uploadsManifestWithPins([
+        ["@aws-sdk/client-s3", "^3.1173.0"],
+        ["file-type", "^22.3.0"],
+        ["sharp", "^0.35.5"],
+        ["zod", "^4.3.6"],
+      ]);
+      const result = syncManifestDependencies({
+        rootPackageJson: rootPackageJson(
+          {
+            ...UPLOADS_ROOT_DEPENDENCIES,
+            sharp: "^0.35.5",
+            zod: "^4.3.6",
+          },
+          {},
+        ),
+        manifests: [
+          { path: UPLOADS_PATH, text: uploadsManifestWithPins(shuffled) },
+        ],
+        workspacePackages: [],
+        readBase: readBaseFrom({ [UPLOADS_PATH]: atBase }),
+      });
+
+      expect(result.bumps).toEqual([]);
+      expect(result.files).toEqual([]);
+    },
+  );
 });
 
 describe("syncManifestDependencies: workspace packages", () => {
@@ -931,6 +1177,124 @@ describe("syncManifestDependencies: workspace packages", () => {
       { module: "core", path: CORE_PATH, from: "0.13.0", to: "0.13.1" },
     ]);
   });
+
+  it.each(["devDependencies", "peerDependencies", "optionalDependencies"])(
+    "a workspace package whose only change is in %s bumps its owner",
+    (section) => {
+      const result = syncManifestDependencies({
+        rootPackageJson: rootWithNewZod,
+        manifests: [{ path: CORE_PATH, text: coreAtBase }],
+        workspacePackages: [
+          {
+            path: ENV_PACKAGE_PATH,
+            text: workspacePackageWithSections("@gatojs/env", {
+              dependencies: { zod: "^4.4.0" },
+              [section]: { typescript: "^5.9.4" },
+            }),
+          },
+        ],
+        readBase: readBaseFrom({
+          [CORE_PATH]: coreAtBase,
+          [ENV_PACKAGE_PATH]: workspacePackageWithSections("@gatojs/env", {
+            dependencies: { zod: "^4.4.0" },
+            [section]: { typescript: "^5.9.3" },
+          }),
+        }),
+      });
+
+      expect(result.bumps).toEqual([
+        { module: "core", path: CORE_PATH, from: "0.13.0", to: "0.13.1" },
+      ]);
+    },
+  );
+
+  it("a files glob with a wildcard inside a segment owns the matching workspace package", () => {
+    const encryptionAtBase = encryptionManifest("0.1.1", [
+      "packages/cr*/**",
+      "src/features/encryption/**",
+    ]);
+    const result = syncManifestDependencies({
+      rootPackageJson: rootWithNewZod,
+      manifests: [{ path: ENCRYPTION_PATH, text: encryptionAtBase }],
+      workspacePackages: [
+        {
+          path: CRYPTO_PACKAGE_PATH,
+          text: workspacePackage("@gatojs/crypto", {
+            "@noble/ciphers": "^2.0.0",
+          }),
+        },
+      ],
+      readBase: readBaseFrom({
+        [ENCRYPTION_PATH]: encryptionAtBase,
+        [CRYPTO_PACKAGE_PATH]: workspacePackage("@gatojs/crypto", {
+          "@noble/ciphers": "^1.3.0",
+        }),
+      }),
+    });
+
+    expect(result.bumps).toEqual([
+      {
+        module: "encryption",
+        path: ENCRYPTION_PATH,
+        from: "0.1.1",
+        to: "0.1.2",
+      },
+    ]);
+  });
+
+  it("workspace dependencies equal to the base in a different key order do not bump the owner", () => {
+    const result = syncManifestDependencies({
+      rootPackageJson: rootWithNewZod,
+      manifests: [{ path: CORE_PATH, text: coreAtBase }],
+      workspacePackages: [
+        {
+          path: ENV_PACKAGE_PATH,
+          text: workspacePackage("@gatojs/env", {
+            zod: "^4.4.0",
+            dotenv: "^17.3.1",
+          }),
+        },
+      ],
+      readBase: readBaseFrom({
+        [CORE_PATH]: coreAtBase,
+        [ENV_PACKAGE_PATH]: workspacePackage("@gatojs/env", {
+          dotenv: "^17.3.1",
+          zod: "^4.4.0",
+        }),
+      }),
+    });
+
+    expect(result.bumps).toEqual([]);
+    expect(result.files).toEqual([]);
+  });
+
+  it("an update gives no warning for workspace packages that do not pin the old version", () => {
+    const coreWithOldZod = coreManifest(
+      "0.13.0",
+      CORE_DEPENDENCIES_AT_BASE,
+      CORE_DEV_DEPENDENCIES_AT_BASE,
+    );
+    const observability = workspacePackage("@gatojs/observability", {
+      "@opentelemetry/api-logs": "^0.218.0",
+    });
+    const freshEnv = workspacePackage("@gatojs/env", { zod: "^4.4.0" });
+    const result = syncManifestDependencies({
+      rootPackageJson: rootWithNewZod,
+      manifests: [{ path: CORE_PATH, text: coreWithOldZod }],
+      workspacePackages: [
+        { path: ENV_PACKAGE_PATH, text: freshEnv },
+        { path: "packages/observability/package.json", text: observability },
+      ],
+      readBase: readBaseFrom({
+        [CORE_PATH]: coreWithOldZod,
+        [ENV_PACKAGE_PATH]: freshEnv,
+        "packages/observability/package.json": observability,
+      }),
+    });
+
+    expect(result.updates).toHaveLength(1);
+    expect(result.warnings).toEqual([]);
+  });
 });
 
 describe("bumpPatch", () => {
@@ -993,7 +1357,17 @@ describe("parseSyncArgs", () => {
 
   it("rejects --base without a value", () => {
     expectValidationError(() => parseSyncArgs(["--base"]));
+    expect(rejectionMessage(() => parseSyncArgs(["--base"]))).toContain(
+      "--base",
+    );
   });
+
+  it.each([[["--force", "x"]], [["--base", "--check"]], [["--base="]]])(
+    "rejects %j",
+    (argv) => {
+      expectValidationError(() => parseSyncArgs(argv));
+    },
+  );
 });
 
 describe("formatReport", () => {
@@ -1029,26 +1403,54 @@ describe("formatReport", () => {
     ],
   };
 
-  it("lists a module bump, its updates under it, and the warnings at the end", () => {
-    const lines = formatReport(twoModules).split("\n");
-
-    const uploadsBump = lines.indexOf(
-      "kit/modules/uploads.json 0.2.6 -> 0.2.7",
+  it("lists each module bump with its updates under it, then the warnings", () => {
+    expect(formatReport(twoModules)).toBe(
+      [
+        "kit/modules/uploads.json 0.2.6 -> 0.2.7",
+        "  sharp ^0.35.5 -> ^0.35.6",
+        "kit/modules/core.json 0.13.0 -> 0.13.1",
+        "  zod ^4.3.6 -> ^4.4.0",
+        "warning: packages/env/package.json pins zod ^4.3.6; package.json has ^4.4.0",
+      ].join("\n"),
     );
-    const sharpUpdate = lines.indexOf("  sharp ^0.35.5 -> ^0.35.6");
-    const coreBump = lines.indexOf("kit/modules/core.json 0.13.0 -> 0.13.1");
-    const zodUpdate = lines.indexOf("  zod ^4.3.6 -> ^4.4.0");
-    const warning = lines.findIndex((line) =>
-      line.includes(
-        "packages/env/package.json pins zod ^4.3.6; package.json has ^4.4.0",
-      ),
-    );
+  });
 
-    expect(uploadsBump).toBeGreaterThanOrEqual(0);
-    expect(sharpUpdate).toBeGreaterThan(uploadsBump);
-    expect(coreBump).toBeGreaterThan(sharpUpdate);
-    expect(zodUpdate).toBeGreaterThan(coreBump);
-    expect(warning).toBeGreaterThan(zodUpdate);
+  it("a result with only a bump lists just the bump line", () => {
+    expect(
+      formatReport({
+        files: [],
+        updates: [],
+        bumps: [
+          {
+            module: "core",
+            path: "kit/modules/core.json",
+            from: "0.13.0",
+            to: "0.13.1",
+          },
+        ],
+        warnings: [],
+      }),
+    ).toBe("kit/modules/core.json 0.13.0 -> 0.13.1");
+  });
+
+  it("a result with only an update lists the manifest path and the update under it", () => {
+    expect(
+      formatReport({
+        files: [],
+        updates: [
+          {
+            module: "uploads",
+            path: "kit/modules/uploads.json",
+            section: "dependencies",
+            name: "sharp",
+            from: "^0.35.5",
+            to: "^0.35.6",
+          },
+        ],
+        bumps: [],
+        warnings: [],
+      }),
+    ).toBe("kit/modules/uploads.json\n  sharp ^0.35.5 -> ^0.35.6");
   });
 
   it("an empty result reports that the manifests already follow package.json", () => {
