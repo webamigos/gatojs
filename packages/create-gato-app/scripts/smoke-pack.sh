@@ -15,6 +15,13 @@ packages_dir="$kit_dir/packages"
 work_dir=$(mktemp -d)
 trap 'rm -rf "$work_dir"' EXIT
 
+if ! git config user.name >/dev/null 2>&1; then
+  export GIT_AUTHOR_NAME="GatoJS smoke" GIT_COMMITTER_NAME="GatoJS smoke"
+fi
+if ! git config user.email >/dev/null 2>&1; then
+  export GIT_AUTHOR_EMAIL="smoke@gatojs.invalid" GIT_COMMITTER_EMAIL="smoke@gatojs.invalid"
+fi
+
 fail() {
   echo "smoke test failed: $*" >&2
   exit 1
