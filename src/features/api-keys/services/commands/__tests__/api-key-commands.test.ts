@@ -11,6 +11,7 @@ const {
   mockTrackAudit,
   mockNotFound,
   mockLogger,
+  mockCurrentLocale,
 } = vi.hoisted(() => {
   const PEPPER = "unit-test-pepper-".padEnd(48, "x");
   process.env.API_KEY_PEPPER = PEPPER;
@@ -37,6 +38,7 @@ const {
       throw new Error("NEXT_NOT_FOUND");
     }),
     mockLogger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
+    mockCurrentLocale: vi.fn(),
   };
 });
 
@@ -55,6 +57,9 @@ vi.mock("@/shared/lib/audit", async (importOriginal) => ({
 vi.mock("@/shared/lib/logger", () => ({ logger: mockLogger }));
 vi.mock("next/navigation", () => ({ notFound: mockNotFound }));
 vi.mock("next-intl/server", () => ({ getLocale: vi.fn(async () => "pl") }));
+vi.mock("@/i18n/server-locale", () => ({
+  currentLocale: () => mockCurrentLocale(),
+}));
 vi.mock("@/i18n/routing", () => ({
   redirect: vi.fn(() => {
     throw new Error("NEXT_REDIRECT");
@@ -116,6 +121,7 @@ function createdData(): Record<string, unknown> {
 }
 
 beforeEach(() => {
+  mockCurrentLocale.mockResolvedValue("pl");
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
   mockGetOrgContext.mockResolvedValue(OWNER_CONTEXT);
@@ -594,5 +600,98 @@ describe("deleteApiKeyCommand: zapis ograniczony do aktywnej organizacji", () =>
       expect.objectContaining({ id: KEY_ID, organizationId: "org-2" }),
     ]);
     expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe("komunikaty błędów w języku żądania", () => {
+  it.each([
+    ["en", "Confirm the change in service mode"],
+    ["pl", "Potwierdź zmianę w trybie serwisowym"],
+  ])("%s: tryb serwisowy bez potwierdzenia → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+    mockGetOrgContext.mockResolvedValue(SERVICE_CONTEXT);
+
+    const result = await createApiKeyCommand(validInput);
+
+    expect(result).toEqual({ success: false, error: expected });
+    expectNoWrites();
+  });
+
+  it.each([
+    ["en", "You've reached the limit of 10 active keys"],
+    ["pl", "Osiągnięto limit 10 aktywnych kluczy"],
+  ])("%s: 11. aktywny klucz → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+    mockPrisma.apiKey.count.mockResolvedValue(10);
+
+    const result = await createApiKeyCommand(validInput);
+
+    expect(result).toEqual({ success: false, error: expected });
+    expectNoWrites();
+  });
+
+  it.each([
+    ["en", "Couldn't create the key"],
+    ["pl", "Nie udało się utworzyć klucza"],
+  ])("%s: awaria bazy przy tworzeniu → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+    mockPrisma.apiKey.create.mockRejectedValue(new Error("db down"));
+
+    const result = await createApiKeyCommand(validInput);
+
+    expect(result).toEqual({ success: false, error: expected });
+  });
+
+  it.each([
+    ["en", "Key not found"],
+    ["pl", "Nie znaleziono klucza"],
+  ])(
+    "%s: unieważnienie nieistniejącego klucza → %j",
+    async (locale, expected) => {
+      mockCurrentLocale.mockResolvedValue(locale);
+      mockPrisma.apiKey.findFirst.mockResolvedValue(null);
+
+      const result = await revokeApiKeyCommand({ id: KEY_ID });
+
+      expect(result).toEqual({ success: false, error: expected });
+      expectNoWrites();
+    },
+  );
+
+  it.each([
+    ["en", "Key not found"],
+    ["pl", "Nie znaleziono klucza"],
+  ])("%s: usunięcie nieistniejącego klucza → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+    mockPrisma.apiKey.findFirst.mockResolvedValue(null);
+
+    const result = await deleteApiKeyCommand({ id: KEY_ID });
+
+    expect(result).toEqual({ success: false, error: expected });
+    expectNoWrites();
+  });
+
+  it.each([
+    ["en", "Couldn't revoke the key"],
+    ["pl", "Nie udało się unieważnić klucza"],
+  ])("%s: awaria bazy przy unieważnianiu → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+    mockPrisma.apiKey.updateMany.mockRejectedValue(new Error("db down"));
+
+    const result = await revokeApiKeyCommand({ id: KEY_ID });
+
+    expect(result).toEqual({ success: false, error: expected });
+  });
+
+  it.each([
+    ["en", "Couldn't delete the key"],
+    ["pl", "Nie udało się usunąć klucza"],
+  ])("%s: awaria bazy przy usuwaniu → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+    mockPrisma.apiKey.deleteMany.mockRejectedValue(new Error("db down"));
+
+    const result = await deleteApiKeyCommand({ id: KEY_ID });
+
+    expect(result).toEqual({ success: false, error: expected });
   });
 });

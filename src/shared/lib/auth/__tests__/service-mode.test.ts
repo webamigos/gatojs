@@ -1,6 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fc, test } from "@fast-check/vitest";
-import { DomainError } from "@/shared/utils/error-handling";
+
+const { mockCurrentLocale } = vi.hoisted(() => ({
+  mockCurrentLocale: vi.fn(),
+}));
+
+vi.mock("@/i18n/server-locale", () => ({
+  currentLocale: () => mockCurrentLocale(),
+}));
+
+import { DomainError, handleCommandError } from "@/shared/utils/error-handling";
 import type { OrgContext } from "../org-context";
 import {
   assertServiceModeConfirmed,
@@ -24,10 +33,37 @@ const serviceContext: OrgContext = {
 };
 
 describe("ServiceModeConfirmationError", () => {
-  it("jest błędem domenowym z komunikatem dla użytkownika", () => {
+  it("jest błędem domenowym", () => {
     const error = new ServiceModeConfirmationError();
     expect(error).toBeInstanceOf(DomainError);
-    expect(error.message).toBe("Potwierdź zmianę w trybie serwisowym");
+  });
+
+  it("w en handleCommandError zwraca komunikat po angielsku", async () => {
+    mockCurrentLocale.mockResolvedValue("en");
+
+    const result = await handleCommandError(
+      new ServiceModeConfirmationError(),
+      "fallback",
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: "Confirm the change in service mode",
+    });
+  });
+
+  it("w pl handleCommandError zwraca komunikat po polsku", async () => {
+    mockCurrentLocale.mockResolvedValue("pl");
+
+    const result = await handleCommandError(
+      new ServiceModeConfirmationError(),
+      "fallback",
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: "Potwierdź zmianę w trybie serwisowym",
+    });
   });
 
   it("ma nazwę ServiceModeConfirmationError i jest błędem domenowym", () => {

@@ -273,6 +273,51 @@ describe("requiresGlobalAdminInSingleOrg", () => {
   );
 });
 
+describe("single-org guard: komunikat w języku żądania", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockEnv.MULTI_ORG = false;
+  });
+
+  it("admin organizacji bez roli globalnej z cookie NEXT_LOCALE=en → Managing the organization requires the admin role", async () => {
+    await stubCaller({ globalRole: "user", orgRole: "admin" });
+    const session = await signInHeaders();
+    const headers = new Headers({
+      cookie: `${session.get("cookie")}; NEXT_LOCALE=en`,
+    });
+
+    await expect(inviteMember(headers)).rejects.toMatchObject({
+      statusCode: 403,
+      message: "Managing the organization requires the admin role",
+    });
+    expect(mockPrisma.invitation.create).not.toHaveBeenCalled();
+  });
+
+  it("admin organizacji bez roli globalnej z Referer /en/... → Managing the organization requires the admin role", async () => {
+    await stubCaller({ globalRole: "user", orgRole: "owner" });
+    const headers = await signInHeaders();
+    headers.set("referer", "http://localhost:3000/en/organization");
+
+    await expect(inviteMember(headers)).rejects.toMatchObject({
+      statusCode: 403,
+      message: "Managing the organization requires the admin role",
+    });
+  });
+
+  it("admin organizacji bez roli globalnej z żądania pl → Zarządzanie organizacją wymaga roli administratora", async () => {
+    await stubCaller({ globalRole: "user", orgRole: "admin" });
+    const session = await signInHeaders();
+    const headers = new Headers({
+      cookie: `${session.get("cookie")}; NEXT_LOCALE=pl`,
+    });
+
+    await expect(inviteMember(headers)).rejects.toMatchObject({
+      statusCode: 403,
+      message: "Zarządzanie organizacją wymaga roli administratora",
+    });
+  });
+});
+
 describe("assertGlobalAdmin", () => {
   it.each([["user"], [undefined], [null], ["owner"], ["SuperAdmin"], ["root"]])(
     "rola %j → 403 z komunikatem",

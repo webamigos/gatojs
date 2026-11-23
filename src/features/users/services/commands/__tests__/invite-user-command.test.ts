@@ -9,6 +9,7 @@ const {
   mockCreateWelcomeUrl,
   mockSendWelcomeEmail,
   mockTrackAudit,
+  mockCurrentLocale,
 } = vi.hoisted(() => ({
   mockPrisma: {
     user: { findUnique: vi.fn(), update: vi.fn() },
@@ -21,6 +22,7 @@ const {
   mockCreateWelcomeUrl: vi.fn(),
   mockSendWelcomeEmail: vi.fn(),
   mockTrackAudit: vi.fn(),
+  mockCurrentLocale: vi.fn(),
 }));
 
 vi.mock("@/shared/lib/prisma", () => ({ prisma: mockPrisma }));
@@ -42,6 +44,9 @@ vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/i18n/server-locale", () => ({
+  currentLocale: () => mockCurrentLocale(),
+}));
 vi.mock("@/shared/lib/audit", async (importActual) => ({
   ...(await importActual<typeof import("@/shared/lib/audit")>()),
   trackAudit: mockTrackAudit,
@@ -81,6 +86,7 @@ const validInput = {
 };
 
 beforeEach(() => {
+  mockCurrentLocale.mockResolvedValue("pl");
   mockGetAdminUserOrNull.mockResolvedValue({ id: "admin-1", role: "admin" });
   mockGetOrgContext.mockResolvedValue(MEMBER_CONTEXT);
   mockPrisma.invitation.create.mockResolvedValue({ id: "inv-1" });
@@ -189,6 +195,7 @@ describe("inviteUserCommand", () => {
       to: validInput.email,
       name: validInput.name,
       resetUrl: WELCOME_URL,
+      locale: "pl",
     });
     expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
   });
@@ -555,5 +562,77 @@ describe("inviteUserCommand", () => {
         expect(mockTrackAudit).not.toHaveBeenCalled();
       });
     });
+  });
+});
+
+describe("inviteUserCommand: język komunikatów i maila", () => {
+  it("w en mail powitalny dostaje locale en", async () => {
+    mockCurrentLocale.mockResolvedValue("en");
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+    await inviteUserCommand(validInput);
+
+    expect(mockSendWelcomeEmail).toHaveBeenCalledWith({
+      to: validInput.email,
+      name: validInput.name,
+      resetUrl: WELCOME_URL,
+      locale: "en",
+    });
+  });
+
+  it.each([
+    ["en", "You don't have permission to do this"],
+    ["pl", "Brak uprawnień"],
+  ])("%s: wywołujący bez roli admin → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+    mockGetAdminUserOrNull.mockResolvedValue(null);
+
+    const result = await inviteUserCommand(validInput);
+
+    expect(result).toEqual({ success: false, error: expected });
+    expect(mockPrisma.invitation.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["en", "A user with this email already exists"],
+    ["pl", "Użytkownik z tym adresem już istnieje"],
+  ])("%s: istniejący adres email → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+    mockPrisma.user.findUnique.mockResolvedValueOnce({ id: "existing" });
+
+    const result = await inviteUserCommand(validInput);
+
+    expect(result).toEqual({ success: false, error: expected });
+    expect(mockPrisma.invitation.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["en", "Couldn't invite the user"],
+    ["pl", "Nie udało się zaprosić użytkownika"],
+  ])("%s: nieudana rejestracja konta → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+    mockAuthApi.signUpEmail.mockRejectedValue(new Error("signup failed"));
+
+    const result = await inviteUserCommand(validInput);
+
+    expect(result).toEqual({ success: false, error: expected });
+  });
+
+  it.each([
+    ["en", "Confirm the change in service mode"],
+    ["pl", "Potwierdź zmianę w trybie serwisowym"],
+  ])("%s: tryb serwisowy bez potwierdzenia → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+    mockGetAdminUserOrNull.mockResolvedValue({
+      id: "super-1",
+      role: "superadmin",
+    });
+    mockGetOrgContext.mockResolvedValue(SERVICE_CONTEXT);
+
+    const result = await inviteUserCommand(validInput);
+
+    expect(result).toEqual({ success: false, error: expected });
+    expectNoDatabaseAccess();
   });
 });

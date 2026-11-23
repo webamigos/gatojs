@@ -419,6 +419,7 @@ describe("organizacja: mail z zaproszeniem", () => {
       organizationName: "Firma Testowa",
       inviterName: "Anna Admin",
       acceptUrl: "http://localhost:3000/accept-invitation/inv-42",
+      locale: "pl",
     });
   });
 
@@ -1236,6 +1237,230 @@ describe("plugin admin: wywołanie z request bez headers", () => {
     );
 
     expect(error).toMatchObject({ statusCode: 403 });
+    expectNoUserWrites();
+  });
+});
+
+function authRequest(
+  path: string,
+  body: unknown,
+  headers: Record<string, string>,
+): Request {
+  return new Request(`http://localhost:3000/api/auth${path}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      origin: "http://localhost:3000",
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+function stubVerificationCreate() {
+  mockPrisma.verification.create.mockImplementation(
+    async ({ data }: { data: Record<string, unknown> }) => ({
+      ...data,
+      id: "ver-1",
+    }),
+  );
+}
+
+describe("mail resetu hasła: język z żądania", () => {
+  it("żądanie z cookie NEXT_LOCALE=en → mailer dostaje locale en", async () => {
+    await stubUsers(auth, [buildUser({ id: "user-1", email: CALLER_EMAIL })]);
+    stubVerificationCreate();
+    mockMailer.sendPasswordResetEmail.mockResolvedValue({ data: null });
+
+    await auth.handler(
+      authRequest(
+        "/request-password-reset",
+        { email: CALLER_EMAIL, redirectTo: "/reset-password" },
+        { cookie: "NEXT_LOCALE=en" },
+      ),
+    );
+
+    expect(mockMailer.sendPasswordResetEmail).toHaveBeenCalledTimes(1);
+    expect(mockMailer.sendPasswordResetEmail.mock.calls[0][0]).toMatchObject({
+      to: CALLER_EMAIL,
+      locale: "en",
+    });
+  });
+
+  it("żądanie z Referer /en/... → mailer dostaje locale en", async () => {
+    await stubUsers(auth, [buildUser({ id: "user-1", email: CALLER_EMAIL })]);
+    stubVerificationCreate();
+    mockMailer.sendPasswordResetEmail.mockResolvedValue({ data: null });
+
+    await auth.handler(
+      authRequest(
+        "/request-password-reset",
+        { email: CALLER_EMAIL, redirectTo: "/reset-password" },
+        { referer: "http://localhost:3000/en/forgot-password" },
+      ),
+    );
+
+    expect(mockMailer.sendPasswordResetEmail.mock.calls[0][0]).toMatchObject({
+      locale: "en",
+    });
+  });
+
+  it("żądanie bez wskazania języka → mailer dostaje locale pl", async () => {
+    await stubUsers(auth, [buildUser({ id: "user-1", email: CALLER_EMAIL })]);
+    stubVerificationCreate();
+    mockMailer.sendPasswordResetEmail.mockResolvedValue({ data: null });
+
+    await auth.handler(
+      authRequest(
+        "/request-password-reset",
+        { email: CALLER_EMAIL, redirectTo: "/reset-password" },
+        {},
+      ),
+    );
+
+    expect(mockMailer.sendPasswordResetEmail.mock.calls[0][0]).toMatchObject({
+      locale: "pl",
+    });
+  });
+});
+
+describe("mail z zaproszeniem do organizacji: język z żądania", () => {
+  async function inviteThroughHandler(extraCookie: string, referer?: string) {
+    await stubInvitingAdmin(auth);
+    const sessionHeaders = await signInHeaders(auth);
+    const cookie = [sessionHeaders.get("cookie"), extraCookie]
+      .filter(Boolean)
+      .join("; ");
+    await auth.handler(
+      authRequest(
+        "/organization/invite-member",
+        { email: INVITEE_EMAIL, role: "member", organizationId: "org-1" },
+        referer ? { cookie, referer } : { cookie },
+      ),
+    );
+  }
+
+  it("admin zaprasza z cookie NEXT_LOCALE=en → mailer dostaje locale en", async () => {
+    await inviteThroughHandler("NEXT_LOCALE=en");
+
+    expect(mockMailer.sendOrganizationInvitationEmail).toHaveBeenCalledTimes(1);
+    expect(
+      mockMailer.sendOrganizationInvitationEmail.mock.calls[0][0],
+    ).toMatchObject({
+      to: INVITEE_EMAIL,
+      organizationName: "Firma Testowa",
+      inviterName: "Anna Admin",
+      locale: "en",
+    });
+  });
+
+  it("admin zaprasza z Referer /en/... → mailer dostaje locale en", async () => {
+    await inviteThroughHandler("", "http://localhost:3000/en/organization");
+
+    expect(
+      mockMailer.sendOrganizationInvitationEmail.mock.calls[0][0],
+    ).toMatchObject({ locale: "en" });
+  });
+
+  it("admin zaprasza z cookie NEXT_LOCALE=pl → mailer dostaje locale pl", async () => {
+    await inviteThroughHandler("NEXT_LOCALE=pl");
+
+    expect(
+      mockMailer.sendOrganizationInvitationEmail.mock.calls[0][0],
+    ).toMatchObject({ locale: "pl" });
+  });
+});
+
+function withLocale(headers: Headers, extra: Record<string, string>): Headers {
+  const result = new Headers(headers);
+  for (const [name, value] of Object.entries(extra)) {
+    result.set(name, value);
+  }
+  return result;
+}
+
+describe("plugin admin: komunikaty odmowy w języku żądania", () => {
+  const EN_REFERER = { referer: "http://localhost:3000/en/users" };
+
+  it("admin → banUser superadmina z Referer /en/... → Only a superadmin can change a service account", async () => {
+    const headers = await signInAs(auth, CALLER_EMAIL);
+
+    const error = await rejection(
+      auth.api.banUser({
+        headers: withLocale(headers, EN_REFERER),
+        body: { userId: "super-1" },
+      }),
+    );
+
+    expect(error).toMatchObject({
+      statusCode: 403,
+      message: "Only a superadmin can change a service account",
+    });
+    expectNoUserWrites();
+  });
+
+  it("admin → banUser superadmina bez wskazania języka → Konto serwisowe może zmieniać tylko superadmin", async () => {
+    const headers = await signInAs(auth, CALLER_EMAIL);
+
+    const error = await rejection(
+      auth.api.banUser({ headers, body: { userId: "super-1" } }),
+    );
+
+    expect(error).toMatchObject({
+      statusCode: 403,
+      message: "Konto serwisowe może zmieniać tylko superadmin",
+    });
+  });
+
+  it("admin → setRole superadmin z cookie NEXT_LOCALE=en → Only a superadmin can grant the superadmin role", async () => {
+    const headers = await signInAs(auth, CALLER_EMAIL);
+    const cookie = `${headers.get("cookie")}; NEXT_LOCALE=en`;
+
+    const error = await rejection(
+      auth.api.setRole({
+        headers: withLocale(headers, { cookie }),
+        body: { userId: "user-2", role: "superadmin" },
+      }),
+    );
+
+    expect(error).toMatchObject({
+      statusCode: 403,
+      message: "Only a superadmin can grant the superadmin role",
+    });
+    expectNoUserWrites();
+  });
+
+  it("admin → impersonateUser innego admina z Referer /en/... → You can't sign in as this user", async () => {
+    const headers = await signInAs(auth, CALLER_EMAIL);
+
+    const error = await rejection(
+      auth.api.impersonateUser({
+        headers: withLocale(headers, EN_REFERER),
+        body: { userId: "admin-2" },
+      }),
+    );
+
+    expect(error).toMatchObject({
+      statusCode: 403,
+      message: "You can't sign in as this user",
+    });
+    expectNoUserWrites();
+  });
+
+  it("admin → banUser nieistniejącego konta z Referer /en/... → You don't have permission to change this account", async () => {
+    const headers = await signInAs(auth, CALLER_EMAIL);
+
+    const error = await rejection(
+      auth.api.banUser({
+        headers: withLocale(headers, EN_REFERER),
+        body: { userId: "ghost-1" },
+      }),
+    );
+
+    expect(error).toMatchObject({
+      statusCode: 403,
+      message: "You don't have permission to change this account",
+    });
     expectNoUserWrites();
   });
 });

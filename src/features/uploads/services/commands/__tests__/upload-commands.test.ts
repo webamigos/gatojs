@@ -22,6 +22,7 @@ const {
   mockLogger,
   uploadStore,
   prismaFake,
+  mockCurrentLocale,
 } = vi.hoisted(() => {
   const uploadStore = { rows: [] as Row[] };
   const matches = (row: Row, where: Record<string, unknown> | undefined) =>
@@ -68,6 +69,7 @@ const {
     mockLogger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
     uploadStore,
     prismaFake,
+    mockCurrentLocale: vi.fn(),
   };
 });
 
@@ -93,6 +95,25 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/modules.generated", () => ({
   auditSinks: [],
   modules: [{ key: "uploads", nav: [], routePrefixes: [] }],
+  moduleMessages: {
+    pl: [
+      {
+        key: "uploads",
+        load: () =>
+          import("@/features/uploads/i18n/pl.json").then((m) => m.default),
+      },
+    ],
+    en: [
+      {
+        key: "uploads",
+        load: () =>
+          import("@/features/uploads/i18n/en.json").then((m) => m.default),
+      },
+    ],
+  },
+}));
+vi.mock("@/i18n/server-locale", () => ({
+  currentLocale: () => mockCurrentLocale(),
 }));
 
 import { deleteUploadCommand } from "../upload-commands";
@@ -158,6 +179,7 @@ function expectNothingDeleted(): void {
 }
 
 beforeEach(() => {
+  mockCurrentLocale.mockResolvedValue("pl");
   seedRows();
   mockGetOrgContext.mockReset();
   mockGetOrgContext.mockResolvedValue(MEMBER_CONTEXT);
@@ -354,5 +376,75 @@ describe("deleteUploadCommand", () => {
     expect(second.success).toBe(false);
     expect(mockDeleteObject).toHaveBeenCalledTimes(1);
     expect(mockTrackAudit).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("deleteUploadCommand: komunikaty błędów w języku żądania", () => {
+  it.each([
+    ["en", "You don't have permission to delete this file"],
+    ["pl", "Brak uprawnień do usunięcia pliku"],
+  ])("%s: member usuwa cudzy plik → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+
+    const result = await deleteUploadCommand({ id: FOREIGN_ID });
+
+    expect(result).toEqual({ success: false, error: expected });
+    expectNothingDeleted();
+  });
+
+  it.each([
+    ["en", "Couldn't delete the file"],
+    ["pl", "Nie udało się usunąć pliku"],
+  ])("%s: id, które nie jest uuid → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+
+    const result = await deleteUploadCommand({ id: "nie-uuid" });
+
+    expect(result).toEqual({ success: false, error: expected });
+    expectNothingDeleted();
+  });
+
+  it.each([
+    ["en", "Couldn't delete the file"],
+    ["pl", "Nie udało się usunąć pliku"],
+  ])("%s: plik innej organizacji → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+
+    const result = await deleteUploadCommand({ id: OTHER_ORG_ID });
+
+    expect(result).toEqual({ success: false, error: expected });
+    expectNothingDeleted();
+  });
+
+  it.each([
+    ["en", "Couldn't delete the file"],
+    ["pl", "Nie udało się usunąć pliku"],
+  ])("%s: awaria bazy przy usuwaniu → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+    vi.mocked(
+      (prismaFake.upload as { deleteMany: ReturnType<typeof vi.fn> })
+        .deleteMany,
+    ).mockRejectedValueOnce(new Error("db down"));
+
+    const result = await deleteUploadCommand({ id: UPLOAD_ID });
+
+    expect(result).toEqual({ success: false, error: expected });
+  });
+
+  it.each([
+    ["en", "Confirm the change in service mode"],
+    ["pl", "Potwierdź zmianę w trybie serwisowym"],
+  ])("%s: tryb serwisowy bez potwierdzenia → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+    mockGetOrgContext.mockResolvedValue({
+      ...MEMBER_CONTEXT,
+      orgRole: "owner",
+      serviceMode: true,
+    });
+
+    const result = await deleteUploadCommand({ id: FOREIGN_ID });
+
+    expect(result).toEqual({ success: false, error: expected });
+    expectNothingDeleted();
   });
 });

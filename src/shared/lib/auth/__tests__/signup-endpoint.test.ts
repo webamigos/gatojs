@@ -192,6 +192,131 @@ describe("auth.api.signUpEmail", () => {
   });
 });
 
+describe("auth.api.signUpEmail: komunikaty i nazwa organizacji w języku żądania", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockEnv.AUTH_PUBLIC_SIGNUP = false;
+    mockEnv.MULTI_ORG = false;
+    stubUserPersistence();
+  });
+
+  it("publiczna rejestracja wyłączona, cookie NEXT_LOCALE=en → Sign-up is disabled", async () => {
+    await expect(
+      auth.api.signUpEmail({
+        body: signupBody,
+        headers: new Headers({ cookie: "NEXT_LOCALE=en" }),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      message: "Sign-up is disabled",
+    });
+    expect(mockPrisma.user.create).not.toHaveBeenCalled();
+  });
+
+  it("publiczna rejestracja wyłączona, Referer /en/... → Sign-up is disabled", async () => {
+    await expect(
+      auth.api.signUpEmail({
+        body: signupBody,
+        headers: new Headers({ referer: "http://localhost:3000/en/sign-up" }),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      message: "Sign-up is disabled",
+    });
+  });
+
+  it("publiczna rejestracja wyłączona, cookie NEXT_LOCALE=pl → Rejestracja jest wyłączona", async () => {
+    await expect(
+      auth.api.signUpEmail({
+        body: signupBody,
+        headers: new Headers({ cookie: "NEXT_LOCALE=pl" }),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      message: "Rejestracja jest wyłączona",
+    });
+  });
+
+  it("publiczna rejestracja wyłączona, żądanie bez nagłówków → Rejestracja jest wyłączona", async () => {
+    await expect(
+      auth.api.signUpEmail({ body: signupBody }),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      message: "Rejestracja jest wyłączona",
+    });
+  });
+
+  it("nieważne zaproszenie przy publicznej rejestracji, cookie NEXT_LOCALE=en → The invitation is invalid or has expired", async () => {
+    mockEnv.AUTH_PUBLIC_SIGNUP = true;
+    mockPrisma.invitation.findFirst.mockResolvedValue(null);
+
+    await expect(
+      auth.api.signUpEmail({
+        body: { ...signupBody, invitationId: "inv-x" } as typeof signupBody,
+        headers: new Headers({ cookie: "NEXT_LOCALE=en" }),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      message: "The invitation is invalid or has expired",
+    });
+    expect(mockPrisma.user.create).not.toHaveBeenCalled();
+  });
+
+  it("nieważne zaproszenie przy publicznej rejestracji, żądanie pl → Zaproszenie jest nieprawidłowe lub wygasło", async () => {
+    mockEnv.AUTH_PUBLIC_SIGNUP = true;
+    mockPrisma.invitation.findFirst.mockResolvedValue(null);
+
+    await expect(
+      auth.api.signUpEmail({
+        body: { ...signupBody, invitationId: "inv-x" } as typeof signupBody,
+        headers: new Headers({ cookie: "NEXT_LOCALE=pl" }),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      message: "Zaproszenie jest nieprawidłowe lub wygasło",
+    });
+  });
+
+  it("MULTI_ORG=true, Ann z żądania en → organizacja Ann's organization", async () => {
+    mockEnv.AUTH_PUBLIC_SIGNUP = true;
+    mockEnv.MULTI_ORG = true;
+
+    await auth.api.signUpEmail({
+      body: { ...signupBody, name: "Ann" },
+      headers: new Headers({ cookie: "NEXT_LOCALE=en" }),
+    });
+
+    const { data } = mockPrisma.organization.create.mock.calls[0][0];
+    expect(data.name).toBe("Ann's organization");
+  });
+
+  it("MULTI_ORG=true, Ann z Referer /en/... → organizacja Ann's organization", async () => {
+    mockEnv.AUTH_PUBLIC_SIGNUP = true;
+    mockEnv.MULTI_ORG = true;
+
+    await auth.api.signUpEmail({
+      body: { ...signupBody, name: "Ann" },
+      headers: new Headers({ referer: "http://localhost:3000/en/sign-up" }),
+    });
+
+    const { data } = mockPrisma.organization.create.mock.calls[0][0];
+    expect(data.name).toBe("Ann's organization");
+  });
+
+  it("MULTI_ORG=true, Ann z żądania pl → organizacja Ann — organizacja", async () => {
+    mockEnv.AUTH_PUBLIC_SIGNUP = true;
+    mockEnv.MULTI_ORG = true;
+
+    await auth.api.signUpEmail({
+      body: { ...signupBody, name: "Ann" },
+      headers: new Headers({ cookie: "NEXT_LOCALE=pl" }),
+    });
+
+    const { data } = mockPrisma.organization.create.mock.calls[0][0];
+    expect(data.name).toBe("Ann — organizacja");
+  });
+});
+
 describe("organization plugin", () => {
   it("tworzenie organizacji przez użytkownika tylko przy MULTI_ORG=true", async () => {
     const plugin = auth.options.plugins.find(

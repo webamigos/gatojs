@@ -5,11 +5,13 @@ import {
   type FakeTables,
 } from "@/test/fake-prisma";
 
-const { database, mockGetSession, mockTrackAudit } = vi.hoisted(() => ({
-  database: { prisma: null as unknown as Record<string, unknown> },
-  mockGetSession: vi.fn(),
-  mockTrackAudit: vi.fn(),
-}));
+const { database, mockGetSession, mockTrackAudit, mockCurrentLocale } =
+  vi.hoisted(() => ({
+    mockCurrentLocale: vi.fn(),
+    database: { prisma: null as unknown as Record<string, unknown> },
+    mockGetSession: vi.fn(),
+    mockTrackAudit: vi.fn(),
+  }));
 
 vi.mock("@/shared/lib/prisma", () => ({
   prisma: new Proxy(
@@ -28,6 +30,9 @@ vi.mock("next/cache", () => ({
   revalidateTag: vi.fn(),
 }));
 vi.mock("next-intl/server", () => ({ getLocale: vi.fn(async () => "pl") }));
+vi.mock("@/i18n/server-locale", () => ({
+  currentLocale: () => mockCurrentLocale(),
+}));
 vi.mock("@/i18n/routing", () => ({
   redirect: vi.fn(() => {
     throw new Error("NEXT_REDIRECT");
@@ -44,6 +49,10 @@ vi.mock("@/shared/lib/logger", () => ({
 import { enterOrganizationCommand } from "../enter-organization-command";
 
 const ACCESS_DENIED = { success: false, error: "Brak dostępu do organizacji" };
+
+beforeEach(() => {
+  mockCurrentLocale.mockResolvedValue("pl");
+});
 
 let tables: FakeTables;
 let prisma: FakePrisma;
@@ -458,5 +467,70 @@ describe("enterOrganizationCommand", () => {
 
     expect(result).toMatchObject({ success: false });
     expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe("enterOrganizationCommand: komunikat odmowy w języku żądania", () => {
+  beforeEach(() => {
+    mockGetSession.mockReset();
+    mockTrackAudit.mockReset();
+    seed();
+  });
+
+  it.each([
+    ["en", "You don't have access to this organization"],
+    ["pl", "Brak dostępu do organizacji"],
+  ])(
+    "%s: owner A → organizacja B bez członkostwa → %j",
+    async (locale, expected) => {
+      mockCurrentLocale.mockResolvedValue(locale);
+      signInAs(USERS.owner);
+
+      const result = await enterOrganizationCommand("org-b");
+
+      expect(result).toEqual({ success: false, error: expected });
+      expect(activeOrganizations()).toEqual(UNCHANGED);
+    },
+  );
+
+  it.each([
+    ["en", "You don't have access to this organization"],
+    ["pl", "Brak dostępu do organizacji"],
+  ])("%s: niepoprawne id organizacji → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+    signInAs(USERS.superadmin);
+
+    const result = await enterOrganizationCommand("");
+
+    expect(result).toEqual({ success: false, error: expected });
+  });
+
+  it.each([
+    ["en", "You don't have access to this organization"],
+    ["pl", "Brak dostępu do organizacji"],
+  ])("%s: brak sesji → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+    mockGetSession.mockResolvedValue(null);
+
+    const result = await enterOrganizationCommand("org-b");
+
+    expect(result).toEqual({ success: false, error: expected });
+  });
+
+  it.each([
+    ["en", "You don't have access to this organization"],
+    ["pl", "Brak dostępu do organizacji"],
+  ])("%s: awaria zapisu sesji → %j", async (locale, expected) => {
+    mockCurrentLocale.mockResolvedValue(locale);
+    signInAs(USERS.superadmin);
+    const failure = async () => {
+      throw new Error("db down");
+    };
+    prisma.session.update.mockImplementation(failure);
+    prisma.session.updateMany.mockImplementation(failure);
+
+    const result = await enterOrganizationCommand("org-b");
+
+    expect(result).toEqual({ success: false, error: expected });
   });
 });

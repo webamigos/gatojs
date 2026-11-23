@@ -41,6 +41,7 @@ describe("mailer", () => {
     const result = await sendPasswordResetEmail({
       to: "a@example.com",
       resetUrl: "http://localhost/reset",
+      locale: "pl",
     });
 
     expect(send).not.toHaveBeenCalled();
@@ -56,16 +57,51 @@ describe("mailer", () => {
       to: "b@example.com",
       name: "Ala",
       resetUrl: "http://localhost/r",
+      locale: "pl",
     });
     await sendOrganizationInvitationEmail({
       to: "c@example.com",
       organizationName: "Acme",
       inviterName: "Ala",
       acceptUrl: "http://localhost/accept-invitation/1",
+      locale: "pl",
     });
 
     expect(send).not.toHaveBeenCalled();
     expect(info).toHaveBeenCalledTimes(2);
+  });
+
+  it("bez transportu loguje temat w języku odbiorcy (en)", async () => {
+    await sendPasswordResetEmail({
+      to: "a@example.com",
+      resetUrl: "http://localhost/reset",
+      locale: "en",
+    });
+
+    expect(info).toHaveBeenCalledWith(expect.any(String), {
+      to: "a@example.com",
+      subject: "Reset your password",
+    });
+  });
+
+  it("z kluczem Resend wysyła temat po angielsku dla locale en", async () => {
+    envMock.RESEND_API_KEY = "re_test";
+    send.mockResolvedValue({ data: { id: "1" }, error: null });
+
+    await sendOrganizationInvitationEmail({
+      to: "c@example.com",
+      organizationName: "Acme",
+      inviterName: "Bob",
+      acceptUrl: "http://localhost/accept-invitation/1",
+      locale: "en",
+    });
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: ["c@example.com"],
+        subject: "Invitation to Acme",
+      }),
+    );
   });
 
   it("z kluczem wysyła przez Resend z EMAIL_FROM", async () => {
@@ -75,6 +111,7 @@ describe("mailer", () => {
     const result = await sendPasswordResetEmail({
       to: "a@example.com",
       resetUrl: "http://localhost/reset",
+      locale: "pl",
     });
 
     expect(send).toHaveBeenCalledWith(
@@ -94,6 +131,7 @@ describe("mailer", () => {
     const result = await sendPasswordResetEmail({
       to: "a@example.com",
       resetUrl: "http://localhost/reset",
+      locale: "pl",
     });
 
     expect(result).toHaveProperty("error");
@@ -108,6 +146,7 @@ describe("mailer", () => {
     const result = await sendPasswordResetEmail({
       to: "a@example.com",
       resetUrl: "http://localhost/reset",
+      locale: "pl",
     });
 
     expect(createTransport).toHaveBeenCalledWith("smtp://localhost:1025");
@@ -129,6 +168,7 @@ describe("mailer", () => {
     const result = await sendPasswordResetEmail({
       to: "a@example.com",
       resetUrl: "http://localhost/reset",
+      locale: "pl",
     });
 
     expect(result).toHaveProperty("error");
