@@ -214,14 +214,14 @@ A test written by the code's author, after the code, reproduces the author's ass
 - **Tester ≠ implementer.** A task's tests are written by the `test-writer` subagent (`.claude/agents/test-writer.md`)
   from the plan and signatures, before the implementation; their red run is visible.
 - **Tests are read-only for the implementer.** Before starting it, the orchestrator writes
-  `implement` to `.superpowers/phase` in the implementer's working copy (its worktree, not the main copy),
+  `implement` to `.gato/phase` in the implementer's working copy (its worktree, not the main copy),
   and the `.claude/hooks/protect-tests.mjs` hook blocks edits to `__tests__/`, `*.test.*`, `*.spec.*` and `e2e/`.
   After the implementation the orchestrator deletes the file. The implementer reports a wrong test instead of fixing it.
 - **Running a task** (the `gato-task` skill; an agent without skills follows these steps). The orchestrator,
   the main agent session, writes neither tests nor code:
   1. plan with "Behaviors" and "Mutations to kill", saved as a spec or plan file;
   2. `test-writer` writes the tests from the plan and signatures and shows a red run for the right reason;
-  3. the orchestrator writes `implement` to `.superpowers/phase` in the implementer's working copy;
+  3. the orchestrator writes `implement` to `.gato/phase` in the implementer's working copy;
   4. the implementer makes the tests green without touching them and reports a wrong test;
   5. the orchestrator removes the phase file;
   6. `test-reviewer` runs `npm run test:mutation:task -- <files>` and `npm run test:mutation:gate`;

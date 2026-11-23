@@ -371,11 +371,11 @@ Jak to działa:
 
 | | `block-comments.mjs` | `protect-tests.mjs` |
 | --- | --- | --- |
-| Kiedy blokuje | Edycja dodaje linię komentarza w pliku `.ts/.tsx/.js/.jsx/.mjs/.cjs/.mts/.cts`. | Plik `.superpowers/phase` w kopii roboczej edytowanego pliku albo w katalogu projektu sesji (`$CLAUDE_PROJECT_DIR`) ma treść `implement` (po obcięciu białych znaków), a ścieżka edytowanego pliku wskazuje test. |
+| Kiedy blokuje | Edycja dodaje linię komentarza w pliku `.ts/.tsx/.js/.jsx/.mjs/.cjs/.mts/.cts`. | Plik `.gato/phase` (albo dawny `.superpowers/phase`) w kopii roboczej edytowanego pliku albo w katalogu projektu sesji (`$CLAUDE_PROJECT_DIR`) ma treść `implement` (po obcięciu białych znaków), a ścieżka edytowanego pliku wskazuje test. |
 | Co przepuszcza | `// WHY:` do 3 linii, dyrektywy narzędzi i kilka innych form ([Komentarze](06-wzorce-kodu.md#komentarze)); komentarze, które tylko się przesunęły; ścieżki z katalogami `node_modules`, `generated` i `components/ui`. | Każdą edycję, gdy pliku fazy nie ma albo ma inną treść; pliki poza wzorcem testów. |
 | Co porównuje | Przy `Edit` zastępowany fragment z nowym tekstem, przy `Write` istniejący plik z nową treścią. | Tylko ścieżkę pliku. |
 | Wzorzec ścieżki | Stałe `CODE_FILE` (rozszerzenia) i `EXEMPT_PATH` (wyjątki). | Stała `TEST_PATH`: katalogi `__tests__` i `e2e`, pliki `*.test.*` i `*.spec.*` z rozszerzeniem JS albo TS. |
-| Komunikat | `Blocked: this edit adds code comments. The code must explain itself.` i znalezione linie. | `Zablokowane: faza implementacji (.superpowers/phase = implement), testy są tylko do odczytu.` |
+| Komunikat | `Blocked: this edit adds code comments. The code must explain itself.` i znalezione linie. | `Blocked: implementation phase (.gato/phase = implement), tests are read-only.` |
 | Testy | `.claude/hooks/block-comments.test.mjs` | `.claude/hooks/protect-tests.test.mjs` |
 | Decyzja i opis | [D23](decyzje.md#d23), [Komentarze](06-wzorce-kodu.md#komentarze) | [D25](decyzje.md#d25), [Faza implementacji](08b-testy-adwersarialne.md#faza) |
 
@@ -502,7 +502,8 @@ Spec i plan opisują zamiar z chwili pisania. W trakcie wykonania zmieniają go 
 | `docs/superpowers/specs/` | Dokumenty projektowe (spec). | Tak. |
 | `docs/superpowers/plans/` | Plany wykonania. | Tak. |
 | `docs/superpowers/notes/` | Handoffy, rulingi, research, audyty. | Tak. |
-| `.superpowers/` | Lokalny warsztat: katalogi planów w `.superpowers/sdd/` z postępem, poleceniami i raportami zadań, szkice, plik fazy. | Nie, katalog jest w `.gitignore`. |
+| `.superpowers/` | Lokalny warsztat pluginu superpowers: katalogi planów w `.superpowers/sdd/` z postępem, poleceniami i raportami zadań, szkice. | Nie, katalog jest w `.gitignore`. |
+| `.gato/` | Lokalny stan GatoJS: plik fazy `.gato/phase`. | Nie, katalog jest w `.gitignore`. |
 | `.worktrees/` | Osobne kopie robocze (`git worktree`), które tworzy umiejętność `using-git-worktrees`. | Nie, katalog jest w `.gitignore`. |
 | Podkatalog `handoffs` w `.claude/` | Handoffy z sesji agentów zapisane lokalnie. | Nie jest śledzony, ale nie ma go w `.gitignore`, więc `git add -A` doda go do commitu. Przed commitem sprawdź `git status`. |
 
@@ -517,12 +518,12 @@ Zasady:
 
 ### Plik fazy
 
-Plik `.superpowers/phase` włącza blokadę testów. Orkiestrator zapisuje do niego `implement` przed uruchomieniem implementera i usuwa go po implementacji ([AGENTS.md](../AGENTS.md#testy-które-próbują-złamać-kod)). Hook czyta plik przy każdej edycji, więc zmiana działa od razu. Komendy i pełny opis: [Faza implementacji](08b-testy-adwersarialne.md#faza).
+Plik `.gato/phase` włącza blokadę testów. Orkiestrator zapisuje do niego `implement` przed uruchomieniem implementera i usuwa go po implementacji ([AGENTS.md](../AGENTS.md#testy-które-próbują-złamać-kod)). Hook czyta plik przy każdej edycji, więc zmiana działa od razu. Komendy i pełny opis: [Faza implementacji](08b-testy-adwersarialne.md#faza).
 
 Skutki dla codziennej pracy:
 
-- Hook czyta `.superpowers/phase` z kopii roboczej edytowanego pliku i z katalogu projektu sesji (`$CLAUDE_PROJECT_DIR`). Plik zapisany w worktree blokuje więc edycję testów w tym worktree w każdej sesji. Plik w głównej kopii blokuje edycję testów we wszystkich kopiach roboczych w sesjach, których `$CLAUDE_PROJECT_DIR` wskazuje główną kopię: w sesji uruchomionej w głównej kopii i w każdej sesji aplikacji Claude dla tego repozytorium, także działającej w `.claude/worktrees/`. Sesji uruchomionej w katalogu worktree poza aplikacją plik z głównej kopii nie blokuje, bo hook nie szuka go powyżej katalogu z `.git` ([Faza w worktree](08b-testy-adwersarialne.md#faza-worktree)). Plik nie trafia do git (`.superpowers/` jest w `.gitignore`), więc nowe kopie robocze go nie dostają.
-- Plik pozostawiony po przerwanym zadaniu blokuje edycję testów w swojej kopii roboczej w każdej sesji, a plik w głównej kopii także w pozostałych kopiach roboczych sesji opisanych wyżej. Dotyczy to również `test-writer` i Twojej sesji Claude Code. Gdy hook zgłasza „Zablokowane: faza implementacji”, a żadne zadanie nie trwa, usuń plik komendą `rm .superpowers/phase` w kopii roboczej edytowanego pliku i w głównej kopii.
+- Hook czyta `.gato/phase` (i dawny `.superpowers/phase`) z kopii roboczej edytowanego pliku i z katalogu projektu sesji (`$CLAUDE_PROJECT_DIR`). Plik zapisany w worktree blokuje więc edycję testów w tym worktree w każdej sesji. Plik w głównej kopii blokuje edycję testów we wszystkich kopiach roboczych w sesjach, których `$CLAUDE_PROJECT_DIR` wskazuje główną kopię: w sesji uruchomionej w głównej kopii i w każdej sesji aplikacji Claude dla tego repozytorium, także działającej w `.claude/worktrees/`. Sesji uruchomionej w katalogu worktree poza aplikacją plik z głównej kopii nie blokuje, bo hook nie szuka go powyżej katalogu z `.git` ([Faza w worktree](08b-testy-adwersarialne.md#faza-worktree)). Plik nie trafia do git (`.superpowers/` jest w `.gitignore`), więc nowe kopie robocze go nie dostają.
+- Plik pozostawiony po przerwanym zadaniu blokuje edycję testów w swojej kopii roboczej w każdej sesji, a plik w głównej kopii także w pozostałych kopiach roboczych sesji opisanych wyżej. Dotyczy to również `test-writer` i Twojej sesji Claude Code. Gdy hook zgłasza „Blocked: implementation phase”, a żadne zadanie nie trwa, usuń plik wymieniony w komunikacie, na przykład komendą `rm .gato/phase`, w kopii roboczej edytowanego pliku i w głównej kopii.
 - Deweloper, który sam pisze kod i testy, pliku fazy nie używa ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md)).
 
 <a id="pliki-generowane"></a>

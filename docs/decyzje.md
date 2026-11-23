@@ -927,6 +927,8 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 - Definicje agentów w `.claude/agents/`.
 - Rozdzielenie testera i implementera, literały i czerwony przebieg przed implementacją: tylko konwencja procesu, sprawdzana przez recenzenta i mierzona mutacjami ([D26](#d26)).
 
+**Uwaga (2026-11-23).** Od `core` 0.14.0 plik fazy to `.gato/phase` (zadanie 2 planu `docs/superpowers/plans/2026-11-22-agent-workflow.md`, [ADR-57](adrs/57-the-agent-workflow-is-shipped-by-gatojs.md)). Hook czyta jeszcze dawny `.superpowers/phase` do `core` 0.15.0 ([Znane ograniczenia](znane-ograniczenia.md#dawny-plik-fazy)). Ścieżka `.superpowers/phase` w tym wpisie opisuje decyzję z chwili jej podjęcia.
+
 **Źródło.** Commity `0650fc4` i `e40c0e8`; [AGENTS.md](../AGENTS.md), „Testy, które próbują złamać kod”; [CLAUDE.md](../CLAUDE.md), „Testy”; research i audyt testów planu 1.
 
 <a id="d26"></a>

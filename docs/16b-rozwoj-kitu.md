@@ -63,6 +63,7 @@ Repozytorium kitu to działająca aplikacja referencyjna: rdzeń i wszystkie mod
   "kitOnly": [
     "kit/**",
     "docs/**",
+    ".gato/**",
     ".superpowers/**",
     ".claude/handoffs/**",
     ".wa/kit.json",
@@ -82,7 +83,7 @@ Repozytorium kitu to działająca aplikacja referencyjna: rdzeń i wszystkie mod
 | `.github/workflows/kit.yml`, `.github/workflows/kit-mutation.yml` | Bramka CLI, składanie projektów z kitu i ręczny przebieg mutacji CLI ([CI kitu](#ci-kitu)). |
 | `prisma/migrations/.gitignore` | Ignoruje migracje: kit ich nie commituje, projekt commituje własne ([D13](decyzje.md#d13)). |
 | `docs/` | Ta dokumentacja. |
-| `.superpowers/**`, `.claude/handoffs/**` | Notatki procesu pracy nad kitem. |
+| `.gato/**`, `.superpowers/**`, `.claude/handoffs/**` | Plik fazy hooka `protect-tests` i notatki procesu pracy nad kitem. |
 
 Narzędzia aplikacji pomijają `kit/`: ESLint (`kit/**` w `globalIgnores` w `eslint.config.mjs`), Vitest (`exclude` w `vitest.config.ts`), TypeScript (`exclude` w `tsconfig.json`) i obraz Dockera (`kit` i `docs` w `.dockerignore`). Raporty i katalog roboczy Strykera CLI wyklucza z repozytorium `.gitignore`:
 
