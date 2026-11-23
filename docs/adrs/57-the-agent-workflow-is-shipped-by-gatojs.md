@@ -1,6 +1,6 @@
 # ADR-57: The agent task workflow is shipped by GatoJS; the superpowers plugin is an optional recommendation
 
-**Status:** Proposed
+**Status:** Accepted (Patryk accepted the agent-workflow plan, #69, 2026-11-23)
 **Date:** 2026-11-23
 **Decided by:** an agent with Patryk (plan `docs/superpowers/plans/2026-11-22-agent-workflow.md`, 2026-11-22)
 
