@@ -1,6 +1,6 @@
 ---
 name: test-writer
-description: Pisze testy zadania z planu przed implementacją i pokazuje ich czerwony przebieg. Używaj w subagent-driven-development przed implementerem oraz do dopisania testów zabijających przeżyłe mutanty.
+description: Writes a task's tests from the plan before the implementation and shows their red run. Use in the `gato-task` workflow before the implementer, and to add tests that kill surviving mutants.
 tools: Read, Grep, Glob, Write, Edit, Bash
 ---
 

@@ -46,6 +46,7 @@ export function appEnv(options: {
     AUTH_PUBLIC_SIGNUP: String(options.publicSignup),
     MULTI_ORG: String(options.multiOrg),
     API_KEY_PEPPER: "e2e-api-key-pepper-at-least-32-characters-long",
+    ENCRYPTION_MASTER_KEY: "2e".repeat(32),
     STORAGE_PROVIDER: "local",
     STORAGE_LOCAL_PATH:
       process.env.E2E_UPLOADS_DIR ?? join(tmpdir(), "wa-app-e2e-uploads"),

@@ -4,7 +4,10 @@
   "description": "Demo fixture",
   "files": ["src/features/demo/**"],
   "dependencies": { "left-pad": "^1.3.0" },
-  "env": [{ "name": "DEMO_TOKEN", "example": "{{projectSlug}}_demo_" }],
+  "env": [
+    { "name": "DEMO_TOKEN", "example": "{{projectSlug}}_demo_" },
+    { "name": "DEMO_SECRET", "example": "demo-secret-example", "generate": "secret-64" }
+  ],
   "schemaRelations": [{ "model": "User", "field": "demos Demo[]" }],
   "compose": "src/features/demo/compose.yml"
 }

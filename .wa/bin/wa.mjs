@@ -219,7 +219,7 @@ import { parseArgs } from "node:util";
 var VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?$/;
 function parseVersion(value) {
   if (!VERSION_PATTERN.test(value)) {
-    throw new Error(`Nieprawid\u0142owa wersja: ${value}; podaj na przyk\u0142ad 0.2.0`);
+    throw new Error(`Invalid version: ${value}; use a version like 0.2.0`);
   }
   return value;
 }
@@ -267,7 +267,7 @@ function compareVersions(a, b) {
 }
 
 // src/args.ts
-var LOCALES_ERROR = "--locales: dozwolone pl,en; pl jest wymagany";
+var LOCALES_ERROR = "--locales: allowed values are pl,en; pl is required";
 var ALLOWED_LOCALES = ["pl", "en"];
 function parseList(value) {
   return value.split(",").map((item) => item.trim()).filter((item) => item !== "");
@@ -286,18 +286,18 @@ function translateParseError(error62, options) {
   }
   const option = error62.message.split("'")[1].split(" ")[0];
   if (error62.code === "ERR_PARSE_ARGS_UNKNOWN_OPTION") {
-    return new Error(`Nieznana opcja: ${option}`);
+    return new Error(`Unknown option: ${option}`);
   }
   const takesValue = Object.entries(options).some(
     ([name, config2]) => `--${name}` === option && config2.type === "string"
   );
   return new Error(
-    takesValue ? `Opcja ${option} wymaga warto\u015Bci` : `Opcja ${option} nie przyjmuje warto\u015Bci`
+    takesValue ? `Option ${option} needs a value` : `Option ${option} takes no value`
   );
 }
 function optionalValue(value, option) {
   if (value === "") {
-    throw new Error(`Opcja ${option} wymaga warto\u015Bci`);
+    throw new Error(`Option ${option} needs a value`);
   }
   return value ?? null;
 }
@@ -311,7 +311,7 @@ function parseOptions(argv, options) {
 function assertMaxPositionals(positionals, allowed) {
   const unexpected = positionals[allowed];
   if (unexpected !== void 0) {
-    throw new Error(`Nieoczekiwany argument: ${unexpected}`);
+    throw new Error(`Unexpected argument: ${unexpected}`);
   }
 }
 function parseCreateArgs(argv) {
@@ -329,11 +329,11 @@ function parseCreateArgs(argv) {
   });
   const [target] = positionals;
   if (target === void 0) {
-    throw new Error("Podaj katalog projektu");
+    throw new Error("Specify the project directory");
   }
   assertMaxPositionals(positionals, 1);
   if (values.setup && values["no-install"]) {
-    throw new Error("--setup wymaga instalacji zale\u017Cno\u015Bci (bez --no-install)");
+    throw new Error("--setup needs dependencies installed (drop --no-install)");
   }
   return {
     target,
@@ -356,7 +356,7 @@ function parseAddArgs(argv) {
   });
   const [module] = positionals;
   if (module === void 0) {
-    throw new Error("Podaj nazw\u0119 modu\u0142u");
+    throw new Error("Specify the module name");
   }
   assertMaxPositionals(positionals, 1);
   return {
@@ -372,7 +372,7 @@ function parseRemoveArgs(argv) {
   });
   const [module] = positionals;
   if (module === void 0) {
-    throw new Error("Podaj nazw\u0119 modu\u0142u");
+    throw new Error("Specify the module name");
   }
   assertMaxPositionals(positionals, 1);
   return { module, force: values.force, install: !values["no-install"] };
@@ -393,7 +393,7 @@ function parseUpdateArgs(argv) {
   });
   const [version2] = positionals;
   if (version2 === void 0) {
-    throw new Error("Podaj wersj\u0119 kitu");
+    throw new Error("Specify the kit version");
   }
   assertMaxPositionals(positionals, 1);
   return {
@@ -462,14 +462,14 @@ function replaceRegion(content, file2, marker, body) {
   const [start] = starts;
   const [end] = ends;
   if (starts.length !== 1 || ends.length !== 1 || start === void 0 || end === void 0 || end <= start) {
-    throw new Error(`${file2}: uszkodzony region wa:${marker}`);
+    throw new Error(`${file2}: malformed region wa:${marker}`);
   }
   const bodyLines = body === "" ? [] : body.split(/\r?\n/).map((line) => line.replace(/\r$/, ""));
   if (bodyLines.some(
     (line) => line.includes(startToken) || line.includes(endToken)
   )) {
     throw new Error(
-      `${file2}: tre\u015B\u0107 regionu wa:${marker} zawiera znacznik regionu`
+      `${file2}: content of region wa:${marker} contains a region marker`
     );
   }
   return [...lines.slice(0, start + 1), ...bodyLines, ...lines.slice(end)].join(
@@ -617,7 +617,7 @@ async function renderRegionTarget(target, context) {
       return null;
     }
     throw new Error(
-      `${target.file}: brak regionu wa:${target.marker}; dodaj linie ze znacznikami wa:${target.marker}:start i wa:${target.marker}:end`
+      `${target.file}: missing region wa:${target.marker}; add lines with the markers wa:${target.marker}:start and wa:${target.marker}:end`
     );
   }
   return {
@@ -825,7 +825,7 @@ async function listKitFiles(kitDir) {
     }));
   } catch (error62) {
     if (error62.code === GIT_FATAL_EXIT_CODE) {
-      throw new Error(`${kitDir} nie jest repozytorium git`);
+      throw new Error(`${kitDir} is not a git repository`);
     }
     throw error62;
   }
@@ -856,7 +856,9 @@ function resolveModules(requested, available) {
     const manifest = byName.get(name);
     if (!manifest) {
       const names = available.map((candidate) => candidate.name).filter((candidate) => candidate !== CORE).sort(compareModuleNames);
-      throw new Error(`Nieznany modu\u0142: ${name}. Dost\u0119pne: ${names.join(", ")}`);
+      throw new Error(
+        `Unknown module: ${name}. Available: ${names.join(", ")}`
+      );
     }
     resolved.set(name, manifest);
     pending.push(...manifest.requires);
@@ -20607,7 +20609,8 @@ var moduleManifestSchema = external_exports.object({
     external_exports.object({
       name: external_exports.string().min(1),
       example: external_exports.string(),
-      required: external_exports.boolean().optional()
+      required: external_exports.boolean().optional(),
+      generate: external_exports.enum(["secret-32", "secret-64", "hex-32"]).optional()
     })
   ).default([]),
   schemaRelations: external_exports.array(external_exports.object({ model: external_exports.string().min(1), field: external_exports.string().min(1) })).default([]),
@@ -20617,9 +20620,9 @@ var moduleManifestSchema = external_exports.object({
 });
 var DEFAULT_KIT_REPO = "https://github.com/webamigos/wa-kit.git";
 var localesSchema = external_exports.array(external_exports.enum(["pl", "en"])).min(1).refine((locales) => locales.includes("pl"), {
-  message: 'locales musi zawiera\u0107 "pl"'
+  message: 'locales must include "pl"'
 }).refine((locales) => new Set(locales).size === locales.length, {
-  message: "locales nie mo\u017Ce zawiera\u0107 duplikat\xF3w"
+  message: "locales must not contain duplicates"
 });
 var kitStateSchema = external_exports.object({
   kitVersion: external_exports.string(),
@@ -20646,7 +20649,7 @@ async function readKitState(projectDir) {
   } catch (error62) {
     if (error62.code === "ENOENT") {
       throw new Error(
-        `Brak .wa/kit.json w ${projectDir} \u2014 to nie jest projekt wa-kit`
+        `No .wa/kit.json in ${projectDir} \u2014 this is not a GatoJS project`
       );
     }
     throw error62;
@@ -20659,24 +20662,24 @@ function validateProjectModules(state) {
   for (const [key, { manifest }] of Object.entries(state.projectModules)) {
     if (manifest.name !== key) {
       throw new Error(
-        `projectModules.${key}: name "${manifest.name}" nie zgadza si\u0119 z kluczem`
+        `projectModules.${key}: name "${manifest.name}" does not match the key`
       );
     }
     if (key in state.modules) {
       throw new Error(
-        `Modu\u0142 ${key} jest jednocze\u015Bnie modu\u0142em kitu i modu\u0142em projektu`
+        `Module ${key} is both a kit module and a project module`
       );
     }
     for (const required2 of manifest.requires) {
       if (!(required2 in state.modules) && !(required2 in state.projectModules)) {
         throw new Error(
-          `Modu\u0142 projektu ${key} wymaga niezainstalowanego modu\u0142u: ${required2}`
+          `Project module ${key} requires a module that is not installed: ${required2}`
         );
       }
     }
     if (!manifest.files.some((glob) => glob.startsWith(`src/features/${key}/`))) {
       throw new Error(
-        `Modu\u0142 projektu ${key}: files musi obejmowa\u0107 src/features/${key}/**`
+        `Project module ${key}: files must cover src/features/${key}/**`
       );
     }
   }
@@ -20720,7 +20723,7 @@ function registeredModules(state) {
 }
 
 // src/generate/registry.ts
-var GENERATED_HEADER = "// generated by wa \u2014 nie edytuj. Uruchom: npm run wa -- generate";
+var GENERATED_HEADER = "// generated by GatoJS \u2014 do not edit. Run: npm run wa -- generate";
 function identifier(name, suffix) {
   const camel = name.replace(
     /[-_.]+(.)/g,
@@ -20932,7 +20935,7 @@ async function readKitConfig(kitDir) {
   } catch (error62) {
     if (error62.code === "ENOENT") {
       throw new Error(
-        `Brak kit/kit.json w ${kitDir} \u2014 to nie jest repozytorium wa-kit`
+        `No kit/kit.json in ${kitDir} \u2014 this is not a GatoJS repository`
       );
     }
     throw error62;
@@ -20949,7 +20952,7 @@ async function readKitManifests(kitDir) {
     );
     if (manifest.name !== name) {
       throw new Error(
-        `kit/modules/${fileName}: name "${manifest.name}" nie zgadza si\u0119 z nazw\u0105 pliku`
+        `kit/modules/${fileName}: name "${manifest.name}" does not match the file name`
       );
     }
     manifests.push(manifest);
@@ -20987,7 +20990,7 @@ async function cloneKit(input2) {
     );
   } catch (error62) {
     throw new Error(
-      `Nie uda\u0142o si\u0119 pobra\u0107 wa-kit v${input2.version} z ${input2.source}. Sprawd\u017A dost\u0119p (gh auth status) albo podaj --kit <\u015Bcie\u017Cka>`,
+      `Could not fetch GatoJS v${input2.version} from ${input2.source}. Check access (gh auth status) or pass --kit <path>`,
       { cause: error62 }
     );
   }
@@ -20998,7 +21001,7 @@ async function cloneKitVersion(input2) {
   const config2 = await readKitConfig(target);
   if (config2.version !== input2.version) {
     throw new Error(
-      `Kit w ${target} ma wersj\u0119 ${config2.version}, oczekiwano ${input2.version}`
+      `Kit in ${target} has version ${config2.version}, expected ${input2.version}`
     );
   }
   return target;
@@ -21006,7 +21009,7 @@ async function cloneKitVersion(input2) {
 function kitSourceLocation(input2) {
   const source = input2.kitFlag ?? input2.envSource ?? input2.state.kitRepo;
   if (source.startsWith("-") || !isRemote(source) && looksLikeTransport(source)) {
-    throw new Error(`Nieprawid\u0142owe \u017Ar\xF3d\u0142o wa-kit: ${source}`);
+    throw new Error(`Invalid kit source: ${source}`);
   }
   return isRemote(source) ? source : resolve(source);
 }
@@ -21025,7 +21028,7 @@ async function resolveKitSource(input2) {
   const config2 = await readKitConfig(source);
   if (config2.version !== state.kitVersion) {
     throw new Error(
-      `Kit w ${source} ma wersj\u0119 ${config2.version}, projekt u\u017Cywa ${state.kitVersion}`
+      `Kit in ${source} has version ${config2.version}, the project uses ${state.kitVersion}`
     );
   }
   return source;
@@ -21099,7 +21102,7 @@ async function rollbackAdd(input2) {
       await step.run();
     } catch (error62) {
       const { code, message } = error62;
-      log(`Nie uda\u0142o si\u0119 posprz\u0105ta\u0107: ${step.path} (${code ?? message})`);
+      log(`Could not clean up: ${step.path} (${code ?? message})`);
     }
   }
 }
@@ -21107,11 +21110,11 @@ async function add(options) {
   const { projectDir, module, kitDir, runner, log } = options;
   const state = await readKitState(projectDir);
   if (module in state.modules) {
-    throw new Error(`Modu\u0142 ${module} jest ju\u017C zainstalowany`);
+    throw new Error(`Module ${module} is already installed`);
   }
   if (module in state.projectModules) {
     throw new Error(
-      `Modu\u0142 ${module} jest modu\u0142em projektu; zmie\u0144 jego nazw\u0119 albo usu\u0144 wpis z projectModules`
+      `Module ${module} is a project module; rename it or remove its projectModules entry`
     );
   }
   const config2 = await readKitConfig(kitDir);
@@ -21131,7 +21134,7 @@ async function add(options) {
   const collisions = candidates.filter((_, index) => occupied[index]).sort(compareCodePoint);
   if (collisions.length > 0) {
     throw new Error(
-      `Pliki ju\u017C istniej\u0105, przerwano bez zmian:
+      `Files already exist; stopped without changes:
 ${collisions.map((file2) => `  ${file2}`).join("\n")}`
     );
   }
@@ -21166,7 +21169,7 @@ ${collisions.map((file2) => `  ${file2}`).join("\n")}`
       };
       for (const conflict of dependencyConflicts(packageJson, manifest)) {
         log(
-          `Uwaga: ${conflict.name} (${conflict.section}) ma w projekcie ${conflict.project}, modu\u0142 ${manifest.name} wymaga ${conflict.module}; zostaje wersja projektu`
+          `Warning: ${conflict.name} (${conflict.section}) is ${conflict.project} in the project, module ${manifest.name} requires ${conflict.module}; keeping the project version`
         );
       }
       packageJson = addDependencies(packageJson, manifest);
@@ -21189,9 +21192,7 @@ ${collisions.map((file2) => `  ${file2}`).join("\n")}`
     try {
       await runner("npm", ["install"], projectDir);
     } catch {
-      throw new Error(
-        "Modu\u0142 dodany, ale npm install si\u0119 nie powi\xF3d\u0142. Uruchom: npm install"
-      );
+      throw new Error("Module added, but npm install failed. Run: npm install");
     }
   }
   log(`npx prisma migrate dev --name add-${module}`);
@@ -21234,6 +21235,81 @@ import {
 } from "node:fs/promises";
 import { join as join8, resolve as resolve2 } from "node:path";
 
+// src/assemble/package-lock.ts
+var PROJECT_VERSION = "0.1.0";
+var ROOT = "";
+function isKitOnlyPath(path2, kitOnly) {
+  return kitOnly.some((pattern) => pattern.test(`${path2}/package.json`));
+}
+function withoutKitOnly(packages, kitOnly) {
+  const removed = new Set(
+    Object.keys(packages).filter((path2) => isKitOnlyPath(path2, kitOnly))
+  );
+  return Object.fromEntries(
+    Object.entries(packages).filter(
+      ([path2, entry]) => !removed.has(path2) && !removed.has(entry.resolved)
+    )
+  );
+}
+function projectPackageLock(kitLock, input2) {
+  const lock = JSON.parse(kitLock);
+  lock.name = input2.names.slug;
+  if (lock.version !== void 0) {
+    lock.version = PROJECT_VERSION;
+  }
+  if (lock.packages !== void 0) {
+    const packages = withoutKitOnly(
+      lock.packages,
+      input2.kitOnly.map(globToRegExp)
+    );
+    const root = packages[ROOT];
+    if (root !== void 0) {
+      packages[ROOT] = {
+        ...root,
+        name: input2.names.slug,
+        version: PROJECT_VERSION
+      };
+    }
+    lock.packages = packages;
+  }
+  return `${JSON.stringify(lock, null, 2)}
+`;
+}
+
+// src/assemble/secrets.ts
+var AUTH_SECRET = {
+  name: "BETTER_AUTH_SECRET",
+  kind: "secret-32"
+};
+var BYTES = {
+  "secret-32": 32,
+  "secret-64": 64,
+  "hex-32": 32
+};
+function generateSecret(kind, randomBytes2) {
+  const bytes = Buffer.from(randomBytes2(BYTES[kind]));
+  return bytes.toString(kind === "hex-32" ? "hex" : "base64url");
+}
+function generatedVariables(manifests) {
+  const variables = [AUTH_SECRET];
+  for (const manifest of manifests) {
+    for (const variable of manifest.env) {
+      if (variable.generate !== void 0 && !variables.some((known) => known.name === variable.name)) {
+        variables.push({ name: variable.name, kind: variable.generate });
+      }
+    }
+  }
+  return variables;
+}
+function withGeneratedSecrets(envText, variables, randomBytes2) {
+  let text = envText;
+  for (const { name, kind } of variables) {
+    const line = new RegExp(`^${name}=.*$`, "m");
+    text = text.replace(line, () => `${name}=${generateSecret(kind, randomBytes2)}`);
+  }
+  return text;
+}
+
 // src/assemble/project-names.ts
 import { basename as basename2 } from "node:path";
 var SLUG_PATTERN = /^[a-z][a-z0-9-]{1,49}$/;
@@ -21244,7 +21320,7 @@ function projectNames(target, title) {
   const slug = basename2(target);
   if (!SLUG_PATTERN.test(slug)) {
     throw new Error(
-      `Nazwa projektu "${slug}": dozwolone ma\u0142e litery, cyfry i my\u015Blniki, pierwsza litera, 2\u201350 znak\xF3w`
+      `Project name "${slug}": use lowercase letters, digits and hyphens, start with a letter, 2\u201350 characters`
     );
   }
   return {
@@ -21256,7 +21332,7 @@ function projectNames(target, title) {
 
 // src/commands/create.ts
 var DEFAULT_LOCALES = "pl,en";
-var SETUP_QUESTION = "Uruchomi\u0107 baz\u0119, migracj\u0119 i admin:create teraz? [t/N]";
+var SETUP_QUESTION = "Start the database, run migrations and admin:create now? [y/N]";
 async function isNonEmptyDirectory(dir) {
   if (!existsSync2(dir)) {
     return false;
@@ -21278,21 +21354,21 @@ async function collectAnswers(options, manifests, names) {
   let modules = options.modules ?? [];
   const choices = moduleChoices(manifests);
   if (options.modules === null && !yes && choices.length > 0) {
-    modules = await prompter.select("Modu\u0142y", choices);
+    modules = await prompter.select("Modules", choices);
   }
   let locales = options.locales ?? parseLocales(DEFAULT_LOCALES);
   if (options.locales === null && !yes) {
     locales = parseLocales(
-      (await prompter.select("J\u0119zyki", LOCALE_CHOICES)).join(",")
+      (await prompter.select("Languages", LOCALE_CHOICES)).join(",")
     );
   }
   let title = options.title;
   if (title === null && !yes) {
-    title = await prompter.ask("Nazwa wy\u015Bwietlana", names.name);
+    title = await prompter.ask("Display name", names.name);
   }
   let adminEmail = options.adminEmail;
   if (adminEmail === null && !yes) {
-    const answer = await prompter.ask("Email admina (puste = pomi\u0144)", "");
+    const answer = await prompter.ask("Admin email (empty = skip)", "");
     adminEmail = answer === "" ? null : answer;
   }
   let setup = options.setup;
@@ -21339,6 +21415,14 @@ async function assemble(input2) {
       options.cliDependency ?? null
     )
   );
+  const packageLockPath = join8(projectDir, "package-lock.json");
+  await writeFile5(
+    packageLockPath,
+    projectPackageLock(await readFile7(packageLockPath, "utf8"), {
+      kitOnly: config2.kitOnly,
+      names
+    })
+  );
   await writeKitState(projectDir, {
     kitVersion: config2.version,
     kitRepo: config2.repo,
@@ -21349,12 +21433,12 @@ async function assemble(input2) {
   });
   await generate(projectDir);
 }
-async function writeEnvFile(projectDir, adminEmail) {
+async function writeEnvFile(projectDir, adminEmail, manifests) {
   const example = await readFile7(join8(projectDir, ".env.example"), "utf8");
-  const secret = randomBytes(32).toString("base64url");
-  let env = example.replace(
-    /^BETTER_AUTH_SECRET=.*/m,
-    () => `BETTER_AUTH_SECRET=${secret}`
+  let env = withGeneratedSecrets(
+    example,
+    generatedVariables(manifests),
+    randomBytes
   );
   if (adminEmail !== null) {
     env = env.replace(/^ADMIN_EMAIL=.*/m, () => `ADMIN_EMAIL=${adminEmail}`);
@@ -21374,14 +21458,14 @@ async function commitInitial(options, projectDir, version2) {
         "-q",
         "--no-verify",
         "-m",
-        `chore: initial commit from wa-kit v${version2}`
+        `chore: initial commit from GatoJS v${version2}`
       ],
       projectDir
     );
   } catch (error62) {
     const message = error62 instanceof Error ? error62.message : String(error62);
     log(
-      `Uwaga: nie utworzono commita (${message}). Skonfiguruj git i zr\xF3b commit r\u0119cznie.`
+      `Warning: no commit created (${message}). Configure git and commit by hand.`
     );
   }
 }
@@ -21401,14 +21485,35 @@ async function runSetup(options, projectDir, adminEmail) {
     );
   }
 }
-function logNextSteps(log, projectDir, setup, adminEmail) {
-  log(`cd ${projectDir}`);
-  if (!setup) {
-    log("docker compose up -d");
-    log("npx prisma migrate dev --name init");
-    log(`npm run admin:create -- --email ${adminEmail ?? "tw\xF3j-email"}`);
+var ADMIN_EMAIL_PLACEHOLDER = "<your-email>";
+function setupSteps(adminEmail) {
+  return [
+    "docker compose up -d",
+    "npx prisma migrate dev --name init",
+    `npm run admin:create -- --email ${adminEmail ?? ADMIN_EMAIL_PLACEHOLDER}`
+  ];
+}
+function nextSteps(input2) {
+  const steps = [`cd ${input2.projectDir}`];
+  if (!input2.install) {
+    steps.push("npm install");
+    if (input2.git) {
+      steps.push('git add -A && git commit -m "chore: initial commit"');
+    }
   }
-  log("npm run dev");
+  if (!input2.setupDone) {
+    steps.push(...setupSteps(input2.adminEmail));
+  }
+  steps.push("npm run dev");
+  return steps;
+}
+function assertKitDir(kitDir) {
+  if (!existsSync2(kitDir)) {
+    throw new Error(`--kit: ${kitDir} does not exist`);
+  }
+  if (!existsSync2(join8(kitDir, "kit/kit.json"))) {
+    throw new Error(`${kitDir} is not a GatoJS checkout (no kit/kit.json)`);
+  }
 }
 async function create(options) {
   const projectDir = resolve2(options.target);
@@ -21418,11 +21523,9 @@ async function create(options) {
   const names = projectNames(projectDir, options.title);
   const existed = existsSync2(projectDir);
   if (await isNonEmptyDirectory(projectDir)) {
-    throw new Error(`Katalog ${projectDir} istnieje i nie jest pusty`);
+    throw new Error(`Directory ${projectDir} exists and is not empty`);
   }
-  if (!existsSync2(join8(options.kitDir, "kit/kit.json"))) {
-    throw new Error("Uruchom create z klonu wa-kit albo podaj --kit <\u015Bcie\u017Cka>");
-  }
+  assertKitDir(options.kitDir);
   const config2 = await readKitConfig(options.kitDir);
   const available = await readKitManifests(options.kitDir);
   const answers = await collectAnswers(options, available, names);
@@ -21430,7 +21533,7 @@ async function create(options) {
   const resolved = resolveModules(answers.modules, available);
   const finalNames = projectNames(projectDir, answers.title);
   if (await isNonEmptyDirectory(projectDir)) {
-    throw new Error(`Katalog ${projectDir} istnieje i nie jest pusty`);
+    throw new Error(`Directory ${projectDir} exists and is not empty`);
   }
   await mkdir4(projectDir, { recursive: true });
   try {
@@ -21446,7 +21549,7 @@ async function create(options) {
     await discardAssembly(projectDir, existed).catch(() => void 0);
     throw error62;
   }
-  await writeEnvFile(projectDir, answers.adminEmail);
+  await writeEnvFile(projectDir, answers.adminEmail, resolved);
   if (options.git) {
     await options.runner("git", ["init", "-q"], projectDir);
   }
@@ -21455,17 +21558,39 @@ async function create(options) {
       await options.runner("npm", ["install"], projectDir);
     } catch {
       throw new Error(
-        `Projekt utworzony w ${projectDir}, ale npm install si\u0119 nie powi\xF3d\u0142. Uruchom: cd ${projectDir} && npm install`
+        `Project created at ${projectDir}, but npm install failed. Run: cd ${projectDir} && npm install`
       );
     }
   }
-  if (options.git) {
+  if (options.git && options.install) {
     await commitInitial(options, projectDir, config2.version);
   }
   if (runSetupSteps) {
-    await runSetup(options, projectDir, answers.adminEmail);
+    try {
+      await runSetup(options, projectDir, answers.adminEmail);
+    } catch (error62) {
+      const message = error62 instanceof Error ? error62.message : String(error62);
+      const steps = [
+        `cd ${projectDir}`,
+        ...setupSteps(answers.adminEmail),
+        "npm run dev"
+      ];
+      throw new Error(
+        `Project created at ${projectDir}, but the setup failed (${message}). Continue with:
+${steps.join("\n")}`,
+        { cause: error62 }
+      );
+    }
   }
-  logNextSteps(options.log, projectDir, runSetupSteps, answers.adminEmail);
+  for (const step of nextSteps({
+    projectDir,
+    install: options.install,
+    git: options.git,
+    setupDone: runSetupSteps,
+    adminEmail: answers.adminEmail
+  })) {
+    options.log(step);
+  }
   return { projectDir, modules: resolved.map((manifest) => manifest.name) };
 }
 
@@ -23250,23 +23375,10 @@ var dist_default4 = createPrompt((config2, done) => {
 // src/process/prompter.ts
 import { createInterface as createInterface2 } from "node:readline/promises";
 var YES_ANSWERS = ["t", "tak", "y", "yes"];
-var KEY_NAMES = { space: "spacja" };
-var KEY_ACTIONS = {
-  navigate: "przesu\u0144",
-  select: "zaznacz",
-  all: "wszystkie",
-  invert: "odwr\xF3\u0107",
-  submit: "zatwierd\u017A"
-};
 function assertTerminal() {
   if (!process.stdin.isTTY) {
-    throw new Error("Brak terminala: u\u017Cyj --yes");
+    throw new Error("No terminal: use --yes");
   }
-}
-function keysHelpTip(keys) {
-  return keys.map(
-    ([key, action]) => `${KEY_NAMES[key] ?? key} ${KEY_ACTIONS[action] ?? action}`
-  ).join(" \u2022 ");
 }
 async function readAnswer(question) {
   assertTerminal();
@@ -23303,16 +23415,15 @@ var readlinePrompter = {
           name: choice.label,
           short: choice.value,
           checked: choice.checked ?? false,
-          disabled: choice.locked ? "(wymagany)" : false
+          disabled: choice.locked ? "(required)" : false
         })),
         theme: {
-          style: { keysHelpTip },
-          i18n: { disabledError: "Tej pozycji nie mo\u017Cna odznaczy\u0107" }
+          i18n: { disabledError: "This item cannot be unselected" }
         }
       });
     } catch (error62) {
       if (error62 instanceof Error && error62.name === "ExitPromptError") {
-        throw new Error("Przerwano");
+        throw new Error("Aborted");
       }
       throw error62;
     }
@@ -23330,7 +23441,7 @@ var spawnRunner = (command, args, cwd) => new Promise((resolve7, reject) => {
       return;
     }
     reject(
-      new Error(`${[command, ...args].join(" ")} zako\u0144czone kodem ${code}`)
+      new Error(`${[command, ...args].join(" ")} exited with code ${code}`)
     );
   });
 });
@@ -23377,27 +23488,27 @@ async function kitSync(kitDir) {
 
 // src/commands/list.ts
 function availableLine(manifest) {
-  const needs = manifest.requires.length > 0 ? ` (wymaga: ${manifest.requires.join(", ")})` : "";
+  const needs = manifest.requires.length > 0 ? ` (requires: ${manifest.requires.join(", ")})` : "";
   return `  ${manifest.name} ${manifest.version} \u2014 ${manifest.description}${needs}`;
 }
 function list(options) {
   const { state, available, availableError, log } = options;
-  log("Zainstalowane:");
+  log("Installed:");
   for (const [name, entry] of Object.entries(state.modules).sort(
     ([a], [b]) => compareModuleNames(a, b)
   )) {
     log(`  ${name} ${entry.version}`);
   }
   if (available === null) {
-    log(`Dost\u0119pne: nie uda\u0142o si\u0119 pobra\u0107 kitu (${availableError})`);
+    log(`Available: could not fetch the kit (${availableError})`);
   } else {
     const rest = available.filter(
       (manifest) => manifest.name !== "core" && !(manifest.name in state.modules)
     ).sort((a, b) => compareCodePoint(a.name, b.name));
     if (rest.length === 0) {
-      log("Dost\u0119pne: brak");
+      log("Available: none");
     } else {
-      log("Dost\u0119pne:");
+      log("Available:");
       for (const manifest of rest) {
         log(availableLine(manifest));
       }
@@ -23407,7 +23518,7 @@ function list(options) {
     ([a], [b]) => compareCodePoint(a, b)
   );
   if (projectEntries.length > 0) {
-    log("Projektu:");
+    log("Project modules:");
     for (const [name, { manifest }] of projectEntries) {
       log(`  ${name} \u2014 ${manifest.description}`);
     }
@@ -23429,15 +23540,15 @@ import { dirname as dirname5, join as join10, relative, resolve as resolve3, sep
 var HASH_CONFIG = { managedFiles: [] };
 function assertRemovable(state, module) {
   if (module === "core") {
-    throw new Error("Nie mo\u017Cna usun\u0105\u0107 rdzenia");
+    throw new Error("Cannot remove core");
   }
   if (module in state.projectModules) {
     throw new Error(
-      `Modu\u0142 ${module} nale\u017Cy do projektu; wa remove usuwa tylko modu\u0142y kitu. Usu\u0144 jego pliki i wpis w projectModules r\u0119cznie`
+      `Module ${module} belongs to the project; remove only handles kit modules. Delete its files and its projectModules entry by hand`
     );
   }
   if (!(module in state.modules)) {
-    throw new Error(`Modu\u0142 ${module} nie jest zainstalowany`);
+    throw new Error(`Module ${module} is not installed`);
   }
   const requiredBy = [
     ...Object.values(state.modules).map((entry) => entry.manifest),
@@ -23445,7 +23556,7 @@ function assertRemovable(state, module) {
   ].filter((manifest) => manifest.requires.includes(module)).map((manifest) => manifest.name).sort(compareCodePoint);
   if (requiredBy.length > 0) {
     throw new Error(
-      `Modu\u0142 ${module} jest wymagany przez: ${requiredBy.join(", ")}`
+      `Module ${module} is required by: ${requiredBy.join(", ")}`
     );
   }
 }
@@ -23483,7 +23594,7 @@ async function insideProject(projectDir, file2) {
   const absolute = resolve3(projectDir, file2);
   const real = await realpathOfDeepestAncestor(absolute);
   if (!real.startsWith(root + sep)) {
-    throw new Error(`\u015Acie\u017Cka poza projektem: ${file2}`);
+    throw new Error(`Path outside the project: ${file2}`);
   }
   return absolute;
 }
@@ -23548,7 +23659,7 @@ async function remove(options) {
   const changed = await changedFiles(projectDir, entry.files);
   if (changed.length > 0 && !options.force) {
     throw new Error(
-      `Zmienione pliki modu\u0142u ${module} (u\u017Cyj --force):
+      `Changed files in module ${module} (use --force):
 ${changed.map((file2) => `  ${file2}`).join("\n")}`
     );
   }
@@ -23576,7 +23687,7 @@ ${changed.map((file2) => `  ${file2}`).join("\n")}`
       await runner("npm", ["install"], projectDir);
     } catch {
       throw new Error(
-        "Modu\u0142 usuni\u0119ty, ale npm install si\u0119 nie powi\xF3d\u0142. Uruchom: npm install"
+        "Module removed, but npm install failed. Run: npm install"
       );
     }
   }
@@ -23676,13 +23787,13 @@ function planned(path2, action, fields = {}) {
   return { path: path2, action, reason: null, content: null, mode: null, ...fields };
 }
 function undecided(path2, reason) {
-  return planned(path2, "do decyzji", { reason });
+  return planned(path2, "needs decision", { reason });
 }
 async function decideAdded(path2, kit, input2) {
   const project = await input2.readProject(path2);
   if (!project) {
     return {
-      file: planned(path2, "dodano", { content: kit.content, mode: kit.mode }),
+      file: planned(path2, "added", { content: kit.content, mode: kit.mode }),
       mismatchedBase: false
     };
   }
@@ -23690,8 +23801,8 @@ async function decideAdded(path2, kit, input2) {
     return UNCHANGED;
   }
   return {
-    file: planned(path2, "konflikt", {
-      reason: "plik projektu na \u015Bcie\u017Cce nowego pliku kitu"
+    file: planned(path2, "conflict", {
+      reason: "project file at the path of a new kit file"
     }),
     mismatchedBase: false
   };
@@ -23703,18 +23814,18 @@ async function mergeChanged(path2, base, project, kit, input2) {
     ours: project,
     theirs: kit.content,
     labels: {
-      ours: "projekt",
+      ours: "project",
       base: `v${input2.base.version}`,
       theirs: `v${input2.target.version}`
     }
   });
   if ("binary" in merged) {
-    return planned(path2, "konflikt", {
-      reason: "plik binarny zmieniony w projekcie i w kicie"
+    return planned(path2, "conflict", {
+      reason: "binary file changed in both the project and the kit"
     });
   }
   if (merged.conflicts > 0) {
-    return planned(path2, "konflikt", {
+    return planned(path2, "conflict", {
       content: merged.content,
       mode: kit.mode
     });
@@ -23722,7 +23833,7 @@ async function mergeChanged(path2, base, project, kit, input2) {
   if (contentHash(path2, merged.content) === contentHash(path2, project)) {
     return null;
   }
-  return planned(path2, "scalono", { content: merged.content, mode: kit.mode });
+  return planned(path2, "merged", { content: merged.content, mode: kit.mode });
 }
 async function decideExisting(path2, base, kit, input2) {
   const baseHash = contentHash(path2, base.content);
@@ -23736,7 +23847,7 @@ async function decideExisting(path2, base, kit, input2) {
       return UNCHANGED;
     }
     return {
-      file: undecided(path2, "usuni\u0119ty w projekcie, zmieniony w kicie"),
+      file: undecided(path2, "deleted in the project, changed in the kit"),
       mismatchedBase: false
     };
   }
@@ -23746,12 +23857,12 @@ async function decideExisting(path2, base, kit, input2) {
   const projectEqualsBase = projectHash === baseHash && recordedMatchesBase;
   const mismatchedBase = projectHash === recordedHash && recordedHash !== baseHash;
   if (!kit) {
-    const file3 = projectEqualsBase ? planned(path2, "usuni\u0119to") : undecided(path2, "zmieniony w projekcie, usuni\u0119ty w kicie");
+    const file3 = projectEqualsBase ? planned(path2, "removed") : undecided(path2, "changed in the project, deleted in the kit");
     return { file: file3, mismatchedBase };
   }
   if (projectEqualsBase) {
     return {
-      file: planned(path2, "zaktualizowano", {
+      file: planned(path2, "updated", {
         content: kit.content,
         mode: kit.mode
       }),
@@ -23796,40 +23907,36 @@ async function planUpdate(input2) {
 
 // src/update/report.ts
 var ACTION_ORDER = [
-  "zaktualizowano",
-  "scalono",
-  "dodano",
-  "usuni\u0119to",
-  "konflikt",
-  "do decyzji"
+  "updated",
+  "merged",
+  "added",
+  "removed",
+  "conflict",
+  "needs decision"
 ];
-var ACTION_WIDTH = "zaktualizowano".length;
+var ACTION_WIDTH = "needs decision".length;
 var SCHEMA_PREFIX = "prisma/schema/";
 function fileLine(file2) {
   const reason = file2.reason === null ? "" : ` (${file2.reason})`;
   return `  ${file2.action.padEnd(ACTION_WIDTH)} ${file2.path}${reason}`;
 }
 function mismatchedBaseWarning(count, from) {
-  const source = `od v${from} z tagu`;
+  const source = `from the v${from} tag`;
   if (count === 1) {
-    return `Uwaga: 1 plik r\xF3\u017Cni si\u0119 ${source}; potraktowano go jak zmieniony w projekcie`;
+    return `Warning: 1 file differs ${source}; treated it as changed in the project`;
   }
-  const lastDigit = count % 10;
-  const lastTwoDigits = count % 100;
-  const few = lastDigit >= 2 && lastDigit <= 4 && (lastTwoDigits < 12 || lastTwoDigits > 14);
-  const files = few ? "pliki r\xF3\u017Cni\u0105 si\u0119" : "plik\xF3w r\xF3\u017Cni si\u0119";
-  return `Uwaga: ${count} ${files} ${source}; potraktowano je jak zmienione w projekcie`;
+  return `Warning: ${count} files differ ${source}; treated them as changed in the project`;
 }
 function planReport(input2) {
   const { plan, from, to } = input2;
-  const header = input2.dryRun ? `Plan aktualizacji wa-kit ${from} \u2192 ${to} (bez zmian w projekcie)` : `Aktualizacja wa-kit ${from} \u2192 ${to}`;
+  const header = input2.dryRun ? `Update plan for GatoJS ${from} \u2192 ${to} (project not changed)` : `Updating GatoJS ${from} \u2192 ${to}`;
   const items = ACTION_ORDER.flatMap(
     (action) => plan.files.filter((file2) => file2.action === action).sort((a, b) => compareCodePoint(a.path, b.path)).map(fileLine)
   );
   const warning = plan.mismatchedBase.length > 0 ? [mismatchedBaseWarning(plan.mismatchedBase.length, from)] : [];
   return [
     header,
-    ...items.length > 0 ? items : ["  bez zmian w plikach"],
+    ...items.length > 0 ? items : ["  no file changes"],
     ...warning
   ];
 }
@@ -23856,7 +23963,7 @@ function successHints(base, target) {
   const envNames = newEnvNames(base, target);
   if (envNames.length > 0) {
     hints.push(
-      `Nowe zmienne w .env.example: ${envNames.join(", ")}; uzupe\u0142nij .env`
+      `New variables in .env.example: ${envNames.join(", ")}; add them to .env`
     );
   }
   return hints;
@@ -23872,7 +23979,7 @@ function selectManifests(modules, available, version2) {
   return [...new Set(modules)].sort(compareModuleNames).map((name) => {
     const manifest = byName.get(name);
     if (!manifest) {
-      throw new Error(`Modu\u0142 ${name} nie istnieje w wa-kit ${version2}`);
+      throw new Error(`Module ${name} does not exist in GatoJS ${version2}`);
     }
     return manifest;
   });
@@ -23914,14 +24021,14 @@ async function readKitSnapshot(kitDir, modules, names) {
 
 // src/commands/update.ts
 var execFileAsync = promisify3(execFile3);
-var UNDO_HINT = "Sprawd\u017A git status; ca\u0142o\u015B\u0107 cofa: git restore . && git clean -fd";
+var UNDO_HINT = "Check git status; to undo everything: git restore . && git clean -fd";
 var PERMISSION_BITS2 = 511;
 var MANAGED2 = "managed";
 function checkVersions(current, target) {
   const order = compareVersions(target, current);
   if (order < 0) {
     throw new Error(
-      `Projekt ma wa-kit ${current}, nowsz\u0105 ni\u017C ${target}; wa update nie obni\u017Ca wersji`
+      `Project has GatoJS ${current}, newer than ${target}; update does not downgrade`
     );
   }
   return order === 0 ? "same" : "newer";
@@ -23938,19 +24045,18 @@ async function assertCleanTree(projectDir) {
     ));
   } catch (error62) {
     if (error62.code === "ENOENT") {
-      throw new Error(
-        "Nie znaleziono polecenia git; zainstaluj git, \u017Ceby uruchomi\u0107 wa update",
-        { cause: error62 }
-      );
+      throw new Error("git command not found; install git to run update", {
+        cause: error62
+      });
     }
     throw new Error(
-      `${projectDir} nie jest repozytorium git; wa update wymaga gita, \u017Ceby da\u0142o si\u0119 cofn\u0105\u0107 zmiany`,
+      `${projectDir} is not a git repository; update needs git so changes can be undone`,
       { cause: error62 }
     );
   }
   if (status !== "") {
     throw new Error(
-      "Niezacommitowane zmiany w projekcie; zr\xF3b commit albo stash przed wa update"
+      "Uncommitted changes in the project; commit or stash them before updating"
     );
   }
 }
@@ -23959,7 +24065,7 @@ function assertRequirementsInstalled(state, target) {
     const missing = manifest.requires.filter((name) => !(name in state.modules)).sort(compareCodePoint);
     if (missing.length > 0) {
       throw new Error(
-        `Modu\u0142 ${manifest.name} w wa-kit ${target.version} wymaga niezainstalowanych modu\u0142\xF3w: ${missing.join(", ")}`
+        `Module ${manifest.name} in GatoJS ${target.version} requires modules that are not installed: ${missing.join(", ")}`
       );
     }
   }
@@ -23980,7 +24086,7 @@ async function writableInsideProject(projectDir, file2) {
   for (const segment of relative2(projectDir, absolute).split(sep2)) {
     current = join12(current, segment);
     if ((await lstatIfExists(current))?.isSymbolicLink()) {
-      throw new Error(`Dowi\u0105zanie symboliczne na \u015Bcie\u017Cce zapisu: ${file2}`);
+      throw new Error(`Symbolic link on a write path: ${file2}`);
     }
   }
   return absolute;
@@ -23994,7 +24100,7 @@ async function rememberOriginal(absolute) {
   return { path: absolute, content, mode };
 }
 async function applyWrite(projectDir, { file: file2, absolute }) {
-  if (file2.action === "usuni\u0119to") {
+  if (file2.action === "removed") {
     await rm5(absolute);
     await removeEmptyParents(projectDir, absolute);
     return;
@@ -24038,7 +24144,7 @@ async function rollbackUpdate(input2) {
       await step.run();
     } catch (error62) {
       const { code, message } = error62;
-      input2.log(`Nie uda\u0142o si\u0119 posprz\u0105ta\u0107: ${step.path} (${code ?? message})`);
+      input2.log(`Could not clean up: ${step.path} (${code ?? message})`);
     }
   }
 }
@@ -24105,7 +24211,7 @@ async function update(options) {
   const { projectDir, version: version2, runner, log } = options;
   const state = await readKitState(projectDir);
   if (checkVersions(state.kitVersion, version2) === "same") {
-    log(`Projekt ma ju\u017C wa-kit ${version2}`);
+    log(`Project is already on GatoJS ${version2}`);
     return { exitCode: 0 };
   }
   if (!options.dryRun) {
@@ -24121,7 +24227,7 @@ async function update(options) {
   const target = await readKitSnapshot(options.targetKitDir, modules, names);
   if (target.version !== version2) {
     throw new Error(
-      `Kit docelowy ma wersj\u0119 ${target.version}, oczekiwano ${version2}`
+      `Target kit has version ${target.version}, expected ${version2}`
     );
   }
   assertRequirementsInstalled(state, target);
@@ -24154,7 +24260,7 @@ async function update(options) {
   }
   const writes = [];
   for (const file2 of plan.files) {
-    if (file2.content || file2.action === "usuni\u0119to") {
+    if (file2.content || file2.action === "removed") {
       writes.push({
         file: file2,
         absolute: await writableInsideProject(projectDir, file2.path)
@@ -24162,7 +24268,7 @@ async function update(options) {
     }
   }
   const undecided2 = new Set(
-    plan.files.filter((file2) => file2.action === "do decyzji").map((file2) => file2.path)
+    plan.files.filter((file2) => file2.action === "needs decision").map((file2) => file2.path)
   );
   await writeUpdate({
     projectDir,
@@ -24171,16 +24277,18 @@ async function update(options) {
     log
   });
   report.forEach((line) => log(line));
-  if (plan.files.some((file2) => file2.action === "konflikt")) {
-    log("Rozwi\u0105\u017C konflikty, potem: npm run wa -- generate && npm install");
-    log("Cofni\u0119cie ca\u0142ej aktualizacji: git restore . && git clean -fd");
+  if (plan.files.some((file2) => file2.action === "conflict")) {
+    log(
+      "Resolve the conflicts, then run: npm run wa -- generate && npm install"
+    );
+    log("To undo the whole update: git restore . && git clean -fd");
     return { exitCode: 1 };
   }
   try {
     await generate(projectDir);
   } catch (error62) {
     throw new Error(
-      `Zaktualizowano do wa-kit ${version2}, ale wa generate si\u0119 nie powi\xF3d\u0142. Uruchom: npm run wa -- generate`,
+      `Updated to GatoJS ${version2}, but generate failed. Run: npm run wa -- generate`,
       { cause: error62 }
     );
   }
@@ -24190,7 +24298,7 @@ async function update(options) {
       await runner("npm", ["install"], projectDir);
     } catch (error62) {
       throw new Error(
-        `Zaktualizowano do wa-kit ${version2}, ale npm install si\u0119 nie powi\xF3d\u0142. Uruchom: npm install`,
+        `Updated to GatoJS ${version2}, but npm install failed. Run: npm install`,
         { cause: error62 }
       );
     }
@@ -24228,7 +24336,7 @@ async function delegateToTarget(input2) {
     const { code, message } = error62;
     if (typeof code === "string") {
       throw new Error(
-        `Nie uda\u0142o si\u0119 uruchomi\u0107 bundla wa-kit ${args.version}: ${message}`,
+        `Could not run the bundle of GatoJS ${args.version}: ${message}`,
         { cause: error62 }
       );
     }
@@ -24240,7 +24348,7 @@ async function updateFromSource(options) {
   const { projectDir, args, runner } = options;
   const state = await readKitState(projectDir);
   if (checkVersions(state.kitVersion, args.version) === "same") {
-    options.log(`Projekt ma ju\u017C wa-kit ${args.version}`);
+    options.log(`Project is already on GatoJS ${args.version}`);
     return { exitCode: 0 };
   }
   if (!args.dryRun) {
@@ -24254,7 +24362,7 @@ async function updateFromSource(options) {
   const bundleVersion = args.fromKit === null ? await bundleKitVersion(options.bundleKitDir) : null;
   if (bundleVersion !== null && bundleVersion !== args.version) {
     throw new Error(
-      `Bundel pochodzi z wa-kit ${bundleVersion}, a aktualizacja prowadzi do ${args.version}`
+      `The bundle comes from GatoJS ${bundleVersion}, but the update targets ${args.version}`
     );
   }
   const tmpDir = await mkdtemp3(join12(options.tmpRoot, "wa-update-"));
@@ -24361,7 +24469,7 @@ function cliDependency(input2) {
 }
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.2.1" };
+var identity = { name: "wa", version: "0.3.0" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);
@@ -24403,7 +24511,7 @@ async function main(argv) {
   const [command] = argv;
   if (command === "kit") {
     const { changed: changed2 } = await kitSync(process.cwd());
-    console.log(changed2 ? "Zaktualizowano .wa/kit.json" : "Bez zmian");
+    console.log(changed2 ? "Updated .wa/kit.json" : "No changes");
     return 0;
   }
   if (command === "add") {
@@ -24472,10 +24580,10 @@ async function main(argv) {
   }
   const { changed } = await generate(process.cwd());
   if (changed.length === 0) {
-    console.log("Bez zmian");
+    console.log("No changes");
   } else {
     for (const file2 of changed) {
-      console.log(`zmieniono ${file2}`);
+      console.log(`changed ${file2}`);
     }
   }
   return 0;

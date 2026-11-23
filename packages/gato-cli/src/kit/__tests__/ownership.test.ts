@@ -57,7 +57,7 @@ describe("checkOwnership na fixture ownership-broken", () => {
         section: "dependencies",
         name: "ghost",
         manifest: "1.0.0",
-        packageJson: "<brak>",
+        packageJson: "<missing>",
       },
       {
         module: "demo",
@@ -98,7 +98,7 @@ describe("checkOwnership na fixture ownership-order", () => {
         section: "dependencies",
         name: "mid",
         manifest: "1.0.0",
-        packageJson: "<brak>",
+        packageJson: "<missing>",
       },
       {
         module: "core",
@@ -119,7 +119,7 @@ describe("checkOwnership na fixture ownership-order", () => {
         section: "dependencies",
         name: "ant",
         manifest: "1.0.0",
-        packageJson: "<brak>",
+        packageJson: "<missing>",
       },
       {
         module: "zeta",
@@ -183,14 +183,14 @@ describe("checkOwnership na fixture ownership-sections", () => {
         section: "dependencies",
         name: "wrongdev",
         manifest: "^4.0.0",
-        packageJson: "<brak>",
+        packageJson: "<missing>",
       },
       {
         module: "core",
         section: "devDependencies",
         name: "aaa-wrongdeps",
         manifest: "3.0.0",
-        packageJson: "<brak>",
+        packageJson: "<missing>",
       },
       {
         module: "core",

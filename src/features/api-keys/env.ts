@@ -14,7 +14,7 @@ export const envSchema = z
       value.API_KEY_PEPPER !== EXAMPLE_API_KEY_PEPPER,
     {
       path: ["API_KEY_PEPPER"],
-      message: "w produkcji nie może być wartością z .env.example",
+      message: "must not be the .env.example value in production",
     },
   )
   .transform(({ API_KEY_PEPPER }) => ({ API_KEY_PEPPER }));

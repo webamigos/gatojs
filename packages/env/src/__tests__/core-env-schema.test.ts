@@ -182,7 +182,7 @@ describe("parseEnv: APP_URL and BETTER_AUTH_SECRET", () => {
       issues: [
         {
           name: "BETTER_AUTH_SECRET",
-          message: "co najmniej 32 znaki bez spacji na brzegach",
+          message: "at least 32 characters, no leading or trailing spaces",
         },
       ],
     });
@@ -224,7 +224,7 @@ describe("parseEnv: APP_URL and BETTER_AUTH_SECRET", () => {
       issues: [
         {
           name: "BETTER_AUTH_SECRET",
-          message: "w produkcji nie może być wartością z .env.example",
+          message: "must not be the .env.example value in production",
         },
       ],
     });
@@ -355,7 +355,7 @@ describe("parseEnv: optional variables and production rules", () => {
       ),
     ).toEqual({
       ok: false,
-      issues: [{ name: "RESEND_API_KEY", message: "wymagana w produkcji" }],
+      issues: [{ name: "RESEND_API_KEY", message: "required in production" }],
     });
   });
 });

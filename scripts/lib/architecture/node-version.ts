@@ -33,7 +33,7 @@ export function findNodeLiterals(workflowYaml: string): string[] {
 function checkDockerfile(root: string, major: string): string[] {
   const tags = dockerNodeTags(readRepoFile(root, DOCKERFILE));
   if (tags.length === 0) {
-    return [`${DOCKERFILE}: brak FROM node:<wersja>`];
+    return [`${DOCKERFILE}: no FROM node:<version>`];
   }
   return tags
     .filter((tag) => leadingMajor(tag) !== major)

@@ -19,7 +19,7 @@ export function replaceRegion(
     end === undefined ||
     end <= start
   ) {
-    throw new Error(`${file}: uszkodzony region wa:${marker}`);
+    throw new Error(`${file}: malformed region wa:${marker}`);
   }
   const bodyLines =
     body === ""
@@ -31,7 +31,7 @@ export function replaceRegion(
     )
   ) {
     throw new Error(
-      `${file}: treść regionu wa:${marker} zawiera znacznik regionu`,
+      `${file}: content of region wa:${marker} contains a region marker`,
     );
   }
   return [...lines.slice(0, start + 1), ...bodyLines, ...lines.slice(end)].join(

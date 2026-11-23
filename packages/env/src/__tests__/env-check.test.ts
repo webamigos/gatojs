@@ -151,13 +151,13 @@ describe("formatEnvReport", () => {
         { name: "DEMO_TOKEN", message: "pusty" },
       ]),
     ).toBe(
-      "Nieprawidłowe zmienne środowiskowe (2):\n- DATABASE_URL: brak\n- DEMO_TOKEN: pusty",
+      "Invalid environment variables (2):\n- DATABASE_URL: brak\n- DEMO_TOKEN: pusty",
     );
   });
 
   it("prints a whole-env issue under the name (env)", () => {
     expect(formatEnvReport([{ name: "(env)", message: "x" }])).toBe(
-      "Nieprawidłowe zmienne środowiskowe (1):\n- (env): x",
+      "Invalid environment variables (1):\n- (env): x",
     );
   });
 
@@ -183,9 +183,7 @@ describe("formatEnvReport", () => {
         return { name, message };
       });
 
-      expect(header).toBe(
-        `Nieprawidłowe zmienne środowiskowe (${issues.length}):`,
-      );
+      expect(header).toBe(`Invalid environment variables (${issues.length}):`);
       expect(readBack).toEqual(issues);
     },
   );
@@ -195,12 +193,12 @@ describe("parseEnv", () => {
   it("a missing variable throws a one-line error with the variable name after the colon", () => {
     expect(() =>
       parseEnv({ ...validCore, DATABASE_URL: undefined }, moduleSchemas),
-    ).toThrow(/^Nieprawidłowe zmienne środowiskowe: DATABASE_URL: /);
+    ).toThrow(/^Invalid environment variables: DATABASE_URL: /);
   });
 
   it("joins several issues in one line with a semicolon, each as name: message", () => {
     expect(() => parseEnv(brokenEnv, moduleSchemas)).toThrow(
-      /^Nieprawidłowe zmienne środowiskowe: (DATABASE_URL: .+; DEMO_TOKEN: .+|DEMO_TOKEN: .+; DATABASE_URL: .+)$/,
+      /^Invalid environment variables: (DATABASE_URL: .+; DEMO_TOKEN: .+|DEMO_TOKEN: .+; DATABASE_URL: .+)$/,
     );
   });
 
@@ -209,7 +207,7 @@ describe("parseEnv", () => {
       parseEnv({ ...validCore, NODE_ENV: "production" }, moduleSchemas),
     ).toThrow(
       new Error(
-        "Nieprawidłowe zmienne środowiskowe: RESEND_API_KEY: wymagana w produkcji",
+        "Invalid environment variables: RESEND_API_KEY: required in production",
       ),
     );
   });
@@ -239,7 +237,7 @@ describe("verifyEnvOnStartup", () => {
 
     expect(io.error).toHaveBeenCalledTimes(1);
     const [report] = io.error.mock.calls[0];
-    expect(report).toMatch(/^Nieprawidłowe zmienne środowiskowe \(2\):\n/);
+    expect(report).toMatch(/^Invalid environment variables \(2\):\n/);
     expect(report).toContain("\n- DATABASE_URL: ");
     expect(report).toContain("\n- DEMO_TOKEN: ");
   });
@@ -274,7 +272,7 @@ describe("verifyEnvOnStartup", () => {
 
     expect(io.error).toHaveBeenCalledWith(
       expect.stringMatching(
-        /^Nieprawidłowe zmienne środowiskowe \(1\):\n- DEMO_TOKEN: /,
+        /^Invalid environment variables \(1\):\n- DEMO_TOKEN: /,
       ),
     );
     expect(io.exit.mock.calls).toEqual([[1]]);
@@ -321,7 +319,7 @@ describe("verifyEnvOnStartup", () => {
 
     expect(io.error.mock.calls).toEqual([
       [
-        "Nieprawidłowe zmienne środowiskowe (1):\n- RESEND_API_KEY: wymagana w produkcji",
+        "Invalid environment variables (1):\n- RESEND_API_KEY: required in production",
       ],
     ]);
     expect(io.exit.mock.calls).toEqual([[1]]);

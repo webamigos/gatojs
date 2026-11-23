@@ -432,7 +432,7 @@ describe("checkMutationGate", () => {
       );
 
       expect(result.violations).toContain(
-        "src/shared/lib/auth/x.ts ConditionalExpression „a > 0”: brak uzasadnienia",
+        "src/shared/lib/auth/x.ts ConditionalExpression „a > 0”: missing reason",
       );
     },
   );

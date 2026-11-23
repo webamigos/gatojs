@@ -429,7 +429,7 @@ Schematy `kitStateSchema` i `moduleManifestSchema` z `packages/gato-cli/src/mani
 | `files` | `string[]` | `[]` | tak: tylko wzorce `src/features/<x>/…`; w `projectModules` co najmniej jeden wzorzec musi zaczynać się od `src/features/<name>/` |
 | `dependencies` | słownik `string` → `string` | `{}` | nie |
 | `devDependencies` | słownik `string` → `string` | `{}` | nie |
-| `env` | lista `{ name, example, required? }`: `name` co najmniej 1 znak, `example` napis, `required` wartość logiczna | `[]` | tak: `name` i `example`; `required` nie |
+| `env` | lista `{ name, example, required?, generate? }`: `name` co najmniej 1 znak, `example` napis, `required` wartość logiczna, `generate` one of `secret-32`, `secret-64` (32 or 64 random bytes, base64url) or `hex-32` (32 random bytes as 64 hex characters): `gato create` writes a random value of that kind into the new project's `.env` | `[]` | tak: `name` i `example`; `required` i `generate` nie |
 | `schemaRelations` | lista `{ model, field }`, oba co najmniej 1 znak | `[]` | tak: tylko `model` równy `User` albo `Organization` |
 | `compose` | `string` albo `null` | `null` | tak: ścieżka do pliku względem katalogu projektu, region `wa:services` |
 | `ciSteps` | `string` albo `null` | `null` | tak: ścieżka do pliku względem katalogu projektu, region `wa:ci-integration` |

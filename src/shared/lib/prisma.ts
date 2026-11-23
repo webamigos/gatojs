@@ -1,6 +1,5 @@
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { Pool } from "pg";
 import { tenantScopeExtension } from "@/shared/lib/tenant-scope/tenant-scope-extension";
 
 const globalForPrisma = globalThis as unknown as {
@@ -13,16 +12,16 @@ function parsePoolMax(): number {
 }
 
 function createPrismaClient() {
-  const pool = new Pool({
+  // WHY: given pool options instead of a Pool, the adapter owns the pool and $disconnect() ends it,
+  // so scripts such as admin:create exit right away instead of waiting for idleTimeoutMillis.
+  const adapter = new PrismaPg({
     connectionString: process.env.DATABASE_URL,
     max: parsePoolMax(),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
     statement_timeout: 30_000,
   });
-  return new PrismaClient({ adapter: new PrismaPg(pool) }).$extends(
-    tenantScopeExtension,
-  );
+  return new PrismaClient({ adapter }).$extends(tenantScopeExtension);
 }
 
 type ScopedPrismaClient = ReturnType<typeof createPrismaClient>;

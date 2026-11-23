@@ -19,7 +19,7 @@ const SESSION_GUARDS = new Set([
 const UNGUARDED_ALLOWED = new Map([
   [
     "src/features/organizations/services/queries/default-organization-query.ts#getDefaultActiveOrganizationId",
-    "wywoływane przez hook session.create.before z userId tworzonej sesji",
+    "called by the session.create.before hook with the userId of the session being created",
   ],
 ]);
 

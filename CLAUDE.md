@@ -1,42 +1,42 @@
 # CLAUDE.md
 
-Twarde reguły tego repozytorium. Pełne instrukcje: @AGENTS.md
+Hard rules for this repository. Full instructions: @AGENTS.md
 
-## Pochodzenie kodu
+## Where the code comes from
 
-Kod rdzenia i modułów pochodzi z wa-kit (`.wa/kit.json`); poprawki ogólne zgłaszaj do repo `webamigos/wa-kit`.
+Core and module code comes from the GatoJS kit (`.wa/kit.json`); send general fixes to the `webamigos/gatojs` repo.
 
-## Dane
+## Data
 
-Zapytania do danych domenowych zawsze przez `getOrgContext()` i filtr `organizationId`.
+Queries on domain data always go through `getOrgContext()` and an `organizationId` filter.
 
-- `getOrgContext()` z `src/shared/lib/auth/org-context.ts` — nie czytaj `activeOrganizationId` z sesji samodzielnie.
-- Strony modułów chroni `requireModuleAccess(key)`; akcje serwerowe sprawdzają uprawnienia same.
-- Komendy na danych organizacji: `(input, confirmation?)`, po `getOrgContext()`/`requireModuleAccess()` wołają
-  `assertServiceModeConfirmed(context, confirmation)` przed Prismą; UI woła je przez `useServiceModeAction().run`
-  (zapis poza akcją serwerową: `requestConfirmation()` z tego samego hooka, `null` = anulowano).
+- `getOrgContext()` from `src/shared/lib/auth/org-context.ts`; never read `activeOrganizationId` from the session yourself.
+- Module pages are protected by `requireModuleAccess(key)`; server actions check permissions themselves.
+- Commands on organization data: `(input, confirmation?)`; after `getOrgContext()`/`requireModuleAccess()` they call
+  `assertServiceModeConfirmed(context, confirmation)` before Prisma; the UI calls them through `useServiceModeAction().run`
+  (a write outside a server action: `requestConfirmation()` from the same hook, `null` = cancelled).
 
-## Bez komentarzy w kodzie
+## No comments in code
 
-- W plikach `.ts/.tsx/.js/.jsx/.mjs/.cjs/.mts/.cts` nie piszemy komentarzy; kod ma się tłumaczyć nazwami.
-- Dozwolone wyłącznie `// WHY: …` (maks. 3 linie) dla nieoczywistego powodu oraz dyrektywy narzędzi
+- No comments in `.ts/.tsx/.js/.jsx/.mjs/.cjs/.mts/.cts` files; code explains itself through names.
+- Allowed only: `// WHY: …` (max 3 lines) for a non-obvious reason, and tool directives
   (`@ts-expect-error`, `eslint-disable…`, `@vitest-environment`, `prettier-ignore`, shebang).
-- Hook `.claude/hooks/block-comments.mjs` blokuje pozostałe komentarze.
+- The `.claude/hooks/block-comments.mjs` hook blocks all other comments.
 
-## Pliki generowane
+## Generated files
 
-- Nie edytuj `src/modules.generated.ts`, `src/modules.client.generated.ts` ani regionów `wa:*:start/end`.
-  Uruchom `npm run wa -- generate`.
-- Moduł nie edytuje plików rdzenia.
+- Don't edit `src/modules.generated.ts`, `src/modules.client.generated.ts` or `wa:*:start/end` regions.
+  Run `npm run wa -- generate`.
+- A module does not edit core files.
 
-## Testy
+## Tests
 
-- Testy zadania pisze inny agent (`test-writer`) niż kod, przed implementacją; implementer ich nie zmienia
-  (`.superpowers/phase` = `implement` włącza hook `.claude/hooks/protect-tests.mjs`).
-- Wartość oczekiwana to literał albo wartość ze specyfikacji, nigdy wynik kodu produkcyjnego.
-- Recenzent (`test-reviewer`) uruchamia `npm run test:mutation:task -- <pliki>` i `npm run test:mutation:gate`;
-  przeżyły mutant w pliku krytycznym bez wpisu w `mutation-gate.json` blokuje zadanie. Wpisy dopisuje człowiek.
+- A task's tests are written by a different agent (`test-writer`) than the code, before the implementation; the implementer
+  doesn't change them (`.superpowers/phase` = `implement` turns on the `.claude/hooks/protect-tests.mjs` hook).
+- The expected value is a literal or a value from the spec, never the output of production code.
+- The reviewer (`test-reviewer`) runs `npm run test:mutation:task -- <files>` and `npm run test:mutation:gate`;
+  a surviving mutant in a critical file without an entry in `mutation-gate.json` blocks the task. A human adds entries.
 
-## Bramka
+## Gate
 
-`npm run verify` przed oddaniem pracy. Commity: Conventional Commits, temat małymi literami.
+`npm run verify` before handing work over. Commits: Conventional Commits, lowercase subject.

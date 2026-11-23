@@ -34,18 +34,27 @@ Zasady dla plików tylko kitu (`kit/`, pakiety narzędzi `packages/gato-cli` i `
 - Workflow `.github/workflows/publish-packages.yml` publikuje na tag ustawiony przez człowieka: `gato-cli@<x.y.z>` albo
   `create-gato-app@<x.y.z>`, przez npm trusted publishing (OIDC, bez sekretu `NPM_TOKEN`) z `--provenance`. Tag musi
   wskazywać commit na `main`, w którym `version` pakietu równa się wersji z tagu.
+- Workflow publikuje przez `npm stage publish` (staged), bo trusted publisher pakietu ma uprawnienie „npm stage publish”;
+  zwykłe `npm publish` z OIDC kończy się 403 „OIDC permission denied for this action”.
+- Tag nie może wskazywać commitu wydania `chore(release): … [skip ci]`: GitHub nie uruchamia wtedy workflow. Wskaż commit
+  merge'a PR z daną wersją pakietu (`git tag gato-cli@<v> <sha> && git push origin gato-cli@<v>`).
 - **Kolejność:** gdy zmieniają się oba, najpierw `gato-cli` (tag, publikacja, zatwierdzenie na npmjs.com), dopiero potem
   `create-gato-app`. Workflow odmawia publikacji `create-gato-app`, dopóki przypięta wersja `gato-cli` nie jest dostępna
   w rejestrze.
 - **Staged publishing** (konto Patryka): publikacja czeka na zatwierdzenie na npmjs.com, a do tego czasu rejestr serwuje
   tylko zaślepkę `0.0.0-stage`. Runbook wydania:
   1. Push tagu → job `publish` publikuje wersję (staged).
-  2. Patryk zatwierdza ją na npmjs.com: strona pakietu → wersja oczekująca na zatwierdzenie → zatwierdź
-     (dokładną nazwę przycisku zapisz tu przy pierwszym wydaniu).
+  2. Patryk zatwierdza ją na npmjs.com: menu profilu → „Staged Packages”
+     (`https://www.npmjs.com/settings/<login>/staged-packages`) → wersja → „Approve”. Albo w terminalu z npm 11:
+     `npx npm@11 stage approve <staged-id>` (id jest w logu joba `publish`: „staged with id …”). Wersja zatwierdzona
+     w przeglądarce znika z listy, więc `stage approve` zwraca potem 404.
+     Zaraz po publikacji npm automatycznie sprawdza paczkę (żółta ramka „Validating”, przycisk „Approve”
+     nieaktywny); zatwierdzenie jest możliwe dopiero po kilku minutach.
   3. Job `confirm` czeka do 10 minut, aż `npm view <pakiet>@<v> version` zwróci `<v>`, a `dist-tags.latest` wskaże `<v>`.
      Po dłuższym czasie: „Re-run failed jobs” albo ręcznie „Run workflow” z polem `tag` (np. `gato-cli@0.2.0`).
-  - Do sprawdzenia przy pierwszej publikacji z CI: czy publikacja przez trusted publishing (OIDC) też jest staged.
-    Wynik zapisz tutaj.
+  - Publikacja przez trusted publishing jest staged (sprawdzone przy `gato-cli` 0.2.2 i `create-gato-app` 0.1.1,
+    2026-11-23). Gdy zatwierdzenie przyjdzie po 10 minutach, job `confirm` pada: uruchom ręcznie „Run workflow”
+    z polem `tag`.
   - Zaślepka `0.0.0-stage` zostaje na liście wersji; `latest` przechodzi na pierwsze prawdziwe wydanie.
 - **Jednorazowa konfiguracja na npmjs.com** (Patryk, dla `gato-cli` i dla `create-gato-app`):
   1. npmjs.com → zaloguj się → avatar → „Packages” → pakiet → „Settings”.

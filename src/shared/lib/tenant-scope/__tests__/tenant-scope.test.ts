@@ -1020,7 +1020,7 @@ describe("TenantScopeError", () => {
 
   it("komunikat wskazuje model, operację i sposób naprawy", () => {
     expect(new TenantScopeError("ApiKey", "findMany").message).toBe(
-      "Zapytanie ApiKey.findMany bez filtra organizationId. Dodaj filtr organizacji albo użyj withoutTenantScope(powód, …).",
+      "Query ApiKey.findMany has no organizationId filter. Add an organization filter or use withoutTenantScope(reason, …).",
     );
   });
 });

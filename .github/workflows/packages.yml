@@ -88,13 +88,13 @@ jobs:
           npm init -y >/dev/null
           npm install --no-audit --no-fund "$RUNNER_TEMP"/pack/*.tgz
 
-      - name: Node 20 is refused before anything is downloaded
+      - name: Node 20 is refused by the kit's engines range before anything is assembled
         run: |
           set -uo pipefail
           mkdir -p "$RUNNER_TEMP/work"
           output=$(docker run --rm \
-            -v "$RUNNER_TEMP/prefix:/prefix:ro" -v "$RUNNER_TEMP/work:/work" -w /work \
-            node:20-slim node /prefix/node_modules/create-gato-app/dist/index.js /work/old-node-app --yes 2>&1) && status=0 || status=$?
+            -v "$RUNNER_TEMP/prefix:/prefix:ro" -v "$RUNNER_TEMP/work:/work" -v "$GITHUB_WORKSPACE:/kit:ro" -w /work \
+            node:20-slim node /prefix/node_modules/create-gato-app/dist/index.js /work/old-node-app --kit /kit --yes 2>&1) && status=0 || status=$?
           echo "$output"
           if [ "$status" -eq 0 ]; then
             echo "create-gato-app ran under Node 20." >&2

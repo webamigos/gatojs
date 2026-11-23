@@ -129,8 +129,10 @@ jobs:
             modules: "api-keys"
           - name: uploads
             modules: "uploads"
+          - name: encryption
+            modules: "encryption"
           - name: all
-            modules: "audit-logs,api-keys,uploads"
+            modules: "audit-logs,api-keys,uploads,encryption"
     services:
       postgres:
         image: postgres:16

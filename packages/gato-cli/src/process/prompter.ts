@@ -16,29 +16,10 @@ export type Prompter = {
 
 const YES_ANSWERS = ["t", "tak", "y", "yes"];
 
-const KEY_NAMES: Record<string, string> = { space: "spacja" };
-
-const KEY_ACTIONS: Record<string, string> = {
-  navigate: "przesuń",
-  select: "zaznacz",
-  all: "wszystkie",
-  invert: "odwróć",
-  submit: "zatwierdź",
-};
-
 function assertTerminal(): void {
   if (!process.stdin.isTTY) {
-    throw new Error("Brak terminala: użyj --yes");
+    throw new Error("No terminal: use --yes");
   }
-}
-
-function keysHelpTip(keys: [key: string, action: string][]): string {
-  return keys
-    .map(
-      ([key, action]) =>
-        `${KEY_NAMES[key] ?? key} ${KEY_ACTIONS[action] ?? action}`,
-    )
-    .join(" • ");
 }
 
 async function readAnswer(question: string): Promise<string> {
@@ -77,16 +58,15 @@ export const readlinePrompter: Prompter = {
           name: choice.label,
           short: choice.value,
           checked: choice.checked ?? false,
-          disabled: choice.locked ? "(wymagany)" : false,
+          disabled: choice.locked ? "(required)" : false,
         })),
         theme: {
-          style: { keysHelpTip },
-          i18n: { disabledError: "Tej pozycji nie można odznaczyć" },
+          i18n: { disabledError: "This item cannot be unselected" },
         },
       });
     } catch (error) {
       if (error instanceof Error && error.name === "ExitPromptError") {
-        throw new Error("Przerwano");
+        throw new Error("Aborted");
       }
       throw error;
     }

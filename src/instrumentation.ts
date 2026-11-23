@@ -22,6 +22,10 @@ export async function register() {
     await import("@opentelemetry/sdk-logs");
   const { resourceFromAttributes } = await import("@opentelemetry/resources");
   const { logs } = await import("@opentelemetry/api-logs");
+  const { OTLPTraceExporter } =
+    await import("@opentelemetry/exporter-trace-otlp-http");
+  const { NodeTracerProvider, BatchSpanProcessor } =
+    await import("@opentelemetry/sdk-trace-node");
 
   const resource = resourceFromAttributes({
     "service.name": process.env.OTEL_SERVICE_NAME?.trim() || project.slug,
@@ -39,4 +43,15 @@ export async function register() {
   });
 
   logs.setGlobalLoggerProvider(loggerProvider);
+
+  const tracerProvider = new NodeTracerProvider({
+    resource,
+    spanProcessors: [
+      new BatchSpanProcessor(
+        new OTLPTraceExporter({ url: `${normalizedEndpoint}/v1/traces` }),
+      ),
+    ],
+  });
+
+  tracerProvider.register();
 }

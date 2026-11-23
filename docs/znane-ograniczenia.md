@@ -483,7 +483,6 @@ Gdy kod różni się od zdania w `AGENTS.md`, dokumentacja opisuje kod. Poniższ
 | Krok `prisma migrate dev --name init` w `.github/workflows/e2e.yml` tworzy brakującą migrację | W projekcie z zacommitowanymi migracjami zmiana schematu bez migracji przejdzie CI, a produkcja jej nie dostanie | `.github/workflows/e2e.yml` | Po tym kroku sprawdź `git status --porcelain prisma/migrations` ([10-wdrozenie.md](10-wdrozenie.md#ci)) |
 | commitlint i Prettier działają tylko w hookach husky | Żaden workflow ich nie uruchamia, a `git commit --no-verify` albo `HUSKY=0` je pomija | `.husky/`, `.lintstagedrc.json` | Sprawdź `npm run verify` przed pushem ([11-praca-z-kitem.md](11-praca-z-kitem.md#commity)) |
 | Katalog handoffów w `.claude` nie jest w `.gitignore` | `git add -A` doda handoffy do commitu | `.gitignore` | Dodawaj pliki jawnie ([11-praca-z-kitem.md](11-praca-z-kitem.md#superpowers)) |
-| `next dev` uruchomione przez agenta AI dopisuje blok do `AGENTS.md` | Zmienia plik kitu kopiowany do projektów | `next.config.ts` | `git restore AGENTS.md` ([11-praca-z-kitem.md](11-praca-z-kitem.md#next-dev-agents-md)) |
 
 <a id="start"></a>
 

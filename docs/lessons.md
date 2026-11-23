@@ -37,9 +37,11 @@ After a nontrivial correction or a non-obvious gotcha:
 - [`packages/gato-cli` tests that touch git and the filesystem time out at 5 seconds when the machine is busy; rerun before debugging](lessons/cli-tests-time-out-under-heavy-load.md)
 - [macOS lists directory entries in sorted order, so a test on a real directory cannot see a missing sort; Linux CI can](lessons/macos-lists-directories-in-sorted-order.md)
 - [A new file outside an owned glob (a test in `src/__tests__/`, a file in `packages/<name>/`) needs a manifest entry, and only the CLI gate notices](lessons/a-new-file-needs-an-owner-only-the-cli-gate-checks.md)
+- [Vitest runs test code that `tsc` rejects: a bigint literal passes `npm test` and fails `npm run typecheck` under the ES2017 target](lessons/vitest-runs-what-tsc-rejects.md)
 
 ### dependencies
 
 - [A caret range like `^1.6.26` can already resolve to 1.7.x, so read the lockfile to learn which version actually runs](lessons/a-caret-range-already-runs-the-next-minor.md)
 - [Since better-auth 1.7.3 a schema mismatch rejects sign-in at runtime, in production too; a plugin with tables fails at login, not at build](lessons/better-auth-checks-the-prisma-schema-at-startup.md)
+- [npm keeps a workspace link from a copied lockfile even when the folder is gone, so a project lockfile must not list kit-only workspaces](lessons/npm-keeps-a-lockfile-workspace-link-to-a-missing-folder.md)
 - [The pinned npm rewrites unrelated lockfile entries (it drops `libc` from `@next/swc-linux-*`); restore them to keep the diff about your change](lessons/pinned-npm-drops-libc-fields-from-the-lockfile.md)

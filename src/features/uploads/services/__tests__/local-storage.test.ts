@@ -77,7 +77,7 @@ describe("InvalidStorageKeyError", () => {
   it("ma stały komunikat bez klucza i jest błędem Error", () => {
     const error = new InvalidStorageKeyError();
 
-    expect(error.message).toBe("Nieprawidłowy klucz obiektu");
+    expect(error.message).toBe("Invalid object key");
     expect(error).toBeInstanceOf(Error);
   });
 
@@ -87,7 +87,7 @@ describe("InvalidStorageKeyError", () => {
     const error = new d();
 
     expect(error.name).toBe("InvalidStorageKeyError");
-    expect(error.message).toBe("Nieprawidłowy klucz obiektu");
+    expect(error.message).toBe("Invalid object key");
   });
 });
 
@@ -148,7 +148,7 @@ describe("resolveObjectPath", () => {
         InvalidStorageKeyError,
       );
       expect(() => resolveObjectPath(root, key)).toThrow(
-        /^Nieprawidłowy klucz obiektu$/,
+        /^Invalid object key$/,
       );
     },
   );
@@ -465,7 +465,7 @@ describe("createLocalStorage: klucz wychodzący poza katalog magazynu", () => {
     const attempt = storage.put("../escape.txt", bytes("x"), "text/plain");
 
     await expect(attempt).rejects.toBeInstanceOf(InvalidStorageKeyError);
-    await expect(attempt).rejects.toThrow(/^Nieprawidłowy klucz obiektu$/);
+    await expect(attempt).rejects.toThrow(/^Invalid object key$/);
     await expect(
       stat(path.join(path.dirname(storageRoot), "escape.txt")),
     ).rejects.toMatchObject({ code: "ENOENT" });

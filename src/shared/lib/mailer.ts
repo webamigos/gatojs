@@ -123,7 +123,7 @@ export async function sendPasswordResetEmail({
     subject: "Zresetuj hasło",
     react: PasswordResetEmail({ resetUrl }),
     logContext: "[MAILER] Failed to send password reset email",
-    fallbackErrorMessage: "Nie udało się wysłać emaila z resetem hasła",
+    fallbackErrorMessage: "Failed to send password reset email",
   });
 }
 
@@ -141,7 +141,7 @@ export async function sendWelcomeSetPasswordEmail({
     subject: `Witamy w ${project.name}`,
     react: WelcomeSetPasswordEmail({ name, resetUrl }),
     logContext: "[MAILER] Failed to send welcome/set-password email",
-    fallbackErrorMessage: "Nie udało się wysłać emaila powitalnego",
+    fallbackErrorMessage: "Failed to send welcome email",
   });
 }
 
@@ -165,6 +165,6 @@ export async function sendOrganizationInvitationEmail({
       acceptUrl,
     }),
     logContext: "[MAILER] Failed to send organization invitation email",
-    fallbackErrorMessage: "Nie udało się wysłać zaproszenia do organizacji",
+    fallbackErrorMessage: "Failed to send organization invitation email",
   });
 }
