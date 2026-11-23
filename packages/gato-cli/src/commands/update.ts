@@ -49,7 +49,7 @@ export type UpdateOptions = {
 
 const execFileAsync = promisify(execFile);
 const UNDO_HINT =
-  "Sprawdź git status; całość cofa: git restore . && git clean -fd";
+  "Check git status; to undo everything: git restore . && git clean -fd";
 const PERMISSION_BITS = 0o777;
 const MANAGED = "managed";
 
@@ -60,7 +60,7 @@ export function checkVersions(
   const order = compareVersions(target, current);
   if (order < 0) {
     throw new Error(
-      `Projekt ma wa-kit ${current}, nowszą niż ${target}; wa update nie obniża wersji`,
+      `Project has GatoJS ${current}, newer than ${target}; update does not downgrade`,
     );
   }
   return order === 0 ? "same" : "newer";
@@ -78,19 +78,18 @@ export async function assertCleanTree(projectDir: string): Promise<void> {
     ));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(
-        "Nie znaleziono polecenia git; zainstaluj git, żeby uruchomić wa update",
-        { cause: error },
-      );
+      throw new Error("git command not found; install git to run update", {
+        cause: error,
+      });
     }
     throw new Error(
-      `${projectDir} nie jest repozytorium git; wa update wymaga gita, żeby dało się cofnąć zmiany`,
+      `${projectDir} is not a git repository; update needs git so changes can be undone`,
       { cause: error },
     );
   }
   if (status !== "") {
     throw new Error(
-      "Niezacommitowane zmiany w projekcie; zrób commit albo stash przed wa update",
+      "Uncommitted changes in the project; commit or stash them before updating",
     );
   }
 }
@@ -105,7 +104,7 @@ function assertRequirementsInstalled(
       .sort(compareCodePoint);
     if (missing.length > 0) {
       throw new Error(
-        `Moduł ${manifest.name} w wa-kit ${target.version} wymaga niezainstalowanych modułów: ${missing.join(", ")}`,
+        `Module ${manifest.name} in GatoJS ${target.version} requires modules that are not installed: ${missing.join(", ")}`,
       );
     }
   }
@@ -131,7 +130,7 @@ async function writableInsideProject(
   for (const segment of relative(projectDir, absolute).split(sep)) {
     current = join(current, segment);
     if ((await lstatIfExists(current))?.isSymbolicLink()) {
-      throw new Error(`Dowiązanie symboliczne na ścieżce zapisu: ${file}`);
+      throw new Error(`Symbolic link on a write path: ${file}`);
     }
   }
   return absolute;
@@ -153,7 +152,7 @@ async function applyWrite(
   projectDir: string,
   { file, absolute }: Write,
 ): Promise<void> {
-  if (file.action === "usunięto") {
+  if (file.action === "removed") {
     await rm(absolute);
     await removeEmptyParents(projectDir, absolute);
     return;
@@ -210,7 +209,7 @@ async function rollbackUpdate(input: {
       await step.run();
     } catch (error) {
       const { code, message } = error as NodeJS.ErrnoException;
-      input.log(`Nie udało się posprzątać: ${step.path} (${code ?? message})`);
+      input.log(`Could not clean up: ${step.path} (${code ?? message})`);
     }
   }
 }
@@ -293,7 +292,7 @@ export async function update(
   const { projectDir, version, runner, log } = options;
   const state = await readKitState(projectDir);
   if (checkVersions(state.kitVersion, version) === "same") {
-    log(`Projekt ma już wa-kit ${version}`);
+    log(`Project is already on GatoJS ${version}`);
     return { exitCode: 0 };
   }
   if (!options.dryRun) {
@@ -309,7 +308,7 @@ export async function update(
   const target = await readKitSnapshot(options.targetKitDir, modules, names);
   if (target.version !== version) {
     throw new Error(
-      `Kit docelowy ma wersję ${target.version}, oczekiwano ${version}`,
+      `Target kit has version ${target.version}, expected ${version}`,
     );
   }
   assertRequirementsInstalled(state, target);
@@ -344,7 +343,7 @@ export async function update(
   }
   const writes: Write[] = [];
   for (const file of plan.files) {
-    if (file.content || file.action === "usunięto") {
+    if (file.content || file.action === "removed") {
       writes.push({
         file,
         absolute: await writableInsideProject(projectDir, file.path),
@@ -353,7 +352,7 @@ export async function update(
   }
   const undecided = new Set(
     plan.files
-      .filter((file) => file.action === "do decyzji")
+      .filter((file) => file.action === "needs decision")
       .map((file) => file.path),
   );
   await writeUpdate({
@@ -364,16 +363,18 @@ export async function update(
   });
   report.forEach((line) => log(line));
 
-  if (plan.files.some((file) => file.action === "konflikt")) {
-    log("Rozwiąż konflikty, potem: npm run wa -- generate && npm install");
-    log("Cofnięcie całej aktualizacji: git restore . && git clean -fd");
+  if (plan.files.some((file) => file.action === "conflict")) {
+    log(
+      "Resolve the conflicts, then run: npm run wa -- generate && npm install",
+    );
+    log("To undo the whole update: git restore . && git clean -fd");
     return { exitCode: 1 };
   }
   try {
     await generate(projectDir);
   } catch (error) {
     throw new Error(
-      `Zaktualizowano do wa-kit ${version}, ale wa generate się nie powiódł. Uruchom: npm run wa -- generate`,
+      `Updated to GatoJS ${version}, but generate failed. Run: npm run wa -- generate`,
       { cause: error },
     );
   }
@@ -383,7 +384,7 @@ export async function update(
       await runner("npm", ["install"], projectDir);
     } catch (error) {
       throw new Error(
-        `Zaktualizowano do wa-kit ${version}, ale npm install się nie powiódł. Uruchom: npm install`,
+        `Updated to GatoJS ${version}, but npm install failed. Run: npm install`,
         { cause: error },
       );
     }
@@ -429,7 +430,7 @@ async function delegateToTarget(input: {
     const { code, message } = error as NodeJS.ErrnoException;
     if (typeof code === "string") {
       throw new Error(
-        `Nie udało się uruchomić bundla wa-kit ${args.version}: ${message}`,
+        `Could not run the bundle of GatoJS ${args.version}: ${message}`,
         { cause: error },
       );
     }
@@ -451,7 +452,7 @@ export async function updateFromSource(options: {
   const { projectDir, args, runner } = options;
   const state = await readKitState(projectDir);
   if (checkVersions(state.kitVersion, args.version) === "same") {
-    options.log(`Projekt ma już wa-kit ${args.version}`);
+    options.log(`Project is already on GatoJS ${args.version}`);
     return { exitCode: 0 };
   }
   if (!args.dryRun) {
@@ -466,7 +467,7 @@ export async function updateFromSource(options: {
     args.fromKit === null ? await bundleKitVersion(options.bundleKitDir) : null;
   if (bundleVersion !== null && bundleVersion !== args.version) {
     throw new Error(
-      `Bundel pochodzi z wa-kit ${bundleVersion}, a aktualizacja prowadzi do ${args.version}`,
+      `The bundle comes from GatoJS ${bundleVersion}, but the update targets ${args.version}`,
     );
   }
   const tmpDir = await mkdtemp(join(options.tmpRoot, "wa-update-"));

@@ -79,7 +79,7 @@ describe("resolveModules", () => {
 
   it("literowka zwraca liste dostepnych bez core, alfabetycznie", () => {
     expect(() => resolveModules(["dem"], fixtureManifests)).toThrow(
-      "Nieznany moduł: dem. Dostępne: demo, needs-demo",
+      "Unknown module: dem. Available: demo, needs-demo",
     );
   });
 
@@ -90,7 +90,7 @@ describe("resolveModules", () => {
       manifestOf("alpha"),
     ];
     expect(() => resolveModules(["nope"], manifests)).toThrow(
-      "Nieznany moduł: nope. Dostępne: alpha, zeta",
+      "Unknown module: nope. Available: alpha, zeta",
     );
   });
 
@@ -101,7 +101,7 @@ describe("resolveModules", () => {
       manifestOf("broken", { requires: ["ghost"] }),
     ];
     expect(() => resolveModules(["broken"], manifests)).toThrow(
-      "Nieznany moduł: ghost. Dostępne: broken, demo",
+      "Unknown module: ghost. Available: broken, demo",
     );
   });
 
@@ -112,13 +112,13 @@ describe("resolveModules", () => {
       manifestOf("b", { requires: ["ghost"] }),
     ];
     expect(() => resolveModules(["a"], manifests)).toThrow(
-      "Nieznany moduł: ghost. Dostępne: a, b",
+      "Unknown module: ghost. Available: a, b",
     );
   });
 
   it("pierwszy nieznany modul w kolejnosci wejscia jest zglaszany", () => {
     expect(() => resolveModules(["zly1", "zly2"], fixtureManifests)).toThrow(
-      "Nieznany moduł: zly1.",
+      "Unknown module: zly1.",
     );
   });
 

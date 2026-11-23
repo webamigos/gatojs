@@ -42,13 +42,13 @@ describe("parseVersion", () => {
     "a.b.c",
   ])("%j zgłasza Nieprawidłowa wersja z przykładem", (value) => {
     expect(() => parseVersion(value)).toThrow(
-      `Nieprawidłowa wersja: ${value}; podaj na przykład 0.2.0`,
+      `Invalid version: ${value}; use a version like 0.2.0`,
     );
   });
 
   it("komunikat dla v0.2.0 jest dokładny", () => {
     expect(() => parseVersion("v0.2.0")).toThrow(
-      new Error("Nieprawidłowa wersja: v0.2.0; podaj na przykład 0.2.0"),
+      new Error("Invalid version: v0.2.0; use a version like 0.2.0"),
     );
   });
 });

@@ -32,7 +32,7 @@ describe("replaceRegion", () => {
     ["brak regionu", "nic\n"],
   ])("%s → błąd z nazwą pliku", (_, src) => {
     expect(() => replaceRegion(src, ".env.example", "x", "")).toThrow(
-      ".env.example: uszkodzony region wa:x",
+      ".env.example: malformed region wa:x",
     );
   });
 
@@ -44,7 +44,7 @@ describe("replaceRegion", () => {
   ])("body ze znacznikiem tego samego markera (%s) → błąd", (_, body) => {
     const src = "# wa:x:start\nold\n# wa:x:end\n";
     expect(() => replaceRegion(src, ".env.example", "x", body)).toThrow(
-      ".env.example: treść regionu wa:x zawiera znacznik regionu",
+      ".env.example: content of region wa:x contains a region marker",
     );
   });
 
@@ -114,7 +114,7 @@ describe("replaceRegion", () => {
   it("jeden start i dwa end → błąd uszkodzonego regionu", () => {
     const src = "# wa:modules:start\nold\n# wa:modules:end\n# wa:modules:end\n";
     expect(() => replaceRegion(src, "f", "modules", "x")).toThrow(
-      "uszkodzony region wa:modules",
+      "malformed region wa:modules",
     );
   });
 
