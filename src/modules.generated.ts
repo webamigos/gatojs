@@ -8,14 +8,16 @@ import organizationsModule from "@/features/organizations/module";
 import usersModule from "@/features/users/module";
 import apiKeysModule from "@/features/api-keys/module";
 import auditLogsModule from "@/features/audit-logs/module";
+import encryptionModule from "@/features/encryption/module";
 import uploadsModule from "@/features/uploads/module";
 import { envSchema as apiKeysEnvSchema } from "@/features/api-keys/env";
+import { envSchema as encryptionEnvSchema } from "@/features/encryption/env";
 import { envSchema as uploadsEnvSchema } from "@/features/uploads/env";
 import { authPlugin as auditLogsAuthPlugin } from "@/features/audit-logs/auth";
 import { auditSink as auditLogsAuditSink } from "@/features/audit-logs/audit-sink";
 
-export const modules = [accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, uploadsModule];
-export const moduleEnvSchemas = [apiKeysEnvSchema, uploadsEnvSchema];
+export const modules = [accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, encryptionModule, uploadsModule];
+export const moduleEnvSchemas = [apiKeysEnvSchema, encryptionEnvSchema, uploadsEnvSchema];
 export const authPlugins = [auditLogsAuthPlugin];
 export const auditSinks = [auditLogsAuditSink];
 export const env = createEnv(moduleEnvSchemas);

@@ -255,6 +255,44 @@
       },
       "files": {}
     },
+    "encryption": {
+      "version": "0.1.0",
+      "manifest": {
+        "name": "encryption",
+        "version": "0.1.0",
+        "description": "Per-organization envelope encryption (AES-256-GCM) with data keys wrapped by a master key",
+        "requires": [],
+        "files": [
+          "packages/crypto/**",
+          "prisma/schema/encryption.prisma",
+          "src/features/encryption/**"
+        ],
+        "dependencies": {},
+        "devDependencies": {},
+        "env": [
+          {
+            "name": "ENCRYPTION_PROVIDER",
+            "example": "local",
+            "required": false
+          },
+          {
+            "name": "ENCRYPTION_MASTER_KEY",
+            "example": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+            "required": true
+          }
+        ],
+        "schemaRelations": [
+          {
+            "model": "Organization",
+            "field": "dataKey OrganizationDataKey?"
+          }
+        ],
+        "compose": null,
+        "ciSteps": null,
+        "workspaces": []
+      },
+      "files": {}
+    },
     "uploads": {
       "version": "0.2.6",
       "manifest": {

@@ -1,0 +1,10 @@
+model OrganizationDataKey {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @unique @map("organization_id")
+  wrappedKey     String   @map("wrapped_key")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("organization_data_keys")
+}
