@@ -811,7 +811,7 @@ describe("update: regiony i podpowiedzi", () => {
           json.version = "0.4.0";
           json.env = [
             { name: "DEMO_TOKEN", example: "{{projectSlug}}_demo_" },
-            { name: "DEMO_SECRET", example: "sekret" },
+            { name: "DEMO_EXTRA", example: "sekret" },
             { name: "ALPHA_KEY", example: "alfa" },
           ];
         });
@@ -821,12 +821,12 @@ describe("update: regiony i podpowiedzi", () => {
     expect(await run(setup)).toEqual({ exitCode: 0 });
 
     expect(await read(setup.dir, ".env.example")).toBe(
-      "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/app\nBETTER_AUTH_SECRET=change-me-to-a-random-string-of-at-least-32-chars\nADMIN_EMAIL=\nLOG_LEVEL=info\n\n# wa:modules:start\n# demo\nDEMO_TOKEN=app_demo_\nDEMO_SECRET=sekret\nALPHA_KEY=alfa\n# wa:modules:end\n",
+      "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/app\nBETTER_AUTH_SECRET=change-me-to-a-random-string-of-at-least-32-chars\nADMIN_EMAIL=\nLOG_LEVEL=info\n\n# wa:modules:start\n# demo\nDEMO_TOKEN=app_demo_\nDEMO_EXTRA=sekret\nALPHA_KEY=alfa\n# wa:modules:end\n",
     );
     expect(lines()).toEqual([
       "Updating GatoJS 0.1.0 → 0.2.0",
       "  updated        .env.example",
-      "New variables in .env.example: ALPHA_KEY, DEMO_SECRET; add them to .env",
+      "New variables in .env.example: ALPHA_KEY, DEMO_EXTRA; add them to .env",
     ]);
     const state = await rawState(setup.dir);
     expect(state.modules.demo?.version).toBe("0.4.0");
@@ -856,7 +856,7 @@ describe("update: regiony i podpowiedzi", () => {
     expect(await run(setup)).toEqual({ exitCode: 0 });
 
     expect(await read(setup.dir, ".env.example")).toBe(
-      "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/app\nBETTER_AUTH_SECRET=change-me-to-a-random-string-of-at-least-32-chars\nADMIN_EMAIL=\nLOG_LEVEL=info\n\n# wa:modules:start\n# demo\nDEMO_TOKEN=app_demo_\n# wa:modules:end\n",
+      "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/app\nBETTER_AUTH_SECRET=change-me-to-a-random-string-of-at-least-32-chars\nADMIN_EMAIL=\nLOG_LEVEL=info\n\n# wa:modules:start\n# demo\nDEMO_TOKEN=app_demo_\nDEMO_SECRET=demo-secret-example\n# wa:modules:end\n",
     );
     expect(lines()).toEqual([
       "Updating GatoJS 0.1.0 → 0.2.0",

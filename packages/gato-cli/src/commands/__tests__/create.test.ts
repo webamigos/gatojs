@@ -513,6 +513,59 @@ describe("create: .env", () => {
   });
 });
 
+describe("create: generowane sekrety modułów", () => {
+  const DEMO_SECRET_LINE = /^DEMO_SECRET=([A-Za-z0-9_-]{86})$/m;
+
+  it("demo: DEMO_SECRET ma 86 znaków base64url zamiast wartości przykładowej", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, modules: ["demo"], yes: true }));
+    const env = await read(dir, ".env");
+    expect(env).toMatch(DEMO_SECRET_LINE);
+    expect(env.match(/^DEMO_SECRET=/gm)).toHaveLength(1);
+    expect(env).not.toContain("demo-secret-example");
+  });
+
+  it("demo: DEMO_TOKEN bez generate zachowuje wartość przykładową", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, modules: ["demo"], yes: true }));
+    expect(await read(dir, ".env")).toMatch(/^DEMO_TOKEN=acme-shop_demo_$/m);
+  });
+
+  it("demo: BETTER_AUTH_SECRET nadal jest jedną linią z 43 znakami", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, modules: ["demo"], yes: true }));
+    const env = await read(dir, ".env");
+    expect(env).toMatch(SECRET_LINE);
+    expect(env.match(/BETTER_AUTH_SECRET=/g)).toHaveLength(1);
+  });
+
+  it("demo: .env.example w projekcie zostaje z wartością przykładową", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, modules: ["demo"], yes: true }));
+    expect(await read(dir, ".env.example")).toMatch(
+      /^DEMO_SECRET=demo-secret-example$/m,
+    );
+  });
+
+  it("dwa wywołania create z demo dają różne DEMO_SECRET", async () => {
+    const first = join(tmp, "first-app");
+    const second = join(tmp, "second-app");
+    await create(opts({ target: first, modules: ["demo"], yes: true }));
+    await create(opts({ target: second, modules: ["demo"], yes: true }));
+    const firstSecret = DEMO_SECRET_LINE.exec(await read(first, ".env"))?.[1];
+    const secondSecret = DEMO_SECRET_LINE.exec(await read(second, ".env"))?.[1];
+    expect(firstSecret).toHaveLength(86);
+    expect(secondSecret).toHaveLength(86);
+    expect(firstSecret).not.toBe(secondSecret);
+  });
+
+  it("bez demo .env nie ma DEMO_SECRET", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, modules: [], yes: true }));
+    expect(await read(dir, ".env")).not.toContain("DEMO_SECRET");
+  });
+});
+
 describe("create: katalog docelowy", () => {
   it("niepusty katalog → błąd, istniejące pliki nietknięte", async () => {
     const dir = join(tmp, "zajety");

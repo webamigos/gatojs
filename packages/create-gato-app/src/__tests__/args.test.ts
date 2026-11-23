@@ -1,370 +1,424 @@
 import { describe, expect, it } from "vitest";
-import { parseCliArgs, USAGE } from "../args.js";
+import { parseCliArgs, USAGE, type CreateCliArgs } from "../args.js";
 
-describe("parseCliArgs", () => {
-  it.each([[["--help"]], [["-h"]], [["my-app", "--help"]]])(
-    "%j returns help",
+const DEFAULTS: CreateCliArgs = {
+  kind: "create",
+  target: "my-app",
+  kitVersion: null,
+  kitPath: null,
+  modules: null,
+  locales: null,
+  title: null,
+  adminEmail: null,
+  yes: false,
+  setup: false,
+  install: true,
+  docker: true,
+  git: true,
+  cliSource: null,
+  storage: null,
+  s3Endpoint: null,
+  s3AccessKeyId: null,
+  s3SecretAccessKey: null,
+};
+
+describe("parseCliArgs: pomoc i wersja", () => {
+  it.each([[["--help"]], [["-h"]], [["my-app", "--help"]], [["my-app", "--yes", "-h"]]])("%j zwraca pomoc", (argv) => {
+    expect(parseCliArgs(argv)).toEqual({ kind: "help" });
+  });
+
+  it.each([[["--version"]], [["-v"]], [["my-app", "--version"]]])("%j zwraca wersję", (argv) => {
+    expect(parseCliArgs(argv)).toEqual({ kind: "version" });
+  });
+
+  it.each([[["--version", "--help"]], [["--help", "--version"]], [["-v", "-h"]]])(
+    "%j woli pomoc niż wersję",
     (argv) => {
       expect(parseCliArgs(argv)).toEqual({ kind: "help" });
     },
   );
+});
 
-  it.each([[["--version"]], [["-v"]]])("%j returns version", (argv) => {
-    expect(parseCliArgs(argv)).toEqual({ kind: "version" });
+describe("parseCliArgs: katalog projektu", () => {
+  it("sam katalog daje wartości domyślne", () => {
+    expect(parseCliArgs(["my-app"])).toStrictEqual(DEFAULTS);
   });
 
-  it.each([
-    [["--version", "--help"]],
-    [["--help", "--version"]],
-    [["-v", "-h"]],
-  ])("%j prefers help over version", (argv) => {
-    expect(parseCliArgs(argv)).toEqual({ kind: "help" });
+  it.each([[[]], [[""]], [["--yes"]], [["", "--yes"]], [["--title", "Acme"]], [["--kit", "../gatojs"]]])(
+    "%j bez katalogu jest odrzucone",
+    (argv) => {
+      expect(() => parseCliArgs(argv)).toThrow(/^Missing project directory\./);
+    },
+  );
+
+  it("drugi argument pozycyjny jest odrzucony", () => {
+    expect(() => parseCliArgs(["my-app", "other"])).toThrow("Unexpected argument: other");
   });
 
-  it("a bare target gets defaults and is passed through", () => {
-    expect(parseCliArgs(["my-app"])).toEqual({
-      kind: "create",
-      target: "my-app",
-      kitVersion: null,
-      kitPath: null,
-      install: true,
-      passthrough: ["my-app"],
+  it.each([[["--title", "Acme App", "my-app"]], [["--modules", "uploads", "my-app"]], [["--cli-source", "/t/x.tgz", "my-app"]]])(
+    "%j nie bierze wartości flagi za katalog",
+    (argv) => {
+      expect(parseCliArgs(argv)).toMatchObject({ kind: "create", target: "my-app" });
+    },
+  );
+
+  it("nieznana flaga jest odrzucona", () => {
+    expect(() => parseCliArgs(["my-app", "--nope"])).toThrow("Unknown option: --nope");
+  });
+
+  it("nieznana flaga z wartością po = jest odrzucona po nazwie", () => {
+    expect(() => parseCliArgs(["my-app", "--frobnicate=1"])).toThrow(/^Unknown option: --frobnicate/);
+  });
+
+  it.each(["--title", "--modules", "--locales", "--admin-email", "--cli-source", "--storage", "--s3-endpoint"])(
+    "%s na końcu bez wartości jest odrzucone",
+    (flag) => {
+      expect(() => parseCliArgs(["my-app", flag])).toThrow(`${flag} needs a value`);
+    },
+  );
+});
+
+describe("parseCliArgs: --modules", () => {
+  it("pusty napis to pusta lista modułów", () => {
+    expect(parseCliArgs(["my-app", "--modules", ""])).toMatchObject({ modules: [] });
+  });
+
+  it("lista po przecinku jest przycięta", () => {
+    expect(parseCliArgs(["my-app", "--modules", "api-keys, uploads"])).toMatchObject({
+      modules: ["api-keys", "uploads"],
     });
   });
 
+  it("działa forma --modules=wartość", () => {
+    expect(parseCliArgs(["my-app", "--modules=uploads"])).toMatchObject({ modules: ["uploads"] });
+  });
+});
+
+describe("parseCliArgs: --locales", () => {
+  it.each([
+    ["pl", ["pl"]],
+    ["pl,en", ["pl", "en"]],
+  ])("%s daje %j", (value, expected) => {
+    expect(parseCliArgs(["my-app", "--locales", value])).toMatchObject({ locales: expected });
+  });
+
+  it.each(["en", "pl,de", "pl,pl", "de", "en,pl,de"])("%j jest odrzucone, bo polski jest wymagany", (value) => {
+    expect(() => parseCliArgs(["my-app", "--locales", value])).toThrow("--locales: use pl or pl,en (pl is required)");
+  });
+});
+
+describe("parseCliArgs: --title i --admin-email", () => {
+  it("tytuł jest przycięty", () => {
+    expect(parseCliArgs(["my-app", "--title", "  Acme  "])).toMatchObject({ title: "Acme" });
+  });
+
+  it("działa forma --title=wartość ze spacjami", () => {
+    expect(parseCliArgs(["my-app", "--title=Acme Shop"])).toMatchObject({ title: "Acme Shop" });
+  });
+
+  it.each(['A"B', "A$B", "x".repeat(61), "   "])("niepoprawny tytuł %j jest odrzucony z przedrostkiem --title", (value) => {
+    expect(() => parseCliArgs(["my-app", "--title", value])).toThrow(/^--title: /);
+  });
+
+  it("poprawny e-mail jest zachowany", () => {
+    expect(parseCliArgs(["my-app", "--admin-email", "a@b.co"])).toMatchObject({ adminEmail: "a@b.co" });
+  });
+
+  it.each(["nope", "a@b", "a b@example.com"])("niepoprawny e-mail %j jest odrzucony z przedrostkiem --admin-email", (value) => {
+    expect(() => parseCliArgs(["my-app", "--admin-email", value])).toThrow(/^--admin-email: /);
+  });
+});
+
+describe("parseCliArgs: instalacja, Docker, git i setup", () => {
+  it.each([["--skip-install"], ["--no-install"]])("%s wyłącza instalację i Dockera", (flag) => {
+    expect(parseCliArgs(["my-app", flag])).toStrictEqual({ ...DEFAULTS, install: false, docker: false });
+  });
+
+  it("--skip-docker wyłącza tylko Dockera", () => {
+    expect(parseCliArgs(["my-app", "--skip-docker"])).toStrictEqual({ ...DEFAULTS, docker: false });
+  });
+
+  it("--no-git wyłącza git", () => {
+    expect(parseCliArgs(["my-app", "--no-git"])).toStrictEqual({ ...DEFAULTS, git: false });
+  });
+
+  it("--yes ustawia yes", () => {
+    expect(parseCliArgs(["my-app", "--yes"])).toStrictEqual({ ...DEFAULTS, yes: true });
+  });
+
+  it("--setup ustawia setup", () => {
+    expect(parseCliArgs(["my-app", "--setup"])).toStrictEqual({ ...DEFAULTS, setup: true });
+  });
+
+  it.each([
+    [["my-app", "--setup", "--skip-install"]],
+    [["my-app", "--setup", "--skip-docker"]],
+    [["my-app", "--skip-docker", "--setup"]],
+    [["my-app", "--no-install", "--setup"]],
+  ])("%j jest sprzeczne", (argv) => {
+    expect(() => parseCliArgs(argv)).toThrow(
+      "--setup needs npm install and Docker; drop --skip-install/--skip-docker",
+    );
+  });
+
+  it("--cli-source zapisuje ścieżkę", () => {
+    expect(parseCliArgs(["my-app", "--cli-source", "x.tgz"])).toMatchObject({ cliSource: "x.tgz" });
+  });
+
+  it("działa forma --cli-source=ścieżka", () => {
+    expect(parseCliArgs(["--cli-source=/t/x.tgz", "my-app"])).toMatchObject({ cliSource: "/t/x.tgz", target: "my-app" });
+  });
+});
+
+describe("parseCliArgs: magazyn plików", () => {
+  it.each([
+    ["s3", "s3"],
+    ["local", "local"],
+  ])("--storage %s daje %s", (value, expected) => {
+    expect(parseCliArgs(["my-app", "--storage", value])).toMatchObject({ storage: expected });
+  });
+
+  it("--storage gcs jest odrzucone", () => {
+    expect(() => parseCliArgs(["my-app", "--storage", "gcs"])).toThrow("--storage: use local or s3");
+  });
+
+  it.each([
+    ["--s3-endpoint", "https://s3.example.com"],
+    ["--s3-access-key-id", "AK"],
+    ["--s3-secret-access-key", "SK"],
+  ])("%s bez --storage s3 jest odrzucone", (flag, value) => {
+    expect(() => parseCliArgs(["my-app", flag, value])).toThrow(`${flag} needs --storage s3`);
+    expect(() => parseCliArgs(["my-app", "--storage", "local", flag, value])).toThrow(`${flag} needs --storage s3`);
+  });
+
+  it("endpoint spoza http(s) jest odrzucony", () => {
+    expect(() => parseCliArgs(["my-app", "--storage", "s3", "--s3-endpoint", "ftp://x"])).toThrow(
+      "--s3-endpoint: expected an http(s) URL",
+    );
+  });
+
+  it("pełna konfiguracja S3 jest zachowana", () => {
+    expect(
+      parseCliArgs([
+        "my-app",
+        "--storage=s3",
+        "--s3-endpoint",
+        "https://s3.example.com",
+        "--s3-access-key-id",
+        "AK",
+        "--s3-secret-access-key=SK/+=",
+      ]),
+    ).toStrictEqual({
+      ...DEFAULTS,
+      storage: "s3",
+      s3Endpoint: "https://s3.example.com",
+      s3AccessKeyId: "AK",
+      s3SecretAccessKey: "SK/+=",
+    });
+  });
+
+  it.each([
+    [[]],
+    [["--s3-access-key-id", "AK"]],
+    [["--s3-secret-access-key", "SK"]],
+  ])("--yes z zewnętrznym endpointem bez obu kluczy (%j) jest odrzucone", (keys) => {
+    expect(() =>
+      parseCliArgs(["my-app", "--yes", "--storage", "s3", "--s3-endpoint", "https://s3.example.com", ...keys]),
+    ).toThrow(
+      "--storage s3 with --s3-endpoint needs --s3-access-key-id and --s3-secret-access-key (or drop --yes to be asked)",
+    );
+  });
+
+  it("bez --yes brakujące klucze zostaną zadane w pytaniach", () => {
+    expect(
+      parseCliArgs(["my-app", "--storage", "s3", "--s3-endpoint", "https://s3.example.com"]),
+    ).toMatchObject({ storage: "s3", s3Endpoint: "https://s3.example.com", s3AccessKeyId: null });
+  });
+
+  it("--yes z lokalnym MinIO nie wymaga kluczy", () => {
+    expect(
+      parseCliArgs(["my-app", "--yes", "--storage", "s3", "--s3-endpoint", "http://localhost:9000"]),
+    ).toMatchObject({ storage: "s3", s3Endpoint: "http://localhost:9000" });
+  });
+
+  it.each(["a b", 'a"b', "a#b", "a$b"])("sekret S3 %j niebezpieczny w .env jest odrzucony", (value) => {
+    expect(() =>
+      parseCliArgs(["my-app", "--storage", "s3", "--s3-endpoint", "https://s3.example.com", "--s3-secret-access-key", value]),
+    ).toThrow(/no spaces, quotes, backslashes, #, \$ or backticks/);
+  });
+});
+
+describe("parseCliArgs: --kit i --kit-version", () => {
   it.each([
     [["my-app", "--kit-version", "0.1.0"]],
     [["my-app", "--kit-version=0.1.0"]],
     [["--kit-version", "0.1.0", "my-app"]],
-  ])("%j sets kitVersion and keeps the flag out of passthrough", (argv) => {
-    expect(parseCliArgs(argv)).toEqual({
-      kind: "create",
-      target: "my-app",
-      kitVersion: "0.1.0",
-      kitPath: null,
-      install: true,
-      passthrough: ["my-app"],
-    });
+  ])("%j ustawia kitVersion", (argv) => {
+    expect(parseCliArgs(argv)).toStrictEqual({ ...DEFAULTS, kitVersion: "0.1.0" });
   });
 
-  it.each([
-    [["my-app", "--kit-version", "v0.2.3"]],
-    [["my-app", "--kit-version=v0.2.3"]],
-  ])("%j strips the v prefix from kitVersion", (argv) => {
-    expect(parseCliArgs(argv)).toMatchObject({
-      kind: "create",
-      kitVersion: "0.2.3",
-      passthrough: ["my-app"],
-    });
-  });
-
-  it.each(["1.0", "latest", "1.0.0-rc.1", "01.0.0", "1.0.0.1", "v1.0"])(
-    "--kit-version %s is rejected as not x.y.z",
-    (value) => {
-      expect(() => parseCliArgs(["my-app", "--kit-version", value])).toThrow(
-        `--kit-version: expected x.y.z, got "${value}"`,
-      );
+  it.each([[["my-app", "--kit-version", "v0.2.3"]], [["my-app", "--kit-version=v0.2.3"]]])(
+    "%j obcina przedrostek v",
+    (argv) => {
+      expect(parseCliArgs(argv)).toMatchObject({ kitVersion: "0.2.3" });
     },
   );
 
-  it.each([
-    [["my-app", "--kit-version"]],
-    [["my-app", "--kit-version", "--yes"]],
-    [["my-app", "--kit-version="]],
-  ])("%j reports a missing --kit-version value", (argv) => {
-    expect(() => parseCliArgs(argv)).toThrow(
-      "--kit-version needs a value, e.g. --kit-version 0.1.0",
+  it.each(["1.2.3", "100.0.0", "10.20.300"])("--kit-version %s jest zachowane", (value) => {
+    expect(parseCliArgs(["my-app", "--kit-version", value])).toMatchObject({ kitVersion: value });
+  });
+
+  it.each(["1.0", "latest", "1.0.0-rc.1", "01.0.0", "1.0.0.1", "v1.0"])("--kit-version %s nie jest x.y.z", (value) => {
+    expect(() => parseCliArgs(["my-app", "--kit-version", value])).toThrow(
+      `--kit-version: expected x.y.z, got "${value}"`,
     );
   });
 
-  it.each([
-    [["my-app", "--kit", "../gatojs"]],
-    [["my-app", "--kit=../gatojs"]],
-    [["--kit", "../gatojs", "my-app"]],
-  ])("%j sets kitPath and never passes --kit through", (argv) => {
-    expect(parseCliArgs(argv)).toEqual({
-      kind: "create",
-      target: "my-app",
-      kitVersion: null,
-      kitPath: "../gatojs",
-      install: true,
-      passthrough: ["my-app"],
-    });
-  });
+  it.each([[["my-app", "--kit-version"]], [["my-app", "--kit-version", "--yes"]], [["my-app", "--kit-version="]]])(
+    "%j bez wartości --kit-version jest odrzucone",
+    (argv) => {
+      expect(() => parseCliArgs(argv)).toThrow("--kit-version needs a value, e.g. --kit-version 0.1.0");
+    },
+  );
 
-  it("--kit with its value is removed from the middle of passthrough", () => {
-    expect(
-      parseCliArgs(["my-app", "--kit", "../gatojs", "--yes"]),
-    ).toMatchObject({ passthrough: ["my-app", "--yes"] });
-  });
+  it.each([[["my-app", "--kit", "../gatojs"]], [["my-app", "--kit=../gatojs"]], [["--kit", "../gatojs", "my-app"]]])(
+    "%j ustawia kitPath",
+    (argv) => {
+      expect(parseCliArgs(argv)).toStrictEqual({ ...DEFAULTS, kitPath: "../gatojs" });
+    },
+  );
 
-  it("--kit-version with its value is removed from the middle of passthrough", () => {
-    expect(
-      parseCliArgs(["my-app", "--kit-version", "0.1.0", "--yes"]),
-    ).toMatchObject({ passthrough: ["my-app", "--yes"] });
-  });
-
-  it.each([
-    [["my-app", "--kit"]],
-    [["my-app", "--kit="]],
-    [["my-app", "--kit", "--yes"]],
-  ])("%j reports a missing --kit path", (argv) => {
-    expect(() => parseCliArgs(argv)).toThrow("--kit needs a path");
-  });
+  it.each([[["my-app", "--kit"]], [["my-app", "--kit="]], [["my-app", "--kit", "--yes"]]])(
+    "%j bez ścieżki --kit jest odrzucone",
+    (argv) => {
+      expect(() => parseCliArgs(argv)).toThrow("--kit needs a path");
+    },
+  );
 
   it.each([
     [["my-app", "--kit", "../gatojs", "--kit-version", "0.1.0"]],
     [["my-app", "--kit-version=0.1.0", "--kit=../gatojs"]],
-  ])("%j rejects --kit together with --kit-version", (argv) => {
-    expect(() => parseCliArgs(argv)).toThrow(
-      "--kit and --kit-version cannot be used together",
+  ])("%j: --kit i --kit-version razem są odrzucone", (argv) => {
+    expect(() => parseCliArgs(argv)).toThrow("--kit and --kit-version cannot be used together");
+  });
+
+  it("--kit podane dwa razy jest odrzucone", () => {
+    expect(() => parseCliArgs(["my-app", "--kit", "../a", "--kit", "../b"])).toThrow("--kit given more than once");
+  });
+
+  it("--kit-version podane dwa razy jest odrzucone", () => {
+    expect(() => parseCliArgs(["my-app", "--kit-version", "0.1.0", "--kit-version=0.2.0"])).toThrow(
+      "--kit-version given more than once",
     );
   });
+});
 
-  it("--kit given twice is rejected", () => {
-    expect(() =>
-      parseCliArgs(["my-app", "--kit", "../a", "--kit", "../b"]),
-    ).toThrow("--kit given more than once");
-  });
-
-  it("--kit-version given twice is rejected", () => {
-    expect(() =>
-      parseCliArgs(["my-app", "--kit-version", "0.1.0", "--kit-version=0.2.0"]),
-    ).toThrow("--kit-version given more than once");
-  });
-
-  it("--skip-install becomes --no-install in passthrough", () => {
-    expect(parseCliArgs(["my-app", "--skip-install"])).toEqual({
-      kind: "create",
-      target: "my-app",
-      kitVersion: null,
-      kitPath: null,
-      install: false,
-      passthrough: ["my-app", "--no-install"],
-    });
-  });
-
-  it("--no-install disables install and is passed through", () => {
-    expect(parseCliArgs(["my-app", "--no-install"])).toEqual({
-      kind: "create",
-      target: "my-app",
-      kitVersion: null,
-      kitPath: null,
-      install: false,
-      passthrough: ["my-app", "--no-install"],
-    });
-  });
-
-  it.each([
-    [["my-app", "--skip-install", "--no-install"]],
-    [["my-app", "--no-install", "--skip-install"]],
-  ])("%j passes --no-install exactly once", (argv) => {
-    const result = parseCliArgs(argv);
-    expect(result).toMatchObject({ kind: "create", install: false });
-    if (result.kind !== "create") throw new Error("expected create");
-    expect(result.passthrough.filter((arg) => arg === "--no-install")).toEqual([
-      "--no-install",
-    ]);
-    expect(result.passthrough).not.toContain("--skip-install");
-  });
-
-  it("--skip-docker is not supported yet", () => {
-    expect(() => parseCliArgs(["my-app", "--skip-docker"])).toThrow(
-      "--skip-docker is not supported yet",
-    );
-  });
-
-  it("gato create options are passed through unchanged and in order", () => {
+describe("parseCliArgs: wszystkie flagi razem", () => {
+  it("każda flaga trafia do swojego pola", () => {
     expect(
       parseCliArgs([
         "--yes",
-        "my-app",
-        "--modules",
-        "uploads,api-keys",
-        "--title",
-        "Acme",
-        "--no-git",
-        "--setup",
-      ]),
-    ).toEqual({
-      kind: "create",
-      target: "my-app",
-      kitVersion: null,
-      kitPath: null,
-      install: true,
-      passthrough: [
-        "--yes",
-        "my-app",
-        "--modules",
-        "uploads,api-keys",
-        "--title",
-        "Acme",
-        "--no-git",
-        "--setup",
-      ],
-    });
-  });
-
-  it.each([
-    [["--title", "Acme App", "my-app"]],
-    [["--title=Acme", "my-app"]],
-    [["--modules", "uploads", "my-app"]],
-    [["--locales", "pl,en", "my-app"]],
-    [["--admin-email", "a@b.pl", "my-app"]],
-  ])("%j does not take an option value as the target", (argv) => {
-    expect(parseCliArgs(argv)).toMatchObject({
-      kind: "create",
-      target: "my-app",
-      passthrough: argv,
-    });
-  });
-
-  it.each([
-    [["--yes"]],
-    [[]],
-    [["--title", "Acme"]],
-    [["--kit", "../gatojs"]],
-    [["--kit-version", "0.1.0"]],
-    [[""]],
-    [["", "--yes"]],
-  ])("%j rejects a missing project directory", (argv) => {
-    expect(() => parseCliArgs(argv)).toThrow(/^Missing project directory/);
-  });
-
-  it("an empty target is a missing project directory", () => {
-    expect(() => parseCliArgs([""])).toThrow(/^Missing project directory\./);
-  });
-
-  it.each(["1.2.3", "100.0.0"])(
-    "--kit-version %s is kept as given",
-    (value) => {
-      expect(parseCliArgs(["my-app", "--kit-version", value])).toMatchObject({
-        kind: "create",
-        kitVersion: value,
-        passthrough: ["my-app"],
-      });
-    },
-  );
-
-  it("a multi-digit --kit-version is kept whole", () => {
-    expect(
-      parseCliArgs(["my-app", "--kit-version", "10.20.300"]),
-    ).toMatchObject({
-      kind: "create",
-      kitVersion: "10.20.300",
-      passthrough: ["my-app"],
-    });
-  });
-
-  it("a trailing gato create option without a value is passed through as is", () => {
-    const result = parseCliArgs(["my-app", "--title"]);
-    expect(result).toEqual({
-      kind: "create",
-      target: "my-app",
-      kitVersion: null,
-      kitPath: null,
-      install: true,
-      passthrough: ["my-app", "--title"],
-    });
-    if (result.kind !== "create") throw new Error("expected create");
-    expect(result.passthrough).toHaveLength(2);
-    expect(result.passthrough).not.toContain(undefined);
-  });
-
-  it("--cli-source before the target does not take its value as the target", () => {
-    expect(parseCliArgs(["--cli-source", "/t/x.tgz", "my-app"])).toEqual({
-      kind: "create",
-      target: "my-app",
-      kitVersion: null,
-      kitPath: null,
-      install: true,
-      passthrough: ["--cli-source", "/t/x.tgz", "my-app"],
-    });
-  });
-
-  it("--cli-source after the target is passed through with its value", () => {
-    expect(
-      parseCliArgs([
-        "my-app",
-        "--cli-source",
-        "pack/gato-cli-0.2.0.tgz",
-        "--yes",
-      ]),
-    ).toMatchObject({
-      kind: "create",
-      target: "my-app",
-      passthrough: [
-        "my-app",
-        "--cli-source",
-        "pack/gato-cli-0.2.0.tgz",
-        "--yes",
-      ],
-    });
-  });
-
-  it("--cli-source=<path> passes through as one token", () => {
-    expect(parseCliArgs(["--cli-source=/t/x.tgz", "my-app"])).toMatchObject({
-      kind: "create",
-      target: "my-app",
-      passthrough: ["--cli-source=/t/x.tgz", "my-app"],
-    });
-  });
-
-  it.each([[["--cli-source", "/t/x.tgz"]], [["--cli-source", "my-app"]]])(
-    "%j has no project directory: the value is not a target",
-    (argv) => {
-      expect(() => parseCliArgs(argv)).toThrow(/^Missing project directory/);
-    },
-  );
-
-  it("--cli-source together with --kit keeps --kit out of passthrough", () => {
-    expect(
-      parseCliArgs([
         "my-app",
         "--kit",
         "../gatojs",
+        "--modules",
+        "uploads,api-keys",
+        "--locales=pl",
+        "--title",
+        "Acme",
+        "--admin-email=a@b.co",
+        "--no-git",
+        "--setup",
         "--cli-source",
         "/t/x.tgz",
+        "--storage",
+        "local",
       ]),
-    ).toEqual({
-      kind: "create",
-      target: "my-app",
-      kitVersion: null,
+    ).toStrictEqual({
+      ...DEFAULTS,
       kitPath: "../gatojs",
-      install: true,
-      passthrough: ["my-app", "--cli-source", "/t/x.tgz"],
-    });
-  });
-
-  it("unknown flags pass through", () => {
-    expect(parseCliArgs(["my-app", "--frobnicate"])).toMatchObject({
-      kind: "create",
-      target: "my-app",
-      passthrough: ["my-app", "--frobnicate"],
+      modules: ["uploads", "api-keys"],
+      locales: ["pl"],
+      title: "Acme",
+      adminEmail: "a@b.co",
+      yes: true,
+      setup: true,
+      git: false,
+      cliSource: "/t/x.tgz",
+      storage: "local",
     });
   });
 });
 
 describe("USAGE", () => {
-  it("mentions the command and its own flags", () => {
+  it("opisuje polecenie i wszystkie flagi kreatora", () => {
     expect(USAGE).toContain("create-gato-app <dir>");
-    expect(USAGE).toContain("--kit-version");
+    for (const flag of [
+      "--kit-version",
+      "--modules",
+      "--locales",
+      "--title",
+      "--admin-email",
+      "--yes",
+      "--setup",
+      "--skip-install",
+      "--skip-docker",
+      "--no-git",
+      "--cli-source",
+      "--storage",
+      "--s3-endpoint",
+      "--s3-access-key-id",
+      "--s3-secret-access-key",
+    ]) {
+      expect(USAGE).toContain(flag);
+    }
     expect(USAGE).toMatch(/--kit(?!-)/);
-    expect(USAGE).toContain("--skip-install");
   });
 
-  it("names gato create as the delegate and documents --cli-source", () => {
-    expect(USAGE).toContain("gato create");
-    expect(USAGE).toContain("--cli-source");
-    expect(USAGE).not.toContain("wa create");
+  it("opisuje token jako obejście limitów, nie dostęp do prywatnego repozytorium", () => {
+    expect(USAGE.split("\n")).toContain("Rate limits: set GITHUB_TOKEN or GH_TOKEN, or log in with `gh auth login`.");
+    expect(USAGE.split("\n").filter((line) => line.startsWith("Private repository"))).toEqual([]);
   });
+});
 
-  it("describes the token as a way around rate limits, not as private-repository access", () => {
-    expect(USAGE.split("\n")).toContain(
-      "Rate limits: set GITHUB_TOKEN or GH_TOKEN, or log in with `gh auth login`.",
+describe("parseCliArgs: wstrzyknięcia i flagi bez wartości", () => {
+  it.each(["https://x y", "https://x\nA=1", "see https://x"])("--s3-endpoint %j jest odrzucony", (value) => {
+    expect(() => parseCliArgs(["my-app", "--storage", "s3", "--s3-endpoint", value])).toThrow(
+      "--s3-endpoint: expected an http(s) URL",
     );
+  });
+
+  it("klucz dostępu S3 ze spacją jest odrzucony z etykietą", () => {
+    expect(() =>
+      parseCliArgs(["my-app", "--storage", "s3", "--s3-endpoint", "https://s3.example.com", "--s3-access-key-id", "a b"]),
+    ).toThrow("--s3-access-key-id: S3 access key id: no spaces, quotes, backslashes, #, $ or backticks");
+  });
+
+  it("--yes z zewnętrznym endpointem i oboma kluczami jest przyjęte", () => {
     expect(
-      USAGE.split("\n").filter((line) => line.startsWith("Private repository")),
-    ).toEqual([]);
+      parseCliArgs([
+        "my-app",
+        "--yes",
+        "--storage",
+        "s3",
+        "--s3-endpoint",
+        "https://s3.example.com",
+        "--s3-access-key-id",
+        "AK",
+        "--s3-secret-access-key",
+        "SK",
+      ]),
+    ).toStrictEqual({
+      ...DEFAULTS,
+      yes: true,
+      storage: "s3",
+      s3Endpoint: "https://s3.example.com",
+      s3AccessKeyId: "AK",
+      s3SecretAccessKey: "SK",
+    });
+  });
+
+  it("--yes=1 jest odrzucone, bo --yes nie ma wartości", () => {
+    expect(() => parseCliArgs(["my-app", "--yes=1"])).toThrow("--yes does not take a value");
   });
 });

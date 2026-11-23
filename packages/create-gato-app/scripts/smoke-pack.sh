@@ -5,13 +5,22 @@ set -euo pipefail
 # projects from a local GatoJS checkout with the packed gato-cli. Never touches the npm registry
 # for these two packages.
 # Usage: scripts/smoke-pack.sh <gatojs-checkout> [extra create-gato-app flags]
-# SMOKE_INSTALL=1 also runs npm install in both projects and checks their gato-cli.
+# Without SMOKE_INSTALL it checks generated secrets, COMPOSE_PROJECT_NAME and storage answers in .env.
+# SMOKE_INSTALL=1 lets the wizard install one project with --skip-docker (one clean commit), checks the
+# projects' gato-cli, and runs the wizard against a busy DB_PORT (exit 1, port report, no containers).
 
 kit_dir=$(cd "${1:?usage: smoke-pack.sh <gatojs-checkout>}" && pwd)
 shift
 packages_dir="$kit_dir/packages"
 work_dir=$(mktemp -d)
 trap 'rm -rf "$work_dir"' EXIT
+
+if ! git config user.name >/dev/null 2>&1; then
+  export GIT_AUTHOR_NAME="GatoJS smoke" GIT_COMMITTER_NAME="GatoJS smoke"
+fi
+if ! git config user.email >/dev/null 2>&1; then
+  export GIT_AUTHOR_EMAIL="smoke@gatojs.invalid" GIT_COMMITTER_EMAIL="smoke@gatojs.invalid"
+fi
 
 fail() {
   echo "smoke test failed: $*" >&2
@@ -57,17 +66,54 @@ creator="$bin_dir/create-gato-app"
 if "$gato" nope >/dev/null 2>&1; then
   fail "gato accepted an unknown command"
 fi
-if "$creator" "$work_dir/refused" --skip-docker >/dev/null 2>&1; then
-  fail "create-gato-app accepted the unsupported --skip-docker flag"
+if "$creator" "$work_dir/refused" --yes --nope >/dev/null 2>&1; then
+  fail "create-gato-app accepted an unknown flag"
 fi
+[ ! -e "$work_dir/refused" ] || fail "a refused run created the project directory"
 
 dependency_of() {
   node -p "require('$1/package.json').devDependencies['gato-cli'] ?? 'missing'"
 }
 
+env_value() {
+  sed -n "s/^$2=//p" "$1/.env"
+}
+
+assert_env() {
+  local value
+  value=$(env_value "$1" "$2")
+  [[ "$value" =~ $3 ]] || fail "$2 in $1/.env is \"$value\", expected $3"
+}
+
 app="$work_dir/smoke-app"
-"$creator" "$app" --kit "$kit_dir" --yes --no-install --no-git --cli-source "$gato_tarball" "$@"
+if [ "${SMOKE_INSTALL:-0}" = "1" ]; then
+  "$creator" "$app" --kit "$kit_dir" --yes --skip-docker --cli-source "$gato_tarball" "$@" | tee "$work_dir/app.log"
+  test -d "$app/node_modules" || fail "the wizard did not run npm install"
+  [ "$(git -C "$app" rev-list --count HEAD)" = "1" ] || fail "the project does not have exactly one commit"
+  [ -z "$(git -C "$app" status --porcelain)" ] ||
+    fail "the tree is dirty after the first commit:"$'\n'"$(git -C "$app" status --porcelain)"
+  grep -q "docker compose up -d" "$work_dir/app.log" ||
+    fail "next steps after --skip-docker do not mention docker compose up -d"
+  if grep -q "npm install$" "$work_dir/app.log"; then
+    fail "next steps list npm install although the wizard ran it"
+  fi
+else
+  "$creator" "$app" --kit "$kit_dir" --yes --skip-install --no-git --cli-source "$gato_tarball" "$@"
+fi
 test -f "$app/.wa/kit.json" || fail "no .wa/kit.json in the project"
+assert_env "$app" BETTER_AUTH_SECRET '^[A-Za-z0-9_-]{43}$'
+assert_env "$app" COMPOSE_PROJECT_NAME '^smoke-app-[a-z0-9]{6}$'
+
+secrets_app="$work_dir/secrets-app"
+"$creator" "$secrets_app" --kit "$kit_dir" --yes --skip-install --no-git --modules api-keys,uploads \
+  --storage s3 --s3-endpoint https://s3.example.com --s3-access-key-id SMOKEKEY --s3-secret-access-key smoke/secret+1 \
+  >/dev/null
+assert_env "$secrets_app" API_KEY_PEPPER '^[A-Za-z0-9_-]{43}$'
+assert_env "$secrets_app" COMPOSE_PROJECT_NAME '^secrets-app-[a-z0-9]{6}$'
+assert_env "$secrets_app" STORAGE_PROVIDER '^s3$'
+assert_env "$secrets_app" S3_ENDPOINT '^https://s3\.example\.com$'
+assert_env "$secrets_app" S3_ACCESS_KEY_ID '^SMOKEKEY$'
+assert_env "$secrets_app" S3_SECRET_ACCESS_KEY '^smoke/secret\+1$'
 [ "$(dependency_of "$app")" = "file:$gato_tarball" ] ||
   fail "the project does not use the packed gato-cli: $(dependency_of "$app")"
 for kit_only in kit packages/gato-cli packages/create-gato-app; do
@@ -88,7 +134,6 @@ kit_only_lock_entries=$(node -e '
   fail "the project lockfile keeps kit-only entries: $kit_only_lock_entries"
 
 if [ "${SMOKE_INSTALL:-0}" = "1" ]; then
-  (cd "$app" && npm install --no-audit --no-fund --ignore-scripts --silent)
   [ "$(cd "$app" && npx --no-install gato --version)" = "$gato_version" ] ||
     fail "the project's gato is not $gato_version"
   # WHY: the project depends on gato-cli from the registry, which may not have this version yet;
@@ -96,6 +141,27 @@ if [ "${SMOKE_INSTALL:-0}" = "1" ]; then
   (cd "$registry_app" && npm install --no-save --no-audit --no-fund --ignore-scripts --silent "$gato_tarball")
   [ "$(cd "$registry_app" && npx --no-install gato --version)" = "$gato_version" ] ||
     fail "the gato of a project created without --cli-source is not $gato_version"
+fi
+
+if [ "${SMOKE_INSTALL:-0}" = "1" ]; then
+  busy_port=$(node -e 'const s=require("net").createServer().listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close();})')
+  node -e 'require("net").createServer().listen(Number(process.argv[1]),"127.0.0.1")' "$busy_port" &
+  holder=$!
+  sleep 1
+  busy_app="$work_dir/busy-app"
+  busy_status=0
+  DB_PORT="$busy_port" "$creator" "$busy_app" --kit "$kit_dir" --yes --cli-source "$gato_tarball" \
+    >"$work_dir/busy.log" 2>&1 || busy_status=$?
+  kill "$holder"
+  [ "$busy_status" = "1" ] || fail "a busy port should end with exit code 1, got $busy_status:"$'\n'"$(cat "$work_dir/busy.log")"
+  grep -q "Port $busy_port (DB_PORT, service db) is already in use" "$work_dir/busy.log" ||
+    fail "the busy port report does not name DB_PORT:"$'\n'"$(cat "$work_dir/busy.log")"
+  grep -Eq "^ +DB_PORT=[0-9]+$" "$work_dir/busy.log" || fail "no DB_PORT suggestion in the report"
+  grep -q "docker compose up -d" "$work_dir/busy.log" || fail "next steps after a busy port miss docker compose up -d"
+  if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^busy-app-"; then
+    fail "containers of busy-app were started despite the busy port"
+  fi
+  [ -z "$(git -C "$busy_app" status --porcelain)" ] || fail "busy-app is dirty after the first commit"
 fi
 
 echo "smoke test passed: gato-cli $gato_version, create-gato-app $creator_version"

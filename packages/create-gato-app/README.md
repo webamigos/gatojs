@@ -8,55 +8,77 @@ npx create-gato-app my-app
 npm create gato-app@latest my-app
 ```
 
-You need Node.js 22 or newer and `git` (`gato create` lists the kit files with `git ls-files`).
+You need Node.js in the range the chosen kit version declares (`engines.node`; `^22.12.0 || ^24.0.0 || ^26.0.0`
+today), `git`, and Docker for the database.
 
 ## What it does
 
-1. **Checks Node** against the supported range (`>=22`). An unsupported Node stops the command before
-   anything is downloaded, with a message saying whether it is too old or too new. `--skip-install` (or `--no-install`)
-   turns the refusal into a warning, because nothing is installed then. `--yes` does not bypass the check.
-2. **Picks the kit version:** `--kit-version <x.y.z>`, or the highest `v<x.y.z>` tag of `webamigos/gatojs`
-   (GitHub tags API; prerelease and other tags are ignored).
-3. **Downloads the kit** tag tarball into a temporary directory and extracts it with the system `tar`. No clone, no git
-   history.
-4. **Runs `gato create`** from the `gato-cli` package that `create-gato-app` depends on at an exact version
-   (`node <gato-cli>/dist/gato.mjs create <dir> … --kit <kit>`), with your terminal attached, so its prompts and flags
-   work exactly as documented for `gato create`. The exit code is `gato create`'s. The new project gets
-   `"gato-cli": "^<that version>"` in `devDependencies`. The kit's own `.wa/bin/wa.mjs` is not used.
-5. **Removes the temporary directory**, also when something fails.
+The order follows the rule "refuse before anything is written":
+
+1. **Checks the flags, the directory and the project name.** The last segment of `<dir>` becomes the project
+   name (lowercase letters, digits and hyphens, starting with a letter, 2-50 characters); the directory must be
+   missing or empty. `--title` and `--admin-email` are validated here.
+2. **Picks the kit version** (`--kit-version <x.y.z>`, or the highest `v<x.y.z>` tag of `webamigos/gatojs`) and
+   **checks Node** against that version's `engines.node`, read from GitHub before the download. The refusal says
+   whether Node is too old, an unsupported odd-numbered release line, or too new. `--yes` does not bypass it;
+   `--skip-install` turns it into a warning. Kit versions without `engines.node` are checked against `>=22`.
+3. **Downloads the kit** tag tarball into a temporary directory (no clone, no history), removed at the end.
+4. **Asks the questions** (defaults with `--yes`): modules with their descriptions from that kit version, locales,
+   display name, first admin's email, file storage when `uploads` is chosen (`local`, or `s3` with endpoint and
+   keys; the default endpoint `http://localhost:9000` is a local MinIO started with Docker), and whether to set up
+   the database now. A flag skips its question.
+5. **Assembles the project** with the `gato-cli` version `create-gato-app` pins
+   (`node <gato-cli>/dist/gato.mjs create … --yes --no-install --no-git`). The project gets
+   `"gato-cli": "^<that version>"` in `devDependencies`.
+6. **Writes `.env`**: every manifest variable with a `generate` field (`BETTER_AUTH_SECRET`, `API_KEY_PEPPER`, …)
+   gets a random value; `COMPOSE_PROJECT_NAME=<slug>-<6 random characters>` is written once, so two projects in
+   directories with the same name never share containers or volumes; the storage answers are filled in.
+7. **Starts Docker** (unless `--skip-docker`, `--skip-install` or "no" to setup): probes every port
+   `docker-compose.yml` publishes for the services it starts (plus the `s3` profile for a local MinIO). A busy port
+   stops this step with the `*_PORT` variables to set in `.env` (and the URLs that use them); otherwise
+   `docker compose up -d --wait`.
+8. **`git init`, `npm install`, `prisma migrate dev --name init`, `admin:create`** (when an email was given; the
+   generated password is printed once), then **the first commit**. The commit comes last so it holds the lockfile
+   `npm install` rewrote and the first migration: the tree is clean when the wizard ends.
+9. **Prints the next steps**, listing only what it did not do.
+
+Exit code 1 means a step the run wanted did not finish (busy port, Docker not running, a failed install or
+migration); the project stays in place and the next steps say how to continue.
+
+`--skip-install` writes files only: no `npm install`, Docker, migration or first commit (a commit before the first
+`npm install` would be dirty right away, because npm rewrites the lockfile). `git init` still runs.
 
 ## Flags
 
-Flags of `create-gato-app` itself:
-
-| Flag                    | Meaning                                                                                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `--kit-version <x.y.z>` | Kit version (tag `v<x.y.z>`). Default: the highest `v<x.y.z>` tag.                                                  |
-| `--kit <path>`          | Use a local kit checkout instead of downloading one (kit development, CI). Cannot be combined with `--kit-version`. |
-| `--skip-install`        | Write files only: passes `--no-install` to `gato create` and turns the Node refusal into a warning.                   |
-| `--help`, `-h`          | Print usage.                                                                                                        |
-| `--version`, `-v`       | Print the `create-gato-app` version.                                                                                |
-
-Every other argument goes to `gato create` unchanged, for example:
-
-| Flag                    | Meaning                                                       |
-| ----------------------- | ------------------------------------------------------------- |
-| `--modules a,b`         | Kit modules besides the core (`--modules ""` = core only).    |
-| `--locales pl,en`       | App locales (`pl` required).                                  |
-| `--title <text>`        | Display name.                                                 |
-| `--admin-email <email>` | First admin's email.                                          |
-| `--yes`                 | No questions; defaults for everything not given.              |
-| `--setup`               | After install: start the database, migrate, create the admin. |
-| `--no-install`          | Skip `npm install`.                                           |
-| `--no-git`              | Skip `git init` and the first commit.                         |
-| `--cli-source <tgz>`    | The project's `gato-cli` from a packed tarball (`file:`), for CI. |
+| Flag                             | Meaning                                                                           |
+| -------------------------------- | --------------------------------------------------------------------------------- |
+| `--modules a,b`                  | Kit modules besides the core (`--modules ""` = core only).                        |
+| `--locales pl\|pl,en`            | App locales (`pl` is required).                                                   |
+| `--title <text>`                 | Display name (1-60 characters, no quotes, backslashes, `<`, `>`, `$`, backticks). |
+| `--admin-email <email>`          | First admin's email.                                                              |
+| `--storage local\|s3`            | File storage when `uploads` is chosen.                                            |
+| `--s3-endpoint <url>`            | S3 endpoint (default `http://localhost:9000`, local MinIO).                       |
+| `--s3-access-key-id <id>`        | S3 access key id (needed with `--yes` and a non-local endpoint).                  |
+| `--s3-secret-access-key <key>`   | S3 secret access key (same).                                                      |
+| `--yes`                          | Ask nothing; defaults for everything not given (setup included).                  |
+| `--setup`                        | Set up the database without asking.                                               |
+| `--skip-docker`                  | Do not start Docker (and so no migration or admin).                               |
+| `--skip-install`, `--no-install` | Write files only; an unsupported Node only warns.                                 |
+| `--no-git`                       | No `git init` and no first commit.                                                |
+| `--kit-version <x.y.z>`          | Kit version (tag `v<x.y.z>`). Default: the highest `v<x.y.z>` tag.                |
+| `--kit <path>`                   | Use a local kit checkout instead of downloading one (kit development, CI).        |
+| `--cli-source <tgz>`             | The project's `gato-cli` from a packed tarball (`file:`), for CI.                 |
+| `--help`, `-h`                   | Print usage.                                                                      |
+| `--version`, `-v`                | Print the `create-gato-app` version.                                              |
 
 Examples:
 
 ```bash
-npx create-gato-app my-app --yes --modules uploads,api-keys
-npx create-gato-app my-app --kit-version 0.1.0 --skip-install
-npx create-gato-app my-app --kit ../gatojs --yes --no-install --no-git
+npx create-gato-app my-app
+npx create-gato-app my-app --yes --modules uploads,api-keys --admin-email you@example.com
+npx create-gato-app my-app --yes --modules uploads --storage s3 \
+  --s3-endpoint https://s3.example.com --s3-access-key-id AKIA… --s3-secret-access-key …
+npx create-gato-app my-app --kit ../gatojs --yes --skip-install --no-git
 ```
 
 ## GitHub token
@@ -76,23 +98,10 @@ The token is only sent to `api.github.com`; it is never printed. When GitHub rej
 `create-gato-app` says so and retries once without it. On a 403 or 429 (rate limit), set a token or pass
 `--kit-version`.
 
-## Project name
-
-The last segment of `<dir>` becomes the project name: lowercase letters, digits and hyphens, starting with a letter,
-2-50 characters. `create-gato-app` checks it before it downloads anything.
-
 ## Not yet
 
-This version installs a project; it is not the full wizard yet. Planned (spec
-`docs/superpowers/specs/2026-11-21-gato-cli-design.md` §5–§7 in the GatoJS repository):
-
-- an interactive wizard (`@clack/prompts`) with module descriptions from the chosen kit version, locales, title, admin
-  email, and the storage provider for `uploads` (`local`, or `s3` with endpoint and keys);
-- validation and escaping of `--title` and `--admin-email`;
-- generated secrets for every manifest variable with a `generate` field (`secret-32`, `secret-64`);
-- `COMPOSE_PROJECT_NAME=<slug>-<6 random characters>` in `.env`, port probing before `docker compose up`, `--skip-docker`;
-- the default kit version from GitHub Releases filtered by `kitFormat`, and the `kitFormat` compatibility check;
-- next steps that list only what the wizard did not do.
+The default kit version still comes from the highest tag; choosing it from GitHub Releases filtered by `kitFormat`
+(spec `docs/superpowers/specs/2026-11-21-gato-cli-design.md` §5) comes later.
 
 ## Development
 
@@ -103,9 +112,10 @@ SMOKE_INSTALL=1 bash packages/create-gato-app/scripts/smoke-pack.sh "$PWD"
 ```
 
 The smoke script packs `gato-cli` and `create-gato-app`, installs both tarballs into an empty prefix, creates projects
-from this checkout (one with `--cli-source <gato-cli tarball>`, one without), and checks versions, the `gato-cli`
-tarball's file list and the exact pin. `SMOKE_INSTALL=1` also runs `npm install` in the project and checks that its
-`gato` is the packed one. CI runs the same script in `.github/workflows/packages.yml`.
+from this checkout (with and without `--cli-source <gato-cli tarball>`), and checks versions, the `gato-cli` tarball's
+file list, the exact pin, generated secrets, `COMPOSE_PROJECT_NAME` and the storage answers in `.env`.
+`SMOKE_INSTALL=1` also lets the wizard install a project with `--skip-docker` (one commit, clean tree), checks that the
+projects' `gato` is the packed one, and runs the wizard against a busy `DB_PORT`. CI runs the same script in `.github/workflows/packages.yml`.
 
 ## Publishing
 

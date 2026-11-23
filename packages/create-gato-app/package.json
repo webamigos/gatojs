@@ -1,6 +1,6 @@
 {
   "name": "create-gato-app",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Create a GatoJS project (Next.js kit) with one command",
   "license": "Apache-2.0",
   "type": "module",
@@ -48,7 +48,8 @@
     "test:smoke": "bash scripts/smoke-pack.sh"
   },
   "dependencies": {
-    "gato-cli": "0.2.3"
+    "@clack/prompts": "^1.9.0",
+    "gato-cli": "0.3.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

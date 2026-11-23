@@ -1,15 +1,24 @@
+import { existsSync } from "node:fs";
+import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import { parseCliArgs, USAGE } from "./args.js";
-import { gatoCreateCommand } from "./delegate.js";
+import { parseCliArgs, USAGE, type CreateCliArgs } from "./args.js";
 import {
+  fetchKitPackageJson,
   GitHubTokenRejectedError,
   resolveKitVersion,
   resolveToken,
   type FetchLike,
 } from "./github.js";
 import { downloadKit, type Spawn } from "./kit-download.js";
+import {
+  nodeRangesFromPackageJson,
+  readKitPackageJson,
+} from "./kit-engines.js";
 import { checkNodeVersion } from "./node-version.js";
 import { assertProjectName } from "./project-name.js";
+import { CancelledError, type Prompter } from "./questions.js";
+import type { Ui } from "./ui.js";
+import { runWizard } from "./wizard.js";
 
 export type CliDeps = {
   nodeVersion: string;
@@ -23,42 +32,71 @@ export type CliDeps = {
   ghAuthToken: () => Promise<string | null>;
   makeTempDir: () => Promise<string>;
   removeDir: (dir: string) => Promise<void>;
+  interactive: boolean;
+  prompter: Prompter;
+  ui: Ui;
+  isPortBusy: (port: number) => Promise<boolean>;
+  randomBytes: (size: number) => Uint8Array;
   log: (line: string) => void;
   error: (line: string) => void;
 };
 
-async function delegate(
-  deps: CliDeps,
-  kitDir: string,
-  passthrough: string[],
-): Promise<number> {
-  const { command, args } = gatoCreateCommand({
-    nodePath: deps.nodePath,
-    gatoBin: deps.gatoBin,
-    kitDir,
-    passthrough,
-  });
-  const result = await deps.spawn(command, args, {
-    cwd: deps.cwd,
-    stdio: "inherit",
-  });
-  return result.code;
-}
-
 const TOKEN_RETRY_WARNING =
   "GitHub rejected the token (401); retrying without it.";
+const NO_TERMINAL =
+  "No terminal for questions: pass --yes to accept defaults (and flags such as --modules or --admin-email for the rest).";
+const CANCELLED = "Cancelled; nothing was written.";
 
-async function downloadAndDelegate(
+class StopError extends Error {
+  name = "StopError";
+}
+
+function checkNode(
   deps: CliDeps,
-  requested: string | null,
-  passthrough: string[],
+  args: CreateCliArgs,
+  packageJson: unknown,
+): void {
+  const { ranges, warning } = nodeRangesFromPackageJson(packageJson);
+  if (warning !== null) {
+    deps.error(warning);
+  }
+  const verdict = checkNodeVersion({
+    version: deps.nodeVersion,
+    willInstall: args.install,
+    ranges,
+  });
+  if (verdict.kind === "refuse") {
+    throw new StopError(verdict.message);
+  }
+  if (verdict.kind === "warn") {
+    deps.error(verdict.message);
+  }
+}
+
+async function assertEmptyTarget(projectDir: string): Promise<void> {
+  if (existsSync(projectDir) && (await readdir(projectDir)).length > 0) {
+    throw new StopError(
+      `Directory ${projectDir} exists and is not empty; choose another name or empty it.`,
+    );
+  }
+}
+
+async function downloadAndRun(
+  deps: CliDeps,
+  args: CreateCliArgs,
+  projectDir: string,
   token: string | null,
 ): Promise<number> {
   const version = await resolveKitVersion({
-    requested,
+    requested: args.kitVersion,
     fetch: deps.fetch,
     token,
   });
+  checkNode(
+    deps,
+    args,
+    await fetchKitPackageJson({ fetch: deps.fetch, token, version }),
+  );
   deps.log(`Downloading GatoJS kit v${version}…`);
   const workDir = await deps.makeTempDir();
   try {
@@ -69,7 +107,7 @@ async function downloadAndDelegate(
       spawn: deps.spawn,
       workDir,
     });
-    return await delegate(deps, kitDir, passthrough);
+    return await runWizard(deps, args, kitDir, projectDir);
   } finally {
     await deps.removeDir(workDir);
   }
@@ -77,23 +115,38 @@ async function downloadAndDelegate(
 
 async function createFromDownload(
   deps: CliDeps,
-  requested: string | null,
-  passthrough: string[],
+  args: CreateCliArgs,
+  projectDir: string,
 ): Promise<number> {
   const token = await resolveToken({
     env: deps.env,
     ghAuthToken: deps.ghAuthToken,
   });
   try {
-    return await downloadAndDelegate(deps, requested, passthrough, token);
+    return await downloadAndRun(deps, args, projectDir, token);
   } catch (error) {
     if (!(error instanceof GitHubTokenRejectedError)) {
       throw error;
     }
     // WHY: the kit repository is public, so a stale or wrong token should not block the download.
     deps.error(TOKEN_RETRY_WARNING);
-    return await downloadAndDelegate(deps, requested, passthrough, null);
+    return await downloadAndRun(deps, args, projectDir, null);
   }
+}
+
+async function create(deps: CliDeps, args: CreateCliArgs): Promise<number> {
+  assertProjectName(deps.cwd, args.target);
+  const projectDir = resolve(deps.cwd, args.target);
+  await assertEmptyTarget(projectDir);
+  if (!args.yes && !deps.interactive) {
+    throw new StopError(NO_TERMINAL);
+  }
+  if (args.kitPath === null) {
+    return createFromDownload(deps, args, projectDir);
+  }
+  const kitDir = resolve(deps.cwd, args.kitPath);
+  checkNode(deps, args, await readKitPackageJson(kitDir));
+  return runWizard(deps, args, kitDir, projectDir);
 }
 
 export async function run(argv: string[], deps: CliDeps): Promise<number> {
@@ -107,27 +160,12 @@ export async function run(argv: string[], deps: CliDeps): Promise<number> {
       deps.log(deps.packageVersion);
       return 0;
     }
-    assertProjectName(deps.cwd, args.target);
-    const verdict = checkNodeVersion({
-      version: deps.nodeVersion,
-      willInstall: args.install,
-    });
-    if (verdict.kind === "refuse") {
-      deps.error(verdict.message);
+    return await create(deps, args);
+  } catch (error) {
+    if (error instanceof CancelledError) {
+      deps.error(CANCELLED);
       return 1;
     }
-    if (verdict.kind === "warn") {
-      deps.error(verdict.message);
-    }
-    if (args.kitPath !== null) {
-      return await delegate(
-        deps,
-        resolve(deps.cwd, args.kitPath),
-        args.passthrough,
-      );
-    }
-    return await createFromDownload(deps, args.kitVersion, args.passthrough);
-  } catch (error) {
     deps.error(error instanceof Error ? error.message : String(error));
     return 1;
   }
