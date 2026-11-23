@@ -519,7 +519,7 @@ describe("run: pełna konfiguracja z --yes", () => {
     expect(steps(h)).toEqual([GATO_CREATE, DOCKER_INFO, COMPOSE_UP, GIT_INIT, NPM_INSTALL, MIGRATE, GIT_ADD, COMMIT]);
     expect(callNamed(h, COMPOSE_UP).cwd).toBe(h.projectDir);
     expect(callNamed(h, MIGRATE).cwd).toBe(h.projectDir);
-    expect(nextStepsOf(h)).toEqual(["cd my-app", "npm run dev"]);
+    expect(nextStepsOf(h)).toEqual(["cd my-app", "npm run admin:create -- --email <your-email>", "npm run dev"]);
   });
 
   it("sprawdza porty db i mail przed docker info", async () => {

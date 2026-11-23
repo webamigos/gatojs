@@ -17,6 +17,10 @@ import {
   withCliDependency,
 } from "../assemble/package-json.js";
 import { projectPackageLock } from "../assemble/package-lock.js";
+import {
+  generatedVariables,
+  withGeneratedSecrets,
+} from "../assemble/secrets.js";
 import { projectNames } from "../assemble/project-names.js";
 import type { ProjectNames } from "../assemble/project-names.js";
 import { moduleFiles, resolveModules } from "../assemble/resolve-modules.js";
@@ -184,12 +188,13 @@ async function assemble(input: {
 async function writeEnvFile(
   projectDir: string,
   adminEmail: string | null,
+  manifests: ModuleManifest[],
 ): Promise<void> {
   const example = await readFile(join(projectDir, ".env.example"), "utf8");
-  const secret = randomBytes(32).toString("base64url");
-  let env = example.replace(
-    /^BETTER_AUTH_SECRET=.*/m,
-    () => `BETTER_AUTH_SECRET=${secret}`,
+  let env = withGeneratedSecrets(
+    example,
+    generatedVariables(manifests),
+    randomBytes,
   );
   if (adminEmail !== null) {
     env = env.replace(/^ADMIN_EMAIL=.*/m, () => `ADMIN_EMAIL=${adminEmail}`);
@@ -324,7 +329,7 @@ export async function create(
     await discardAssembly(projectDir, existed).catch(() => undefined);
     throw error;
   }
-  await writeEnvFile(projectDir, answers.adminEmail);
+  await writeEnvFile(projectDir, answers.adminEmail, resolved);
 
   if (options.git) {
     await options.runner("git", ["init", "-q"], projectDir);

@@ -59,9 +59,9 @@ describe("generateSecret", () => {
     );
   });
 
-  it("secret-32 z bajtów 255 daje base64url bez dopełnienia: 42 podkreślniki i w", () => {
+  it("secret-32 z bajtów 255 daje base64url bez dopełnienia: 42 podkreślniki i 8", () => {
     expect(generateSecret("secret-32", recordingBytes(255).randomBytes)).toBe(
-      `${"_".repeat(42)}w`,
+      `${"_".repeat(42)}8`,
     );
   });
 

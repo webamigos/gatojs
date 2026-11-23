@@ -20607,7 +20607,8 @@ var moduleManifestSchema = external_exports.object({
     external_exports.object({
       name: external_exports.string().min(1),
       example: external_exports.string(),
-      required: external_exports.boolean().optional()
+      required: external_exports.boolean().optional(),
+      generate: external_exports.enum(["secret-32", "secret-64", "hex-32"]).optional()
     })
   ).default([]),
   schemaRelations: external_exports.array(external_exports.object({ model: external_exports.string().min(1), field: external_exports.string().min(1) })).default([]),
@@ -21275,6 +21276,40 @@ function projectPackageLock(kitLock, input2) {
 `;
 }
 
+// src/assemble/secrets.ts
+var AUTH_SECRET = {
+  name: "BETTER_AUTH_SECRET",
+  kind: "secret-32"
+};
+var BYTES = {
+  "secret-32": 32,
+  "secret-64": 64,
+  "hex-32": 32
+};
+function generateSecret(kind, randomBytes2) {
+  const bytes = Buffer.from(randomBytes2(BYTES[kind]));
+  return bytes.toString(kind === "hex-32" ? "hex" : "base64url");
+}
+function generatedVariables(manifests) {
+  const variables = [AUTH_SECRET];
+  for (const manifest of manifests) {
+    for (const variable of manifest.env) {
+      if (variable.generate !== void 0 && !variables.some((known) => known.name === variable.name)) {
+        variables.push({ name: variable.name, kind: variable.generate });
+      }
+    }
+  }
+  return variables;
+}
+function withGeneratedSecrets(envText, variables, randomBytes2) {
+  let text = envText;
+  for (const { name, kind } of variables) {
+    const line = new RegExp(`^${name}=.*$`, "m");
+    text = text.replace(line, () => `${name}=${generateSecret(kind, randomBytes2)}`);
+  }
+  return text;
+}
+
 // src/assemble/project-names.ts
 import { basename as basename2 } from "node:path";
 var SLUG_PATTERN = /^[a-z][a-z0-9-]{1,49}$/;
@@ -21398,12 +21433,12 @@ async function assemble(input2) {
   });
   await generate(projectDir);
 }
-async function writeEnvFile(projectDir, adminEmail) {
+async function writeEnvFile(projectDir, adminEmail, manifests) {
   const example = await readFile7(join8(projectDir, ".env.example"), "utf8");
-  const secret = randomBytes(32).toString("base64url");
-  let env = example.replace(
-    /^BETTER_AUTH_SECRET=.*/m,
-    () => `BETTER_AUTH_SECRET=${secret}`
+  let env = withGeneratedSecrets(
+    example,
+    generatedVariables(manifests),
+    randomBytes
   );
   if (adminEmail !== null) {
     env = env.replace(/^ADMIN_EMAIL=.*/m, () => `ADMIN_EMAIL=${adminEmail}`);
@@ -21514,7 +21549,7 @@ async function create(options) {
     await discardAssembly(projectDir, existed).catch(() => void 0);
     throw error62;
   }
-  await writeEnvFile(projectDir, answers.adminEmail);
+  await writeEnvFile(projectDir, answers.adminEmail, resolved);
   if (options.git) {
     await options.runner("git", ["init", "-q"], projectDir);
   }
@@ -24451,7 +24486,7 @@ function cliDependency(input2) {
 }
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.2.2" };
+var identity = { name: "wa", version: "0.3.0" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);

@@ -1,11 +1,14 @@
 #!/usr/bin/env node
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { clackPrompter, clackUi } from "./clack-ui.js";
 import { run } from "./cli.js";
 import { gatoBinPath } from "./gato-bin.js";
+import { isPortBusy } from "./port-probe.js";
 import { ghAuthToken, spawnProcess } from "./process.js";
 
 const packageJson = JSON.parse(
@@ -32,6 +35,11 @@ run(process.argv.slice(2), {
   ghAuthToken,
   makeTempDir: () => mkdtemp(join(tmpdir(), "create-gato-app-")),
   removeDir: (dir) => rm(dir, { recursive: true, force: true }),
+  interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY),
+  prompter: clackPrompter,
+  ui: clackUi,
+  isPortBusy,
+  randomBytes: (size) => randomBytes(size),
   log: (line) => console.log(line),
   error: (line) => console.error(line),
 }).then(

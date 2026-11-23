@@ -283,7 +283,7 @@ Project fixture written by the fake `gato create`: `.env` (`DATABASE_URL=postgre
 
 - `generateSecret("secret-32", n => new Uint8Array(n))` → `"A".repeat(43)`; `"secret-64"` → `"A".repeat(86)`;
   `"hex-32"` → `"0".repeat(64)`; bytes all `255` with `hex-32` → `"f".repeat(64)`; with `secret-32` →
-  `"_".repeat(42) + "w"`; requested sizes 32, 64, 32.
+  `"_".repeat(42) + "8"` (252 one-bits, then `1111` padded to `111100`); requested sizes 32, 64, 32.
 - `generatedVariables([core, demo with env DEMO_SECRET generate secret-64 and DEMO_TOKEN without])` →
   `[{ name: "BETTER_AUTH_SECRET", kind: "secret-32" }, { name: "DEMO_SECRET", kind: "secret-64" }]`; a manifest that
   also lists `BETTER_AUTH_SECRET` does not duplicate it.

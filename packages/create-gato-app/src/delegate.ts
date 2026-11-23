@@ -8,5 +8,24 @@ export function gatoCreateCommand(input: {
   answers: Pick<Answers, "modules" | "locales" | "title" | "adminEmail">;
   cliSource: string | null;
 }): { command: string; args: string[] } {
-  throw new Error(`not implemented: ${input.projectDir}`);
+  const { answers } = input;
+  const args = [
+    input.gatoBin,
+    "create",
+    input.projectDir,
+    "--yes",
+    "--no-install",
+    "--no-git",
+    `--modules=${answers.modules.join(",")}`,
+    `--locales=${answers.locales.join(",")}`,
+    `--title=${answers.title}`,
+  ];
+  if (answers.adminEmail !== null) {
+    args.push(`--admin-email=${answers.adminEmail}`);
+  }
+  if (input.cliSource !== null) {
+    args.push(`--cli-source=${input.cliSource}`);
+  }
+  args.push(`--kit=${input.kitDir}`);
+  return { command: input.nodePath, args };
 }

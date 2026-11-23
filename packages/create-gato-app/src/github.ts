@@ -175,7 +175,21 @@ export async function fetchKitTarball(input: {
 }
 
 export function packageJsonUrl(version: string): string {
-  throw new Error(`not implemented: ${version}`);
+  return `https://api.github.com/repos/${KIT_REPO}/contents/package.json?ref=v${version}`;
+}
+
+function decodedContent(payload: unknown): string | null {
+  if (typeof payload !== "object" || payload === null) {
+    return null;
+  }
+  const { encoding, content } = payload as {
+    encoding?: unknown;
+    content?: unknown;
+  };
+  if (encoding !== "base64" || typeof content !== "string") {
+    return null;
+  }
+  return Buffer.from(content.replace(/\s/g, ""), "base64").toString("utf8");
 }
 
 export async function fetchKitPackageJson(input: {
@@ -183,5 +197,21 @@ export async function fetchKitPackageJson(input: {
   token: string | null;
   version: string;
 }): Promise<unknown> {
-  throw new Error(`not implemented: ${input.version}`);
+  const what = `package.json of kit v${input.version}`;
+  const response = await request(
+    input.fetch,
+    packageJsonUrl(input.version),
+    input.token,
+    what,
+  );
+  const text = decodedContent(await response.json());
+  const unexpected = `GitHub returned an unexpected package.json for kit v${input.version}`;
+  if (text === null) {
+    throw new Error(unexpected);
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (error) {
+    throw new Error(unexpected, { cause: error });
+  }
 }

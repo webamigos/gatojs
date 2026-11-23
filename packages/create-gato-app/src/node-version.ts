@@ -93,6 +93,9 @@ function headline(version: NodeVersion, ranges: readonly NodeRange[]): string {
   if (isAboveAll) {
     return `Node ${current} is too new: GatoJS supports Node ${supported}.`;
   }
+  if (version.major % 2 === 1) {
+    return `Node ${current} is an unsupported odd-numbered release line: GatoJS supports Node ${supported}.`;
+  }
   return `Node ${current} is an unsupported release line: GatoJS supports Node ${supported}.`;
 }
 
@@ -122,7 +125,7 @@ export function checkNodeVersion(input: {
     message: [
       summary,
       "",
-      "Stopping before anything is downloaded: `gato create` runs npm install under this Node.",
+      "Stopping before anything is downloaded: create-gato-app runs npm install under this Node.",
       "",
       `  nvm install ${recommendedMajor}   # or fnm, volta, asdf, …`,
       "",
@@ -131,6 +134,21 @@ export function checkNodeVersion(input: {
   };
 }
 
+const ENGINES_PART = /^(\^|>=\s*)(\d+)(?:\.(\d+))?(?:\.(\d+))?$/;
+
 export function parseEnginesRange(range: string): NodeRange[] | null {
-  throw new Error(`not implemented: ${range}`);
+  const parts = range.split("||").map((part) => part.trim());
+  const ranges: NodeRange[] = [];
+  for (const part of parts) {
+    const match = ENGINES_PART.exec(part);
+    if (!match) {
+      return null;
+    }
+    const major = Number(match[2]);
+    const from = `${major}.${Number(match[3] ?? 0)}.${Number(match[4] ?? 0)}`;
+    ranges.push(match[1] === "^" ? { from, belowMajor: major + 1 } : { from });
+  }
+  return ranges.sort((a, b) =>
+    compareWithRangeStart(rangeStart(a), rangeStart(b)),
+  );
 }
