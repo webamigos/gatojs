@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
   "requires": [],
   "files": [
@@ -40,6 +40,7 @@
     "package-lock.json",
     "package.json",
     "packages/env/**",
+    "packages/observability/**",
     "playwright.config.ts",
     "postcss.config.mjs",
     "prisma.config.ts",
@@ -95,8 +96,10 @@
     "@hookform/resolvers": "^5.9.2",
     "@opentelemetry/api-logs": "^0.218.0",
     "@opentelemetry/exporter-logs-otlp-http": "^0.218.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
     "@opentelemetry/resources": "^2.12.1",
     "@opentelemetry/sdk-logs": "^0.218.0",
+    "@opentelemetry/sdk-trace-node": "^2.7.1",
     "@prisma/adapter-pg": "^7.4.2",
     "@prisma/client": "^7.4.2",
     "@react-email/components": "^1.0.11",
