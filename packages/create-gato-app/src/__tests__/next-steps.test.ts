@@ -93,6 +93,12 @@ describe("nextSteps", () => {
     expect(nextSteps({ ...NOTHING_DONE, profiles: ["s3"] })).not.toContain("docker compose up -d");
   });
 
+  it("kilka profili trafia do docker compose up w podanej kolejności", () => {
+    expect(nextSteps({ ...NOTHING_DONE, profiles: ["s3", "dev"] })).toContain(
+      "docker compose --profile s3 --profile dev up -d",
+    );
+  });
+
   it("bez git nie ma kroku commita", () => {
     expect(nextSteps({ ...NOTHING_DONE, git: false })).toEqual([
       "cd my-app",

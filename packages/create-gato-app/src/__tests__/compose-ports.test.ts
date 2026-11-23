@@ -171,3 +171,80 @@ describe("busyPortsReport", () => {
     expect(report).toContain("  MAILPIT_SMTP_PORT=1026");
   });
 });
+
+const PROFILES_COMPOSE = `x-common:
+  ports:
+    - "7100:7100"
+services:
+  multi:
+    image: x
+    profiles: ["dev", "s3"]
+    ports:
+      - "7200:7200"
+  open:
+    image: x
+    profiles: []
+    ports:
+      - "7300:7300"
+  udp:
+    image: x
+    expose:
+      - "7400:7400"
+    ports:
+      - "1025:1025/udp"
+volumes:
+  data:
+    ports:
+      - "7500:7500"
+`;
+
+describe("publishedPorts: profile, protokoły i sekcje", () => {
+  it("usługa z kilkoma profilami jest włączona jednym z nich, pusta lista profili zawsze", () => {
+    expect(publishedPorts(PROFILES_COMPOSE, { profiles: ["s3"], env: {} })).toEqual([
+      { service: "multi", variable: null, port: 7200 },
+      { service: "open", variable: null, port: 7300 },
+      { service: "udp", variable: null, port: 1025 },
+    ]);
+  });
+
+  it("bez profili usługa z profilami jest pominięta, a sekcje poza services i klucze poza ports nie liczą się", () => {
+    expect(publishedPorts(PROFILES_COMPOSE, { profiles: [], env: {} })).toEqual([
+      { service: "open", variable: null, port: 7300 },
+      { service: "udp", variable: null, port: 1025 },
+    ]);
+  });
+
+  it("wartość zmiennej z literą na początku daje port domyślny", () => {
+    expect(publishedPorts(KIT_COMPOSE, { profiles: [], env: { DB_PORT: "x5544" } })[0]).toStrictEqual(DB);
+  });
+});
+
+describe("portSettings: przepisywanie zależnych linii", () => {
+  it("port występujący dwa razy w wartości jest przepisany w obu miejscach", () => {
+    expect(
+      portSettings({
+        busy: [DB],
+        free: new Map([[5432, 5433]]),
+        envText: "X_URL=http://localhost:5432,127.0.0.1:5432\n",
+      }),
+    ).toEqual(["DB_PORT=5433", "X_URL=http://localhost:5433,127.0.0.1:5433"]);
+  });
+
+  it("zakomentowana linia nie daje ustawienia", () => {
+    expect(
+      portSettings({
+        busy: [DB],
+        free: new Map([[5432, 5433]]),
+        envText: "# OLD_URL=http://localhost:5432\n",
+      }),
+    ).toEqual(["DB_PORT=5433"]);
+  });
+});
+
+describe("busyPortsReport: bez ustawień", () => {
+  it("port bez zmiennej i bez ustawień daje dokładnie jedną linię", () => {
+    expect(busyPortsReport([{ service: "web", variable: null, port: 8080 }], [])).toEqual([
+      "Port 8080 (service web) is already in use, so the Docker services were not started.",
+    ]);
+  });
+});

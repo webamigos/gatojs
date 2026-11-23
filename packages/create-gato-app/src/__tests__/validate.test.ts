@@ -85,3 +85,16 @@ describe("envValueError", () => {
     },
   );
 });
+
+describe("adminEmailError: wstrzyknięcia", () => {
+  it.each(["admin@example.com x", 'a@b.co"', "a@b.co\nBETTER_AUTH_SECRET=x", "x admin@example.com", "a@b.co\n"])(
+    "%j z doklejonym ciągiem jest odrzucony",
+    (email) => {
+      expect(adminEmailError(email)).toBe(EMAIL_MESSAGE);
+    },
+  );
+
+  it("adres z kilkoma poziomami domeny jest poprawny", () => {
+    expect(adminEmailError("admin@a.b.example.com")).toBeNull();
+  });
+});

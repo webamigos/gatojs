@@ -493,6 +493,7 @@ describe("fetchKitPackageJson", () => {
     ["null", null],
     ["tablica", []],
     ["inne kodowanie", { encoding: "utf-8", content: "{}" }],
+    ["kodowanie utf-8 z poprawną treścią base64", { encoding: "utf-8", content: base64Wrapped(JSON.stringify({ name: "gatojs" })) }],
     ["treść nie jest napisem", { encoding: "base64", content: 5 }],
     ["base64 z treścią, która nie jest JSON", { encoding: "base64", content: base64Wrapped("not json") }],
   ])("%s to nieoczekiwany package.json", async (_label, body) => {

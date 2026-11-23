@@ -380,3 +380,45 @@ describe("USAGE", () => {
     expect(USAGE.split("\n").filter((line) => line.startsWith("Private repository"))).toEqual([]);
   });
 });
+
+describe("parseCliArgs: wstrzyknięcia i flagi bez wartości", () => {
+  it.each(["https://x y", "https://x\nA=1", "see https://x"])("--s3-endpoint %j jest odrzucony", (value) => {
+    expect(() => parseCliArgs(["my-app", "--storage", "s3", "--s3-endpoint", value])).toThrow(
+      "--s3-endpoint: expected an http(s) URL",
+    );
+  });
+
+  it("klucz dostępu S3 ze spacją jest odrzucony z etykietą", () => {
+    expect(() =>
+      parseCliArgs(["my-app", "--storage", "s3", "--s3-endpoint", "https://s3.example.com", "--s3-access-key-id", "a b"]),
+    ).toThrow("--s3-access-key-id: S3 access key id: no spaces, quotes, backslashes, #, $ or backticks");
+  });
+
+  it("--yes z zewnętrznym endpointem i oboma kluczami jest przyjęte", () => {
+    expect(
+      parseCliArgs([
+        "my-app",
+        "--yes",
+        "--storage",
+        "s3",
+        "--s3-endpoint",
+        "https://s3.example.com",
+        "--s3-access-key-id",
+        "AK",
+        "--s3-secret-access-key",
+        "SK",
+      ]),
+    ).toStrictEqual({
+      ...DEFAULTS,
+      yes: true,
+      storage: "s3",
+      s3Endpoint: "https://s3.example.com",
+      s3AccessKeyId: "AK",
+      s3SecretAccessKey: "SK",
+    });
+  });
+
+  it("--yes=1 jest odrzucone, bo --yes nie ma wartości", () => {
+    expect(() => parseCliArgs(["my-app", "--yes=1"])).toThrow("--yes does not take a value");
+  });
+});

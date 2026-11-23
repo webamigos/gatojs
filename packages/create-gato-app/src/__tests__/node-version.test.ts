@@ -445,3 +445,13 @@ describe("checkNodeVersion with the kit range ^22.12.0 || ^24.0.0 || ^26.0.0", (
     expect(verdict.kind).toBe("warn");
   });
 });
+
+describe("parseEnginesRange: granice składni", () => {
+  it("koniunkcja zakresów nie jest rozumiana", () => {
+    expect(parseEnginesRange("<24 >=22")).toBeNull();
+  });
+
+  it("wieloznakowa łatka jest zachowana", () => {
+    expect(parseEnginesRange(">=22.12.10")).toEqual([{ from: "22.12.10" }]);
+  });
+});

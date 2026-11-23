@@ -539,3 +539,98 @@ describe("collectAnswers: flagi pomijają swoje pytania", () => {
     expect(messages(calls)).toEqual([M_SETUP]);
   });
 });
+
+describe("collectAnswers: przycinanie i puste odpowiedzi", () => {
+  it("wpisany e-mail ze spacjami jest przycięty, a walidator przyjmuje spacje wokół", async () => {
+    const { answers, calls } = ask({}, [
+      { method: "multiselect", answer: [] },
+      { method: "confirm", answer: true },
+      { method: "text", answer: "Acme Shop" },
+      { method: "text", answer: " a@b.co " },
+      { method: "confirm", answer: true },
+    ]);
+    await expect(answers).resolves.toMatchObject({ adminEmail: "a@b.co" });
+    const email = validatorOf(callFor(calls, M_EMAIL));
+    expect(email("   ")).toBeUndefined();
+    expect(email(" a@b.co ")).toBeUndefined();
+  });
+
+  it("e-mail ze samych spacji oznacza brak administratora", async () => {
+    const { answers } = ask({}, [
+      { method: "multiselect", answer: [] },
+      { method: "confirm", answer: true },
+      { method: "text", answer: "Acme Shop" },
+      { method: "text", answer: "   " },
+      { method: "confirm", answer: true },
+    ]);
+    await expect(answers).resolves.toMatchObject({ adminEmail: null });
+  });
+
+  const S3_PREFIX: ScriptedAnswer[] = [
+    { method: "multiselect", answer: ["uploads"] },
+    { method: "confirm", answer: true },
+    { method: "text", answer: "Acme Shop" },
+    { method: "text", answer: "" },
+    { method: "select", answer: "s3" },
+  ];
+
+  it("walidator endpointu przyjmuje pusty napis i odrzuca doklejone ciągi", async () => {
+    const { answers, calls } = ask({}, [
+      ...S3_PREFIX,
+      { method: "text", answer: "" },
+      { method: "confirm", answer: true },
+    ]);
+    await answers;
+    const endpoint = validatorOf(callFor(calls, M_ENDPOINT));
+    expect(endpoint("")).toBeUndefined();
+    for (const value of ["https://x y", "https://x\nA=1", "see https://x"]) {
+      expect(endpoint(value)).toEqual(expect.any(String));
+    }
+  });
+
+  it("wpisany endpoint ze spacjami jest przycięty, a klucz ma pustą wartość domyślną", async () => {
+    const { answers, calls } = ask({}, [
+      ...S3_PREFIX,
+      { method: "text", answer: " https://s3.example.com " },
+      { method: "text", answer: "AK" },
+      { method: "password", answer: "SK" },
+      { method: "confirm", answer: true },
+    ]);
+    await expect(answers).resolves.toMatchObject({
+      storage: { provider: "s3", endpoint: "https://s3.example.com", localMinio: false },
+    });
+    expect(calls[6]?.method).toBe("text");
+    expect(calls[6]?.input.defaultValue).toBe("");
+  });
+
+  it("endpoint ze samych spacji oznacza lokalne MinIO bez pytań o klucze", async () => {
+    const { answers, calls } = ask({}, [
+      ...S3_PREFIX,
+      { method: "text", answer: "   " },
+      { method: "confirm", answer: true },
+    ]);
+    await expect(answers).resolves.toMatchObject({
+      storage: {
+        provider: "s3",
+        endpoint: "http://localhost:9000",
+        accessKeyId: "minioadmin",
+        secretAccessKey: "minioadmin",
+        localMinio: true,
+      },
+    });
+    expect(calls.map((call) => call.method)).not.toContain("password");
+  });
+
+  it("kit bez modułów nie pyta o moduły", async () => {
+    const { prompter, calls } = scriptedPrompter([
+      { method: "confirm", answer: true },
+      { method: "text", answer: "Acme Shop" },
+      { method: "text", answer: "" },
+      { method: "confirm", answer: true },
+    ]);
+    await expect(
+      collectAnswers({ args: args({}), slug: "acme-shop", modules: [], prompter }),
+    ).resolves.toMatchObject({ modules: [], storage: null });
+    expect(messages(calls)).not.toContain(M_MODULES);
+  });
+});

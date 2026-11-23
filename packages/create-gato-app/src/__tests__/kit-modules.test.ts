@@ -1,7 +1,10 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { test } from "@fast-check/vitest";
+import fc from "fast-check";
 import { afterEach, describe, expect, it } from "vitest";
+import { compareNames } from "../compare.js";
 import { parseKitModule, readKitModules, withRequired, type KitModule } from "../kit-modules.js";
 
 const createdDirs: string[] = [];
@@ -127,4 +130,87 @@ describe("withRequired", () => {
     ];
     expect(withRequired(["top"], chain)).toEqual(["base", "middle", "top"]);
   });
+});
+
+async function kitWithFiles(files: Record<string, string>): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "create-gato-app-modules-"));
+  createdDirs.push(dir);
+  await mkdir(join(dir, "kit", "modules"), { recursive: true });
+  for (const [file, content] of Object.entries(files)) {
+    await writeFile(join(dir, "kit", "modules", file), content);
+  }
+  return dir;
+}
+
+describe("readKitModules: pliki w katalogu", () => {
+  it("sortuje po nazwie modułu, nie po nazwie pliku", async () => {
+    const dir = await kitWithFiles({
+      "a.json": JSON.stringify({ name: "omega" }),
+      "z.json": JSON.stringify({ name: "alpha" }),
+    });
+    expect((await readKitModules(dir)).map((module) => module.name)).toEqual(["alpha", "omega"]);
+  });
+
+  it("pomija pliki, które nie są .json", async () => {
+    const dir = await kitWithFiles({
+      "uploads.json": JSON.stringify({ name: "uploads" }),
+      "README.md": "# modules",
+      ".DS_Store": "\u0000\u0001",
+    });
+    await expect(readKitModules(dir)).resolves.toEqual([{ name: "uploads", description: "", requires: [] }]);
+  });
+
+  it("uszkodzony JSON jest niepoprawnym manifestem ze ścieżką pliku", async () => {
+    const dir = await kitWithFiles({ "broken.json": "{ not json" });
+    await expect(readKitModules(dir)).rejects.toThrow("kit/modules/broken.json is not a valid module manifest");
+  });
+});
+
+describe("parseKitModule: granice", () => {
+  it("pusta nazwa jest odrzucona", () => {
+    expect(() => parseKitModule({ name: "" }, "kit/modules/x.json")).toThrow(
+      "kit/modules/x.json is not a valid module manifest",
+    );
+  });
+
+  it("wymaganie core i innego modułu jest przyjęte", () => {
+    expect(parseKitModule({ name: "x", requires: ["core", "demo"] }, "kit/modules/x.json")).toEqual({
+      name: "x",
+      description: "",
+      requires: ["core", "demo"],
+    });
+  });
+});
+
+describe("withRequired: cykl", () => {
+  it("wzajemne wymagania kończą się i dają oba moduły", () => {
+    const cycle: KitModule[] = [
+      { name: "a", description: "", requires: ["b"] },
+      { name: "b", description: "", requires: ["a"] },
+    ];
+    expect(withRequired(["a"], cycle)).toEqual(["a", "b"]);
+  });
+});
+
+describe("compareNames", () => {
+  it("porządkuje nazwy modułów alfabetycznie", () => {
+    expect(compareNames("alpha", "omega")).toBeLessThan(0);
+    expect(compareNames("omega", "alpha")).toBeGreaterThan(0);
+    expect(compareNames("api-keys", "api-keys")).toBe(0);
+    expect(compareNames("demo", "needs-demo")).toBeLessThan(0);
+    expect(["uploads", "api-keys", "needs-demo", "demo"].sort(compareNames)).toEqual([
+      "api-keys",
+      "demo",
+      "needs-demo",
+      "uploads",
+    ]);
+  });
+
+  test.prop([fc.stringMatching(/^[a-z][a-z0-9-]{0,12}$/), fc.stringMatching(/^[a-z][a-z0-9-]{0,12}$/)])(
+    "jest antysymetryczne i zero tylko dla równych nazw",
+    (a, b) => {
+      expect(Math.sign(compareNames(a, b)) + Math.sign(compareNames(b, a))).toBe(0);
+      expect(compareNames(a, b) === 0).toBe(a === b);
+    },
+  );
 });

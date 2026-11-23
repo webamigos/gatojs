@@ -66,6 +66,7 @@ type HarnessOptions = {
   gh?: string | null;
   routes?: Record<string, HttpResponse>;
   results?: Record<string, Partial<SpawnResult>>;
+  rejects?: string[];
   tarResult?: SpawnResult;
   interactive?: boolean;
   script?: ScriptedAnswer[];
@@ -163,6 +164,9 @@ async function harness(options: HarnessOptions = {}): Promise<Harness> {
       if (target === undefined) throw new Error("tar without -C");
       await writeKit(target);
       return options.tarResult ?? { code: 0, stdout: "", stderr: "" };
+    }
+    if ((options.rejects ?? []).some((key) => name.startsWith(key))) {
+      throw new Error(`spawn ${command} ENOENT`);
     }
     const configured = Object.entries(options.results ?? {}).find(([key]) => name.startsWith(key))?.[1];
     const result: SpawnResult = { code: 0, stdout: "", stderr: "", ...configured };
@@ -667,6 +671,54 @@ describe("run: porażki kroków", () => {
     await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(1);
     expect(output(h)).toContain("boom");
     expect(steps(h)).toEqual([GATO_CREATE]);
+  });
+});
+
+describe("run: porty z .env projektu i dodatkowe porażki", () => {
+  it("DB_PORT z .env projektu zmienia sprawdzany port, a zakomentowana linia nie", async () => {
+    const h = await harness({ projectEnvExtra: "DB_PORT=5544\n# DB_PORT=6000\n" });
+    await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(0);
+    expect(h.probed).toContain(5544);
+    expect(h.probed).not.toContain(5432);
+    expect(h.probed).not.toContain(6000);
+  });
+
+  it("zajęte porty MinIO dostają różne wolne porty", async () => {
+    const h = await harness({ busy: [9000, 9001] });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--modules", "uploads", "--storage", "s3"], h.deps),
+    ).resolves.toBe(1);
+    expect(output(h)).toContain("MINIO_PORT=9002");
+    expect(output(h)).toContain("MINIO_CONSOLE_PORT=9003");
+    expect(steps(h).some((name) => name.startsWith("docker compose"))).toBe(false);
+  });
+
+  it("nieudany git init ostrzega, nie commituje i nie podpowiada commita", async () => {
+    const h = await harness({ results: { [GIT_INIT]: { code: 1, stderr: "fatal" } } });
+    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps)).resolves.toBe(0);
+    expect(steps(h)).not.toContain(GIT_ADD);
+    expect(steps(h)).not.toContain(COMMIT);
+    expect(nextStepsOf(h)).not.toContain(COMMIT_HINT);
+  });
+
+  it("nieudany git add nie uruchamia git commit i ostrzega", async () => {
+    const h = await harness({ results: { [GIT_ADD]: { code: 1, stderr: "fatal" } } });
+    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps)).resolves.toBe(0);
+    expect(steps(h)).toContain(GIT_ADD);
+    expect(steps(h)).not.toContain(COMMIT);
+    expect(output(h)).toContain("Could not create the first commit");
+  });
+
+  it("brak programu docker kończy się kodem 1 i komunikatem o niedostępnym Dockerze", async () => {
+    const h = await harness({ rejects: ["docker"] });
+    await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(1);
+    expect(output(h)).toContain("Docker is not available");
+    expect(steps(h)).not.toContain(MIGRATE);
+  });
+
+  it("odrzucone uruchomienie admin:create kończy się kodem 1", async () => {
+    const h = await harness({ rejects: ["npm run admin:create"] });
+    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--admin-email", "a@b.co"], h.deps)).resolves.toBe(1);
   });
 });
 
