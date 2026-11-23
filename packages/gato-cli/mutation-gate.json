@@ -105,6 +105,13 @@
       "original": "[]",
       "replacement": "[\"Stryker was here\"]",
       "reason": "równoważny: managedFiles w HASH_CONFIG zmienia hash tylko dla ścieżek z listy; ścieżka „Stryker was here” nie jest plikiem żadnego modułu"
+    },
+    {
+      "file": "src/commands/create.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{ mode: 0o600 }",
+      "replacement": "{}",
+      "reason": "równoważny: zaraz po zapisie chmod(envPath, 0o600) ustawia te same uprawnienia pliku .env"
     }
   ]
 }
