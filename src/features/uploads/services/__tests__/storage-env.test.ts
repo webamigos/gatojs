@@ -807,6 +807,53 @@ describe("resolveStorageEnv: provider s3", () => {
     });
   });
 
+  it.each(["localhost:9000", "minio:9000", "ftp://localhost:9000"])(
+    "S3_ENDPOINT %j without an http or https scheme gives one issue on that variable",
+    (endpoint) => {
+      expect(
+        resolveStorageEnv(
+          {
+            STORAGE_PROVIDER: "s3",
+            S3_ENDPOINT: endpoint,
+            S3_ACCESS_KEY_ID: "k",
+            S3_SECRET_ACCESS_KEY: "s",
+            S3_BUCKET: "b",
+          },
+          "/app",
+        ),
+      ).toEqual({
+        ok: false,
+        issues: [{ name: "S3_ENDPOINT", message: "Invalid URL" }],
+      });
+    },
+  );
+
+  it("S3_ENDPOINT http://localhost:9000 is accepted unchanged", () => {
+    expect(
+      resolveStorageEnv(
+        {
+          STORAGE_PROVIDER: "s3",
+          S3_ENDPOINT: "http://localhost:9000",
+          S3_ACCESS_KEY_ID: "k",
+          S3_SECRET_ACCESS_KEY: "s",
+          S3_BUCKET: "b",
+        },
+        "/app",
+      ),
+    ).toEqual({
+      ok: true,
+      env: {
+        STORAGE_PROVIDER: "s3",
+        S3_ENDPOINT: "http://localhost:9000",
+        S3_REGION: "auto",
+        S3_ACCESS_KEY_ID: "k",
+        S3_SECRET_ACCESS_KEY: "s",
+        S3_BUCKET: "b",
+        S3_FORCE_PATH_STYLE: false,
+      },
+    });
+  });
+
   it.each([
     "S3_ENDPOINT",
     "S3_ACCESS_KEY_ID",

@@ -14,7 +14,7 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 Źródła:
 
 - `src/shared/lib/auth/*.ts`
-- `src/shared/lib/env.ts`
+- `packages/env/src/*.ts`, `src/env.ts`
 - `src/shared/lib/mailer.ts`
 - `src/shared/lib/modules/nav.ts`
 - `src/app/api/auth/[...all]/route.ts`
@@ -36,7 +36,7 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 - `src/features/users/services/commands/__tests__/invite-user-command.test.ts`
 - `scripts/lib/__tests__/admin-create.test.ts`
 - `e2e/core-auth.spec.ts`
-- `node_modules/better-auth/dist/plugins/admin/routes.mjs` (better-auth 1.7.13)
+- `node_modules/better-auth/dist/plugins/admin/routes.mjs` (better-auth 1.7.27)
 - `node_modules/better-auth/dist/api/routes/sign-up.mjs`
 
 Superadmina, ochronę kont serwisowych, impersonację i tryb serwisowy opisuje [04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md). Ten plik zakłada, że znasz kontekst organizacji z [03-dane-i-organizacje.md](03-dane-i-organizacje.md#kontekst-organizacji).
@@ -72,7 +72,7 @@ W aplikacji jest jedna instancja better-auth: `auth` z `src/shared/lib/auth/inde
 | plugin `organization` | `allowUserToCreateOrganization` zwraca `MULTI_ORG`, `sendInvitationEmail` | Tworzenie organizacji tylko przy `MULTI_ORG=true`. Mail z linkiem `<APP_URL>/accept-invitation/<id>`. |
 | `authPlugins` | z `src/modules.generated.ts` | Pluginy z plików `auth.ts` feature ([02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#rejestr-modulow)). |
 
-Kit nie ustawia czasu życia sesji, więc obowiązują wartości domyślne better-auth 1.7.13: sesja wygasa po 7 dniach, a jej termin przesuwa się przy użyciu, gdy od ostatniego przedłużenia minął dzień (`sessionConfig` w `node_modules/better-auth/dist/context/create-context.mjs`).
+Kit nie ustawia czasu życia sesji, więc obowiązują wartości domyślne better-auth 1.7.27: sesja wygasa po 7 dniach, a jej termin przesuwa się przy użyciu, gdy od ostatniego przedłużenia minął dzień (`sessionConfig` w `node_modules/better-auth/dist/context/create-context.mjs`).
 
 <a id="hook-before"></a>
 
@@ -493,7 +493,7 @@ Pusta `ADMIN_EMAIL=` działa inaczej: bez `--email` skrypt traktuje ją jak brak
 
 ### Uprawnienia pluginu `admin` (`createAccessControl`)
 
-`createAdminRoles({ adminImpersonation })` w `src/shared/lib/auth/admin-access.ts` buduje `ac` z `createAccessControl(defaultStatements)` i trzy role. Endpoint pluginu `admin` sprawdza uprawnienie roli wywołującego po hooku `before`. Kolumna „Endpoint” podaje ścieżki, które sprawdzają dane uprawnienie w better-auth 1.7.13.
+`createAdminRoles({ adminImpersonation })` w `src/shared/lib/auth/admin-access.ts` buduje `ac` z `createAccessControl(defaultStatements)` i trzy role. Endpoint pluginu `admin` sprawdza uprawnienie roli wywołującego po hooku `before`. Kolumna „Endpoint” podaje ścieżki, które sprawdzają dane uprawnienie w better-auth 1.7.27.
 
 | Uprawnienie | `user` | `admin` | `admin` przy `ADMIN_IMPERSONATION=true` | `superadmin` | Endpoint |
 | --- | --- | --- | --- | --- | --- |
@@ -506,6 +506,7 @@ Pusta `ADMIN_EMAIL=` działa inaczej: bez `--email` skrypt traktuje ją jak brak
 | `user:delete` | nie | tak | tak | tak | `/admin/remove-user` |
 | `user:set-password` | nie | tak | tak | tak | `/admin/set-user-password` |
 | `user:set-email` | nie | tak | tak | tak | `/admin/update-user` ze zmianą adresu |
+| `user:set-phone` | nie | nie | nie | tak | `/admin/update-user` z polami `phoneNumber` albo `phoneNumberVerified` (pola istnieją tylko z pluginem `phoneNumber`, którego kit nie ma) |
 | `user:get` | nie | tak | tak | tak | `/admin/get-user` |
 | `user:update` | nie | tak | tak | tak | `/admin/update-user` |
 | `session:list` | nie | tak | tak | tak | `/admin/list-user-sessions` |

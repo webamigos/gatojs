@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/shared/lib/prisma";
+import { withoutTenantScope } from "@/shared/lib/tenant-scope";
 import {
   createOrganization,
   createUser,
@@ -230,7 +231,9 @@ describe("writeAuditLog na prawdziwej bazie", () => {
 
     await prisma.organization.delete({ where: { id: world.orgA.id } });
 
-    const rows = await prisma.auditLog.findMany();
+    const rows = await withoutTenantScope("test assertion", () =>
+      prisma.auditLog.findMany(),
+    );
     expect(rows.map((row) => row.action)).toEqual(["b.action"]);
   });
 
@@ -244,6 +247,8 @@ describe("writeAuditLog na prawdziwej bazie", () => {
       }),
     ).rejects.toThrow();
 
-    await expect(prisma.auditLog.count()).resolves.toBe(0);
+    await expect(
+      withoutTenantScope("test assertion", () => prisma.auditLog.count()),
+    ).resolves.toBe(0);
   });
 });

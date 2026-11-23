@@ -6,7 +6,7 @@ const { mockGetSession, mockGetOrgContext } = vi.hoisted(() => ({
   mockGetOrgContext: vi.fn(),
 }));
 
-vi.mock("@/shared/lib/env", () => ({ env: { MULTI_ORG: false } }));
+vi.mock("@/env", () => ({ env: { MULTI_ORG: false } }));
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => new Headers({ cookie: "session=abc" })),
 }));

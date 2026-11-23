@@ -4,7 +4,7 @@ const { mockPrisma, mockEnv, mockTrackServiceModeEntry } = vi.hoisted(() => ({
   mockPrisma: {
     session: { create: vi.fn() },
     member: { findFirst: vi.fn() },
-    user: { findUnique: vi.fn() },
+    user: { findUnique: vi.fn(), findFirst: vi.fn() },
     organization: { findFirst: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -18,7 +18,7 @@ const { mockPrisma, mockEnv, mockTrackServiceModeEntry } = vi.hoisted(() => ({
   mockTrackServiceModeEntry: vi.fn(),
 }));
 
-vi.mock("@/shared/lib/env", () => ({ env: mockEnv }));
+vi.mock("@/env", () => ({ env: mockEnv }));
 vi.mock("@/shared/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/shared/lib/mailer", () => ({
   sendOrganizationInvitationEmail: vi.fn(),
@@ -33,6 +33,7 @@ import { auth } from "../index";
 beforeEach(() => {
   mockTrackServiceModeEntry.mockResolvedValue(undefined);
   mockPrisma.member.findFirst.mockResolvedValue({ organizationId: "org-1" });
+  mockPrisma.user.findFirst.mockResolvedValue({ id: "user-1", banned: false });
   mockPrisma.session.create.mockImplementation(
     async ({ data }: { data: Record<string, unknown> }) => data,
   );

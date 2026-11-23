@@ -39,6 +39,7 @@ vi.mock("@/i18n/routing", () => ({
 
 import { auth } from "@/shared/lib/auth";
 import { prisma } from "@/shared/lib/prisma";
+import { withoutTenantScope } from "@/shared/lib/tenant-scope";
 import {
   createApiKeyCommand,
   deleteApiKeyCommand,
@@ -162,9 +163,11 @@ describe("klucze API na prawdziwej bazie", () => {
     expect(result.success).toBe(true);
     const plaintext = result.data?.plaintext ?? "";
     expect(plaintext).toMatch(/_live_/);
-    const row = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: result.data?.id ?? "" },
-    });
+    const row = await withoutTenantScope("test assertion", () =>
+      prisma.apiKey.findUniqueOrThrow({
+        where: { id: result.data?.id ?? "" },
+      }),
+    );
     expect(row.organizationId).toBe(world.orgA.id);
     expect(row.createdById).toBe(world.alice.id);
     expect(row.hashedKey).toBe(
@@ -191,7 +194,7 @@ describe("klucze API na prawdziwej bazie", () => {
     });
 
     const row = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: result.data?.id ?? "" },
+      where: { id: result.data?.id ?? "", organizationId: world.orgA.id },
     });
     const expected = before + 30 * DAY_MS;
     expect(Math.abs((row.expiresAt?.getTime() ?? 0) - expected)).toBeLessThan(
@@ -266,7 +269,7 @@ describe("klucze API na prawdziwej bazie", () => {
 
     expect(result.success).toBe(true);
     const row = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: key.id },
+      where: { id: key.id, organizationId: world.orgA.id },
     });
     expect(row.revokedAt).not.toBeNull();
   });
@@ -279,7 +282,7 @@ describe("klucze API na prawdziwej bazie", () => {
 
     expect(result.success).toBe(false);
     const row = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: keyB.id },
+      where: { id: keyB.id, organizationId: world.orgB.id },
     });
     expect(row.revokedAt).toBeNull();
   });
@@ -292,7 +295,7 @@ describe("klucze API na prawdziwej bazie", () => {
     await revokeApiKeyCommand({ id: key.id });
 
     const row = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: key.id },
+      where: { id: key.id, organizationId: world.orgA.id },
     });
     expect(row.revokedAt?.toISOString()).toBe("2026-01-15T10:00:00.000Z");
   });
@@ -302,7 +305,7 @@ describe("klucze API na prawdziwej bazie", () => {
     await signInAs(world.alice, world.orgA);
     await revokeApiKeyCommand({ id: key.id });
     const first = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: key.id },
+      where: { id: key.id, organizationId: world.orgA.id },
     });
     await new Promise((resolve) => setTimeout(resolve, 20));
 
@@ -310,7 +313,7 @@ describe("klucze API na prawdziwej bazie", () => {
 
     expect(secondResult).toEqual({ success: true });
     const second = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: key.id },
+      where: { id: key.id, organizationId: world.orgA.id },
     });
     expect(second.revokedAt?.getTime()).toBe(first.revokedAt?.getTime());
   });
@@ -333,7 +336,9 @@ describe("klucze API na prawdziwej bazie", () => {
 
     expect(result.success).toBe(true);
     expect(
-      await prisma.apiKey.findUnique({ where: { id: key.id } }),
+      await withoutTenantScope("test assertion", () =>
+        prisma.apiKey.findUnique({ where: { id: key.id } }),
+      ),
     ).toBeNull();
   });
 
@@ -345,7 +350,9 @@ describe("klucze API na prawdziwej bazie", () => {
 
     expect(result.success).toBe(false);
     expect(
-      await prisma.apiKey.findUnique({ where: { id: keyB.id } }),
+      await prisma.apiKey.findUnique({
+        where: { id: keyB.id, organizationId: world.orgB.id },
+      }),
     ).not.toBeNull();
   });
 
@@ -361,7 +368,7 @@ describe("klucze API na prawdziwej bazie", () => {
     );
 
     const row = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: key.id },
+      where: { id: key.id, organizationId: world.orgA.id },
     });
     expect(row.revokedAt).toBeNull();
   });
@@ -374,7 +381,9 @@ describe("klucze API na prawdziwej bazie", () => {
     );
     await expect(listApiKeysQuery()).rejects.toThrow("NEXT_NOT_FOUND");
 
-    expect(await prisma.apiKey.count()).toBe(0);
+    expect(
+      await withoutTenantScope("test assertion", () => prisma.apiKey.count()),
+    ).toBe(0);
   });
 
   it("listApiKeysQuery zwraca tylko klucze aktywnej organizacji", async () => {
@@ -478,7 +487,7 @@ describe("klucze API na prawdziwej bazie", () => {
 
     expect(result).toEqual({ success: true });
     const row = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: key.id },
+      where: { id: key.id, organizationId: world.orgA.id },
     });
     expect(row.revokedAt).not.toBeNull();
     expect(mockTrackAudit).toHaveBeenCalledTimes(1);
@@ -499,7 +508,7 @@ describe("klucze API na prawdziwej bazie", () => {
     await signInAs(world.alice, world.orgA);
     await revokeApiKeyCommand({ id: key.id });
     const first = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: key.id },
+      where: { id: key.id, organizationId: world.orgA.id },
     });
     await new Promise((resolve) => setTimeout(resolve, 20));
 
@@ -507,7 +516,7 @@ describe("klucze API na prawdziwej bazie", () => {
 
     expect(secondResult).toEqual({ success: true });
     const second = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: key.id },
+      where: { id: key.id, organizationId: world.orgA.id },
     });
     expect(second.revokedAt?.getTime()).toBe(first.revokedAt?.getTime());
     expect(mockTrackAudit).toHaveBeenCalledTimes(1);
@@ -531,7 +540,9 @@ describe("klucze API na prawdziwej bazie", () => {
 
     expect(result).toEqual({ success: true });
     expect(
-      await prisma.apiKey.findUnique({ where: { id: key.id } }),
+      await withoutTenantScope("test assertion", () =>
+        prisma.apiKey.findUnique({ where: { id: key.id } }),
+      ),
     ).toBeNull();
     expect(mockTrackAudit).toHaveBeenCalledTimes(1);
     const event = mockTrackAudit.mock.calls[0]?.[0];
@@ -554,10 +565,12 @@ describe("klucze API na prawdziwej bazie", () => {
     const result = await deleteApiKeyCommand({ id: k1.id });
 
     expect(result).toEqual({ success: true });
-    const remaining = await prisma.apiKey.findMany({
-      select: { id: true },
-      orderBy: { name: "asc" },
-    });
+    const remaining = await withoutTenantScope("test assertion", () =>
+      prisma.apiKey.findMany({
+        select: { id: true },
+        orderBy: { name: "asc" },
+      }),
+    );
     expect(remaining.map((row) => row.id).sort()).toEqual(
       [k2.id, k3.id].sort(),
     );
@@ -593,7 +606,7 @@ describe("klucze API na prawdziwej bazie", () => {
     expect(revoked.success).toBe(false);
     expect(deleted.success).toBe(false);
     const row = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: keyB.id },
+      where: { id: keyB.id, organizationId: world.orgB.id },
     });
     expect(row.revokedAt).toBeNull();
     expect(mockTrackAudit).not.toHaveBeenCalled();
@@ -638,7 +651,7 @@ describe("klucze API na prawdziwej bazie", () => {
       error: "Potwierdź zmianę w trybie serwisowym",
     });
     const row = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: key.id },
+      where: { id: key.id, organizationId: world.orgA.id },
     });
     expect(row.revokedAt).toBeNull();
     expect(mockTrackAudit).not.toHaveBeenCalled();
@@ -659,7 +672,9 @@ describe("klucze API na prawdziwej bazie", () => {
       error: "Potwierdź zmianę w trybie serwisowym",
     });
     expect(
-      await prisma.apiKey.findUnique({ where: { id: key.id } }),
+      await prisma.apiKey.findUnique({
+        where: { id: key.id, organizationId: world.orgA.id },
+      }),
     ).not.toBeNull();
     expect(mockTrackAudit).not.toHaveBeenCalled();
   });
@@ -674,7 +689,9 @@ describe("klucze API na prawdziwej bazie", () => {
     const result = await createApiKeyCommand(VALID_INPUT);
 
     expect(result.success).toBe(false);
-    expect(await prisma.apiKey.count()).toBe(0);
+    expect(
+      await withoutTenantScope("test assertion", () => prisma.apiKey.count()),
+    ).toBe(0);
   });
 
   it("tryb serwisowy: revoke z potwierdzeniem aktywnej organizacji działa i oznacza audyt serviceMode", async () => {
@@ -721,13 +738,19 @@ describe("zmiana wiersza między odczytem a zapisem", () => {
   it("delete, gdy inne żądanie usunęło klucz po odczycie, zwraca sukces i nie zapisuje audytu api_key.deleted", async () => {
     const key = await seedKey(world.orgA.id);
     await signInAs(world.alice, world.orgA);
-    afterKeyRead(() => prisma.apiKey.delete({ where: { id: key.id } }));
+    afterKeyRead(() =>
+      prisma.apiKey.delete({
+        where: { id: key.id, organizationId: world.orgA.id },
+      }),
+    );
 
     const result = await deleteApiKeyCommand({ id: key.id });
 
     expect(result).toEqual({ success: true });
     expect(
-      await prisma.apiKey.findUnique({ where: { id: key.id } }),
+      await withoutTenantScope("test assertion", () =>
+        prisma.apiKey.findUnique({ where: { id: key.id } }),
+      ),
     ).toBeNull();
     expect(mockTrackAudit).not.toHaveBeenCalled();
   });
@@ -737,16 +760,18 @@ describe("zmiana wiersza między odczytem a zapisem", () => {
     await signInAs(world.alice, world.orgA);
     afterKeyRead(() =>
       prisma.apiKey.update({
-        where: { id: key.id },
+        where: { id: key.id, organizationId: world.orgA.id },
         data: { organizationId: world.orgB.id },
       }),
     );
 
     await revokeApiKeyCommand({ id: key.id });
 
-    const row = await prisma.apiKey.findUniqueOrThrow({
-      where: { id: key.id },
-    });
+    const row = await withoutTenantScope("test assertion", () =>
+      prisma.apiKey.findUniqueOrThrow({
+        where: { id: key.id },
+      }),
+    );
     expect(row.organizationId).toBe(world.orgB.id);
     expect(row.revokedAt).toBeNull();
     expect(mockTrackAudit).not.toHaveBeenCalled();
@@ -757,14 +782,16 @@ describe("zmiana wiersza między odczytem a zapisem", () => {
     await signInAs(world.alice, world.orgA);
     afterKeyRead(() =>
       prisma.apiKey.update({
-        where: { id: key.id },
+        where: { id: key.id, organizationId: world.orgA.id },
         data: { organizationId: world.orgB.id },
       }),
     );
 
     await deleteApiKeyCommand({ id: key.id });
 
-    const row = await prisma.apiKey.findUnique({ where: { id: key.id } });
+    const row = await withoutTenantScope("test assertion", () =>
+      prisma.apiKey.findUnique({ where: { id: key.id } }),
+    );
     expect(row?.organizationId).toBe(world.orgB.id);
     expect(mockTrackAudit).not.toHaveBeenCalled();
   });

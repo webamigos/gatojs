@@ -1,5 +1,6 @@
 import { logger } from "@/shared/lib/logger";
 import { prisma } from "@/shared/lib/prisma";
+import { withoutTenantScope } from "@/shared/lib/tenant-scope";
 import { knownApiScopes } from "./api-scopes";
 import { apiKeyPepper } from "./api-key-pepper";
 import { hashApiKey } from "./api-key-secret";
@@ -29,9 +30,12 @@ function readBearerToken(request: Request): string | null {
   return token.trim() === "" ? null : token;
 }
 
-function touchLastUsedAt(apiKeyId: string): void {
+function touchLastUsedAt(apiKeyId: string, organizationId: string): void {
   void prisma.apiKey
-    .update({ where: { id: apiKeyId }, data: { lastUsedAt: new Date() } })
+    .update({
+      where: { id: apiKeyId, organizationId },
+      data: { lastUsedAt: new Date() },
+    })
     .catch((error: unknown) => {
       logger.warn("Nie udało się zaktualizować lastUsedAt klucza API", {
         apiKeyId,
@@ -48,16 +52,19 @@ export async function authenticateApiKey(
   if (token === null) {
     return { ok: false, status: 401, error: "missing" };
   }
-  const record = await prisma.apiKey.findUnique({
-    where: { hashedKey: hashApiKey(token, apiKeyPepper()) },
-    select: {
-      id: true,
-      organizationId: true,
-      scopes: true,
-      revokedAt: true,
-      expiresAt: true,
-    },
-  });
+  const hashedKey = hashApiKey(token, apiKeyPepper());
+  const record = await withoutTenantScope("api key lookup by hash", () =>
+    prisma.apiKey.findUnique({
+      where: { hashedKey },
+      select: {
+        id: true,
+        organizationId: true,
+        scopes: true,
+        revokedAt: true,
+        expiresAt: true,
+      },
+    }),
+  );
   if (record === null) {
     return { ok: false, status: 401, error: "invalid" };
   }
@@ -72,7 +79,7 @@ export async function authenticateApiKey(
   if (!scopes.includes(requiredScope)) {
     return { ok: false, status: 403, error: "scope" };
   }
-  touchLastUsedAt(record.id);
+  touchLastUsedAt(record.id, record.organizationId);
   return {
     ok: true,
     context: {

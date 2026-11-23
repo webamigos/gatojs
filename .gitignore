@@ -22,5 +22,5 @@ playwright-report/
 blob-report/
 reports/
 .stryker-tmp/
-kit/cli/reports/
-kit/cli/.stryker-tmp/
+packages/gato-cli/reports/
+packages/gato-cli/.stryker-tmp/

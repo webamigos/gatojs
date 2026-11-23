@@ -8,11 +8,12 @@
 
 ## Checklist
 
-- [ ] `npm run verify` passes (and `npm run verify --prefix kit/cli` for CLI changes)
+- [ ] `npm run verify` passes (and `npm run verify --prefix packages/gato-cli` or `--prefix packages/create-gato-app` for tool package changes)
+- [ ] Self-reviewed against `.claude/skills/wa-code-review/SKILL.md` (CodeRabbit is optional)
 - [ ] Tests added or updated; a bug fix has a test that fails without the fix
 - [ ] Queries and commands on organization data go through `getOrgContext()` / `requireModuleAccess()` and filter by `organizationId`; commands call `assertServiceModeConfirmed`
 - [ ] No edits to generated files or `wa:*` regions (`npm run wa -- generate` run instead)
 - [ ] Changed kit files: owning module `version` bumped in `kit/modules/<module>.json` and `npm run wa -- kit sync` run
 - [ ] User-facing text added to both `pl` and `en` messages
 - [ ] Prisma schema change: migration notes for projects included
-- [ ] A decision worth recording is added to `docs/decyzje.md`
+- [ ] A decision worth recording has an ADR in `docs/adrs/`; a non-obvious gotcha has a lesson in `docs/lessons/` and a line in `docs/lessons.md`

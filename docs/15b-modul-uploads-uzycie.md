@@ -15,7 +15,7 @@ Zweryfikowano z kodem: 206ca2e, 2026-11-10 (wiersz `Nieprawidłowy klucz obiektu
 - `src/features/uploads/` (`module.ts`, `env.ts`, `components/file-upload.tsx`, `services/`, `contracts/`, `i18n/`) z testami w `__tests__/`, w tym `services/__tests__/local-storage.test.ts`, `services/__tests__/storage-local-env.test.ts`, `services/__tests__/create-object-storage.test.ts`, `services/__tests__/storage-env.test.ts`, `services/__tests__/storage.integration.test.ts`, `services/__tests__/read-upload.integration.test.ts` i `services/__tests__/uploads-isolation.integration.test.ts`
 - `src/app/api/uploads/route.ts`, `src/app/api/uploads/[id]/route.ts`
 - `src/shared/lib/modules/define-module.ts`, `src/shared/components/service-mode/use-service-mode-action.tsx`
-- `src/instrumentation.ts`, `src/shared/lib/env.ts` (sprawdzenie zmiennych przy starcie)
+- `src/instrumentation.ts`, `packages/env/src/check-env.ts` (sprawdzenie zmiennych przy starcie)
 - `src/shared/lib/logger.ts` (`err.type` we wpisach logu)
 - `src/test/integration/` (`setup-env.ts`, `database.ts`, `global-setup.ts`), `vitest.integration.config.ts`, `e2e/env.ts`, `e2e/global-setup.ts`, `docker/uploads.compose.yml`
 - `mutation-gate.json`
@@ -255,7 +255,7 @@ Deklaracja `uploadPurposes` buduje się i nie przeszkadza w projekcie bez `uploa
 
 ## Testowanie własnego kodu z modułem
 
-**Testy jednostkowe bez MinIO.** Testy modułu w `npm test` nie łączą się z żadnym magazynem. Provider `local` sprawdzają na katalogu tymczasowym z `mkdtemp` (`local-storage.test.ts`, `storage-local-env.test.ts`), a provider `s3` z atrapą klienta `S3Client` (`create-object-storage.test.ts`, `storage.test.ts`). Test jednostkowy własnej funkcji, który ma zapisać prawdziwy plik, może zrobić to samo co `storage-local-env.test.ts`: podmienić `@/shared/lib/env` obiektem z `STORAGE_PROVIDER: "local"` i `STORAGE_LOCAL_PATH` wskazującym katalog tymczasowy, a potem wołać prawdziwe `putObject` i `getObject`.
+**Testy jednostkowe bez MinIO.** Testy modułu w `npm test` nie łączą się z żadnym magazynem. Provider `local` sprawdzają na katalogu tymczasowym z `mkdtemp` (`local-storage.test.ts`, `storage-local-env.test.ts`), a provider `s3` z atrapą klienta `S3Client` (`create-object-storage.test.ts`, `storage.test.ts`). Test jednostkowy własnej funkcji, który ma zapisać prawdziwy plik, może zrobić to samo co `storage-local-env.test.ts`: podmienić `@/env` obiektem z `STORAGE_PROVIDER: "local"` i `STORAGE_LOCAL_PATH` wskazującym katalog tymczasowy, a potem wołać prawdziwe `putObject` i `getObject`.
 
 **MinIO w testach integracyjnych.** `src/test/integration/setup-env.ts` ustawia testom integracyjnym `STORAGE_PROVIDER=s3` i zmienne S3: endpoint z `INTEGRATION_S3_ENDPOINT` (domyślnie `http://localhost:9000`), bucket z `INTEGRATION_S3_BUCKET` (domyślnie `<slug>-uploads`), klucze `minioadmin` i `S3_FORCE_PATH_STYLE=true`. Wartości z `.env`, także `STORAGE_PROVIDER=local`, testów integracyjnych nie dotyczą, więc te testy zawsze potrzebują MinIO. Lokalnie wartości domyślne pasują do MinIO z `docker-compose.yml` projektu, uruchomionego przez `docker compose --profile s3 up -d` (port 9000, bucket `<slug>-uploads` tworzony przez `minio-init`); samego startu usług nie uruchamiano (niesprawdzone, [MinIO lokalnie](15-modul-uploads.md#minio)). MinIO na innym porcie wskazujesz zmienną środowiskową.
 
