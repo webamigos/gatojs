@@ -99,7 +99,7 @@ test("the CLI exits 2 on a test edit in the implement phase and 0 otherwise", ()
     writeFileSync(join(dir, PHASE_FILE), "implement");
     const blocked = run("src/__tests__/a.test.ts");
     assert.equal(blocked.status, 2);
-    assert.match(blocked.stderr.toString(), /tylko do odczytu/);
+    assert.match(blocked.stderr.toString(), /tests are read-only/);
     assert.equal(run("src/a.ts").status, 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -111,7 +111,7 @@ test("the CLI blocks a worktree test edit when that worktree is in the implement
     enterImplementPhase(worktree);
     const blocked = runHook({ sessionDir: main, cwd: main, filePath: join(worktree, "src/__tests__/a.test.ts") });
     assert.equal(blocked.status, 2);
-    assert.match(blocked.stderr.toString(), /tylko do odczytu/);
+    assert.match(blocked.stderr.toString(), /tests are read-only/);
   }));
 
 test("the CLI allows a production edit in a worktree that is in the implement phase", () =>
@@ -131,7 +131,7 @@ test("the CLI blocks a worktree test edit when the session start directory is in
     enterImplementPhase(main);
     const blocked = runHook({ sessionDir: main, cwd: worktree, filePath: join(worktree, "src/__tests__/a.test.ts") });
     assert.equal(blocked.status, 2);
-    assert.match(blocked.stderr.toString(), /tylko do odczytu/);
+    assert.match(blocked.stderr.toString(), /tests are read-only/);
   }));
 
 test("the CLI allows a worktree test edit when only the enclosing main checkout is in the implement phase and the session started in the worktree", () =>
@@ -153,5 +153,5 @@ test("the CLI blocks a new test file reached through a directory symlink into a 
     symlinkSync(join(worktree, "src"), link, "junction");
     const blocked = runHook({ sessionDir: main, cwd: main, filePath: join(link, "__tests__/a.test.ts") });
     assert.equal(blocked.status, 2);
-    assert.match(blocked.stderr.toString(), /tylko do odczytu/);
+    assert.match(blocked.stderr.toString(), /tests are read-only/);
   }));

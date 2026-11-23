@@ -15,7 +15,7 @@
       "manifest": {
         "name": "api-keys",
         "version": "0.1.1",
-        "description": "Klucze API organizacji: model ApiKey, sekret z pepperem i zakresy",
+        "description": "Organization API keys: ApiKey model, peppered secret and scopes",
         "requires": [],
         "files": [
           "prisma/schema/api-keys.prisma",
@@ -53,7 +53,7 @@
       "manifest": {
         "name": "audit-logs",
         "version": "0.1.2",
-        "description": "Dziennik zdarzeń organizacji: model AuditLog, sink i redakcja danych wrażliwych",
+        "description": "Organization audit log: AuditLog model, sink and redaction of sensitive data",
         "requires": [],
         "files": [
           "prisma/schema/audit-logs.prisma",
@@ -86,7 +86,7 @@
       "manifest": {
         "name": "core",
         "version": "0.11.1",
-        "description": "Rdzen WA Kit: auth, organizacje, uzytkownicy, konto, dashboard",
+        "description": "GatoJS core: auth, organizations, users, account, dashboard",
         "requires": [],
         "files": [
           ".claude/agents/test-reviewer.md",
@@ -260,7 +260,7 @@
       "manifest": {
         "name": "uploads",
         "version": "0.2.6",
-        "description": "Pliki organizacji na dysku albo w magazynie S3",
+        "description": "Organization files on disk or in S3 storage",
         "requires": [],
         "files": [
           "prisma/schema/uploads.prisma",

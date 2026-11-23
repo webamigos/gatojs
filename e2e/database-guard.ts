@@ -12,7 +12,7 @@ export function assertE2eDatabase(databaseUrl: string): void {
   const name = databaseName(databaseUrl);
   if (!name.endsWith(E2E_DATABASE_SUFFIX)) {
     throw new Error(
-      `E2E resetuje bazę danych, więc jej nazwa musi kończyć się na ${E2E_DATABASE_SUFFIX} (jest: "${name}")`,
+      `E2E resets the database, so its name must end with ${E2E_DATABASE_SUFFIX} (got: "${name}")`,
     );
   }
 }

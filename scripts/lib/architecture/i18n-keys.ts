@@ -62,7 +62,7 @@ function checkDirectory(
   );
   const missingFiles = locales
     .filter((locale) => !present.includes(locale))
-    .map((locale) => `${fileOf(locale)}: brak pliku`);
+    .map((locale) => `${fileOf(locale)}: file missing`);
   const byLocale = Object.fromEntries(
     present.map((locale) => [
       locale,
