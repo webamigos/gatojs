@@ -9,7 +9,9 @@
     "src/shared/lib/audit.ts",
     "src/features/audit-logs/services/",
     "src/features/api-keys/services/",
-    "src/features/uploads/services/"
+    "src/features/uploads/services/",
+    "packages/crypto/src/",
+    "src/features/encryption/services/"
   ],
   "allowed": [
     {
@@ -326,6 +328,13 @@
       "original": "[]",
       "replacement": "[\"Stryker was here\"]",
       "reason": "equivalent: the fallback list for a model without ScalarFieldEnum has no organizationId, so the set of guarded models is the same (unreachable branch, every model has the enum)"
+    },
+    {
+      "file": "packages/crypto/src/aes-gcm.ts",
+      "mutator": "ObjectLiteral",
+      "original": "{\n    authTagLength: AUTH_TAG_LENGTH,\n  }",
+      "replacement": "{}",
+      "reason": "equivalent: AES-256-GCM's default tag is 16 bytes, so seal returns the same bytes; open always passes a 16-byte tag sliced from the end and callers reject shorter input, so decryption behaves the same"
     }
   ]
 }

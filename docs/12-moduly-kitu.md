@@ -13,7 +13,7 @@ Zweryfikowano z kodem: 6c05f1f, 2026-11-05
 Źródła:
 
 - `kit/kit.json`
-- `kit/modules/core.json`, `kit/modules/audit-logs.json`, `kit/modules/api-keys.json`, `kit/modules/uploads.json`
+- `kit/modules/core.json`, `kit/modules/audit-logs.json`, `kit/modules/api-keys.json`, `kit/modules/uploads.json`, `kit/modules/encryption.json`
 - `packages/gato-cli/src/manifest/schema.ts`
 - `packages/gato-cli/src/manifest/kit-state.ts`
 - `packages/gato-cli/src/generate/index.ts`
@@ -73,7 +73,7 @@ Kod modułu kitu jest po skopiowaniu zwykłym kodem projektu, bez paczki npm i b
 
 ## Moduły kitu
 
-Kit w wersji `0.1.0` ma trzy moduły opcjonalne. `wa list` wypisuje je z opisem z manifestu ([16](16-cli-wa.md#wa-list)).
+Kit ma cztery moduły opcjonalne. `wa list` wypisuje je z opisem z manifestu ([16](16-cli-wa.md#wa-list)).
 
 <a id="audit-logs"></a>
 
@@ -93,6 +93,12 @@ Klucze API organizacji z zakresami: zewnętrzny system woła trasy projektu z na
 
 Pliki organizacji na dysku serwera albo w magazynie zgodnym z S3, zależnie od `STORAGE_PROVIDER` (domyślnie `local`, czyli dysk). Dodaje tabelę `uploads`, trasy `/api/uploads`, komponent `<FileUpload>`, zmienne `STORAGE_PROVIDER`, `STORAGE_LOCAL_PATH` i `S3_*`, usługi `minio` i `minio-init` z profilem Compose `s3` w `docker-compose.yml` i kroki MinIO w CI projektu, bo testy integracyjne modułu działają na S3. Szczegóły: [15-modul-uploads.md](15-modul-uploads.md).
 
+<a id="encryption"></a>
+
+### `encryption`
+
+Szyfrowanie kopertowe (AES-256-GCM) z kluczem danych osobnym dla każdej organizacji, dla modułów, które przechowują wrażliwe dane. Dodaje pakiet `@gatojs/crypto` (`packages/crypto`), tabelę `organization_data_keys`, serwerowe API `encryptForOrganization` / `decryptForOrganization` oraz zmienne `ENCRYPTION_PROVIDER` (`local`) i wymaganą `ENCRYPTION_MASTER_KEY`. Bez UI i bez usług. Szczegóły (po angielsku): [17-encryption-module.md](17-encryption-module.md).
+
 <a id="macierz-zaleznosci"></a>
 
 ### Zależności między modułami
@@ -104,6 +110,7 @@ Pliki organizacji na dysku serwera albo w magazynie zgodnym z S3, zależnie od `
 | `audit-logs` | — | Pokazuje etykiety akcji, które deklarują `api-keys` i `uploads` (`auditActions`). | Akcja bez deklaracji jest pokazywana jako surowy napis. |
 | `api-keys` | — | Zapisuje zdarzenia kluczy przez `trackAudit`; zapisze je `audit-logs`. | Zdarzenia kluczy nie trafiają nigdzie. |
 | `uploads` | — | Zapisuje `upload.created` i `upload.deleted` przez `trackAudit`; zapisze je `audit-logs`. | Zdarzenia plików nie trafiają nigdzie. |
+| `encryption` | — | — | Moduły nie mają `encryptForOrganization`; dane zapisują jawnym tekstem. |
 
 `requires` modułu projektu może wskazywać moduł kitu. Wtedy `wa remove` odmawia usunięcia tego modułu ([16](16-cli-wa.md#wa-remove)), a każda komenda CLI odmawia pracy, jeśli wymaganego modułu w projekcie nie ma ([16](16-cli-wa.md#moduly-projektu)).
 
