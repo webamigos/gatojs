@@ -346,13 +346,11 @@ export async function create(
       await runSetup(options, projectDir, answers.adminEmail);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const steps = nextSteps({
-        projectDir,
-        install: true,
-        git: false,
-        setupDone: false,
-        adminEmail: answers.adminEmail,
-      });
+      const steps = [
+        `cd ${projectDir}`,
+        ...setupSteps(answers.adminEmail),
+        "npm run dev",
+      ];
       throw new Error(
         `Project created at ${projectDir}, but the setup failed (${message}). Continue with:\n${steps.join("\n")}`,
         { cause: error },

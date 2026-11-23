@@ -1013,6 +1013,19 @@ describe("create: pytania", () => {
     expect(commands()).toEqual(["npm install"]);
   });
 
+  it.each([true, false])(
+    "with --yes and without setup no setup question is asked (install %s)",
+    async (install) => {
+      const { prompter, questions } = scriptedPrompter([], [true]);
+      await create(
+        opts({ yes: true, install, git: false, setup: false, prompter }),
+      );
+      expect(questions).toEqual([]);
+      expect(prompter.confirm).not.toHaveBeenCalled();
+      expect(commands().join("\n")).not.toMatch(/docker|prisma|admin:create/);
+    },
+  );
+
   it("z --yes nie zadaje żadnych pytań", async () => {
     const { prompter } = scriptedPrompter([]);
     await create(opts({ yes: true, modules: null, prompter }));
@@ -1176,6 +1189,21 @@ describe("create: setup failure", () => {
     git: true,
     setup: true,
   } as const;
+
+  it("the setup error keeps the runner error as its cause", async () => {
+    const dockerDown = new Error("docker down");
+    runner.mockImplementation(async (command) => {
+      if (command === "docker") throw dockerDown;
+    });
+    const rejection = await create(
+      opts({ ...SETUP_OPTIONS, adminEmail: "a@x.pl" }),
+    ).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).cause).toBe(dockerDown);
+  });
 
   it("a docker failure rejects with the steps left to run", async () => {
     failOn("docker", "docker down");

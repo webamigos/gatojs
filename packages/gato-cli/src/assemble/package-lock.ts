@@ -1,10 +1,7 @@
 import { globToRegExp } from "../kit/files.js";
 import type { ProjectNames } from "./project-names.js";
 
-type LockEntry = { resolved?: unknown; link?: unknown } & Record<
-  string,
-  unknown
->;
+type LockEntry = { resolved?: unknown } & Record<string, unknown>;
 
 type PackageLock = {
   name?: unknown;
@@ -19,26 +16,16 @@ function isKitOnlyPath(path: string, kitOnly: RegExp[]): boolean {
   return kitOnly.some((pattern) => pattern.test(`${path}/package.json`));
 }
 
-function isLinkTo(entry: LockEntry, removed: Set<string>): boolean {
-  return (
-    entry.link === true &&
-    typeof entry.resolved === "string" &&
-    removed.has(entry.resolved)
-  );
-}
-
 function withoutKitOnly(
   packages: Record<string, LockEntry>,
   kitOnly: RegExp[],
 ): Record<string, LockEntry> {
-  const removed = new Set(
-    Object.keys(packages).filter(
-      (path) => path !== ROOT && isKitOnlyPath(path, kitOnly),
-    ),
+  const removed = new Set<unknown>(
+    Object.keys(packages).filter((path) => isKitOnlyPath(path, kitOnly)),
   );
   return Object.fromEntries(
     Object.entries(packages).filter(
-      ([path, entry]) => !removed.has(path) && !isLinkTo(entry, removed),
+      ([path, entry]) => !removed.has(path) && !removed.has(entry.resolved),
     ),
   );
 }

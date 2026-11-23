@@ -21240,18 +21240,13 @@ var ROOT = "";
 function isKitOnlyPath(path2, kitOnly) {
   return kitOnly.some((pattern) => pattern.test(`${path2}/package.json`));
 }
-function isLinkTo(entry, removed) {
-  return entry.link === true && typeof entry.resolved === "string" && removed.has(entry.resolved);
-}
 function withoutKitOnly(packages, kitOnly) {
   const removed = new Set(
-    Object.keys(packages).filter(
-      (path2) => path2 !== ROOT && isKitOnlyPath(path2, kitOnly)
-    )
+    Object.keys(packages).filter((path2) => isKitOnlyPath(path2, kitOnly))
   );
   return Object.fromEntries(
     Object.entries(packages).filter(
-      ([path2, entry]) => !removed.has(path2) && !isLinkTo(entry, removed)
+      ([path2, entry]) => !removed.has(path2) && !removed.has(entry.resolved)
     )
   );
 }
@@ -21540,13 +21535,11 @@ async function create(options) {
       await runSetup(options, projectDir, answers.adminEmail);
     } catch (error62) {
       const message = error62 instanceof Error ? error62.message : String(error62);
-      const steps = nextSteps({
-        projectDir,
-        install: true,
-        git: false,
-        setupDone: false,
-        adminEmail: answers.adminEmail
-      });
+      const steps = [
+        `cd ${projectDir}`,
+        ...setupSteps(answers.adminEmail),
+        "npm run dev"
+      ];
       throw new Error(
         `Project created at ${projectDir}, but the setup failed (${message}). Continue with:
 ${steps.join("\n")}`,
