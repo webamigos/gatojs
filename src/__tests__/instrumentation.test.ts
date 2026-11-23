@@ -4,6 +4,7 @@ import path from "node:path";
 import { context, propagation, trace } from "@opentelemetry/api";
 import { logs } from "@opentelemetry/api-logs";
 import { ExportResultCode, type ExportResult } from "@opentelemetry/core";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { register } from "@/instrumentation";
 
@@ -312,6 +313,22 @@ describe("register: walidacja env przy starcie", () => {
     await register();
 
     expect(isSpanRecording()).toBe(true);
+  });
+
+  it("OTLP endpoint set → spans carry service.name from OTEL_SERVICE_NAME and service.version from GIT_COMMIT_SHA", async () => {
+    stubValidCoreEnv();
+    vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:4318");
+    vi.stubEnv("OTEL_SERVICE_NAME", "billing-api");
+    vi.stubEnv("GIT_COMMIT_SHA", "abc123");
+    spyOnStartupOutput();
+
+    await register();
+
+    const span = trace.getTracer("x").startSpan("probe");
+    span.end();
+    const { resource } = span as unknown as ReadableSpan;
+    expect(resource.attributes["service.name"]).toBe("billing-api");
+    expect(resource.attributes["service.version"]).toBe("abc123");
   });
 
   it("edge runtime with an OTLP endpoint → no exporters", async () => {
