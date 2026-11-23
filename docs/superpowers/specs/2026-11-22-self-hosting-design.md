@@ -1,6 +1,6 @@
 # Self-hosting without external services: mail providers, storage providers, a self-contained stack
 
-Date: 2026-11-22, refreshed on 2026-11-23 against `main` at `e32ebab` (GatoJS 0.7.0, `@gatojs/env` from PR #74). Drafted by Patryk with an agent. Draft for review; a plan follows acceptance.
+Date: 2026-11-22, refreshed on 2026-11-23 against `main` at `e32ebab` (GatoJS 0.7.0, `@gatojs/env` from PR #74). Drafted by Patryk with an agent. Accepted by Patryk on 2026-11-23 (decisions in sections 8 and 9); a plan follows.
 
 Sources:
 
