@@ -1,7 +1,18 @@
 // @vitest-environment node
+import fs from "node:fs";
+import path from "node:path";
 import { logs } from "@opentelemetry/api-logs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { register } from "@/instrumentation";
+
+function isModuleInstalled(name: string): boolean {
+  const state = JSON.parse(
+    fs.readFileSync(path.join(process.cwd(), ".wa/kit.json"), "utf8"),
+  ) as {
+    modules: Record<string, unknown>;
+  };
+  return name in state.modules;
+}
 
 const processExitCalled = new Error("process.exit");
 
@@ -89,40 +100,46 @@ describe("register: walidacja env przy starcie", () => {
     vi.stubEnv("STORAGE_LOCAL_PATH", undefined);
   }
 
-  it("nodejs runtime with a valid core env but STORAGE_PROVIDER=s3 and no S3_* variables → module issues in the report and process.exit(1)", async () => {
-    stubValidCoreEnv();
-    vi.stubEnv("STORAGE_PROVIDER", "s3");
-    vi.stubEnv("S3_ENDPOINT", undefined);
-    vi.stubEnv("S3_ACCESS_KEY_ID", undefined);
-    vi.stubEnv("S3_SECRET_ACCESS_KEY", undefined);
-    vi.stubEnv("S3_BUCKET", undefined);
-    const output = spyOnStartupOutput();
+  it.skipIf(!isModuleInstalled("uploads"))(
+    "nodejs runtime with a valid core env but STORAGE_PROVIDER=s3 and no S3_* variables → module issues in the report and process.exit(1)",
+    async () => {
+      stubValidCoreEnv();
+      vi.stubEnv("STORAGE_PROVIDER", "s3");
+      vi.stubEnv("S3_ENDPOINT", undefined);
+      vi.stubEnv("S3_ACCESS_KEY_ID", undefined);
+      vi.stubEnv("S3_SECRET_ACCESS_KEY", undefined);
+      vi.stubEnv("S3_BUCKET", undefined);
+      const output = spyOnStartupOutput();
 
-    await register();
+      await register();
 
-    expect(output.exit.mock.calls).toEqual([[1]]);
-    expect(output.error).toHaveBeenCalledTimes(1);
-    const [report] = output.error.mock.calls[0];
-    expect(report).toMatch(/^Nieprawidłowe zmienne środowiskowe \(4\):\n/);
-    expect(report).toContain("\n- S3_ENDPOINT: ");
-    expect(report).toContain("\n- S3_ACCESS_KEY_ID: ");
-    expect(report).toContain("\n- S3_SECRET_ACCESS_KEY: ");
-    expect(report).toContain("\n- S3_BUCKET: ");
-  });
+      expect(output.exit.mock.calls).toEqual([[1]]);
+      expect(output.error).toHaveBeenCalledTimes(1);
+      const [report] = output.error.mock.calls[0];
+      expect(report).toMatch(/^Nieprawidłowe zmienne środowiskowe \(4\):\n/);
+      expect(report).toContain("\n- S3_ENDPOINT: ");
+      expect(report).toContain("\n- S3_ACCESS_KEY_ID: ");
+      expect(report).toContain("\n- S3_SECRET_ACCESS_KEY: ");
+      expect(report).toContain("\n- S3_BUCKET: ");
+    },
+  );
 
-  it("nodejs runtime with a valid core env but no API_KEY_PEPPER → a single API_KEY_PEPPER issue and process.exit(1)", async () => {
-    stubValidCoreEnv();
-    vi.stubEnv("API_KEY_PEPPER", undefined);
-    const output = spyOnStartupOutput();
+  it.skipIf(!isModuleInstalled("api-keys"))(
+    "nodejs runtime with a valid core env but no API_KEY_PEPPER → a single API_KEY_PEPPER issue and process.exit(1)",
+    async () => {
+      stubValidCoreEnv();
+      vi.stubEnv("API_KEY_PEPPER", undefined);
+      const output = spyOnStartupOutput();
 
-    await register();
+      await register();
 
-    expect(output.exit.mock.calls).toEqual([[1]]);
-    expect(output.error).toHaveBeenCalledTimes(1);
-    expect(output.error.mock.calls[0][0]).toMatch(
-      /^Nieprawidłowe zmienne środowiskowe \(1\):\n- API_KEY_PEPPER: /,
-    );
-  });
+      expect(output.exit.mock.calls).toEqual([[1]]);
+      expect(output.error).toHaveBeenCalledTimes(1);
+      expect(output.error.mock.calls[0][0]).toMatch(
+        /^Nieprawidłowe zmienne środowiskowe \(1\):\n- API_KEY_PEPPER: /,
+      );
+    },
+  );
 
   it("nodejs runtime with a valid core and module env → no report and no exit", async () => {
     stubValidCoreEnv();
