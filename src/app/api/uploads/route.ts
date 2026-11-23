@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createUpload } from "@/features/uploads/services/commands/create-upload";
+import { localeFromHeaders } from "@/i18n/server-locale";
 import { readOrgContextForApi } from "@/features/uploads/services/api-org-context";
 import { maxUploadBytes } from "@/features/uploads/services/upload-purposes";
 
@@ -31,6 +32,9 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "invalid_input" }, { status: 400 });
   }
-  const { body, status } = await createUpload(formData);
+  const { body, status } = await createUpload(
+    formData,
+    localeFromHeaders(request.headers),
+  );
   return NextResponse.json(body, { status });
 }

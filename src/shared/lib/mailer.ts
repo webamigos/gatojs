@@ -6,6 +6,9 @@ import { OrganizationInvitationEmail } from "@/app/emails/organization-invitatio
 import { PasswordResetEmail } from "@/app/emails/password-reset-email";
 import { WelcomeSetPasswordEmail } from "@/app/emails/welcome-set-password-email";
 import { project } from "@/shared/config/project";
+import type { AppLocale } from "@/i18n/config";
+import { loadCoreMessages } from "@/i18n/load-messages";
+import { translatorFor, type Translate } from "@/i18n/translator";
 import { env } from "@/env";
 import { logger } from "@/shared/lib/logger";
 
@@ -111,17 +114,34 @@ async function sendTransactionalEmail({
   }
 }
 
+async function emailTranslator(locale: AppLocale): Promise<Translate> {
+  return translatorFor(locale, await loadCoreMessages(locale), "emails");
+}
+
 export async function sendPasswordResetEmail({
   to,
   resetUrl,
+  locale,
 }: {
   to: string;
   resetUrl: string;
+  locale: AppLocale;
 }) {
+  const t = await emailTranslator(locale);
+  const subject = t("passwordReset.subject");
   return sendTransactionalEmail({
     to,
-    subject: "Zresetuj hasło",
-    react: PasswordResetEmail({ resetUrl }),
+    subject,
+    react: PasswordResetEmail({
+      resetUrl,
+      text: {
+        preview: subject,
+        intro: t("passwordReset.intro"),
+        instruction: t("passwordReset.instruction"),
+        cta: t("passwordReset.cta"),
+        footer: t("passwordReset.footer"),
+      },
+    }),
     logContext: "[MAILER] Failed to send password reset email",
     fallbackErrorMessage: "Failed to send password reset email",
   });
@@ -131,15 +151,30 @@ export async function sendWelcomeSetPasswordEmail({
   to,
   name,
   resetUrl,
+  locale,
 }: {
   to: string;
   name?: string;
   resetUrl: string;
+  locale: AppLocale;
 }) {
+  const t = await emailTranslator(locale);
+  const subject = t("welcome.subject", { appName: project.name });
   return sendTransactionalEmail({
     to,
-    subject: `Witamy w ${project.name}`,
-    react: WelcomeSetPasswordEmail({ name, resetUrl }),
+    subject,
+    react: WelcomeSetPasswordEmail({
+      resetUrl,
+      text: {
+        preview: subject,
+        greeting: name
+          ? t("welcome.greeting", { name })
+          : t("welcome.greetingNoName"),
+        body: t("welcome.body", { appName: project.name }),
+        cta: t("welcome.cta"),
+        footer: t("welcome.footer"),
+      },
+    }),
     logContext: "[MAILER] Failed to send welcome/set-password email",
     fallbackErrorMessage: "Failed to send welcome email",
   });
@@ -150,19 +185,30 @@ export async function sendOrganizationInvitationEmail({
   organizationName,
   inviterName,
   acceptUrl,
+  locale,
 }: {
   to: string;
   organizationName: string;
   inviterName?: string;
   acceptUrl: string;
+  locale: AppLocale;
 }) {
+  const t = await emailTranslator(locale);
+  const subject = t("invitation.subject", { organizationName });
   return sendTransactionalEmail({
     to,
-    subject: `Zaproszenie do ${organizationName}`,
+    subject,
     react: OrganizationInvitationEmail({
-      organizationName,
-      inviterName,
       acceptUrl,
+      text: {
+        preview: subject,
+        greeting: t("invitation.greeting"),
+        body: inviterName
+          ? t("invitation.bodyWithInviter", { inviterName, organizationName })
+          : t("invitation.body", { organizationName }),
+        cta: t("invitation.cta"),
+        footer: t("invitation.footer"),
+      },
     }),
     logContext: "[MAILER] Failed to send organization invitation email",
     fallbackErrorMessage: "Failed to send organization invitation email",

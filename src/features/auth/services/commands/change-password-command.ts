@@ -2,7 +2,10 @@
 
 import { headers } from "next/headers";
 import { auth } from "@/shared/lib/auth";
-import { handleCommandError } from "@/shared/utils/error-handling";
+import {
+  handleCommandError,
+  translatedFailure,
+} from "@/shared/utils/error-handling";
 
 export async function changePasswordCommand(
   currentPassword: string,
@@ -14,7 +17,7 @@ export async function changePasswordCommand(
     });
 
     if (!session) {
-      return { success: false, error: "Sesja wygasła. Zaloguj się ponownie." };
+      return translatedFailure({ key: "sessionExpired" });
     }
 
     await auth.api.changePassword({
@@ -28,9 +31,6 @@ export async function changePasswordCommand(
 
     return { success: true };
   } catch (error) {
-    return handleCommandError(
-      error,
-      "Nie udało się zmienić hasła. Sprawdź aktualne hasło.",
-    );
+    return handleCommandError(error, { key: "changePasswordFailed" });
   }
 }

@@ -38,5 +38,12 @@
   "revoked-success": "Key revoked",
   "deleted-success": "Key deleted",
   "revoke-confirm": "Revoke key “{name}”? Applications using it will lose access.",
-  "delete-confirm": "Delete key “{name}”? This cannot be undone."
+  "delete-confirm": "Delete key “{name}”? This cannot be undone.",
+  "errors": {
+    "keyNotFound": "Key not found",
+    "keyLimitReached": "You've reached the limit of 10 active keys",
+    "createFailed": "Couldn't create the key",
+    "revokeFailed": "Couldn't revoke the key",
+    "deleteFailed": "Couldn't delete the key"
+  }
 }

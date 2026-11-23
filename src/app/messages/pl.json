@@ -19,13 +19,36 @@
     "columns-panel-title": "Widoczne kolumny",
     "columns-reset": "Domyślne",
     "search-placeholder": "Szukaj...",
-    "no-results": "Brak wyników"
+    "no-results": "Brak wyników",
+    "defaultOrganizationName": "{name} — organizacja",
+    "dataTable": {
+      "rowsPerPage": "Wierszy na stronę",
+      "previous": "Poprzednia",
+      "next": "Następna",
+      "noResults": "Brak wyników."
+    }
   },
   "errors": {
     "generic": "Wystąpił błąd. Spróbuj ponownie.",
     "connection": "Wystąpił błąd połączenia. Spróbuj ponownie.",
     "not-found": "Nie znaleziono strony.",
-    "forbidden": "Brak dostępu."
+    "forbidden": "Brak dostępu.",
+    "serviceModeConfirmationRequired": "Potwierdź zmianę w trybie serwisowym",
+    "noPermission": "Brak uprawnień",
+    "invalidData": "Nieprawidłowe dane",
+    "sessionExpired": "Sesja wygasła. Zaloguj się ponownie.",
+    "changePasswordFailed": "Nie udało się zmienić hasła. Sprawdź aktualne hasło.",
+    "userExists": "Użytkownik z tym adresem już istnieje",
+    "inviteFailed": "Nie udało się zaprosić użytkownika",
+    "impersonationLogFailed": "Nie udało się zapisać zdarzenia impersonacji",
+    "noOrganizationAccess": "Brak dostępu do organizacji",
+    "signupDisabled": "Rejestracja jest wyłączona",
+    "invitationInvalid": "Zaproszenie jest nieprawidłowe lub wygasło",
+    "superadminRoleOnlyBySuperadmin": "Rolę superadmin może nadać tylko superadmin",
+    "impersonationForbidden": "Brak uprawnień do podszycia się pod tego użytkownika",
+    "serviceAccountOnlyBySuperadmin": "Konto serwisowe może zmieniać tylko superadmin",
+    "accountForbidden": "Brak uprawnień do tego konta",
+    "orgManagementRequiresAdmin": "Zarządzanie organizacją wymaga roli administratora"
   },
   "sidebar": {
     "open-menu": "Otwórz menu",
@@ -42,5 +65,30 @@
     "dialog-description": "Zmieniasz dane organizacji {name} jako serwis Web Amigos.",
     "dialog-cancel": "Anuluj",
     "dialog-confirm": "Zmień"
+  },
+  "emails": {
+    "passwordReset": {
+      "subject": "Zresetuj hasło",
+      "intro": "Otrzymaliśmy prośbę o zresetowanie hasła do Twojego konta.",
+      "instruction": "Kliknij poniższy przycisk, aby ustawić nowe hasło:",
+      "cta": "Zresetuj hasło",
+      "footer": "Jeśli nie prosiłeś o reset hasła, zignoruj tę wiadomość. Link wygaśnie za 48 godzin."
+    },
+    "welcome": {
+      "subject": "Witamy w {appName}",
+      "greeting": "Cześć {name},",
+      "greetingNoName": "Cześć,",
+      "body": "Utworzono dla Ciebie konto w {appName}. Aby dokończyć zakładanie konta, ustaw swoje hasło:",
+      "cta": "Ustaw hasło",
+      "footer": "Jeśli nie spodziewałeś się tej wiadomości, zignoruj ją. Link jest ważny przez 48 godzin."
+    },
+    "invitation": {
+      "subject": "Zaproszenie do {organizationName}",
+      "greeting": "Cześć,",
+      "bodyWithInviter": "{inviterName} zaprasza Cię do organizacji {organizationName}.",
+      "body": "Zaproszono Cię do organizacji {organizationName}.",
+      "cta": "Przyjmij zaproszenie",
+      "footer": "Jeśli nie spodziewałeś się tej wiadomości, zignoruj ją."
+    }
   }
 }

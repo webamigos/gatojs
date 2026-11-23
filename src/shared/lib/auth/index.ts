@@ -18,6 +18,7 @@ import {
 import { getDefaultActiveOrganizationId } from "@/features/organizations/services/queries/default-organization-query";
 import { trackServiceModeEntry } from "@/features/organizations/services/service-mode-entry";
 import { env } from "@/env";
+import { localeFromHeaders } from "@/i18n/server-locale";
 import { prisma } from "@/shared/lib/prisma";
 import { createAdminRoles, assertAdminActionAllowed } from "./admin-access";
 import {
@@ -43,13 +44,18 @@ export const auth = betterAuth({
     enabled: true,
     autoSignIn: false,
     resetPasswordTokenExpiresIn: 60 * 60 * 48,
-    async sendResetPassword({ user, url }) {
+    async sendResetPassword({ user, url }, request) {
       const mailer = await import("@/shared/lib/mailer");
-      await mailer.sendPasswordResetEmail({ to: user.email, resetUrl: url });
+      await mailer.sendPasswordResetEmail({
+        to: user.email,
+        resetUrl: url,
+        locale: localeFromHeaders(request?.headers),
+      });
     },
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
+      const locale = localeFromHeaders(ctx.headers ?? ctx.request?.headers);
       if (isGuardedAdminPath(ctx.path)) {
         const session = await getAuthoritativeSessionFromCtx(ctx);
         if (!session && !ctx.request && !ctx.headers) {
@@ -61,23 +67,25 @@ export const auth = betterAuth({
           targetRole: await targetRoleOf(ctx.body),
           requestedRole: requestedRoleOf(ctx.body),
           adminImpersonation: env.ADMIN_IMPERSONATION,
+          locale,
         });
         return;
       }
       if (requiresGlobalAdminInSingleOrg(ctx.path, env.MULTI_ORG)) {
         const session = await getSessionFromCtx(ctx);
-        assertGlobalAdmin(session?.user.role);
+        assertGlobalAdmin(session?.user.role, locale);
         return;
       }
       if (ctx.path !== "/sign-up/email") {
         return;
       }
-      await enforceSignupPolicy(ctx.body, env.AUTH_PUBLIC_SIGNUP);
+      await enforceSignupPolicy(ctx.body, env.AUTH_PUBLIC_SIGNUP, locale);
       const signupMembership = await resolveSignupMembership({
         multiOrg: env.MULTI_ORG,
         invitationId: readBodyString(ctx.body, "invitationId") ?? null,
         userName: readBodyString(ctx.body, "name") ?? "",
         email: readBodyString(ctx.body, "email"),
+        locale,
       });
       return { context: { signupMembership } };
     }),
@@ -124,13 +132,14 @@ export const auth = betterAuth({
     }),
     organization({
       allowUserToCreateOrganization: async () => env.MULTI_ORG,
-      async sendInvitationEmail(data) {
+      async sendInvitationEmail(data, request) {
         const mailer = await import("@/shared/lib/mailer");
         await mailer.sendOrganizationInvitationEmail({
           to: data.email,
           organizationName: data.organization.name,
           inviterName: data.inviter.user.name,
           acceptUrl: `${env.APP_URL.replace(/\/$/, "")}/accept-invitation/${data.id}`,
+          locale: localeFromHeaders(request?.headers),
         });
       },
     }),

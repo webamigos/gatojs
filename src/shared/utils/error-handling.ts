@@ -1,8 +1,41 @@
+import { currentLocale } from "@/i18n/server-locale";
+import { getTranslator } from "@/i18n/server-translator";
+import type { TranslationValues } from "@/i18n/translator";
 import { logger } from "@/shared/lib/logger";
 import { OperationResult } from "@/shared/types/common";
 
+export type MessageDescriptor = {
+  key: string;
+  namespace?: string;
+  values?: TranslationValues;
+};
+
+const DEFAULT_NAMESPACE = "errors";
+
 export class DomainError extends Error {
   name = "DomainError";
+  readonly translation: MessageDescriptor | undefined;
+
+  constructor(message: string, translation?: MessageDescriptor) {
+    super(message);
+    this.translation = translation;
+  }
+}
+
+export async function translateMessage(
+  descriptor: MessageDescriptor,
+): Promise<string> {
+  const translate = await getTranslator(
+    await currentLocale(),
+    descriptor.namespace ?? DEFAULT_NAMESPACE,
+  );
+  return translate(descriptor.key, descriptor.values);
+}
+
+export async function translatedFailure(
+  descriptor: MessageDescriptor,
+): Promise<OperationResult<never>> {
+  return { success: false, error: await translateMessage(descriptor) };
 }
 
 function isNextRedirect(error: unknown): boolean {
@@ -15,20 +48,27 @@ function isNextRedirect(error: unknown): boolean {
   );
 }
 
-export function handleCommandError(
+async function resolveMessage(
+  message: string | MessageDescriptor,
+): Promise<string> {
+  return typeof message === "string" ? message : translateMessage(message);
+}
+
+export async function handleCommandError(
   error: unknown,
-  defaultMessage: string,
-): OperationResult<never> {
+  defaultMessage: string | MessageDescriptor,
+): Promise<OperationResult<never>> {
   if (isNextRedirect(error)) {
     throw error;
   }
+  const fallback = await resolveMessage(defaultMessage);
   if (error instanceof DomainError) {
-    logger.warn(defaultMessage, { err: error });
-    return { success: false, error: error.message };
+    logger.warn(fallback, { err: error });
+    const message = error.translation
+      ? await translateMessage(error.translation)
+      : error.message;
+    return { success: false, error: message };
   }
-  logger.error(defaultMessage, { err: error });
-  return {
-    success: false,
-    error: defaultMessage,
-  };
+  logger.error(fallback, { err: error });
+  return { success: false, error: fallback };
 }

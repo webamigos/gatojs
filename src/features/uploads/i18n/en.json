@@ -4,5 +4,9 @@
   "error-too-large": "File is too large",
   "error-unsupported-type": "Unsupported file type",
   "error-generic": "Could not upload the file",
-  "file-label": "Choose a file"
+  "file-label": "Choose a file",
+  "errors": {
+    "deleteFailed": "Couldn't delete the file",
+    "noDeletePermission": "You don't have permission to delete this file"
+  }
 }

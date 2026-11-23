@@ -4,5 +4,9 @@
   "error-too-large": "Plik jest za duży",
   "error-unsupported-type": "Nieobsługiwany typ pliku",
   "error-generic": "Nie udało się przesłać pliku",
-  "file-label": "Wybierz plik"
+  "file-label": "Wybierz plik",
+  "errors": {
+    "deleteFailed": "Nie udało się usunąć pliku",
+    "noDeletePermission": "Brak uprawnień do usunięcia pliku"
+  }
 }

@@ -16,7 +16,10 @@ import { generateApiKey, hashApiKey } from "../api-key-secret";
 const MODULE_KEY = "api-keys";
 const ACTIVE_KEY_LIMIT = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const KEY_NOT_FOUND = "Nie znaleziono klucza";
+const errorMessage = (key: string) => ({
+  key: `errors.${key}`,
+  namespace: MODULE_KEY,
+});
 
 async function findOrganizationKey(id: string, organizationId: string) {
   const key = await prisma.apiKey.findFirst({
@@ -24,7 +27,7 @@ async function findOrganizationKey(id: string, organizationId: string) {
     select: { name: true, displayPrefix: true, revokedAt: true },
   });
   if (key === null) {
-    throw new DomainError(KEY_NOT_FOUND);
+    throw new DomainError("API key not found", errorMessage("keyNotFound"));
   }
   return key;
 }
@@ -53,7 +56,10 @@ export async function createApiKeyCommand(
         },
       });
       if (activeKeys >= ACTIVE_KEY_LIMIT) {
-        throw new DomainError("Osiągnięto limit 10 aktywnych kluczy");
+        throw new DomainError(
+          "Active API key limit reached",
+          errorMessage("keyLimitReached"),
+        );
       }
       return tx.apiKey.create({
         data: {
@@ -77,7 +83,7 @@ export async function createApiKeyCommand(
     });
     return { success: true, data: { id: created.id, plaintext } };
   } catch (error) {
-    return handleCommandError(error, "Nie udało się utworzyć klucza");
+    return handleCommandError(error, errorMessage("createFailed"));
   }
 }
 
@@ -108,7 +114,7 @@ export async function revokeApiKeyCommand(
     }
     return { success: true };
   } catch (error) {
-    return handleCommandError(error, "Nie udało się unieważnić klucza");
+    return handleCommandError(error, errorMessage("revokeFailed"));
   }
 }
 
@@ -135,6 +141,6 @@ export async function deleteApiKeyCommand(
     }
     return { success: true };
   } catch (error) {
-    return handleCommandError(error, "Nie udało się usunąć klucza");
+    return handleCommandError(error, errorMessage("deleteFailed"));
   }
 }

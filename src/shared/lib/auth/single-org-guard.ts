@@ -1,4 +1,6 @@
 import { APIError } from "better-auth/api";
+import { defaultLocale, type AppLocale } from "@/i18n/config";
+import { getCoreTranslator } from "@/i18n/core-translator";
 import { isGlobalAdmin } from "./roles";
 
 const SINGLE_ORG_GLOBAL_ADMIN_PATHS: ReadonlySet<string> = new Set([
@@ -26,10 +28,16 @@ export function requiresGlobalAdminInSingleOrg(
   return !multiOrg && SINGLE_ORG_GLOBAL_ADMIN_PATHS.has(path);
 }
 
-export function assertGlobalAdmin(role: unknown): void {
+export function assertGlobalAdmin(
+  role: unknown,
+  locale: AppLocale = defaultLocale,
+): void {
   if (!isGlobalAdmin(role)) {
     throw new APIError("FORBIDDEN", {
-      message: "Zarządzanie organizacją wymaga roli administratora",
+      message: getCoreTranslator(
+        locale,
+        "errors",
+      )("orgManagementRequiresAdmin"),
     });
   }
 }

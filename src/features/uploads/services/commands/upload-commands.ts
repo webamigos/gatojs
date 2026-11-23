@@ -7,12 +7,23 @@ import { logger } from "@/shared/lib/logger";
 import { getOrgContext } from "@/shared/lib/auth/org-context";
 import { assertServiceModeConfirmed } from "@/shared/lib/auth/service-mode";
 import { isGlobalAdmin, ORG_ROLES } from "@/shared/lib/auth/roles";
-import { DomainError, handleCommandError } from "@/shared/utils/error-handling";
+import {
+  DomainError,
+  handleCommandError,
+  translatedFailure,
+} from "@/shared/utils/error-handling";
 import type { OperationResult } from "@/shared/types/common";
 import { deleteObject } from "../storage";
 
-const DELETE_FAILED = "Nie udało się usunąć pliku";
-const NO_PERMISSION = "Brak uprawnień do usunięcia pliku";
+const MODULE_NAMESPACE = "uploads";
+const DELETE_FAILED = {
+  key: "errors.deleteFailed",
+  namespace: MODULE_NAMESPACE,
+};
+const NO_PERMISSION = {
+  key: "errors.noDeletePermission",
+  namespace: MODULE_NAMESPACE,
+};
 
 const deleteUploadSchema = z.object({ id: z.uuid() });
 
@@ -25,13 +36,13 @@ export async function deleteUploadCommand(
     assertServiceModeConfirmed(context, confirmation);
     const parsed = deleteUploadSchema.safeParse(input);
     if (!parsed.success) {
-      return { success: false, error: DELETE_FAILED };
+      return translatedFailure(DELETE_FAILED);
     }
     const upload = await prisma.upload.findFirst({
       where: { id: parsed.data.id, organizationId: context.organizationId },
     });
     if (!upload) {
-      return { success: false, error: DELETE_FAILED };
+      return translatedFailure(DELETE_FAILED);
     }
     const allowed =
       upload.uploadedById === context.userId ||
@@ -39,7 +50,7 @@ export async function deleteUploadCommand(
       context.orgRole === ORG_ROLES.ADMIN ||
       isGlobalAdmin(context.userRole);
     if (!allowed) {
-      throw new DomainError(NO_PERMISSION);
+      throw new DomainError("No permission to delete the file", NO_PERMISSION);
     }
     await deleteObject(upload.key).catch((error: unknown) => {
       logger.error("upload deleteObject failed", {

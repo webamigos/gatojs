@@ -38,5 +38,12 @@
   "revoked-success": "Klucz unieważniony",
   "deleted-success": "Klucz usunięty",
   "revoke-confirm": "Unieważnić klucz „{name}”? Aplikacje używające go stracą dostęp.",
-  "delete-confirm": "Usunąć klucz „{name}”? Tej operacji nie można cofnąć."
+  "delete-confirm": "Usunąć klucz „{name}”? Tej operacji nie można cofnąć.",
+  "errors": {
+    "keyNotFound": "Nie znaleziono klucza",
+    "keyLimitReached": "Osiągnięto limit 10 aktywnych kluczy",
+    "createFailed": "Nie udało się utworzyć klucza",
+    "revokeFailed": "Nie udało się unieważnić klucza",
+    "deleteFailed": "Nie udało się usunąć klucza"
+  }
 }

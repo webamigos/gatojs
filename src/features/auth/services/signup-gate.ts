@@ -1,3 +1,4 @@
+import { defaultLocale, type AppLocale } from "@/i18n/config";
 import { prisma } from "@/shared/lib/prisma";
 import { assertSignupAllowed } from "./signup-policy";
 
@@ -30,9 +31,11 @@ async function hasPendingInvitation(body: unknown): Promise<boolean> {
 export async function enforceSignupPolicy(
   body: unknown,
   publicSignup: boolean,
+  locale: AppLocale = defaultLocale,
 ): Promise<void> {
   assertSignupAllowed({
     publicSignup,
     hasInvitation: publicSignup ? false : await hasPendingInvitation(body),
+    locale,
   });
 }

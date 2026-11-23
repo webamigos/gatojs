@@ -25,10 +25,7 @@ async function logImpersonationEvent(
     });
     return { success: true };
   } catch (error) {
-    return handleCommandError(
-      error,
-      "Nie udało się zapisać zdarzenia impersonacji",
-    );
+    return handleCommandError(error, { key: "impersonationLogFailed" });
   }
 }
 

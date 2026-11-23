@@ -9,7 +9,11 @@ import { getAdminUserOrNull } from "@/shared/lib/auth/helpers";
 import { getOrgContext } from "@/shared/lib/auth/org-context";
 import { assertServiceModeConfirmed } from "@/shared/lib/auth/service-mode";
 import { logger } from "@/shared/lib/logger";
-import { handleCommandError } from "@/shared/utils/error-handling";
+import {
+  handleCommandError,
+  translatedFailure,
+} from "@/shared/utils/error-handling";
+import { currentLocale } from "@/i18n/server-locale";
 import { createWelcomeSetPasswordUrl } from "@/shared/lib/auth/welcome-set-password";
 import { sendWelcomeSetPasswordEmail } from "@/shared/lib/mailer";
 import { inviteUserSchema } from "../../contracts/user-account.schemas";
@@ -26,15 +30,15 @@ export async function inviteUserCommand(
   try {
     const admin = await getAdminUserOrNull();
     if (!admin) {
-      return { success: false, error: "Brak uprawnień" };
+      return translatedFailure({ key: "noPermission" });
     }
 
     const parsed = inviteUserSchema.safeParse(input);
     if (!parsed.success) {
-      return {
-        success: false,
-        error: parsed.error.issues[0]?.message ?? "Nieprawidłowe dane",
-      };
+      const issue = parsed.error.issues[0]?.message;
+      return issue
+        ? { success: false, error: issue }
+        : translatedFailure({ key: "invalidData" });
     }
     const { name, email, role } = parsed.data;
 
@@ -46,10 +50,7 @@ export async function inviteUserCommand(
       select: { id: true },
     });
     if (existing) {
-      return {
-        success: false,
-        error: "Użytkownik z tym adresem już istnieje",
-      };
+      return translatedFailure({ key: "userExists" });
     }
 
     const invitation = await prisma.invitation.create({
@@ -84,7 +85,7 @@ export async function inviteUserCommand(
       ? { success: true, data: { userId } }
       : { success: true, data: { userId }, warning: "mail-failed" };
   } catch (error) {
-    return handleCommandError(error, "Nie udało się zaprosić użytkownika");
+    return handleCommandError(error, { key: "inviteFailed" });
   }
 }
 
@@ -141,6 +142,7 @@ async function sendWelcomeEmailBestEffort(recipient: {
       to: recipient.email,
       name: recipient.name,
       resetUrl,
+      locale: await currentLocale(),
     });
     if ("error" in delivery) {
       logger.error("[USERS] Welcome set-password email not delivered", {

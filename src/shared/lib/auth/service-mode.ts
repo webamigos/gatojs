@@ -1,3 +1,5 @@
+import { defaultLocale } from "@/i18n/config";
+import { getCoreTranslator } from "@/i18n/core-translator";
 import { DomainError } from "@/shared/utils/error-handling";
 import type { OrgContext } from "./org-context";
 
@@ -6,9 +8,13 @@ export type ServiceModeConfirmation = {
   organizationId: string;
 };
 
+const SERVICE_MODE_KEY = "serviceModeConfirmationRequired";
+
 export class ServiceModeConfirmationError extends DomainError {
   constructor() {
-    super("Potwierdź zmianę w trybie serwisowym");
+    super(getCoreTranslator(defaultLocale, "errors")(SERVICE_MODE_KEY), {
+      key: SERVICE_MODE_KEY,
+    });
     this.name = "ServiceModeConfirmationError";
   }
 }

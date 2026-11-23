@@ -1,4 +1,6 @@
 import { APIError } from "better-auth/api";
+import { defaultLocale, type AppLocale } from "@/i18n/config";
+import { getCoreTranslator } from "@/i18n/core-translator";
 import { prisma } from "@/shared/lib/prisma";
 import { ORG_ROLES, toOrgRole, type OrgRole } from "@/shared/lib/auth/roles";
 import { joinOrganizationCommand } from "./commands/member-commands";
@@ -21,20 +23,22 @@ export interface ResolveSignupMembershipInput {
   invitationId: string | null;
   userName: string;
   email?: string;
+  locale?: AppLocale;
 }
 
-function invalidInvitation(): APIError {
+function invalidInvitation(locale: AppLocale): APIError {
   return new APIError("FORBIDDEN", {
-    message: "Zaproszenie jest nieprawidłowe lub wygasło",
+    message: getCoreTranslator(locale, "errors")("invitationInvalid"),
   });
 }
 
 async function resolveInvitation(
   invitationId: string,
   email: string | undefined,
+  locale: AppLocale,
 ): Promise<SignupMembership> {
   if (!email) {
-    throw invalidInvitation();
+    throw invalidInvitation(locale);
   }
   const invitation = await prisma.invitation.findFirst({
     where: {
@@ -46,7 +50,7 @@ async function resolveInvitation(
     select: { id: true, organizationId: true, role: true },
   });
   if (!invitation) {
-    throw invalidInvitation();
+    throw invalidInvitation(locale);
   }
   return {
     action: "join",
@@ -59,13 +63,17 @@ async function resolveInvitation(
 export async function resolveSignupMembership(
   input: ResolveSignupMembershipInput,
 ): Promise<SignupMembership> {
+  const locale = input.locale ?? defaultLocale;
   if (input.invitationId) {
-    return resolveInvitation(input.invitationId, input.email);
+    return resolveInvitation(input.invitationId, input.email, locale);
   }
   if (input.multiOrg) {
     return {
       action: "create",
-      organizationName: `${input.userName} — organizacja`,
+      organizationName: getCoreTranslator(locale, "common")(
+        "defaultOrganizationName",
+        { name: input.userName },
+      ),
       role: ORG_ROLES.OWNER,
     };
   }

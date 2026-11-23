@@ -1,30 +1,37 @@
 import { Button, Hr, Text } from "@react-email/components";
 import { EmailLayout } from "./components/email-layout";
 
-interface PasswordResetEmailProps {
-  resetUrl: string;
+export interface PasswordResetEmailText {
+  preview: string;
+  intro: string;
+  instruction: string;
+  cta: string;
+  footer: string;
 }
 
-export function PasswordResetEmail({ resetUrl }: PasswordResetEmailProps) {
+interface PasswordResetEmailProps {
+  resetUrl: string;
+  text: PasswordResetEmailText;
+}
+
+export function PasswordResetEmail({
+  resetUrl,
+  text,
+}: PasswordResetEmailProps) {
   return (
-    <EmailLayout preview="Zresetuj hasło">
+    <EmailLayout preview={text.preview}>
+      <Text className="text-base leading-6 text-[#525f7f]">{text.intro}</Text>
       <Text className="text-base leading-6 text-[#525f7f]">
-        Otrzymaliśmy prośbę o zresetowanie hasła do Twojego konta.
-      </Text>
-      <Text className="text-base leading-6 text-[#525f7f]">
-        Kliknij poniższy przycisk, aby ustawić nowe hasło:
+        {text.instruction}
       </Text>
       <Button
         className="block w-full rounded-[5px] bg-[#1a1a2e] px-2.5 py-2.5 text-center text-base font-bold text-white no-underline"
         href={resetUrl}
       >
-        Zresetuj hasło
+        {text.cta}
       </Button>
       <Hr className="my-5 border-[#e6ebf1]" />
-      <Text className="text-sm leading-5 text-[#8898aa]">
-        Jeśli nie prosiłeś o reset hasła, zignoruj tę wiadomość. Link wygaśnie
-        za 48 godzin.
-      </Text>
+      <Text className="text-sm leading-5 text-[#8898aa]">{text.footer}</Text>
     </EmailLayout>
   );
 }

@@ -24,6 +24,7 @@ import {
   VisibilityState,
 } from "@tanstack/react-table";
 import { Fragment, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   ChevronDown,
   ChevronLeft,
@@ -81,10 +82,14 @@ export function DataTablePagination({
   onPageChange,
   onPageSizeChange,
   resultsLabel = (from, to, tot) => `${from}–${to} z ${tot}`,
-  pageSizeLabel = "Wierszy na stronę",
-  previousLabel = "Poprzednia",
-  nextLabel = "Następna",
+  pageSizeLabel,
+  previousLabel,
+  nextLabel,
 }: DataTablePaginationProps) {
+  const t = useTranslations("common.dataTable");
+  const pageSizeText = pageSizeLabel ?? t("rowsPerPage");
+  const previousText = previousLabel ?? t("previous");
+  const nextText = nextLabel ?? t("next");
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <span className="text-sm text-muted-foreground">
@@ -96,13 +101,13 @@ export function DataTablePagination({
       </span>
       <div className="flex flex-wrap items-center gap-2">
         <span className="hidden text-sm text-muted-foreground sm:inline">
-          {pageSizeLabel}
+          {pageSizeText}
         </span>
         <Select
           value={String(pageSize)}
           onValueChange={(v) => onPageSizeChange(Number(v))}
         >
-          <SelectTrigger size="sm" aria-label={pageSizeLabel}>
+          <SelectTrigger size="sm" aria-label={pageSizeText}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -116,21 +121,21 @@ export function DataTablePagination({
         <Button
           variant="outline"
           size="sm"
-          aria-label={previousLabel}
+          aria-label={previousText}
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
         >
           <ChevronLeft className="size-4" aria-hidden="true" />
-          <span className="hidden sm:inline">{previousLabel}</span>
+          <span className="hidden sm:inline">{previousText}</span>
         </Button>
         <Button
           variant="outline"
           size="sm"
-          aria-label={nextLabel}
+          aria-label={nextText}
           disabled={page >= Math.ceil(total / pageSize)}
           onClick={() => onPageChange(page + 1)}
         >
-          <span className="hidden sm:inline">{nextLabel}</span>
+          <span className="hidden sm:inline">{nextText}</span>
           <ChevronRight className="size-4" aria-hidden="true" />
         </Button>
       </div>
@@ -183,11 +188,11 @@ export function DataTable<TData>({
   pagination,
   enableSorting = true,
   enableMultiSort = true,
-  emptyMessage = "Brak wyników.",
+  emptyMessage,
   resultsLabel = (from, to, total) => `${from}–${to} z ${total}`,
-  pageSizeLabel = "Wierszy na stronę",
-  previousLabel = "Poprzednia",
-  nextLabel = "Następna",
+  pageSizeLabel,
+  previousLabel,
+  nextLabel,
   renderSubRow,
   onRowClick,
   sorting,
@@ -196,6 +201,7 @@ export function DataTable<TData>({
   columnVisibility: controlledColumnVisibility,
   onColumnVisibilityChange: controlledOnColumnVisibilityChange,
 }: DataTableProps<TData>) {
+  const t = useTranslations("common.dataTable");
   const [localSorting, setLocalSorting] = useState<SortingState>([]);
   const [expanded, setExpanded] = useState<ExpandedState>({});
   const [localColumnVisibility, setLocalColumnVisibility] =
@@ -357,7 +363,7 @@ export function DataTable<TData>({
                   colSpan={columns.length}
                   className="h-24 text-center text-muted-foreground"
                 >
-                  {emptyMessage}
+                  {emptyMessage ?? t("noResults")}
                 </TableCell>
               </TableRow>
             ) : (

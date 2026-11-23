@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { defaultLocale, type AppLocale } from "@/i18n/config";
+import { getCoreTranslator } from "@/i18n/core-translator";
 import { prisma } from "@/shared/lib/prisma";
 import { auditActor, trackAudit } from "@/shared/lib/audit";
 import { logger } from "@/shared/lib/logger";
@@ -35,6 +37,7 @@ function failure(
 
 export async function createUpload(
   formData: FormData,
+  locale: AppLocale = defaultLocale,
 ): Promise<CreateUploadResult> {
   const contextResult = await readOrgContextForApi();
   if (!contextResult.ok) {
@@ -45,7 +48,10 @@ export async function createUpload(
     assertServiceModeConfirmed(context, readConfirmation(formData));
   } catch (error) {
     if (error instanceof ServiceModeConfirmationError) {
-      return failure(403, error.message);
+      return failure(
+        403,
+        getCoreTranslator(locale, "errors")("serviceModeConfirmationRequired"),
+      );
     }
     throw error;
   }

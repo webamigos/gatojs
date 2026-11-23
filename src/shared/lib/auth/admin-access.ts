@@ -1,6 +1,8 @@
 import { APIError } from "better-auth/api";
 import { createAccessControl } from "better-auth/plugins/access";
 import { defaultStatements } from "better-auth/plugins/admin/access";
+import { defaultLocale, type AppLocale } from "@/i18n/config";
+import { getCoreTranslator } from "@/i18n/core-translator";
 import { canImpersonate } from "./impersonation-policy";
 import { USER_ROLES, type UserRole } from "./roles";
 
@@ -52,8 +54,10 @@ export function createAdminRoles(options: { adminImpersonation: boolean }) {
   };
 }
 
-function forbidden(message: string): never {
-  throw new APIError("FORBIDDEN", { message });
+function forbidden(locale: AppLocale, key: string): never {
+  throw new APIError("FORBIDDEN", {
+    message: getCoreTranslator(locale, "errors")(key),
+  });
 }
 
 export function assertAdminActionAllowed(input: {
@@ -62,10 +66,12 @@ export function assertAdminActionAllowed(input: {
   targetRole: UserRole | null;
   requestedRole: string | null;
   adminImpersonation: boolean;
+  locale?: AppLocale;
 }): void {
+  const locale = input.locale ?? defaultLocale;
   const actorIsSuperadmin = input.actorRole === USER_ROLES.SUPERADMIN;
   if (!actorIsSuperadmin && input.requestedRole === USER_ROLES.SUPERADMIN) {
-    forbidden("Rolę superadmin może nadać tylko superadmin");
+    forbidden(locale, "superadminRoleOnlyBySuperadmin");
   }
   if (input.path === IMPERSONATE_PATH) {
     if (
@@ -76,7 +82,7 @@ export function assertAdminActionAllowed(input: {
         adminImpersonation: input.adminImpersonation,
       })
     ) {
-      forbidden("Brak uprawnień do podszycia się pod tego użytkownika");
+      forbidden(locale, "impersonationForbidden");
     }
     return;
   }
@@ -84,9 +90,9 @@ export function assertAdminActionAllowed(input: {
     return;
   }
   if (input.targetRole === USER_ROLES.SUPERADMIN) {
-    forbidden("Konto serwisowe może zmieniać tylko superadmin");
+    forbidden(locale, "serviceAccountOnlyBySuperadmin");
   }
   if (input.targetRole === null && ADMIN_TARGET_PATHS.includes(input.path)) {
-    forbidden("Brak uprawnień do tego konta");
+    forbidden(locale, "accountForbidden");
   }
 }

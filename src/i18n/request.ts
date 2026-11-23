@@ -1,27 +1,13 @@
 import { getRequestConfig } from "next-intl/server";
-import { moduleMessages } from "@/modules.generated";
-import { mergeMessages } from "./merge-messages";
-import { routing } from "./routing";
+import { defaultLocale, isAppLocale } from "./config";
+import { loadMessages } from "./load-messages";
 
 export default getRequestConfig(async ({ requestLocale }) => {
   const requested = await requestLocale;
-
-  const locale =
-    requested &&
-    routing.locales.includes(requested as (typeof routing.locales)[number])
-      ? (requested as (typeof routing.locales)[number])
-      : routing.defaultLocale;
-
-  const core = (await import(`@/app/messages/${locale}.json`)).default;
-  const modules = await Promise.all(
-    moduleMessages[locale].map(async ({ key, load }) => ({
-      key,
-      messages: await load(),
-    })),
-  );
+  const locale = isAppLocale(requested) ? requested : defaultLocale;
 
   return {
     locale,
-    messages: mergeMessages(core, modules),
+    messages: await loadMessages(locale),
   };
 });
