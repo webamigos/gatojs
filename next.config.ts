@@ -7,7 +7,7 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 const nextConfig: NextConfig = {
   output: "standalone",
   agentRules: false,
-  transpilePackages: ["@gatojs/env"],
+  transpilePackages: ["@gatojs/env", "@gatojs/observability"],
   async headers() {
     return [{ source: "/(.*)", headers: [...securityHeaders] }];
   },
