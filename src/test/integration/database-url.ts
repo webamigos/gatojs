@@ -15,7 +15,7 @@ export function assertTestDatabase(databaseUrl: string): string {
   );
   if (!name.endsWith(TEST_DATABASE_SUFFIX)) {
     throw new Error(
-      `Testy integracyjne czyszczą bazę, więc jej nazwa musi kończyć się na ${TEST_DATABASE_SUFFIX} (jest: "${name}")`,
+      `Integration tests wipe the database, so its name must end with ${TEST_DATABASE_SUFFIX} (got: "${name}")`,
     );
   }
   return name;

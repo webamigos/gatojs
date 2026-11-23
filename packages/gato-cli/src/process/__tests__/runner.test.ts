@@ -27,7 +27,7 @@ describe("spawnRunner", () => {
   it("kod różny od 0 zgłasza polecenie z argumentami i kodem", async () => {
     await expect(
       spawnRunner("node", ["-e", "process.exit(3)"], cwd),
-    ).rejects.toThrow("node -e process.exit(3) zakończone kodem 3");
+    ).rejects.toThrow("node -e process.exit(3) exited with code 3");
   });
 
   it("nieistniejące polecenie odrzuca obietnicę", async () => {

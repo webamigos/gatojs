@@ -31,7 +31,7 @@ function selectManifests(
   return [...new Set(modules)].sort(compareModuleNames).map((name) => {
     const manifest = byName.get(name);
     if (!manifest) {
-      throw new Error(`Moduł ${name} nie istnieje w wa-kit ${version}`);
+      throw new Error(`Module ${name} does not exist in GatoJS ${version}`);
     }
     return manifest;
   });

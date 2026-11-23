@@ -60,7 +60,8 @@ type Answers = {
 };
 
 const DEFAULT_LOCALES = "pl,en";
-const SETUP_QUESTION = "Uruchomić bazę, migrację i admin:create teraz? [t/N]";
+const SETUP_QUESTION =
+  "Start the database, run migrations and admin:create now? [y/N]";
 
 async function isNonEmptyDirectory(dir: string): Promise<boolean> {
   if (!existsSync(dir)) {
@@ -92,21 +93,21 @@ async function collectAnswers(
   let modules = options.modules ?? [];
   const choices = moduleChoices(manifests);
   if (options.modules === null && !yes && choices.length > 0) {
-    modules = await prompter.select("Moduły", choices);
+    modules = await prompter.select("Modules", choices);
   }
   let locales = options.locales ?? parseLocales(DEFAULT_LOCALES);
   if (options.locales === null && !yes) {
     locales = parseLocales(
-      (await prompter.select("Języki", LOCALE_CHOICES)).join(","),
+      (await prompter.select("Languages", LOCALE_CHOICES)).join(","),
     );
   }
   let title = options.title;
   if (title === null && !yes) {
-    title = await prompter.ask("Nazwa wyświetlana", names.name);
+    title = await prompter.ask("Display name", names.name);
   }
   let adminEmail = options.adminEmail;
   if (adminEmail === null && !yes) {
-    const answer = await prompter.ask("Email admina (puste = pomiń)", "");
+    const answer = await prompter.ask("Admin email (empty = skip)", "");
     adminEmail = answer === "" ? null : answer;
   }
   let setup = options.setup;
@@ -219,14 +220,14 @@ async function commitInitial(
         "-q",
         "--no-verify",
         "-m",
-        `chore: initial commit from wa-kit v${version}`,
+        `chore: initial commit from GatoJS v${version}`,
       ],
       projectDir,
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log(
-      `Uwaga: nie utworzono commita (${message}). Skonfiguruj git i zrób commit ręcznie.`,
+      `Warning: no commit created (${message}). Configure git and commit by hand.`,
     );
   }
 }
@@ -302,7 +303,7 @@ export async function create(
   const names = projectNames(projectDir, options.title);
   const existed = existsSync(projectDir);
   if (await isNonEmptyDirectory(projectDir)) {
-    throw new Error(`Katalog ${projectDir} istnieje i nie jest pusty`);
+    throw new Error(`Directory ${projectDir} exists and is not empty`);
   }
   assertKitDir(options.kitDir);
   const config = await readKitConfig(options.kitDir);
@@ -313,7 +314,7 @@ export async function create(
   const finalNames = projectNames(projectDir, answers.title);
 
   if (await isNonEmptyDirectory(projectDir)) {
-    throw new Error(`Katalog ${projectDir} istnieje i nie jest pusty`);
+    throw new Error(`Directory ${projectDir} exists and is not empty`);
   }
   await mkdir(projectDir, { recursive: true });
   try {
@@ -339,7 +340,7 @@ export async function create(
       await options.runner("npm", ["install"], projectDir);
     } catch {
       throw new Error(
-        `Projekt utworzony w ${projectDir}, ale npm install się nie powiódł. Uruchom: cd ${projectDir} && npm install`,
+        `Project created at ${projectDir}, but npm install failed. Run: cd ${projectDir} && npm install`,
       );
     }
   }

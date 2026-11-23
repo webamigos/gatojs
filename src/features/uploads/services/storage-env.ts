@@ -61,7 +61,7 @@ function resolveLocalEnv(source: EnvSource, cwd: string): StorageEnvResult {
     if (onRailway && !volume) {
       return invalid(
         "STORAGE_PROVIDER",
-        "na Railway bez wolumenu pliki zginą przy redeployu: podepnij wolumen albo ustaw STORAGE_PROVIDER=s3",
+        "on Railway without a volume, files are lost on redeploy: attach a volume or set STORAGE_PROVIDER=s3",
       );
     }
     if (
@@ -72,19 +72,19 @@ function resolveLocalEnv(source: EnvSource, cwd: string): StorageEnvResult {
     ) {
       return invalid(
         "STORAGE_LOCAL_PATH",
-        `musi leżeć wewnątrz wolumenu Railway (${volume})`,
+        `must be inside the Railway volume (${volume})`,
       );
     }
     if (!onRailway && !explicit) {
       return invalid(
         "STORAGE_LOCAL_PATH",
-        "wymagana w produkcji przy STORAGE_PROVIDER=local: wskaż trwały katalog",
+        "required in production with STORAGE_PROVIDER=local: point it at a persistent directory",
       );
     }
     if (!onRailway && explicit && !path.isAbsolute(explicit)) {
       return invalid(
         "STORAGE_LOCAL_PATH",
-        "w produkcji poza Railway musi być ścieżką bezwzględną: wskaż trwały katalog",
+        "must be an absolute path in production outside Railway: point it at a persistent directory",
       );
     }
   }
@@ -112,5 +112,5 @@ export function resolveStorageEnv(
   if (provider === "s3") {
     return resolveS3Env(source);
   }
-  return invalid("STORAGE_PROVIDER", "dozwolone wartości: local, s3");
+  return invalid("STORAGE_PROVIDER", "allowed values: local, s3");
 }

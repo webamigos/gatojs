@@ -74,18 +74,18 @@ describe("projectNames", () => {
     "ab c",
   ])("nazwa %j odrzucona", (bad) => {
     expect(() => projectNames(bad, null)).toThrow(
-      "dozwolone małe litery, cyfry i myślniki, pierwsza litera, 2–50 znaków",
+      "use lowercase letters, digits and hyphens, start with a letter, 2–50 characters",
     );
   });
 
   it("komunikat zawiera odrzucony slug", () => {
     expect(() => projectNames("/tmp/Moja", null)).toThrow(
-      'Nazwa projektu "Moja": dozwolone małe litery, cyfry i myślniki, pierwsza litera, 2–50 znaków',
+      'Project name "Moja": use lowercase letters, digits and hyphens, start with a letter, 2–50 characters',
     );
   });
 
   it("slug z koncowa nowa linia jest odrzucony", () => {
-    expect(() => projectNames("ab\n", null)).toThrow("dozwolone małe litery");
+    expect(() => projectNames("ab\n", null)).toThrow("use lowercase letters");
   });
 
   test.prop([slugArbitrary])(

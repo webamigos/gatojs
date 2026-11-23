@@ -34,10 +34,10 @@ const localesSchema = z
   .array(z.enum(["pl", "en"]))
   .min(1)
   .refine((locales) => locales.includes("pl"), {
-    message: 'locales musi zawierać "pl"',
+    message: 'locales must include "pl"',
   })
   .refine((locales) => new Set(locales).size === locales.length, {
-    message: "locales nie może zawierać duplikatów",
+    message: "locales must not contain duplicates",
   });
 
 export const kitStateSchema = z.object({

@@ -131,7 +131,7 @@ export function checkMutationGate(
 ): GateResult {
   const violations: string[] = config.allowed
     .filter((entry) => entry.reason.trim() === "")
-    .map((entry) => `${describeAllowed(entry)}: brak uzasadnienia`);
+    .map((entry) => `${describeAllowed(entry)}: missing reason`);
   const usedEntries = new Set<AllowedMutant>();
 
   for (const [file, { source, mutants }] of Object.entries(report.files)) {

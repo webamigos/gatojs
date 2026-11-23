@@ -40,7 +40,7 @@ async function cloneKit(input: {
     );
   } catch (error) {
     throw new Error(
-      `Nie udało się pobrać wa-kit v${input.version} z ${input.source}. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`,
+      `Could not fetch GatoJS v${input.version} from ${input.source}. Check access (gh auth status) or pass --kit <path>`,
       { cause: error },
     );
   }
@@ -58,7 +58,7 @@ export async function cloneKitVersion(input: {
   const config = await readKitConfig(target);
   if (config.version !== input.version) {
     throw new Error(
-      `Kit w ${target} ma wersję ${config.version}, oczekiwano ${input.version}`,
+      `Kit in ${target} has version ${config.version}, expected ${input.version}`,
     );
   }
   return target;
@@ -74,7 +74,7 @@ export function kitSourceLocation(input: {
     source.startsWith("-") ||
     (!isRemote(source) && looksLikeTransport(source))
   ) {
-    throw new Error(`Nieprawidłowe źródło wa-kit: ${source}`);
+    throw new Error(`Invalid kit source: ${source}`);
   }
   return isRemote(source) ? source : resolve(source);
 }
@@ -101,7 +101,7 @@ export async function resolveKitSource(input: {
   const config = await readKitConfig(source);
   if (config.version !== state.kitVersion) {
     throw new Error(
-      `Kit w ${source} ma wersję ${config.version}, projekt używa ${state.kitVersion}`,
+      `Kit in ${source} has version ${config.version}, the project uses ${state.kitVersion}`,
     );
   }
   return source;

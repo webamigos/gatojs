@@ -24,7 +24,7 @@ const S3_MINIO_ENV = {
 };
 
 const RAILWAY_WITHOUT_VOLUME =
-  "na Railway bez wolumenu pliki zginą przy redeployu: podepnij wolumen albo ustaw STORAGE_PROVIDER=s3";
+  "on Railway without a volume, files are lost on redeploy: attach a volume or set STORAGE_PROVIDER=s3";
 
 const anyText = fc.option(fc.string(), { nil: undefined });
 
@@ -127,7 +127,7 @@ describe("envSchema uploads: provider local", () => {
       {
         code: "custom",
         path: ["STORAGE_PROVIDER"],
-        message: "dozwolone wartości: local, s3",
+        message: "allowed values: local, s3",
       },
     ]);
   });

@@ -48,7 +48,7 @@ describe("readKitConfig", () => {
 
   it("brak kit/kit.json zglasza katalog i to, ze to nie repozytorium wa-kit", async () => {
     await expect(readKitConfig(tmp)).rejects.toThrow(
-      `Brak kit/kit.json w ${tmp} — to nie jest repozytorium wa-kit`,
+      `No kit/kit.json in ${tmp} — this is not a GatoJS repository`,
     );
   });
 
@@ -79,7 +79,7 @@ describe("readKitConfig", () => {
       (e: Error) => e,
     );
     expect(error?.message).toContain("EISDIR");
-    expect(error?.message).not.toContain("Brak kit/kit.json");
+    expect(error?.message).not.toContain("No kit/kit.json");
   });
 
   it("niepoprawny typ wersji odrzucony przez kitConfigSchema", () => {
@@ -143,7 +143,7 @@ describe("readKitManifests", () => {
 
   it("name rozne od nazwy pliku zglasza blad z nazwa pliku", async () => {
     await expect(readKitManifests(badKit)).rejects.toThrow(
-      'kit/modules/demo.json: name "inny" nie zgadza się z nazwą pliku',
+      'kit/modules/demo.json: name "inny" does not match the file name',
     );
   });
 });

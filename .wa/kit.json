@@ -1,5 +1,5 @@
 {
-  "kitVersion": "0.8.1",
+  "kitVersion": "0.8.2",
   "kitRepo": "https://github.com/webamigos/gatojs.git",
   "project": {
     "name": "WA App",
@@ -50,10 +50,10 @@
       "files": {}
     },
     "audit-logs": {
-      "version": "0.1.3",
+      "version": "0.1.2",
       "manifest": {
         "name": "audit-logs",
-        "version": "0.1.3",
+        "version": "0.1.2",
         "description": "Organization audit log: AuditLog model, sink and redaction of sensitive data",
         "requires": [],
         "files": [
@@ -257,11 +257,11 @@
       "files": {}
     },
     "uploads": {
-      "version": "0.2.7",
+      "version": "0.2.6",
       "manifest": {
         "name": "uploads",
-        "version": "0.2.7",
-        "description": "Organization files on local disk or in S3 storage",
+        "version": "0.2.6",
+        "description": "Organization files on disk or in S3 storage",
         "requires": [],
         "files": [
           "prisma/schema/uploads.prisma",

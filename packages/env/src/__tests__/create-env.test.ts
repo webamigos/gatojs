@@ -61,7 +61,7 @@ describe("createEnv", () => {
     const env = createEnv([]);
 
     expect(() => env.DATABASE_URL).toThrow(
-      /^Nieprawidłowe zmienne środowiskowe: DATABASE_URL: /,
+      /^Invalid environment variables: DATABASE_URL: /,
     );
   });
 
@@ -118,7 +118,7 @@ describe("createEnv", () => {
     const env = createEnv([demoTokenSchema]);
 
     expect(() => env.DATABASE_URL).toThrow(
-      /^Nieprawidłowe zmienne środowiskowe: DEMO_TOKEN: /,
+      /^Invalid environment variables: DEMO_TOKEN: /,
     );
   });
 
@@ -134,7 +134,7 @@ describe("createEnv", () => {
     const env = createEnv([demoTokenSchema]);
 
     expect(() => env.MULTI_ORG).toThrow(
-      /^Nieprawidłowe zmienne środowiskowe: (DATABASE_URL: .+; DEMO_TOKEN: .+|DEMO_TOKEN: .+; DATABASE_URL: .+)$/,
+      /^Invalid environment variables: (DATABASE_URL: .+; DEMO_TOKEN: .+|DEMO_TOKEN: .+; DATABASE_URL: .+)$/,
     );
   });
 });

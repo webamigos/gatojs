@@ -124,7 +124,7 @@ async function rollbackAdd(input: {
       await step.run();
     } catch (error) {
       const { code, message } = error as NodeJS.ErrnoException;
-      log(`Nie udało się posprzątać: ${step.path} (${code ?? message})`);
+      log(`Could not clean up: ${step.path} (${code ?? message})`);
     }
   }
 }
@@ -133,11 +133,11 @@ export async function add(options: AddOptions): Promise<{ added: string[] }> {
   const { projectDir, module, kitDir, runner, log } = options;
   const state = await readKitState(projectDir);
   if (module in state.modules) {
-    throw new Error(`Moduł ${module} jest już zainstalowany`);
+    throw new Error(`Module ${module} is already installed`);
   }
   if (module in state.projectModules) {
     throw new Error(
-      `Moduł ${module} jest modułem projektu; zmień jego nazwę albo usuń wpis z projectModules`,
+      `Module ${module} is a project module; rename it or remove its projectModules entry`,
     );
   }
   const config = await readKitConfig(kitDir);
@@ -159,7 +159,7 @@ export async function add(options: AddOptions): Promise<{ added: string[] }> {
     .sort(compareCodePoint);
   if (collisions.length > 0) {
     throw new Error(
-      `Pliki już istnieją, przerwano bez zmian:\n${collisions
+      `Files already exist; stopped without changes:\n${collisions
         .map((file) => `  ${file}`)
         .join("\n")}`,
     );
@@ -196,7 +196,7 @@ export async function add(options: AddOptions): Promise<{ added: string[] }> {
       };
       for (const conflict of dependencyConflicts(packageJson, manifest)) {
         log(
-          `Uwaga: ${conflict.name} (${conflict.section}) ma w projekcie ${conflict.project}, moduł ${manifest.name} wymaga ${conflict.module}; zostaje wersja projektu`,
+          `Warning: ${conflict.name} (${conflict.section}) is ${conflict.project} in the project, module ${manifest.name} requires ${conflict.module}; keeping the project version`,
         );
       }
       packageJson = addDependencies(packageJson, manifest);
@@ -220,9 +220,7 @@ export async function add(options: AddOptions): Promise<{ added: string[] }> {
     try {
       await runner("npm", ["install"], projectDir);
     } catch {
-      throw new Error(
-        "Moduł dodany, ale npm install się nie powiódł. Uruchom: npm install",
-      );
+      throw new Error("Module added, but npm install failed. Run: npm install");
     }
   }
   log(`npx prisma migrate dev --name add-${module}`);

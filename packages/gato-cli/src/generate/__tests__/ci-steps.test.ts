@@ -249,31 +249,31 @@ describe("generate: plik bez markerów regionu", () => {
     const snap = await snapshotDir(dir);
 
     await expect(generate(dir)).rejects.toThrow(
-      ".github/workflows/ci.yml: brak regionu wa:ci-integration; dodaj linie ze znacznikami wa:ci-integration:start i wa:ci-integration:end",
+      ".github/workflows/ci.yml: missing region wa:ci-integration; add lines with the markers wa:ci-integration:start and wa:ci-integration:end",
     );
     expect(await snapshotDir(dir)).toEqual(snap);
   });
 
-  it("ci.yml tylko ze znacznikiem start i bez ciSteps → błąd uszkodzony region", async () => {
+  it("ci.yml tylko ze znacznikiem start i bez ciSteps → błąd malformed region", async () => {
     const dir = await makeProject({ alpha: {} }, CI_YML_ONLY_START);
     const snap = await snapshotDir(dir);
 
     await expect(generate(dir)).rejects.toThrow(
-      ".github/workflows/ci.yml: uszkodzony region wa:ci-integration",
+      ".github/workflows/ci.yml: malformed region wa:ci-integration",
     );
     expect(await snapshotDir(dir)).toEqual(snap);
   });
 
-  it("ci.yml tylko ze znacznikiem end i bez ciSteps → błąd uszkodzony region", async () => {
+  it("ci.yml tylko ze znacznikiem end i bez ciSteps → błąd malformed region", async () => {
     const dir = await makeProject({ alpha: {} }, CI_YML_ONLY_END);
 
     await expect(generate(dir)).rejects.toThrow(
-      ".github/workflows/ci.yml: uszkodzony region wa:ci-integration",
+      ".github/workflows/ci.yml: malformed region wa:ci-integration",
     );
     expect(await readCi(dir)).toBe(CI_YML_ONLY_END);
   });
 
-  it("ci.yml tylko ze znacznikiem start, a moduł ma ciSteps → błąd uszkodzony region", async () => {
+  it("ci.yml tylko ze znacznikiem start, a moduł ma ciSteps → błąd malformed region", async () => {
     const dir = await makeProject(
       { uploads: { ciSteps: "ci/steps.yml" } },
       CI_YML_ONLY_START,
@@ -281,7 +281,7 @@ describe("generate: plik bez markerów regionu", () => {
     await put(dir, "ci/steps.yml", "- run: storage\n");
 
     await expect(generate(dir)).rejects.toThrow(
-      ".github/workflows/ci.yml: uszkodzony region wa:ci-integration",
+      ".github/workflows/ci.yml: malformed region wa:ci-integration",
     );
     expect(await readCi(dir)).toBe(CI_YML_ONLY_START);
   });
@@ -306,7 +306,7 @@ describe("generate: plik bez markerów regionu", () => {
     const snap = await snapshotDir(dir);
 
     await expect(generate(dir)).rejects.toThrow(
-      ".env.example: brak regionu wa:modules; dodaj linie ze znacznikami wa:modules:start i wa:modules:end",
+      ".env.example: missing region wa:modules; add lines with the markers wa:modules:start and wa:modules:end",
     );
     expect(await snapshotDir(dir)).toEqual(snap);
   });
@@ -442,7 +442,7 @@ describe("generate: region ci-integration w mutation.yml", () => {
     const snap = await snapshotDir(dir);
 
     await expect(generate(dir)).rejects.toThrow(
-      ".github/workflows/mutation.yml: brak regionu wa:ci-integration; dodaj linie ze znacznikami wa:ci-integration:start i wa:ci-integration:end",
+      ".github/workflows/mutation.yml: missing region wa:ci-integration; add lines with the markers wa:ci-integration:start and wa:ci-integration:end",
     );
     expect(await snapshotDir(dir)).toEqual(snap);
   });
