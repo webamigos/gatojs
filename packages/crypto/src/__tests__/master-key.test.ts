@@ -99,6 +99,20 @@ describe("parseMasterKey", () => {
     expectRejected(Buffer.alloc(48, 9).toString("base64"));
   });
 
+  it("rejects an invalid key with the exact message from the spec, generation hint included", () => {
+    let caught: unknown;
+    try {
+      parseMasterKey(Buffer.alloc(48, 9).toString("base64"));
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toBe(
+      `ENCRYPTION_MASTER_KEY must be 32 bytes: a 64-character hex string or base64. Generate one with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`,
+    );
+  });
+
   it("rejects base64 of 31 and 33 bytes", () => {
     expectRejected(Buffer.alloc(31, 9).toString("base64"));
     expectRejected(Buffer.alloc(33, 9).toString("base64"));
