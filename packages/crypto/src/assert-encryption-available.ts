@@ -5,5 +5,9 @@ export class EncryptionUnavailableError extends Error {
 }
 
 export function assertEncryptionAvailable(result: EncryptionProbeResult): void {
-  throw new Error(`not implemented ${result.status}`);
+  if (result.status === "misconfigured") {
+    throw new EncryptionUnavailableError(
+      `Encryption is unavailable: ${result.detail}`,
+    );
+  }
 }
