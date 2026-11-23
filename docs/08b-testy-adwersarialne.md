@@ -542,7 +542,7 @@ Katalog `.stryker-tmp/` sam w sobie nie jest problemem: każdy przebieg ma w nim
 | `.claude/hooks/protect-tests.mjs` | Blokada edycji testów w fazie `implement`. |
 | `.claude/hooks/protect-tests.test.mjs` | Testy hooka (`npm run test:hooks`). |
 | `.claude/settings.json` | Rejestracja hooków `PreToolUse` dla narzędzi `Edit` i `Write`. |
-| `.gato/phase` | Plik fazy, lokalny, poza git. Dawny `.superpowers/phase` hook czyta jeszcze w `core` 0.14.0. |
+| `.gato/phase` | Plik fazy, lokalny, poza git. Dawny `.superpowers/phase` hook czyta jeszcze w `core` 0.15.0. |
 | `stryker.config.json`, `stryker.integration.config.json` | Konfiguracje Strykera. |
 | `vitest.setup.ts`, `packages/gato-cli/vitest.setup.ts` | Stały seed testów właściwości w procesach Strykera ([Testy właściwości pod Strykerem](#seed)). |
 | `src/__tests__/vitest-setup.test.ts`, `packages/gato-cli/src/__tests__/vitest-setup.test.ts` | Testy tego seeda (w `npm test` i `npm test --prefix packages/gato-cli`). |
