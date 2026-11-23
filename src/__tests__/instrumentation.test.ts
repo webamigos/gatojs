@@ -225,7 +225,7 @@ describe("register: walidacja env przy starcie", () => {
       expect(output.exit.mock.calls).toEqual([[1]]);
       expect(output.error).toHaveBeenCalledTimes(1);
       expect(output.error.mock.calls[0][0]).toMatch(
-        /^Nieprawidłowe zmienne środowiskowe \(1\):\n- ENCRYPTION_MASTER_KEY: /,
+        /^Invalid environment variables \(1\):\n- ENCRYPTION_MASTER_KEY: /,
       );
     },
   );
@@ -241,7 +241,7 @@ describe("register: walidacja env przy starcie", () => {
 
       expect(output.exit.mock.calls).toEqual([[1]]);
       expect(output.error.mock.calls[0][0]).toMatch(
-        /^Nieprawidłowe zmienne środowiskowe \(1\):\n- ENCRYPTION_MASTER_KEY: .*32 bytes/,
+        /^Invalid environment variables \(1\):\n- ENCRYPTION_MASTER_KEY: .*32 bytes/,
       );
     },
   );
