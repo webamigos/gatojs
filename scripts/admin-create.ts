@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- a command-line script: the console is its output */
 import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";
 import dotenv from "dotenv";
