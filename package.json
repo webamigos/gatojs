@@ -32,7 +32,7 @@
     "test:e2e": "npm run build && rm -rf .next/standalone/.next/static && cp -R .next/static .next/standalone/.next/static && playwright test"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1173.0",
+    "@aws-sdk/client-s3": "^3.1174.0",
     "@base-ui/react": "^1.2.0",
     "@hookform/resolvers": "^5.9.2",
     "@opentelemetry/api-logs": "^0.218.0",
@@ -58,7 +58,7 @@
     "next": "16.4.6",
     "next-intl": "^4.15.3",
     "next-themes": "^0.4.6",
-    "nodemailer": "^10.6.0",
+    "nodemailer": "^10.6.1",
     "pg": "^8.20.0",
     "prisma": "^7.4.2",
     "react": "19.3.1",
