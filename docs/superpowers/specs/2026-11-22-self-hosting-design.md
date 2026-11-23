@@ -109,27 +109,9 @@ ADR numbers are taken when the ADR is written (`docs/adrs/README.md`); ADR-57 is
 3. **Helm:** yes, as in Ragen, as a later step after Compose (section 4.5).
 4. **Offline build:** not covered, as in Ragen. The egress check covers runtime only. An install needs the internet once (npm packages and base images, or pulling a built image); a fully offline install bundle (images as a tarball, checksums, migrations) is a later step, as Ragen's planned offline bundle (appliance runbook, step C2).
 
-## 9. Decisions for Patryk
+## 9. Decisions (Patryk, 2026-11-23)
 
-1. **`SMTP_URL` and `SMTP_HOST` both set.**
-   - a) Startup error: one source of SMTP settings, no guessing.
-   - b) `SMTP_URL` wins.
-   - c) `SMTP_HOST` and its variables win.
-
-   Recommendation: a). Mixing them is always a mistake, and the env report already stops startup with a clear message.
-2. **When the egress check runs** (it builds the image and starts the whole stack, several minutes).
-   - a) On pull requests that touch `Dockerfile`, `docker-compose.selfhost.yml`, `src/shared/lib/mailer.ts`, `src/features/uploads/**`, `packages/env/**` or `package-lock.json`, plus manual `workflow_dispatch`.
-   - b) On every pull request.
-   - c) Only manually and before each GatoJS release.
-
-   Recommendation: a), the same path-filter approach as the planned `helm.yml`.
-3. **Self-hosting choices before the wizard exists.**
-   - a) Wait: the questions join the wizard follow-up; until then `.env.selfhost.example` and the runbook.
-   - b) Add `--mail-provider` and `--storage-provider` flags to `create-gato-app` 0.1.x now.
-
-   Recommendation: a). Flags added now would have to stay compatible with the wizard later, and the manual path is short.
-4. **Ownership of `docker-compose.selfhost.yml`.**
-   - a) A `core` file: every project gets it, next to `docker-compose.yml`, `Dockerfile` and `railway.toml`.
-   - b) An optional `self-hosting` module, so projects deployed to Railway do not carry it.
-
-   Recommendation: a). It is one file, it must change together with the `Dockerfile` and the core env, and a module would add a manifest for a single file.
+1. `SMTP_URL` and `SMTP_HOST` both set: **startup error** (one source of SMTP settings).
+2. Egress check: **on pull requests that touch** `Dockerfile`, `docker-compose.selfhost.yml`, the mailer, `src/features/uploads/**`, `packages/env/**` or `package-lock.json`, plus manual `workflow_dispatch`.
+3. Wizard (it exists since `create-gato-app` 0.2.0, with the storage question): **add the mail provider question** (`smtp` with host and credentials, `resend`, `console`) and a `--mail-provider` flag as part of step 1 (mail providers). Self-hosted settings (`.env.selfhost`) stay with `.env.selfhost.example` and the runbook.
+4. `docker-compose.selfhost.yml` is **a core file**, next to `docker-compose.yml`, `Dockerfile` and `railway.toml`.
