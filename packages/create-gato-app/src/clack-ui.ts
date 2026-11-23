@@ -68,7 +68,11 @@ export const clackUi: Ui = {
   step: (message) => clack.log.step(message),
   info: (message) => clack.log.info(message),
   warn: (message) => clack.log.warn(message),
-  note: (title, lines) => clack.note(lines.join("\n"), title),
+  note: (title, lines) => {
+    clack.log.step(title);
+    // WHY: a boxed clack note wraps long lines, which breaks copying a command with a long path.
+    process.stdout.write(`${lines.map((line) => `   ${line}`).join("\n")}\n`);
+  },
   outro: (message) => clack.outro(message),
   async task(label, work) {
     const spinner = clack.spinner();
@@ -81,5 +85,19 @@ export const clackUi: Ui = {
       spinner.error(label);
       throw error;
     }
+  },
+};
+
+export const plainUi: Ui = {
+  intro: (title) => console.log(title),
+  step: (message) => console.log(message),
+  info: (message) => console.log(message),
+  warn: (message) => console.error(`Warning: ${message}`),
+  note: (title, lines) =>
+    console.log([`${title}:`, ...lines.map((line) => `  ${line}`)].join("\n")),
+  outro: (message) => console.log(message),
+  async task(label, work) {
+    console.log(`${label}…`);
+    return work();
   },
 };
