@@ -1,6 +1,6 @@
 # GatoJS extensibility: read-only Gato files, project modules through extension points
 
-Date: 2026-11-22, revised 2026-11-23 against `main` at `e32ebab` (GatoJS `0.7.0`). Drafted by Patryk with an agent. Draft for Patryk's review; a plan follows acceptance. Answers go to section 11 ("Decisions for Patryk").
+Date: 2026-11-22, revised 2026-11-23 against `main` at `e32ebab` (GatoJS `0.7.0`). Drafted by Patryk with an agent. Accepted by Patryk on 2026-11-23 with every recommendation in section 11; a plan follows.
 
 Sources:
 
@@ -477,9 +477,10 @@ Migration for existing projects during the warning period:
 - Each modified, non-ejected file is either reverted to the GatoJS version (when an extension point now covers the change) or ejected with a reason.
 - From the release that makes `verify` blocking, `gato doctor` exits non-zero for any remaining modified, non-ejected file.
 
-## 11. Decisions for Patryk
+## 11. Decisions (Patryk, 2026-11-23)
 
-Answer with numbers and letters (for example "1A, 2A, 3B …"). The recommendation is marked.
+Patryk chose the recommended option everywhere: **1A, 2A, 3A, 4A, 5A, 6A, 7A, 8A, 9A, 10A, 11A, 12A.** The options are kept below for the record.
+
 
 1. **Where the core lives.**
    A. Protected copy in the project (D39, ADR-56). **Recommended**: readable for agents, routes stay plain files, extension points work the same if B comes later.
