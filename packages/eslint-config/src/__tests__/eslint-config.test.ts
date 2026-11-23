@@ -253,6 +253,27 @@ describe.each(["base", "next", "node"] as const)("%s config rules", (name) => {
     SLOW,
   );
 
+  it.each([
+    ["a type alias", 'export type T = typeof import("./x");\n'],
+    [
+      "a type argument",
+      'declare function f<T>(): T;\nexport const y = f<typeof import("./x")>();\n',
+    ],
+  ])(
+    "allows typeof import() in %s of a .ts file",
+    async (_label, code) => {
+      expect(
+        await reportsOf(
+          name,
+          "@typescript-eslint/consistent-type-imports",
+          code,
+          "src/a.ts",
+        ),
+      ).toEqual([]);
+    },
+    SLOW,
+  );
+
   it.each(["src/a.tsx", "src/a.mts", "src/a.cts"])(
     "enables consistent-type-imports as an error in %s",
     async (filePath) => {
@@ -366,6 +387,43 @@ describe.each(["base", "next", "node"] as const)("%s config rules", (name) => {
             "src/__tests__/a.ts",
           ),
         ).toEqual([{ line: 4, severity: 2 }]);
+      },
+      SLOW,
+    );
+
+    it(
+      "reports a class whose name is set only in an ordinary method",
+      async () => {
+        const code = [
+          "export class FooError extends Error {",
+          "  rename() {",
+          '    this.name = "FooError";',
+          "  }",
+          "}",
+          "",
+        ].join("\n");
+        expect(
+          await reportsOf(name, "no-restricted-syntax", code, "src/a.ts"),
+        ).toEqual([{ line: 1, severity: 2 }]);
+      },
+      SLOW,
+    );
+
+    it(
+      "reports a class whose name is set only inside a for header in the constructor",
+      async () => {
+        const code = [
+          "export class FooError extends Error {",
+          "  constructor() {",
+          '    super("x");',
+          '    for (this.name = "FooError"; false; ) {}',
+          "  }",
+          "}",
+          "",
+        ].join("\n");
+        expect(
+          await reportsOf(name, "no-restricted-syntax", code, "src/a.ts"),
+        ).toEqual([{ line: 1, severity: 2 }]);
       },
       SLOW,
     );
@@ -533,11 +591,13 @@ describe("ignores", () => {
         "**/playwright/.cache/**",
         "**/.stryker-tmp/**",
         "**/reports/**",
+        "**/out/**",
+        "**/*.min.js",
       ]),
     );
   });
 
-  describe.each(["base", "node"] as const)("%s config", (name) => {
+  describe.each(["base", "next", "node"] as const)("%s config", (name) => {
     it.each([
       "playwright-report/trace/index.js",
       "test-results/x.js",
@@ -552,6 +612,8 @@ describe("ignores", () => {
       ".stryker-tmp/a.js",
       "reports/a.js",
       "node_modules/x/a.js",
+      "out/a.js",
+      "src/vendor/x.min.js",
     ])(
       "ignores %s",
       async (filePath) => {
