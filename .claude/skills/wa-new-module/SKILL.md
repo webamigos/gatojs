@@ -22,13 +22,12 @@ Moduł nie edytuje plików rdzenia w żadnym z wariantów.
 4. **Schemat:** model w osobnym pliku `prisma/schema/<x>.prisma`, z wymaganym `organizationId`, indeksem `@@index([organizationId])` i relacją do `Organization` z `onDelete: Cascade`. Pole wsteczne w `Organization` (albo `User`) deklarujesz w `schemaRelations` manifestu, a wpisuje je generator. Model ze skalarnym `organizationId` jest automatycznie objęty guardem organizacji: zapytanie bez filtra `organizationId` rzuca `TenantScopeError`.
 5. **Migracja:** `npx prisma migrate dev --name <nazwa>`, potem `npm run db:generate` (`migrate dev` nie generuje klienta). Katalog migracji commituje projekt, kit nie commituje migracji.
 6. **Kontrakty:** typy i schematy Zod w `contracts/`.
-7. **Testy przed kodem:** plan z sekcjami „Zachowania” i „Mutacje do zabicia”, testy pisze `test-writer`, czerwony przebieg z właściwego powodu. Każde query i komenda ma test izolacji na prawdziwej bazie (`*.integration.test.ts`, pomocniki w `src/test/integration/`): dwie organizacje, odczyt i zapis z kontekstem jednej nie dotyka drugiej.
-8. **Implementacja** (`.superpowers/phase` = `implement`):
+7. **Testy, implementacja i bramki:** skill `gato-task` (`.claude/skills/gato-task/SKILL.md`): plan z sekcjami „Zachowania” i „Mutacje do zabicia”, testy od `test-writer` przed kodem, implementacja z zablokowanymi testami, `test-reviewer` z mutacjami, bramki. Dla modułu dochodzi:
+   - każde query i komenda ma test izolacji na prawdziwej bazie (`*.integration.test.ts`, pomocniki w `src/test/integration/`): dwie organizacje, odczyt i zapis z kontekstem jednej nie dotyka drugiej;
    - query w `services/queries/` po `getOrgContext()` albo `requireModuleAccess(key)`, z filtrem `organizationId`;
    - komenda w `services/commands/` z `"use server"`, sygnatura `(input: unknown, confirmation?: unknown)`, `assertServiceModeConfirmed(context, confirmation)` przed Prismą, wynik `OperationResult<T>`;
    - komponent woła komendę przez `useServiceModeAction().run`;
    - strona w `src/app/[locale]/(app)/<x>/` chroniona `requireModuleAccess(key)`.
-9. **Bramki:** `npm run verify`, `npm run test:integration`, `npm run test:mutation:task -- <pliki>` (recenzent `test-reviewer`).
 
 ## 3. Pułapki
 
