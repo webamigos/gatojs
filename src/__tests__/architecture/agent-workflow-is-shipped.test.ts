@@ -23,6 +23,19 @@ const descriptionOf = (content: string): string =>
     .match(/^description:[ \t]*(.*)$/m)?.[1]
     ?.trim() ?? "";
 
+const numberedStepsOf = (content: string) =>
+  bodyOf(content)
+    .split(/^(?=\d+\. )/m)
+    .filter((chunk) => /^\d+\. /.test(chunk))
+    .map((chunk) => ({
+      number: Number(chunk.slice(0, chunk.indexOf("."))),
+      text: chunk,
+    }));
+
+const firstStepContaining = (content: string, token: string) =>
+  numberedStepsOf(content).find((step) => step.text.includes(token))?.number ??
+  null;
+
 const readSettings = () =>
   JSON.parse(readRepoFile(".claude/settings.json")) as {
     extraKnownMarketplaces?: Record<string, { source?: unknown }>;
@@ -84,6 +97,46 @@ describe("skill gato-task", () => {
     expect(body.indexOf("test-reviewer")).toBeGreaterThan(writer);
   });
 
+  it("ma kroki ponumerowane kolejno od 1 do 7", () => {
+    expect(
+      numberedStepsOf(readRepoFile(skillPath)).map((step) => step.number),
+    ).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it("każde kluczowe słowo pojawia się pierwszy raz we właściwym kroku", () => {
+    const content = readRepoFile(skillPath);
+    expect({
+      testWriter: firstStepContaining(content, "test-writer"),
+      implementPhase: firstStepContaining(content, "`implement`"),
+      phaseFile: firstStepContaining(content, ".superpowers/phase"),
+      unlock: firstStepContaining(content, "rm .superpowers/phase"),
+      testReviewer: firstStepContaining(content, "test-reviewer"),
+      mutationTask: firstStepContaining(content, "npm run test:mutation:task"),
+      mutationGate: firstStepContaining(content, "npm run test:mutation:gate"),
+      verify: firstStepContaining(content, "npm run verify"),
+      codeReview: firstStepContaining(content, "wa-code-review"),
+    }).toEqual({
+      testWriter: 2,
+      implementPhase: 3,
+      phaseFile: 3,
+      unlock: 5,
+      testReviewer: 6,
+      mutationTask: 6,
+      mutationGate: 6,
+      verify: 7,
+      codeReview: 7,
+    });
+  });
+
+  it("w kroku bramek npm run verify stoi przed wa-code-review", () => {
+    const gates =
+      numberedStepsOf(readRepoFile(skillPath)).find((step) => step.number === 7)
+        ?.text ?? "";
+    const verify = gates.indexOf("npm run verify");
+    expect(verify).toBeGreaterThan(-1);
+    expect(gates.indexOf("wa-code-review")).toBeGreaterThan(verify);
+  });
+
   it("wymienia fazę `implement` w backtickach", () => {
     expect(bodyOf(readRepoFile(skillPath))).toContain("`implement`");
   });
@@ -113,6 +166,20 @@ describe(".claude/settings.json", () => {
     const preToolUse = JSON.stringify(readSettings().hooks?.PreToolUse ?? null);
     expect(preToolUse).toContain("block-comments.mjs");
     expect(preToolUse).toContain("protect-tests.mjs");
+  });
+
+  it("hooki block-comments i protect-tests działają na matcherze Edit|Write", () => {
+    const entries = (readSettings().hooks?.PreToolUse ?? []) as Array<{
+      matcher?: unknown;
+    }>;
+    const guarded = entries.filter((entry) => {
+      const text = JSON.stringify(entry);
+      return (
+        text.includes("block-comments.mjs") &&
+        text.includes("protect-tests.mjs")
+      );
+    });
+    expect(guarded.map((entry) => entry.matcher)).toEqual(["Edit|Write"]);
   });
 });
 
