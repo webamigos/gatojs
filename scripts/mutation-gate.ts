@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- a command-line script: the console is its output */
 import { existsSync, readFileSync } from "node:fs";
 import {
   checkMutationGate,

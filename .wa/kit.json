@@ -1,5 +1,5 @@
 {
-  "kitVersion": "0.11.0",
+  "kitVersion": "0.12.0",
   "kitRepo": "https://github.com/webamigos/gatojs.git",
   "project": {
     "name": "WA App",
@@ -83,10 +83,10 @@
       "files": {}
     },
     "core": {
-      "version": "0.13.0",
+      "version": "0.14.0",
       "manifest": {
         "name": "core",
-        "version": "0.13.0",
+        "version": "0.14.0",
         "description": "GatoJS core: auth, organizations, users, account, dashboard",
         "requires": [],
         "files": [
@@ -126,6 +126,7 @@
           "package-lock.json",
           "package.json",
           "packages/env/**",
+          "packages/eslint-config/**",
           "packages/observability/**",
           "playwright.config.ts",
           "postcss.config.mjs",
@@ -145,6 +146,7 @@
           "src/__tests__/architecture/**",
           "src/__tests__/env-example.test.ts",
           "src/__tests__/eslint-error-name.test.ts",
+          "src/__tests__/eslint-shared-config.test.ts",
           "src/__tests__/instrumentation.test.ts",
           "src/__tests__/proxy-matcher.test.ts",
           "src/__tests__/server-entrypoints-guard.test.ts",
@@ -296,10 +298,10 @@
       "files": {}
     },
     "uploads": {
-      "version": "0.2.6",
+      "version": "0.2.7",
       "manifest": {
         "name": "uploads",
-        "version": "0.2.6",
+        "version": "0.2.7",
         "description": "Organization files on disk or in S3 storage",
         "requires": [],
         "files": [

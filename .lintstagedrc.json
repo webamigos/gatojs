@@ -1,6 +1,8 @@
 {
-  "*.{js,jsx,ts,tsx,mts,cts}": ["eslint --fix"],
-  "*.{json,js,ts,jsx,tsx,mts,cts,html}": ["prettier --write --ignore-unknown"],
+  "*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}": ["eslint --fix"],
+  "*.{json,js,mjs,cjs,ts,jsx,tsx,mts,cts,html}": [
+    "prettier --write --ignore-unknown"
+  ],
   "packages/create-gato-app/**/*.{js,mjs,cjs,ts,mts,cts}": [
     "npm exec --workspace=create-gato-app -- eslint --fix"
   ],
