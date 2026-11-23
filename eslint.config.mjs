@@ -5,7 +5,7 @@ import nextTs from "eslint-config-next/typescript";
 const classNameRead =
   ':matches(MemberExpression[object.computed=false][object.property.name="constructor"], MemberExpression[object.meta.name="new"], MemberExpression[object.name=/^[A-Z]/])[computed=false][property.name="name"]';
 const errorNameMessage =
-  'Ustaw name klasy błędu napisem, np. this.name = "KeyLimitError". Build minifikuje nazwy klas, więc err.type w logach produkcyjnych byłby krótką nazwą w rodzaju "d". Zobacz docs/07b-logi-naglowki-healthcheck.md#logger-typ-bledu w repo webamigos/wa-kit.';
+  'Set the error class name as a string literal, e.g. this.name = "KeyLimitError". The build minifies class names, so err.type in production logs would be a short name like "d". See docs/07b-logi-naglowki-healthcheck.md#logger-typ-bledu in the GatoJS repo.';
 // WHY: esquery 1.7 czyta :has(> A > B) jako „podmiot :has to A i ma dziecko B”, a nie „dziecko A ma dziecko B”,
 // więc każdy krok w dół drzewa to osobne :has(> …).
 const childPath = (...steps) =>
@@ -35,7 +35,7 @@ const restrictedSyntax = [
 const unnamedErrorClass = {
   selector: `:matches(ClassDeclaration, ClassExpression)[superClass.name="Error"]:not(:has(> ${ownNameField})):not(:has(> ${ownNameAssignment}))`,
   message:
-    'Klasa dziedzicząca wprost po Error nie ustawia własnego name. Wpisz je napisem w polu klasy (name = "KeyLimitError") albo w konstruktorze (this.name = "KeyLimitError"). Bez tego err.type w logach produkcyjnych to zminifikowana nazwa klasy w rodzaju "d". Zobacz docs/07b-logi-naglowki-healthcheck.md#logger-typ-bledu w repo webamigos/wa-kit.',
+    'A class that extends Error directly does not set its own name. Set it as a string literal in a class field (name = "KeyLimitError") or in the constructor (this.name = "KeyLimitError"). Without it, err.type in production logs is a minified class name like "d". See docs/07b-logi-naglowki-healthcheck.md#logger-typ-bledu in the GatoJS repo.',
 };
 
 const eslintConfig = defineConfig([

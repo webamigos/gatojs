@@ -188,7 +188,7 @@ describe("register: walidacja env przy starcie", () => {
       expect(output.exit.mock.calls).toEqual([[1]]);
       expect(output.error).toHaveBeenCalledTimes(1);
       const [report] = output.error.mock.calls[0];
-      expect(report).toMatch(/^Nieprawidłowe zmienne środowiskowe \(4\):\n/);
+      expect(report).toMatch(/^Invalid environment variables \(4\):\n/);
       expect(report).toContain("\n- S3_ENDPOINT: ");
       expect(report).toContain("\n- S3_ACCESS_KEY_ID: ");
       expect(report).toContain("\n- S3_SECRET_ACCESS_KEY: ");
@@ -208,7 +208,7 @@ describe("register: walidacja env przy starcie", () => {
       expect(output.exit.mock.calls).toEqual([[1]]);
       expect(output.error).toHaveBeenCalledTimes(1);
       expect(output.error.mock.calls[0][0]).toMatch(
-        /^Nieprawidłowe zmienne środowiskowe \(1\):\n- API_KEY_PEPPER: /,
+        /^Invalid environment variables \(1\):\n- API_KEY_PEPPER: /,
       );
     },
   );

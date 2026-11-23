@@ -25,7 +25,9 @@ export function resolveModules(
         .map((candidate) => candidate.name)
         .filter((candidate) => candidate !== CORE)
         .sort(compareModuleNames);
-      throw new Error(`Nieznany moduł: ${name}. Dostępne: ${names.join(", ")}`);
+      throw new Error(
+        `Unknown module: ${name}. Available: ${names.join(", ")}`,
+      );
     }
     resolved.set(name, manifest);
     pending.push(...manifest.requires);

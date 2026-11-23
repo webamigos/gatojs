@@ -4,12 +4,7 @@ import { mergeFile } from "./merge.js";
 import type { KitFile, KitSnapshot } from "./snapshot.js";
 
 export type PlanAction =
-  | "zaktualizowano"
-  | "scalono"
-  | "dodano"
-  | "usunięto"
-  | "konflikt"
-  | "do decyzji";
+  "updated" | "merged" | "added" | "removed" | "conflict" | "needs decision";
 
 export type PlannedFile = {
   path: string;
@@ -42,7 +37,7 @@ function planned(
 }
 
 function undecided(path: string, reason: string): PlannedFile {
-  return planned(path, "do decyzji", { reason });
+  return planned(path, "needs decision", { reason });
 }
 
 async function decideAdded(
@@ -53,7 +48,7 @@ async function decideAdded(
   const project = await input.readProject(path);
   if (!project) {
     return {
-      file: planned(path, "dodano", { content: kit.content, mode: kit.mode }),
+      file: planned(path, "added", { content: kit.content, mode: kit.mode }),
       mismatchedBase: false,
     };
   }
@@ -61,8 +56,8 @@ async function decideAdded(
     return UNCHANGED;
   }
   return {
-    file: planned(path, "konflikt", {
-      reason: "plik projektu na ścieżce nowego pliku kitu",
+    file: planned(path, "conflict", {
+      reason: "project file at the path of a new kit file",
     }),
     mismatchedBase: false,
   };
@@ -81,18 +76,18 @@ async function mergeChanged(
     ours: project,
     theirs: kit.content,
     labels: {
-      ours: "projekt",
+      ours: "project",
       base: `v${input.base.version}`,
       theirs: `v${input.target.version}`,
     },
   });
   if ("binary" in merged) {
-    return planned(path, "konflikt", {
-      reason: "plik binarny zmieniony w projekcie i w kicie",
+    return planned(path, "conflict", {
+      reason: "binary file changed in both the project and the kit",
     });
   }
   if (merged.conflicts > 0) {
-    return planned(path, "konflikt", {
+    return planned(path, "conflict", {
       content: merged.content,
       mode: kit.mode,
     });
@@ -100,7 +95,7 @@ async function mergeChanged(
   if (contentHash(path, merged.content) === contentHash(path, project)) {
     return null;
   }
-  return planned(path, "scalono", { content: merged.content, mode: kit.mode });
+  return planned(path, "merged", { content: merged.content, mode: kit.mode });
 }
 
 async function decideExisting(
@@ -121,7 +116,7 @@ async function decideExisting(
       return UNCHANGED;
     }
     return {
-      file: undecided(path, "usunięty w projekcie, zmieniony w kicie"),
+      file: undecided(path, "deleted in the project, changed in the kit"),
       mismatchedBase: false,
     };
   }
@@ -138,13 +133,13 @@ async function decideExisting(
 
   if (!kit) {
     const file = projectEqualsBase
-      ? planned(path, "usunięto")
-      : undecided(path, "zmieniony w projekcie, usunięty w kicie");
+      ? planned(path, "removed")
+      : undecided(path, "changed in the project, deleted in the kit");
     return { file, mismatchedBase };
   }
   if (projectEqualsBase) {
     return {
-      file: planned(path, "zaktualizowano", {
+      file: planned(path, "updated", {
         content: kit.content,
         mode: kit.mode,
       }),

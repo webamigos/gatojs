@@ -156,12 +156,12 @@ describe("add", () => {
         runner,
         log,
       }),
-    ).rejects.toThrow("Moduł demo jest już zainstalowany");
+    ).rejects.toThrow("Module demo is already installed");
     expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
     expect(runner).not.toHaveBeenCalled();
   });
 
-  it("add core kończy się błędem, bo core jest już zainstalowany", async () => {
+  it("add core kończy się błędem, bo core is already installed", async () => {
     const dir = await createProject("app", []);
     await expect(
       add({
@@ -172,7 +172,7 @@ describe("add", () => {
         runner,
         log,
       }),
-    ).rejects.toThrow("Moduł core jest już zainstalowany");
+    ).rejects.toThrow("Module core is already installed");
   });
 
   it("add demo przy wpisie demo w projectModules kończy się błędem i nie zmienia projektu", async () => {
@@ -210,7 +210,7 @@ describe("add", () => {
         log,
       }),
     ).rejects.toThrow(
-      "Moduł demo jest modułem projektu; zmień jego nazwę albo usuń wpis z projectModules",
+      "Module demo is a project module; rename it or remove its projectModules entry",
     );
     expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
     expect(runner).not.toHaveBeenCalled();
@@ -234,7 +234,7 @@ describe("add", () => {
         log,
       }),
     ).rejects.toThrow(
-      "Pliki już istnieją, przerwano bez zmian:\n  src/features/demo/module.ts",
+      "Files already exist; stopped without changes:\n  src/features/demo/module.ts",
     );
     expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
     expect(Object.keys((await readKitState(dir)).modules)).toEqual(["core"]);
@@ -263,7 +263,7 @@ describe("add", () => {
         log,
       }),
     ).rejects.toThrow(
-      "Pliki już istnieją, przerwano bez zmian:\n  src/features/demo/env.ts\n  src/features/demo/module.ts",
+      "Files already exist; stopped without changes:\n  src/features/demo/env.ts\n  src/features/demo/module.ts",
     );
     const error = await add({
       projectDir: dir,
@@ -300,7 +300,7 @@ describe("add", () => {
         log,
       }),
     ).rejects.toThrow(
-      "Pliki już istnieją, przerwano bez zmian:\n  src/features/demo/module.ts\n  src/features/needs-demo/module.ts",
+      "Files already exist; stopped without changes:\n  src/features/demo/module.ts\n  src/features/needs-demo/module.ts",
     );
     expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
   });
@@ -323,7 +323,7 @@ describe("add", () => {
         runner,
         log,
       }),
-    ).rejects.toThrow("Pliki już istnieją");
+    ).rejects.toThrow("Files already exist");
     expect(await readFile(join(dir, "package.json"), "utf8")).toBe(
       packageBefore,
     );
@@ -349,7 +349,7 @@ describe("add", () => {
           log,
         }),
       ).rejects.toThrow(
-        "Pliki już istnieją, przerwano bez zmian:\n  src/features/demo/module.ts",
+        "Files already exist; stopped without changes:\n  src/features/demo/module.ts",
       );
       expect(await readlink(join(dir, "src/features/demo/module.ts"))).toBe(
         "nowhere",
@@ -384,7 +384,7 @@ describe("add", () => {
           log,
         }),
       ).rejects.toThrow(
-        "Pliki już istnieją, przerwano bez zmian:\n  src/features/demo/module.ts",
+        "Files already exist; stopped without changes:\n  src/features/demo/module.ts",
       );
       expect(await readFile(join(dir, "elsewhere.ts"), "utf8")).toBe(
         "export default 7;\n",
@@ -502,9 +502,7 @@ describe("add", () => {
         runner,
         log,
       }),
-    ).rejects.toThrow(
-      "Moduł dodany, ale npm install się nie powiódł. Uruchom: npm install",
-    );
+    ).rejects.toThrow("Module added, but npm install failed. Run: npm install");
     expect(Object.keys((await readKitState(dir)).modules)).toContain("demo");
     expect(log).not.toHaveBeenCalledWith(
       "npx prisma migrate dev --name add-demo",
@@ -538,7 +536,7 @@ describe("add", () => {
         runner,
         log,
       }),
-    ).rejects.toThrow("Brak .wa/kit.json");
+    ).rejects.toThrow("No .wa/kit.json");
   });
 });
 
@@ -605,7 +603,7 @@ describe("add na zmodyfikowanej kopii kitu", () => {
         log,
       }),
     ).rejects.toThrow(
-      "Pliki już istnieją, przerwano bez zmian:\n  src/features/alpha/module.ts\n  src/features/zeta/module.ts",
+      "Files already exist; stopped without changes:\n  src/features/alpha/module.ts\n  src/features/zeta/module.ts",
     );
   });
 
@@ -647,7 +645,7 @@ describe("add na zmodyfikowanej kopii kitu", () => {
         log,
       }),
     ).rejects.toThrow(
-      "Pliki już istnieją, przerwano bez zmian:\n  src/features/aaa-beta/module.ts\n  src/features/zzz-alpha/module.ts",
+      "Files already exist; stopped without changes:\n  src/features/aaa-beta/module.ts\n  src/features/zzz-alpha/module.ts",
     );
     expect(await snapshotDir(dir, IGNORE)).toEqual(before);
   });
@@ -697,7 +695,7 @@ describe("addFromSource", () => {
         log,
         tmpRoot,
       }),
-    ).rejects.toThrow("Moduł core jest już zainstalowany");
+    ).rejects.toThrow("Module core is already installed");
     expect(await readdir(tmpRoot)).toEqual([]);
   });
 
@@ -768,9 +766,7 @@ describe("addFromSource", () => {
         log,
         tmpRoot,
       }),
-    ).rejects.toThrow(
-      "Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>",
-    );
+    ).rejects.toThrow("Check access (gh auth status) or pass --kit <path>");
     expect(await readdir(tmpRoot)).toEqual([]);
   });
 
@@ -806,7 +802,7 @@ describe("addFromSource", () => {
         log,
         tmpRoot,
       }),
-    ).rejects.toThrow("ma wersję 0.1.0, projekt używa 9.9.9");
+    ).rejects.toThrow("has version 0.1.0, the project uses 9.9.9");
     expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
     expect(await readdir(tmpRoot)).toEqual([]);
   });
@@ -849,13 +845,13 @@ async function setProjectDependencies(
 function cleanupWarnings(): string[] {
   return log.mock.calls
     .map(([line]) => line)
-    .filter((line) => line.includes("Nie udało się posprzątać"));
+    .filter((line) => line.includes("Could not clean up"));
 }
 
 function warnings(): string[] {
   return log.mock.calls
     .map(([line]) => line)
-    .filter((line) => line.startsWith("Uwaga:"));
+    .filter((line) => line.startsWith("Warning:"));
 }
 
 describe("add: ostrzeżenie o innej wersji zależności", () => {
@@ -876,7 +872,7 @@ describe("add: ostrzeżenie o innej wersji zależności", () => {
       log,
     });
     expect(warnings()).toEqual([
-      "Uwaga: zod (dependencies) ma w projekcie ^3, moduł zodder wymaga ^4; zostaje wersja projektu",
+      "Warning: zod (dependencies) is ^3 in the project, module zodder requires ^4; keeping the project version",
     ]);
     const after = JSON.parse(await readFile(join(dir, "package.json"), "utf8"));
     expect(after.dependencies["zod"]).toBe("^3");
@@ -902,7 +898,7 @@ describe("add: ostrzeżenie o innej wersji zależności", () => {
       "npx prisma migrate dev --name add-zodder",
     ]);
     expect(
-      log.mock.calls.findIndex(([line]) => line.startsWith("Uwaga:")),
+      log.mock.calls.findIndex(([line]) => line.startsWith("Warning:")),
     ).toBeGreaterThanOrEqual(0);
   });
 
@@ -998,9 +994,9 @@ describe("add: ostrzeżenie o innej wersji zależności", () => {
       log,
     });
     expect(warnings()).toEqual([
-      "Uwaga: alpha (dependencies) ma w projekcie ^1, moduł multi wymaga ^2; zostaje wersja projektu",
-      "Uwaga: zeta (dependencies) ma w projekcie ^1, moduł multi wymaga ^2; zostaje wersja projektu",
-      "Uwaga: tsx (devDependencies) ma w projekcie ^3.0.0, moduł multi wymaga ^4.0.0; zostaje wersja projektu",
+      "Warning: alpha (dependencies) is ^1 in the project, module multi requires ^2; keeping the project version",
+      "Warning: zeta (dependencies) is ^1 in the project, module multi requires ^2; keeping the project version",
+      "Warning: tsx (devDependencies) is ^3.0.0 in the project, module multi requires ^4.0.0; keeping the project version",
     ]);
   });
 
@@ -1026,7 +1022,7 @@ describe("add: ostrzeżenie o innej wersji zależności", () => {
     });
     expect(result.added).toEqual(["base", "extra"]);
     expect(warnings()).toEqual([
-      "Uwaga: foo (dependencies) ma w projekcie ^1, moduł extra wymaga ^2; zostaje wersja projektu",
+      "Warning: foo (dependencies) is ^1 in the project, module extra requires ^2; keeping the project version",
     ]);
     const after = JSON.parse(await readFile(join(dir, "package.json"), "utf8"));
     expect(after.dependencies["foo"]).toBe("^1");

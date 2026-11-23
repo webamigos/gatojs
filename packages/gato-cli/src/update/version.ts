@@ -3,7 +3,7 @@ const VERSION_PATTERN =
 
 export function parseVersion(value: string): string {
   if (!VERSION_PATTERN.test(value)) {
-    throw new Error(`Nieprawidłowa wersja: ${value}; podaj na przykład 0.2.0`);
+    throw new Error(`Invalid version: ${value}; use a version like 0.2.0`);
   }
   return value;
 }

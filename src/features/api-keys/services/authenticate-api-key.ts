@@ -37,7 +37,7 @@ function touchLastUsedAt(apiKeyId: string, organizationId: string): void {
       data: { lastUsedAt: new Date() },
     })
     .catch((error: unknown) => {
-      logger.warn("Nie udało się zaktualizować lastUsedAt klucza API", {
+      logger.warn("Failed to update API key lastUsedAt", {
         apiKeyId,
         error: error instanceof Error ? error.message : String(error),
       });

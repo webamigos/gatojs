@@ -11,21 +11,21 @@ export type ListOptions = {
 function availableLine(manifest: ModuleManifest): string {
   const needs =
     manifest.requires.length > 0
-      ? ` (wymaga: ${manifest.requires.join(", ")})`
+      ? ` (requires: ${manifest.requires.join(", ")})`
       : "";
   return `  ${manifest.name} ${manifest.version} — ${manifest.description}${needs}`;
 }
 
 export function list(options: ListOptions): void {
   const { state, available, availableError, log } = options;
-  log("Zainstalowane:");
+  log("Installed:");
   for (const [name, entry] of Object.entries(state.modules).sort(([a], [b]) =>
     compareModuleNames(a, b),
   )) {
     log(`  ${name} ${entry.version}`);
   }
   if (available === null) {
-    log(`Dostępne: nie udało się pobrać kitu (${availableError})`);
+    log(`Available: could not fetch the kit (${availableError})`);
   } else {
     const rest = available
       .filter(
@@ -34,9 +34,9 @@ export function list(options: ListOptions): void {
       )
       .sort((a, b) => compareCodePoint(a.name, b.name));
     if (rest.length === 0) {
-      log("Dostępne: brak");
+      log("Available: none");
     } else {
-      log("Dostępne:");
+      log("Available:");
       for (const manifest of rest) {
         log(availableLine(manifest));
       }
@@ -46,7 +46,7 @@ export function list(options: ListOptions): void {
     compareCodePoint(a, b),
   );
   if (projectEntries.length > 0) {
-    log("Projektu:");
+    log("Project modules:");
     for (const [name, { manifest }] of projectEntries) {
       log(`  ${name} — ${manifest.description}`);
     }

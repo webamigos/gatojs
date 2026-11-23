@@ -47,8 +47,8 @@ if (isEntrypoint) {
   if (phaseDirs.some((dir) => isBlocked(input, readPhase(dir)))) {
     process.stderr.write(
       [
-        `Zablokowane: faza implementacji (${PHASE_FILE} = ${IMPLEMENT_PHASE}), testy są tylko do odczytu.`,
-        "Jeśli test jest błędny albo sprzeczny ze specyfikacją, zatrzymaj się i zgłoś to w raporcie zamiast go zmieniać.",
+        `Blocked: implementation phase (${PHASE_FILE} = ${IMPLEMENT_PHASE}), tests are read-only.`,
+        "If a test is wrong or contradicts the spec, stop and report it instead of changing it.",
       ].join("\n") + "\n",
     );
     process.exit(2);

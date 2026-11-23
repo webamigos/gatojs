@@ -64,7 +64,9 @@ describe("resolveKitSource", () => {
         runner,
         tmpDir,
       }),
-    ).rejects.toThrow(`Kit w ${kitDir} ma wersję 0.1.0, projekt używa 9.9.9`);
+    ).rejects.toThrow(
+      `Kit in ${kitDir} has version 0.1.0, the project uses 9.9.9`,
+    );
   });
 
   it("niezgodna wersja lokalnego kitu z WA_KIT_SOURCE też kończy się błędem", async () => {
@@ -77,7 +79,7 @@ describe("resolveKitSource", () => {
         runner,
         tmpDir,
       }),
-    ).rejects.toThrow("ma wersję 0.1.0, projekt używa 9.9.9");
+    ).rejects.toThrow("has version 0.1.0, the project uses 9.9.9");
   });
 
   it("niezgodna wersja lokalnego kitu z state.kitRepo też kończy się błędem", async () => {
@@ -90,7 +92,7 @@ describe("resolveKitSource", () => {
         runner,
         tmpDir,
       }),
-    ).rejects.toThrow("ma wersję 0.1.0, projekt używa 9.9.9");
+    ).rejects.toThrow("has version 0.1.0, the project uses 9.9.9");
   });
 
   it("kitFlag ma pierwszeństwo przed WA_KIT_SOURCE i state.kitRepo", async () => {
@@ -210,7 +212,7 @@ describe("resolveKitSource", () => {
           runner,
           tmpDir,
         }),
-      ).rejects.toThrow(`Nieprawidłowe źródło wa-kit: ${value}`);
+      ).rejects.toThrow(`Invalid kit source: ${value}`);
       expect(runner).not.toHaveBeenCalled();
     },
   );
@@ -241,7 +243,7 @@ describe("resolveKitSource", () => {
           runner,
           tmpDir,
         }),
-      ).rejects.toThrow(`Nieprawidłowe źródło wa-kit: ${value}`);
+      ).rejects.toThrow(`Invalid kit source: ${value}`);
       expect(runner).not.toHaveBeenCalled();
     },
   );
@@ -318,7 +320,7 @@ describe("resolveKitSource", () => {
         tmpDir,
       }),
     ).rejects.toThrow(
-      "Nie udało się pobrać wa-kit v0.1.0 z https://example.com/org/wa-kit.git. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>",
+      "Could not fetch GatoJS v0.1.0 from https://example.com/org/wa-kit.git. Check access (gh auth status) or pass --kit <path>",
     );
   });
 
@@ -334,7 +336,7 @@ describe("resolveKitSource", () => {
     }).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toContain(
-      "Nie udało się pobrać wa-kit v0.1.0 z https://example.com/org/wa-kit.git.",
+      "Could not fetch GatoJS v0.1.0 from https://example.com/org/wa-kit.git.",
     );
     expect((error as Error).cause).toBe(failure);
   });
@@ -349,7 +351,7 @@ describe("resolveKitSource", () => {
         tmpDir,
       }),
     ).rejects.toThrow(
-      "Nie udało się pobrać wa-kit v0.1.0 z file:///nie/istnieje.git. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>",
+      "Could not fetch GatoJS v0.1.0 from file:///nie/istnieje.git. Check access (gh auth status) or pass --kit <path>",
     );
   });
 });
@@ -426,7 +428,7 @@ describe("cloneKitVersion", () => {
         name: "brak",
       }),
     ).rejects.toThrow(
-      `Nie udało się pobrać wa-kit v9.9.9 z ${repo}. Sprawdź dostęp (gh auth status) albo podaj --kit <ścieżka>`,
+      `Could not fetch GatoJS v9.9.9 from ${repo}. Check access (gh auth status) or pass --kit <path>`,
     );
   });
 
@@ -442,7 +444,7 @@ describe("cloneKitVersion", () => {
         name: "zly",
       }),
     ).rejects.toThrow(
-      `Kit w ${join(tmpDir, "zly")} ma wersję 0.2.0, oczekiwano 0.3.0`,
+      `Kit in ${join(tmpDir, "zly")} has version 0.2.0, expected 0.3.0`,
     );
   });
 
@@ -457,7 +459,7 @@ describe("cloneKitVersion", () => {
         name: "wa-kit-nowy",
       }),
     ).rejects.toThrow(
-      "Nie udało się pobrać wa-kit v0.2.0 z https://example.com/org/wa-kit.git.",
+      "Could not fetch GatoJS v0.2.0 from https://example.com/org/wa-kit.git.",
     );
     expect(runner).toHaveBeenCalledTimes(1);
     expect(runner).toHaveBeenCalledWith(
@@ -491,7 +493,7 @@ describe("cloneKitVersion", () => {
     }).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toContain(
-      "Nie udało się pobrać wa-kit v0.2.0 z /sciezka/do/kitu.",
+      "Could not fetch GatoJS v0.2.0 from /sciezka/do/kitu.",
     );
     expect((error as Error).cause).toBe(failure);
   });
@@ -506,7 +508,7 @@ describe("cloneKitVersion", () => {
         tmpDir,
         name: "plik",
       }),
-    ).rejects.toThrow("Nie udało się pobrać wa-kit v0.2.0");
+    ).rejects.toThrow("Could not fetch GatoJS v0.2.0");
     expect(runner.mock.calls[0]?.[1]).toEqual([
       "-c",
       "advice.detachedHead=false",
@@ -532,7 +534,7 @@ describe("cloneKitVersion", () => {
         tmpDir,
         name: "lokalny",
       }),
-    ).rejects.toThrow("Nie udało się pobrać wa-kit v0.1.0 z /sciezka/do/kitu.");
+    ).rejects.toThrow("Could not fetch GatoJS v0.1.0 from /sciezka/do/kitu.");
     expect(runner.mock.calls[0]?.[1]).toEqual([
       "-c",
       "advice.detachedHead=false",
@@ -557,14 +559,14 @@ describe("kitSourceLocation", () => {
           envSource: undefined,
           state: baseState,
         }),
-      ).toThrow(`Nieprawidłowe źródło wa-kit: ${value}`);
+      ).toThrow(`Invalid kit source: ${value}`);
     },
   );
 
   it("WA_KIT_SOURCE zaczynające się od myślnika jest odrzucone", () => {
     expect(() =>
       kitSourceLocation({ kitFlag: null, envSource: "-x", state: baseState }),
-    ).toThrow("Nieprawidłowe źródło wa-kit: -x");
+    ).toThrow("Invalid kit source: -x");
   });
 
   it("bez flagi i WA_KIT_SOURCE zwraca state.kitRepo", () => {

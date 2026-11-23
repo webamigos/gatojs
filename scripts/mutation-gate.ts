@@ -18,9 +18,7 @@ const reportPaths =
     : DEFAULT_REPORTS.filter((path) => existsSync(path));
 
 if (reportPaths.length === 0) {
-  console.error(
-    "Brak raportu mutacji. Uruchom najpierw npm run test:mutation.",
-  );
+  console.error("No mutation report. Run npm run test:mutation first.");
   process.exit(1);
 }
 
@@ -35,16 +33,16 @@ const config = JSON.parse(
 const { violations, stale } = checkMutationGate(report, config);
 
 for (const violation of violations) {
-  console.error(`Nieobjęty testami mutant w pliku krytycznym: ${violation}`);
+  console.error(`Untested mutant in a critical file: ${violation}`);
 }
 for (const entry of stale) {
-  console.error(`Nieaktualny wpis w mutation-gate.json: ${entry}`);
+  console.error(`Stale entry in mutation-gate.json: ${entry}`);
 }
 
 if (violations.length > 0 || stale.length > 0) {
   console.error(
-    "Dopisz test, który zabija mutanta, albo dodaj wpis do mutation-gate.json z uzasadnieniem (równoważny / tylko komunikat).",
+    "Add a test that kills the mutant, or add an entry to mutation-gate.json with a reason (equivalent / message only).",
   );
   process.exit(1);
 }
-console.log(`Bramka mutacji: OK (raporty: ${reportPaths.join(", ")}).`);
+console.log(`Mutation gate: OK (reports: ${reportPaths.join(", ")}).`);

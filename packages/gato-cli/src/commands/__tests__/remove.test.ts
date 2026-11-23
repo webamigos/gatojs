@@ -43,7 +43,7 @@ function projectManifest(
   return {
     name,
     version: "1.0.0",
-    description: `Moduł ${name}`,
+    description: `Module ${name}`,
     requires: [],
     files: [`src/features/${name}/**`],
     dependencies: {},
@@ -151,7 +151,7 @@ describe("remove", () => {
     await appendFile(join(dir, "src/features/demo/module.ts"), "\n");
     const snapshot = await snapshotDir(dir, IGNORE);
     await expect(remove(removeOptions(dir, "demo"))).rejects.toThrow(
-      "Zmienione pliki modułu demo (użyj --force)",
+      "Changed files in module demo (use --force)",
     );
     expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
     expect(runner).not.toHaveBeenCalled();
@@ -164,7 +164,7 @@ describe("remove", () => {
     await appendFile(join(dir, "src/features/demo/env.ts"), "\n");
     await expect(remove(removeOptions(dir, "demo"))).rejects.toMatchObject({
       message:
-        "Zmienione pliki modułu demo (użyj --force):\n  src/features/demo/env.ts\n  src/features/demo/module.ts",
+        "Changed files in module demo (use --force):\n  src/features/demo/env.ts\n  src/features/demo/module.ts",
     });
   });
 
@@ -202,7 +202,7 @@ describe("remove", () => {
     const content = await readFile(envPath, "utf8");
     await writeFile(envPath, `ZMIANA=1\n${content}`);
     await expect(remove(removeOptions(dir, "demo"))).rejects.toThrow(
-      "Zmienione pliki modułu demo (użyj --force):\n  .env.example",
+      "Changed files in module demo (use --force):\n  .env.example",
     );
   });
 
@@ -248,14 +248,14 @@ describe("remove", () => {
     const snapshot = await snapshotDir(dir, IGNORE);
     await expect(
       remove(removeOptions(dir, "core", { force: true })),
-    ).rejects.toThrow("Nie można usunąć rdzenia");
+    ).rejects.toThrow("Cannot remove core");
     expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
   });
 
   it("niezainstalowany moduł kończy się błędem", async () => {
     const dir = await createProject("app", []);
     await expect(remove(removeOptions(dir, "needs-demo"))).rejects.toThrow(
-      "Moduł needs-demo nie jest zainstalowany",
+      "Module needs-demo is not installed",
     );
   });
 
@@ -264,7 +264,7 @@ describe("remove", () => {
     const snapshot = await snapshotDir(dir, IGNORE);
     await expect(
       remove(removeOptions(dir, "demo", { force: true })),
-    ).rejects.toThrow("Moduł demo jest wymagany przez: needs-demo");
+    ).rejects.toThrow("Module demo is required by: needs-demo");
     expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
   });
 
@@ -277,7 +277,7 @@ describe("remove", () => {
     await expect(
       remove(removeOptions(dir, "demo", { force: true })),
     ).rejects.toMatchObject({
-      message: "Moduł demo jest wymagany przez: notes",
+      message: "Module demo is required by: notes",
     });
     expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
   });
@@ -291,7 +291,7 @@ describe("remove", () => {
     await expect(
       remove(removeOptions(dir, "demo", { force: true })),
     ).rejects.toMatchObject({
-      message: "Moduł demo jest wymagany przez: alpha, needs-demo, notes",
+      message: "Module demo is required by: alpha, needs-demo, notes",
     });
   });
 
@@ -304,7 +304,7 @@ describe("remove", () => {
       remove(removeOptions(dir, "notes", { force: true })),
     ).rejects.toMatchObject({
       message:
-        "Moduł notes należy do projektu; wa remove usuwa tylko moduły kitu. Usuń jego pliki i wpis w projectModules ręcznie",
+        "Module notes belongs to the project; remove only handles kit modules. Delete its files and its projectModules entry by hand",
     });
     expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
     expect(runner).not.toHaveBeenCalled();
@@ -414,7 +414,7 @@ describe("remove", () => {
     const dir = await createProject("app", ["demo"]);
     await rm(join(dir, ".wa"), { recursive: true });
     await expect(remove(removeOptions(dir, "demo"))).rejects.toThrow(
-      "Brak .wa/kit.json",
+      "No .wa/kit.json",
     );
   });
 
@@ -422,7 +422,7 @@ describe("remove", () => {
     const dir = await createProject("app", ["demo"]);
     await remove(removeOptions(dir, "demo"));
     await expect(remove(removeOptions(dir, "demo"))).rejects.toThrow(
-      "Moduł demo nie jest zainstalowany",
+      "Module demo is not installed",
     );
   });
 
@@ -449,7 +449,7 @@ describe("remove", () => {
           const snapshot = await snapshotDir(dir, IGNORE);
           await expect(
             remove(removeOptions(dir, "demo", { force })),
-          ).rejects.toThrow(`Ścieżka poza projektem: ${file}`);
+          ).rejects.toThrow(`Path outside the project: ${file}`);
           expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
           expect(await readFile(victim, "utf8")).toBe(victimContent);
           expect(
@@ -487,7 +487,7 @@ describe("remove", () => {
         await expect(
           remove(removeOptions(dir, "demo", { force })),
         ).rejects.toThrow(
-          "Ścieżka poza projektem: src/features/demo/link/victim.txt",
+          "Path outside the project: src/features/demo/link/victim.txt",
         );
         expect(await readFile(join(outside, "victim.txt"), "utf8")).toBe(
           victimContent,
@@ -511,7 +511,7 @@ describe("remove", () => {
     });
     await expect(remove(removeOptions(dir, "demo"))).rejects.toMatchObject({
       message:
-        "Zmienione pliki modułu demo (użyj --force):\n  src/features/demo/aa.ts\n  src/features/demo/zz.ts",
+        "Changed files in module demo (use --force):\n  src/features/demo/aa.ts\n  src/features/demo/zz.ts",
     });
   });
 
@@ -559,7 +559,7 @@ describe("remove", () => {
     await expect(
       remove(removeOptions(dir, "demo", { install: true })),
     ).rejects.toThrow(
-      "Moduł usunięty, ale npm install się nie powiódł. Uruchom: npm install",
+      "Module removed, but npm install failed. Run: npm install",
     );
     expect(Object.keys((await readKitState(dir)).modules)).toEqual(["core"]);
     expect(existsSync(join(dir, "src/features/demo"))).toBe(false);
@@ -606,7 +606,7 @@ describe("remove", () => {
     await setDemoFiles(dir, { [entry]: sha256("x") });
     const snapshot = await snapshotDir(dir, IGNORE);
     await expect(remove(removeOptions(dir, "demo"))).rejects.toThrow(
-      `Ścieżka poza projektem: ${entry}`,
+      `Path outside the project: ${entry}`,
     );
     expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
     expect(runner).not.toHaveBeenCalled();
@@ -665,7 +665,7 @@ describe("remove", () => {
       (error: Error) => error,
     );
     expect(failure?.message).toContain("ENOTDIR: not a directory, realpath");
-    expect(failure?.message).not.toContain("Ścieżka poza projektem");
+    expect(failure?.message).not.toContain("Path outside the project");
     expect(await snapshotDir(dir, IGNORE)).toEqual(snapshot);
     expect(runner).not.toHaveBeenCalled();
   });

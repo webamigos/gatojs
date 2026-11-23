@@ -42,7 +42,7 @@ export async function guardTenantQuery<T>(
   if (bypass === undefined) {
     throw new TenantScopeError(model, operation);
   }
-  logger.debug("Zapytanie bez filtra organizacji w withoutTenantScope", {
+  logger.debug("Query without organization filter inside withoutTenantScope", {
     model,
     operation,
     reason: bypass.reason,
