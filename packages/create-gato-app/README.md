@@ -59,10 +59,10 @@ npx create-gato-app my-app --kit-version 0.1.0 --skip-install
 npx create-gato-app my-app --kit ../gatojs --yes --no-install --no-git
 ```
 
-## Private repository
+## GitHub token
 
-If `webamigos/gatojs` is private, GitHub answers 404 to anonymous requests. `create-gato-app` sends a token from,
-in order:
+`webamigos/gatojs` is public, so `create-gato-app` works without a token. Anonymous requests to the GitHub API are
+rate limited (60 per hour); a token raises the limit. `create-gato-app` sends a token from, in order:
 
 1. `GITHUB_TOKEN`,
 2. `GH_TOKEN`,
@@ -72,9 +72,14 @@ in order:
 GITHUB_TOKEN=$(gh auth token) npx create-gato-app my-app
 ```
 
-The token needs read access to the repository's contents. It is only sent to `api.github.com`; it is never printed.
-Without a token and on a 404, the error says the repository may be private and how to pass one. Anonymous requests to
-the GitHub API are rate limited (60 per hour); on a 403 or 429, set a token or pass `--kit-version`.
+The token is only sent to `api.github.com`; it is never printed. When GitHub rejects the token (401),
+`create-gato-app` says so and retries once without it. On a 403 or 429 (rate limit), set a token or pass
+`--kit-version`.
+
+## Project name
+
+The last segment of `<dir>` becomes the project name: lowercase letters, digits and hyphens, starting with a letter,
+2-50 characters. `create-gato-app` checks it before it downloads anything.
 
 ## Not yet
 

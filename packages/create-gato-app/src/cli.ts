@@ -1,9 +1,15 @@
 import { resolve } from "node:path";
 import { parseCliArgs, USAGE } from "./args.js";
 import { gatoCreateCommand } from "./delegate.js";
-import { resolveKitVersion, resolveToken, type FetchLike } from "./github.js";
+import {
+  GitHubTokenRejectedError,
+  resolveKitVersion,
+  resolveToken,
+  type FetchLike,
+} from "./github.js";
 import { downloadKit, type Spawn } from "./kit-download.js";
 import { checkNodeVersion } from "./node-version.js";
+import { assertProjectName } from "./project-name.js";
 
 export type CliDeps = {
   nodeVersion: string;
@@ -39,15 +45,15 @@ async function delegate(
   return result.code;
 }
 
-async function createFromDownload(
+const TOKEN_RETRY_WARNING =
+  "GitHub rejected the token (401); retrying without it.";
+
+async function downloadAndDelegate(
   deps: CliDeps,
   requested: string | null,
   passthrough: string[],
+  token: string | null,
 ): Promise<number> {
-  const token = await resolveToken({
-    env: deps.env,
-    ghAuthToken: deps.ghAuthToken,
-  });
   const version = await resolveKitVersion({
     requested,
     fetch: deps.fetch,
@@ -69,6 +75,27 @@ async function createFromDownload(
   }
 }
 
+async function createFromDownload(
+  deps: CliDeps,
+  requested: string | null,
+  passthrough: string[],
+): Promise<number> {
+  const token = await resolveToken({
+    env: deps.env,
+    ghAuthToken: deps.ghAuthToken,
+  });
+  try {
+    return await downloadAndDelegate(deps, requested, passthrough, token);
+  } catch (error) {
+    if (!(error instanceof GitHubTokenRejectedError)) {
+      throw error;
+    }
+    // WHY: the kit repository is public, so a stale or wrong token should not block the download.
+    deps.error(TOKEN_RETRY_WARNING);
+    return await downloadAndDelegate(deps, requested, passthrough, null);
+  }
+}
+
 export async function run(argv: string[], deps: CliDeps): Promise<number> {
   try {
     const args = parseCliArgs(argv);
@@ -80,6 +107,7 @@ export async function run(argv: string[], deps: CliDeps): Promise<number> {
       deps.log(deps.packageVersion);
       return 0;
     }
+    assertProjectName(deps.cwd, args.target);
     const verdict = checkNodeVersion({
       version: deps.nodeVersion,
       willInstall: args.install,

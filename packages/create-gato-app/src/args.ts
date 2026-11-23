@@ -26,7 +26,7 @@ export const USAGE = [
   "  --admin-email <email>  --yes  --setup  --no-install  --no-git",
   "  --cli-source <tarball>  (the project's gato-cli from a packed tarball, for CI)",
   "",
-  "Private repository: set GITHUB_TOKEN or GH_TOKEN, or log in with `gh auth login`.",
+  "Rate limits: set GITHUB_TOKEN or GH_TOKEN, or log in with `gh auth login`.",
 ].join("\n");
 
 const KIT_VERSION_PATTERN =
@@ -133,7 +133,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
     kitVersionValue === undefined ? null : parseKitVersion(kitVersionValue);
 
   const [target] = positionals;
-  if (target === undefined) {
+  if (target === undefined || target === "") {
     throw new Error(`Missing project directory.\n${USAGE}`);
   }
   return { kind: "create", target, kitVersion, kitPath, install, passthrough };

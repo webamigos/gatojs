@@ -225,8 +225,14 @@ describe("parseCliArgs", () => {
     [["--title", "Acme"]],
     [["--kit", "../gatojs"]],
     [["--kit-version", "0.1.0"]],
+    [[""]],
+    [["", "--yes"]],
   ])("%j rejects a missing project directory", (argv) => {
     expect(() => parseCliArgs(argv)).toThrow(/^Missing project directory/);
+  });
+
+  it("an empty target is a missing project directory", () => {
+    expect(() => parseCliArgs([""])).toThrow(/^Missing project directory\./);
   });
 
   it.each(["1.2.3", "100.0.0"])(
@@ -351,5 +357,14 @@ describe("USAGE", () => {
     expect(USAGE).toContain("gato create");
     expect(USAGE).toContain("--cli-source");
     expect(USAGE).not.toContain("wa create");
+  });
+
+  it("describes the token as a way around rate limits, not as private-repository access", () => {
+    expect(USAGE.split("\n")).toContain(
+      "Rate limits: set GITHUB_TOKEN or GH_TOKEN, or log in with `gh auth login`.",
+    );
+    expect(
+      USAGE.split("\n").filter((line) => line.startsWith("Private repository")),
+    ).toEqual([]);
   });
 });
