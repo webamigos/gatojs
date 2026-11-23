@@ -24458,7 +24458,7 @@ function cliDependency(input2) {
 }
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.2.1" };
+var identity = { name: "wa", version: "0.2.2" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);
