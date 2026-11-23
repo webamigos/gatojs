@@ -182,7 +182,9 @@ describe("normalizeAttributes", () => {
   });
 
   it("bigint that JSON cannot serialize → its String() form", () => {
-    expect(normalizeAttributes({ total: 10n })).toStrictEqual({ total: "10" });
+    expect(normalizeAttributes({ total: BigInt(10) })).toStrictEqual({
+      total: "10",
+    });
   });
 
   test.prop([
