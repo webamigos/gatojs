@@ -35,7 +35,7 @@ Several tasks bump `kit/modules/core.json` (Tasks 1, 3, 5, 6, 9), and Tasks 2 an
 - Rules in `CLAUDE.md`, `AGENTS.md` and `kit/CLAUDE.md` apply: no code comments except `// WHY:` (at most 3 lines) and tool directives; no `any`, nested ternaries or silent `catch {}`; Zod at external input; error class `name` as a string. Ragen files are references, not copies: their long doc comments do not come along.
 - New content (code, docs, commit messages, test titles, env messages) is English. Existing Polish docs (`docs/07-i18n-mail-env.md`, `docs/10-wdrozenie.md`, `docs/15-modul-uploads.md`, `docs/16-cli-wa.md`, `docs/02b-rejestr-i-generator.md`, `kit/CLAUDE.md`) are edited in their current language until the English migration. If that migration has renamed a file by the time a task runs, follow the new name.
 - Naming: new names say GatoJS or gato. "kit" stays only as a plain noun and in existing names (`.wa/kit.json`, `kit/modules/*.json`, `wa:*` regions, `npm run wa --`, `kit.yml`).
-- New decisions are ADR files in `docs/adrs/` from `docs/adrs/TEMPLATE.md`, with an index row in `docs/adrs/README.md`. Numbers planned here: ADR-59 (Task 1), ADR-60 (Task 6), ADR-61 (Task 7). Take the next free number when writing; if another branch took it, renumber and fix links before merging. A non-obvious gotcha goes to `docs/lessons/` with its line in `docs/lessons.md`.
+- New decisions are ADR files in `docs/adrs/` from `docs/adrs/TEMPLATE.md`, with an index row in `docs/adrs/README.md`. Numbers planned here: ADR-64 (Task 1), ADR-65 (Task 6), ADR-66 (Task 7). Take the next free number when writing; if another branch took it, renumber and fix links before merging. A non-obvious gotcha goes to `docs/lessons/` with its line in `docs/lessons.md`.
 - Tests are written by the `test-writer` subagent from this plan and the named signatures, before implementation, with a red run for the right reason. During implementation the phase file holds `implement` in the worker's worktree: `.superpowers/phase` today, `.gato/phase` once agent-workflow Task 2 has merged (use the path the `protect-tests` hook on `main` reads). Then the `test-reviewer` subagent runs `npm run test:mutation:task -- <files>` (with `--prefix packages/gato-cli` or `--prefix packages/create-gato-app` for tool files) and `npm run test:mutation:gate`. Expected values are literals or come from the spec. Surviving mutants are classified; `allowed` entries are proposed, never added.
 - Every GatoJS file change bumps the owning module's `version` in `kit/modules/<module>.json` (patch for fixes, minor for new behaviour), then `npm run wa -- kit sync && npm run wa -- generate`, committed, then `git diff --exit-code`. Core changes a module needs go in a separate commit from the module's own (`kit/CLAUDE.md`, "Modules and manifest").
 - A new file outside an owned glob needs a manifest entry, and only the CLI gate notices (lesson `a-new-file-needs-an-owner-only-the-cli-gate-checks`). Kit-only files go on `kitOnly` in `kit/kit.json`.
@@ -47,7 +47,7 @@ Several tasks bump `kit/modules/core.json` (Tasks 1, 3, 5, 6, 9), and Tasks 2 an
 
 ---
 
-### Task 1: Mail providers (`MAIL_PROVIDER`, SMTP by host, production rule) — ADR-59
+### Task 1: Mail providers (`MAIL_PROVIDER`, SMTP by host, production rule) — ADR-64
 
 **Branch:** `feat/mail-providers`
 
@@ -63,7 +63,7 @@ Several tasks bump `kit/modules/core.json` (Tasks 1, 3, 5, 6, 9), and Tasks 2 an
 - `.env.example` (core part, above the `wa:modules` region): after `SMTP_URL=smtp://localhost:1025` add `MAIL_PROVIDER=`, `SMTP_HOST=`, `SMTP_PORT=`, `SMTP_USER=`, `SMTP_PASS=`, `SMTP_SECURE=`. `SMTP_URL` stays, so mailpit in dev and e2e keeps working (`e2e/env.ts`, `docker-compose.yml` unchanged).
 - Tests to update (test-writer): `packages/env/src/__tests__/core-env-schema.test.ts` (the `RESEND_API_KEY` production cases at lines ~270 and ~344–358), `packages/env/src/__tests__/env-check.test.ts` (the report at ~210 and ~311–322), `src/__tests__/architecture/env-example-passes-validation.test.ts` (~128), `src/shared/lib/__tests__/mailer.test.ts` (new `envMock` fields; existing Polish test titles may stay). New: `packages/env/src/__tests__/mail.test.ts`.
 - Docs:
-  - ADR-59 `docs/adrs/59-production-mail-needs-a-configured-provider-or-explicit-console.md` supersedes the production `RESEND_API_KEY` rule of D17 and the matching note in D18. Add an index row and a status line under D17 and D18 in `docs/decyzje.md` pointing to ADR-59.
+  - ADR-64 `docs/adrs/64-production-mail-needs-a-configured-provider-or-explicit-console.md` supersedes the production `RESEND_API_KEY` rule of D17 and the matching note in D18. Add an index row and a status line under D17 and D18 in `docs/decyzje.md` pointing to ADR-64.
   - `AGENTS.md` "Mail" section (two lines; stay inside the agent-instructions budget, `src/__tests__/architecture/agent-instructions-fit-the-budget.test.ts`).
   - `docs/07-i18n-mail-env.md` (Polish) and `docs/10-wdrozenie.md` "Zmienne produkcyjne" (Polish): the provider table and the production rule.
   - Report lists docs.gatojs.com `guides/email` and `configuration/environment-variables`.
@@ -244,7 +244,7 @@ Why: `docker-compose.selfhost.yml` and `.env.selfhost.example` are core files (d
 
 ---
 
-### Task 6: `docker-compose.selfhost.yml`, `.env.selfhost.example` and the runbook — ADR-60
+### Task 6: `docker-compose.selfhost.yml`, `.env.selfhost.example` and the runbook — ADR-65
 
 **Branch:** `feat/selfhost-stack` (after Tasks 1, 4 and 5)
 
@@ -288,7 +288,7 @@ Why: `docker-compose.selfhost.yml` and `.env.selfhost.example` are core files (d
 
   Modelled on Ragen's `docs/appliance-runbook.md`. `docs/10-wdrozenie.md` "Własny serwer" links it; `docs/README.md` lists it.
 - `AGENTS.md` "Modules and generated files": the two new joining points (`docker-compose.selfhost.yml`: `# wa:services:start/end`, `.env.selfhost.example`: `# wa:modules:start/end`).
-- ADR-60 `docs/adrs/60-the-self-hosted-stack-is-a-core-compose-file-with-module-regions.md`: decision 9.4, decision 8.1 (no relay), the manifest fields from Task 5, bind mount for module data.
+- ADR-65 `docs/adrs/65-the-self-hosted-stack-is-a-core-compose-file-with-module-regions.md`: decision 9.4, decision 8.1 (no relay), the manifest fields from Task 5, bind mount for module data.
 
 **Behaviours:**
 - `checkSelfhostCompose` on the repository → `[]`. On a fixture with `app.depends_on.migrate.condition` = `service_started` → `["docker-compose.selfhost.yml: app must wait for migrate to complete (service_completed_successfully)"]`. A fixture with `db.ports` → `["docker-compose.selfhost.yml: db must not publish a port"]`. A fixture with a `mail` service on `axllent/mailpit` → `["docker-compose.selfhost.yml: no mail relay in the self-hosted stack (mail)"]`.
@@ -308,7 +308,7 @@ Why: `docker-compose.selfhost.yml` and `.env.selfhost.example` are core files (d
 
 ---
 
-### Task 7: Egress check and its workflow — ADR-61
+### Task 7: Egress check and its workflow — ADR-66
 
 **Branch:** `feat/egress-check` (after Task 6; Task 3 merged)
 
@@ -334,7 +334,7 @@ Why: `docker-compose.selfhost.yml` and `.env.selfhost.example` are core files (d
   - `on: pull_request` with `paths` from decision 9.2: `Dockerfile`, `docker-compose.selfhost.yml`, `.env.selfhost.example`, `src/shared/lib/mailer.ts`, `src/features/uploads/**`, `packages/env/**`, `package-lock.json`, plus `kit/egress-check/**` and the workflow itself; and `workflow_dispatch`;
   - jobs `scripts` (unit tests) and `egress-check` (matrix `storage: [local, s3]`).
 - `docs/self-hosting.md`: fill "Prove nothing leaves the machine" (what it runs, how to run it on the operator's own host, what a failure looks like).
-- ADR-61 `docs/adrs/61-the-app-calls-only-configured-endpoints-and-the-build-fetches-only-packages.md`: spec section 7, second decision. Enforcement: `src/__tests__/architecture/fonts-are-not-fetched-at-build.test.ts`, `src/__tests__/architecture/third-party-telemetry-stays-off.test.ts`, `.github/workflows/egress-check.yml`. Scope per decision 8.4: runtime only, the build may fetch npm packages and base images.
+- ADR-66 `docs/adrs/66-the-app-calls-only-configured-endpoints-and-the-build-fetches-only-packages.md`: spec section 7, second decision. Enforcement: `src/__tests__/architecture/fonts-are-not-fetched-at-build.test.ts`, `src/__tests__/architecture/third-party-telemetry-stays-off.test.ts`, `.github/workflows/egress-check.yml`. Scope per decision 8.4: runtime only, the build may fetch npm packages and base images.
 - `kit/CLAUDE.md` (Polish): how to run the check locally and when CI runs it.
 
 **Behaviours:**
@@ -423,7 +423,7 @@ Why: `docker-compose.selfhost.yml` and `.env.selfhost.example` are core files (d
 
 ## Definition of done (all tasks)
 
-- `main` has the mail providers with ADR-59, the wizard mail question in `create-gato-app` 0.3.x, self-hosted Inter with the two architecture tests, `S3_SESSION_TOKEN` and the preset table, `gato-cli` 0.4.0 regions, `docker-compose.selfhost.yml` + `.env.selfhost.example` + `docs/self-hosting.md` with ADR-60, the egress check with ADR-61, the multi-arch check, and the Helm chart with `helm.yml`.
+- `main` has the mail providers with ADR-64, the wizard mail question in `create-gato-app` 0.3.x, self-hosted Inter with the two architecture tests, `S3_SESSION_TOKEN` and the preset table, `gato-cli` 0.4.0 regions, `docker-compose.selfhost.yml` + `.env.selfhost.example` + `docs/self-hosting.md` with ADR-65, the egress check with ADR-66, the multi-arch check, and the Helm chart with `helm.yml`.
 - `verify`, CLI gate, create-gato-app gate, integration, e2e, `assemble`, `storage-presets`, `egress-check` (both legs), `docker-platforms` (both legs) and `helm.yml` are green.
 - `gato-cli` 0.4.0 and `create-gato-app` with the mail question are published (coordinator: tags in the order `kit/CLAUDE.md` gives, then Patryk's staged approval).
 - The docs.gatojs.com pages listed in the task reports have issues or PRs in the website repo.
