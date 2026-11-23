@@ -48,6 +48,8 @@ Zasady dla plików tylko kitu (`kit/`, pakiety narzędzi `packages/gato-cli` i `
      (`https://www.npmjs.com/settings/<login>/staged-packages`) → wersja → „Approve”. Albo w terminalu z npm 11:
      `npx npm@11 stage approve <staged-id>` (id jest w logu joba `publish`: „staged with id …”). Wersja zatwierdzona
      w przeglądarce znika z listy, więc `stage approve` zwraca potem 404.
+     Zaraz po publikacji npm automatycznie sprawdza paczkę (żółta ramka „Validating”, przycisk „Approve”
+     nieaktywny); zatwierdzenie jest możliwe dopiero po kilku minutach.
   3. Job `confirm` czeka do 10 minut, aż `npm view <pakiet>@<v> version` zwróci `<v>`, a `dist-tags.latest` wskaże `<v>`.
      Po dłuższym czasie: „Re-run failed jobs” albo ręcznie „Run workflow” z polem `tag` (np. `gato-cli@0.2.0`).
   - Publikacja przez trusted publishing jest staged (sprawdzone przy `gato-cli` 0.2.2 i `create-gato-app` 0.1.1,
