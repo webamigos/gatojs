@@ -175,6 +175,7 @@ Zmienne `S3_*` obowiązują tylko przy `STORAGE_PROVIDER=s3`; przy `local` nie s
 | `S3_REGION` | opcjonalna, niepusta; domyślnie `auto` | `auto` |
 | `S3_ACCESS_KEY_ID` | wymagana, niepusta | `minioadmin` |
 | `S3_SECRET_ACCESS_KEY` | wymagana, niepusta | `minioadmin` |
+| `S3_SESSION_TOKEN` | opcjonalna; pusta albo same spacje to brak tokenu | pusta |
 | `S3_BUCKET` | wymagana, niepusta | `<slug>-uploads` |
 | `S3_FORCE_PATH_STYLE` | opcjonalna, `true` albo `false`; brak daje `false`; inna wartość to błąd walidacji | `true` |
 
@@ -183,6 +184,25 @@ Zmienne `S3_*` obowiązują tylko przy `STORAGE_PROVIDER=s3`; przy `local` nie s
 - **Bucket musi istnieć.** Aplikacja go nie tworzy (żaden plik modułu nie wysyła `CreateBucket`); lokalnie tworzy go `minio-init`, w CI krok „Create MinIO bucket”, na produkcji ty w panelu magazynu przed pierwszym wdrożeniem ([10](10-wdrozenie.md#zmienne)).
 - **Błąd magazynu nie wychodzi przy starcie.** Zła wartość endpointu, kluczy, regionu albo brak bucketu kończy się błędem przy pierwszym zapisie pliku (500 `storage_failed`) albo odczycie (500 z trasy `GET`), bo walidacja sprawdza tylko format zmiennych. Zbudowany serwer z `STORAGE_PROVIDER=s3` i wartościami `S3_*` z `.env.example` przeszedł start i odpowiadał 200 na `/api/healthcheck`, choć pod `localhost:9000` nie działał MinIO projektu (sprawdzone 2026-11-04).
 - Produkcja nie ma reguły odrzucającej wartości z `.env.example` (jak pepper w `api-keys`); `minioadmin` przejdzie walidację także przy `NODE_ENV=production` (ten sam przebieg). Wartości na produkcję bierzesz z panelu magazynu.
+
+- **`S3_SESSION_TOKEN`** to token tymczasowych poświadczeń, na przykład z AWS STS (`aws sts assume-role` zwraca `AccessKeyId`, `SecretAccessKey` i `SessionToken`; wpisujesz je do `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` i `S3_SESSION_TOKEN`). Ustawiony trafia do klienta S3 jako `sessionToken`, pusty nie trafia wcale (testy „passes a set session token through to the s3 env” i „createS3Storage without a session token gives the client exactly the two keys”). Tymczasowe poświadczenia wygasają, a moduł ich nie odświeża: po wygaśnięciu zapis i odczyt kończą się błędem do restartu z nowymi wartościami.
+
+<a id="presety-s3"></a>
+
+### Presety magazynów S3
+
+Wartości dla popularnych magazynów zgodnych z S3. Klucze i bucket bierzesz z panelu magazynu; bucket musi istnieć przed pierwszym uploadem.
+
+| Magazyn | `S3_ENDPOINT` | `S3_REGION` | `S3_FORCE_PATH_STYLE` | Uwagi | Sprawdzone |
+| --- | --- | --- | --- | --- | --- |
+| AWS S3 | `https://s3.<region>.amazonaws.com` | `<region>` | `false` | Region bucketu, np. `eu-central-1`. Tymczasowe poświadczenia z STS z `S3_SESSION_TOKEN`. | z dokumentacji dostawcy, 2026-11-24, nieuruchamiane |
+| Cloudflare R2 | `https://<account_id>.r2.cloudflarestorage.com` | `auto` | `false` | Bucket z jurysdykcją ma własny endpoint, np. `https://<account_id>.eu.r2.cloudflarestorage.com`. Klucze z tokenu R2 API. | z dokumentacji dostawcy, 2026-11-24, nieuruchamiane |
+| Scaleway | `https://s3.<region>.scw.cloud` | `<region>` | `false` | Regiony np. `fr-par`, `nl-ams`, `pl-waw`. | z dokumentacji dostawcy, 2026-11-24, nieuruchamiane |
+| Backblaze B2 | `https://s3.<region>.backblazeb2.com` | `<region>` | `false` | Region z endpointu bucketu w panelu, np. `us-west-004`; tylko HTTPS. | z dokumentacji dostawcy, 2026-11-24, nieuruchamiane |
+| MinIO | `http://minio:9000` | `us-east-1` | `true` | Własny serwer; nazwa hosta to usługa w sieci Compose. | sprawdzone w CI (`kit.yml` `storage-presets`) |
+| RustFS | `http://rustfs:9000` | `us-east-1` | `true` | Własny serwer; obraz `rustfs/rustfs`, klucze z `RUSTFS_ACCESS_KEY` i `RUSTFS_SECRET_KEY`. | sprawdzone w CI (`kit.yml` `storage-presets`) |
+
+Job `storage-presets` w `.github/workflows/kit.yml` (tylko w repozytorium kitu) uruchamia dla MinIO i RustFS ten sam test `src/features/uploads/services/__tests__/storage.integration.test.ts` co CI projektu, z adresem, bucketem i kluczami z `INTEGRATION_S3_ENDPOINT`, `INTEGRATION_S3_BUCKET`, `INTEGRATION_S3_ACCESS_KEY_ID` i `INTEGRATION_S3_SECRET_ACCESS_KEY` (domyślnie klucze `minioadmin`). Lokalnie oba magazyny przeszły ten test 2026-11-24: MinIO na porcie 9300, RustFS 1.0.6 na porcie 9310 z kluczami innymi niż `minioadmin`. Kroki MinIO w CI projektu (`ci/uploads.integration-steps.yml`) się nie zmieniły.
 
 <a id="minio"></a>
 
@@ -256,7 +276,7 @@ Pole `ciSteps` manifestu wskazuje `ci/uploads.integration-steps.yml`, który `wa
   },
 ```
 
-Manifest ma `version` `0.2.2` i opis „Pliki organizacji na dysku albo w magazynie S3”. W `env` ma osiem zmiennych, wszystkie z `"required": false`: `STORAGE_PROVIDER` (przykład `local`), `STORAGE_LOCAL_PATH` (`./volumes/uploads`) i sześć zmiennych `S3_*` z przykładami lokalnego MinIO (bucket `{{projectSlug}}-uploads`). Pola `required` nie czyta żaden kod CLI, a o wymagalności decyduje schemat ([16b](16b-rozwoj-kitu.md#manifesty)). Dalej są relacje `uploads Upload[]` w `User` i `Organization`, `"compose": "docker/uploads.compose.yml"` i `"ciSteps": "ci/uploads.integration-steps.yml"`.
+Manifest ma `version` `0.3.0` i opis „Pliki organizacji na dysku albo w magazynie S3”. W `env` ma dziewięć zmiennych, wszystkie z `"required": false`: `STORAGE_PROVIDER` (przykład `local`), `STORAGE_LOCAL_PATH` (`./volumes/uploads`) i siedem zmiennych `S3_*` z przykładami lokalnego MinIO (bucket `{{projectSlug}}-uploads`) i pustym `S3_SESSION_TOKEN`. Pola `required` nie czyta żaden kod CLI, a o wymagalności decyduje schemat ([16b](16b-rozwoj-kitu.md#manifesty)). Dalej są relacje `uploads Upload[]` w `User` i `Organization`, `"compose": "docker/uploads.compose.yml"` i `"ciSteps": "ci/uploads.integration-steps.yml"`.
 
 <a id="lista-zmiennych"></a>
 
@@ -452,7 +472,7 @@ Szwy generowane ([12](12-moduly-kitu.md#szwy-generowane)):
 | `moduleEnvSchemas` | `envSchema` z `src/features/uploads/env.ts`. |
 | `moduleMessages` | `i18n/pl.json`, `i18n/en.json` pod kluczem `uploads`. |
 | Region `wa:relations` | `uploads Upload[]` w `User` i w `Organization`. |
-| Region `wa:modules` w `.env.example` | `STORAGE_PROVIDER=local`, `STORAGE_LOCAL_PATH=./volumes/uploads` i sześć zmiennych `S3_*` z wartościami lokalnego MinIO. |
+| Region `wa:modules` w `.env.example` | `STORAGE_PROVIDER=local`, `STORAGE_LOCAL_PATH=./volumes/uploads` i siedem zmiennych `S3_*` z wartościami lokalnego MinIO i pustym `S3_SESSION_TOKEN`. |
 | Region `wa:services` w `docker-compose.yml` | Usługi `minio` i `minio-init` z profilem `s3` z `docker/uploads.compose.yml`. |
 | Region `wa:ci-integration` w `ci.yml` i `mutation.yml` | Kroki „Start MinIO” i „Create MinIO bucket” z `ci/uploads.integration-steps.yml`. |
 | `authPlugins`, `authClientPlugins`, `auditSinks` | Nic. |
