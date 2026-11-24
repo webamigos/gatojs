@@ -765,6 +765,23 @@ describe("create: kitFormat and seed files", () => {
     expect(await readdir(dir)).toEqual([]);
   });
 
+  it("an interactive create from a kit with kitFormat 99 stops before any question or log line", async () => {
+    await editKitConfig((json) => {
+      json.kitFormat = 99;
+    });
+    const dir = join(tmp, "acme-shop");
+    const { prompter } = scriptedPrompter([]);
+    await expect(
+      messageOf(create(opts({ target: dir, modules: null, prompter }))),
+    ).resolves.toBe(
+      "This project uses kit format 99; update gato-cli (npm i -D gato-cli@latest) or run: npx gato-cli@latest update <version>",
+    );
+    expect(prompter.ask).not.toHaveBeenCalled();
+    expect(prompter.select).not.toHaveBeenCalled();
+    expect(logs).toEqual([]);
+    expect(existsSync(dir)).toBe(false);
+  });
+
   it("records a file from seedFiles with the hash seed and copies its content", async () => {
     await editKitConfig((json) => {
       json.seedFiles = ["src/i18n/config.ts"];
