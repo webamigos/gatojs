@@ -1,10 +1,23 @@
-import type { CreateCliArgs, Locale, StorageProvider } from "./args.js";
+import type {
+  CreateCliArgs,
+  Locale,
+  MailProvider,
+  StorageProvider,
+} from "./args.js";
 import { withRequired, type KitModule } from "./kit-modules.js";
-import { adminEmailError, envValueError, titleError } from "./validate.js";
+import {
+  adminEmailError,
+  envValueError,
+  parsePort,
+  PORT_ERROR,
+  titleError,
+} from "./validate.js";
 
 export const LOCAL_MINIO_ENDPOINT = "http://localhost:9000";
 export const LOCAL_MINIO_KEY = "minioadmin";
 export const HTTP_URL_ERROR = "expected an http(s) URL";
+export const LOCAL_MAILPIT_HOST = "127.0.0.1";
+export const DEFAULT_SMTP_PORT = 587;
 
 export class CancelledError extends Error {
   name = "CancelledError";
@@ -50,12 +63,26 @@ export type StorageAnswer =
       localMinio: boolean;
     };
 
+export type MailAnswer =
+  | { provider: "smtp"; localMailpit: true }
+  | {
+      provider: "smtp";
+      localMailpit: false;
+      host: string;
+      port: number;
+      user: string | null;
+      pass: string | null;
+    }
+  | { provider: "resend"; apiKey: string }
+  | { provider: "console" };
+
 export type Answers = {
   modules: string[];
   locales: Locale[];
   title: string;
   adminEmail: string | null;
   storage: StorageAnswer | null;
+  mail: MailAnswer;
   setup: boolean;
 };
 
@@ -232,6 +259,134 @@ async function askStorage(
   return provider === "s3" ? askS3(context) : { provider: "local" };
 }
 
+function optionalEnvValue(label: string, value: string): string | undefined {
+  return value.trim() === ""
+    ? undefined
+    : orUndefined(envValueError(label, value.trim()));
+}
+
+async function askMailProvider({
+  args,
+  prompter,
+  ask,
+}: Context): Promise<MailProvider> {
+  if (args.mailProvider !== null) {
+    return args.mailProvider;
+  }
+  if (!ask) {
+    return "smtp";
+  }
+  return prompter.select<MailProvider>({
+    message: "How should the app send mail?",
+    options: [
+      {
+        value: "smtp",
+        label: "smtp",
+        hint: "local mailpit in development, or your own relay",
+      },
+      { value: "resend", label: "resend", hint: "Resend API key" },
+      {
+        value: "console",
+        label: "console",
+        hint: "send nothing, log emails to the console",
+      },
+    ],
+    initialValue: "smtp",
+  });
+}
+
+async function askSmtpHost({ args, prompter, ask }: Context): Promise<string> {
+  if (args.smtpHost !== null) {
+    return args.smtpHost;
+  }
+  if (!ask) {
+    return LOCAL_MAILPIT_HOST;
+  }
+  const host = await prompter.text({
+    message: `SMTP host (${LOCAL_MAILPIT_HOST} = local mailpit started with Docker)`,
+    defaultValue: LOCAL_MAILPIT_HOST,
+    placeholder: LOCAL_MAILPIT_HOST,
+    validate: (value) => optionalEnvValue("SMTP host", value),
+  });
+  return host.trim() || LOCAL_MAILPIT_HOST;
+}
+
+async function askSmtpPort({ args, prompter, ask }: Context): Promise<number> {
+  if (args.smtpPort !== null) {
+    return args.smtpPort;
+  }
+  if (!ask) {
+    return DEFAULT_SMTP_PORT;
+  }
+  const port = await prompter.text({
+    message: "SMTP port",
+    defaultValue: String(DEFAULT_SMTP_PORT),
+    placeholder: String(DEFAULT_SMTP_PORT),
+    validate: (value) =>
+      value.trim() === "" || parsePort(value.trim()) !== null
+        ? undefined
+        : `SMTP port: ${PORT_ERROR}`,
+  });
+  return parsePort(port.trim()) ?? DEFAULT_SMTP_PORT;
+}
+
+async function askSmtpUser({
+  args,
+  prompter,
+  ask,
+}: Context): Promise<string | null> {
+  if (args.smtpUser !== null) {
+    return args.smtpUser;
+  }
+  if (!ask) {
+    return null;
+  }
+  const user = (
+    await prompter.text({
+      message: "SMTP user (empty = no authentication)",
+      defaultValue: "",
+      validate: (value) => optionalEnvValue("SMTP user", value),
+    })
+  ).trim();
+  return user === "" ? null : user;
+}
+
+async function askSmtp(context: Context): Promise<MailAnswer> {
+  const host = await askSmtpHost(context);
+  if (host === LOCAL_MAILPIT_HOST) {
+    return { provider: "smtp", localMailpit: true };
+  }
+  const port = await askSmtpPort(context);
+  const user = await askSmtpUser(context);
+  const pass =
+    user === null
+      ? null
+      : (context.args.smtpPass ??
+        (await context.prompter.password({
+          message: "SMTP password",
+          validate: (value) =>
+            orUndefined(envValueError("SMTP password", value)),
+        })));
+  return { provider: "smtp", localMailpit: false, host, port, user, pass };
+}
+
+async function askMail(context: Context): Promise<MailAnswer> {
+  const provider = await askMailProvider(context);
+  if (provider === "console") {
+    return { provider: "console" };
+  }
+  if (provider === "smtp") {
+    return askSmtp(context);
+  }
+  const apiKey =
+    context.args.resendApiKey ??
+    (await context.prompter.password({
+      message: "Resend API key",
+      validate: (value) => orUndefined(envValueError("Resend API key", value)),
+    }));
+  return { provider: "resend", apiKey };
+}
+
 async function askSetup({ args, prompter, ask }: Context): Promise<boolean> {
   if (!args.install || !args.docker) {
     return false;
@@ -262,6 +417,7 @@ export async function collectAnswers(input: {
   const title = await askTitle(context, input.slug);
   const adminEmail = await askAdminEmail(context);
   const storage = await askStorage(context, modules);
+  const mail = await askMail(context);
   const setup = await askSetup(context);
-  return { modules, locales, title, adminEmail, storage, setup };
+  return { modules, locales, title, adminEmail, storage, mail, setup };
 }

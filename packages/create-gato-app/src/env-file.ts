@@ -1,4 +1,4 @@
-import type { StorageAnswer } from "./questions.js";
+import type { MailAnswer, StorageAnswer } from "./questions.js";
 
 export const SUFFIX_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 export const SUFFIX_LENGTH = 6;
@@ -61,15 +61,50 @@ function storageValues(storage: StorageAnswer | null): Record<string, string> {
   };
 }
 
+function smtpAuthValues(
+  user: string | null,
+  pass: string | null,
+): Record<string, string> {
+  return user === null ? {} : { SMTP_USER: user, SMTP_PASS: pass ?? "" };
+}
+
+function mailValues(mail: MailAnswer): Record<string, string> {
+  if (mail.provider === "console") {
+    return { MAIL_PROVIDER: "console", SMTP_URL: "" };
+  }
+  if (mail.provider === "resend") {
+    return {
+      MAIL_PROVIDER: "resend",
+      RESEND_API_KEY: mail.apiKey,
+      SMTP_URL: "",
+    };
+  }
+  if (mail.localMailpit) {
+    return {};
+  }
+  return {
+    MAIL_PROVIDER: "smtp",
+    SMTP_URL: "",
+    SMTP_HOST: mail.host,
+    SMTP_PORT: String(mail.port),
+    ...smtpAuthValues(mail.user, mail.pass),
+  };
+}
+
 export function wizardEnvValues(input: {
   existing: string;
   slug: string;
   suffix: string;
   storage: StorageAnswer | null;
+  mail: MailAnswer;
 }): Record<string, string> {
   const values: Record<string, string> = {};
   if (readEnvValue(input.existing, COMPOSE_PROJECT_NAME) === null) {
     values[COMPOSE_PROJECT_NAME] = composeProjectName(input.slug, input.suffix);
   }
-  return { ...values, ...storageValues(input.storage) };
+  return {
+    ...values,
+    ...storageValues(input.storage),
+    ...mailValues(input.mail),
+  };
 }

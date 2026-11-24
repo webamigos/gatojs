@@ -13,17 +13,28 @@ import { CancelledError } from "../questions.js";
 import type { Ui } from "../ui.js";
 import { bytesResponse, jsonResponse, statusResponse } from "./fake-http.js";
 import { scriptedPrompter, type ScriptedAnswer } from "./fake-prompter.js";
-import { base64Wrapped, KIT_COMPOSE, KIT_NODE_RANGE, writeKit } from "./kit-fixture.js";
+import {
+  base64Wrapped,
+  KIT_COMPOSE,
+  KIT_NODE_RANGE,
+  writeKit,
+} from "./kit-fixture.js";
 
 const SECRET = "ghp_SECRET_TOKEN_123";
 const NODE = "/usr/local/bin/node";
 const GATO = "/nm/gato-cli/dist/gato.mjs";
-const TAGS_PAGE_1 = "https://api.github.com/repos/webamigos/gatojs/tags?per_page=100&page=1";
-const CONTENTS_010 = "https://api.github.com/repos/webamigos/gatojs/contents/package.json?ref=v0.1.0";
-const CONTENTS_020 = "https://api.github.com/repos/webamigos/gatojs/contents/package.json?ref=v0.2.0";
-const API_TARBALL_010 = "https://api.github.com/repos/webamigos/gatojs/tarball/refs/tags/v0.1.0";
-const CODELOAD_TARBALL_010 = "https://codeload.github.com/webamigos/gatojs/tar.gz/refs/tags/v0.1.0";
-const CODELOAD_TARBALL_020 = "https://codeload.github.com/webamigos/gatojs/tar.gz/refs/tags/v0.2.0";
+const TAGS_PAGE_1 =
+  "https://api.github.com/repos/webamigos/gatojs/tags?per_page=100&page=1";
+const CONTENTS_010 =
+  "https://api.github.com/repos/webamigos/gatojs/contents/package.json?ref=v0.1.0";
+const CONTENTS_020 =
+  "https://api.github.com/repos/webamigos/gatojs/contents/package.json?ref=v0.2.0";
+const API_TARBALL_010 =
+  "https://api.github.com/repos/webamigos/gatojs/tarball/refs/tags/v0.1.0";
+const CODELOAD_TARBALL_010 =
+  "https://codeload.github.com/webamigos/gatojs/tar.gz/refs/tags/v0.1.0";
+const CODELOAD_TARBALL_020 =
+  "https://codeload.github.com/webamigos/gatojs/tar.gz/refs/tags/v0.2.0";
 
 const GATO_CREATE = "gato create";
 const GIT_INIT = "git init -q";
@@ -32,7 +43,8 @@ const DOCKER_INFO = "docker info";
 const COMPOSE_UP = "docker compose up -d --wait";
 const MIGRATE = "npx prisma migrate dev --name init";
 const GIT_ADD = "git add -A";
-const COMMIT = "git commit -q --no-verify -m chore: initial commit from GatoJS v0.9.0";
+const COMMIT =
+  "git commit -q --no-verify -m chore: initial commit from GatoJS v0.9.0";
 const ADMIN_CREATE = "npm run admin:create -- --email a@b.co";
 const COMMIT_HINT = 'git add -A && git commit -m "chore: initial commit"';
 const RETRY_WARNING = "GitHub rejected the token (401); retrying without it.";
@@ -113,7 +125,10 @@ async function writeProject(projectDir: string, extra: string): Promise<void> {
   await mkdir(join(projectDir, ".wa"), { recursive: true });
   await writeFile(join(projectDir, ".env"), `${PROJECT_ENV}${extra}`);
   await writeFile(join(projectDir, "docker-compose.yml"), KIT_COMPOSE);
-  await writeFile(join(projectDir, ".wa", "kit.json"), JSON.stringify({ kitVersion: "0.9.0" }));
+  await writeFile(
+    join(projectDir, ".wa", "kit.json"),
+    JSON.stringify({ kitVersion: "0.9.0" }),
+  );
 }
 
 async function harness(options: HarnessOptions = {}): Promise<Harness> {
@@ -155,7 +170,12 @@ async function harness(options: HarnessOptions = {}): Promise<Harness> {
   };
 
   const spawn: Spawn = async (command, args, spawnOptions) => {
-    const call: SpawnCall = { command, args, cwd: spawnOptions.cwd, stdio: spawnOptions.stdio };
+    const call: SpawnCall = {
+      command,
+      args,
+      cwd: spawnOptions.cwd,
+      stdio: spawnOptions.stdio,
+    };
     h.calls.push(call);
     const name = label(call);
     h.events.push(`spawn ${name}`);
@@ -168,11 +188,19 @@ async function harness(options: HarnessOptions = {}): Promise<Harness> {
     if ((options.rejects ?? []).some((key) => name.startsWith(key))) {
       throw new Error(`spawn ${command} ENOENT`);
     }
-    const configured = Object.entries(options.results ?? {}).find(([key]) => name.startsWith(key))?.[1];
-    const result: SpawnResult = { code: 0, stdout: "", stderr: "", ...configured };
+    const configured = Object.entries(options.results ?? {}).find(([key]) =>
+      name.startsWith(key),
+    )?.[1];
+    const result: SpawnResult = {
+      code: 0,
+      stdout: "",
+      stderr: "",
+      ...configured,
+    };
     if (name === GATO_CREATE && result.code === 0) {
       const projectDir = args[2];
-      if (projectDir === undefined) throw new Error("gato create without a directory");
+      if (projectDir === undefined)
+        throw new Error("gato create without a directory");
       await writeProject(projectDir, options.projectEnvExtra ?? "");
     }
     if (name.startsWith("docker compose") && name.includes(" up")) {
@@ -200,7 +228,7 @@ async function harness(options: HarnessOptions = {}): Promise<Harness> {
     outro: (message) => {
       h.uiLines.push(message);
     },
-    task: async <T,>(taskLabel: string, work: () => Promise<T>): Promise<T> => {
+    task: async <T>(taskLabel: string, work: () => Promise<T>): Promise<T> => {
       h.events.push(`task ${taskLabel}`);
       return work();
     },
@@ -235,7 +263,11 @@ async function harness(options: HarnessOptions = {}): Promise<Harness> {
       h.probed.push(port);
       return busy.includes(port);
     },
-    randomBytes: (size) => Uint8Array.from({ length: size }, (_, index) => RANDOM_PATTERN[index % 6] ?? 0),
+    randomBytes: (size) =>
+      Uint8Array.from(
+        { length: size },
+        (_, index) => RANDOM_PATTERN[index % 6] ?? 0,
+      ),
     log: (line) => {
       h.logs.push(line);
     },
@@ -261,7 +293,11 @@ function output(h: Harness): string {
 
 function steps(h: Harness): string[] {
   return h.calls
-    .filter((call) => call.command !== "tar" && !h.tempDirs.some((dir) => call.cwd?.startsWith(dir)))
+    .filter(
+      (call) =>
+        call.command !== "tar" &&
+        !h.tempDirs.some((dir) => call.cwd?.startsWith(dir)),
+    )
     .map(label);
 }
 
@@ -284,10 +320,16 @@ async function projectEnv(h: Harness): Promise<string[]> {
 }
 
 function contentsResponse(packageJson: unknown): HttpResponse {
-  return jsonResponse({ encoding: "base64", content: base64Wrapped(JSON.stringify(packageJson)) });
+  return jsonResponse({
+    encoding: "base64",
+    content: base64Wrapped(JSON.stringify(packageJson)),
+  });
 }
 
-const KIT_PACKAGE = contentsResponse({ name: "gatojs", engines: { node: KIT_NODE_RANGE } });
+const KIT_PACKAGE = contentsResponse({
+  name: "gatojs",
+  engines: { node: KIT_NODE_RANGE },
+});
 
 describe("run: pomoc i wersja", () => {
   it("--version wypisuje dokładnie wersję pakietu i nic więcej nie robi", async () => {
@@ -315,24 +357,37 @@ describe("run: pomoc i wersja", () => {
 
 describe("run: błędy argumentów", () => {
   it.each([
-    [["app", "--kit", "../kit", "--kit-version", "0.1.0"], "--kit and --kit-version cannot be used together"],
+    [
+      ["app", "--kit", "../kit", "--kit-version", "0.1.0"],
+      "--kit and --kit-version cannot be used together",
+    ],
     [[], "Missing project directory."],
     [["my-app", "--nope"], "Unknown option: --nope"],
     [["my-app", "--title", 'A"B', "--yes"], "--title: "],
-    [["my-app", "--setup", "--skip-docker"], "--setup needs npm install and Docker"],
-  ])("%j kończy się kodem 1 bez pobierania i bez procesów", async (argv, message) => {
-    const h = await harness({ routes: { [TAGS_PAGE_1]: jsonResponse([{ name: "v0.1.0" }]) } });
-    await expect(run(argv, h.deps)).resolves.toBe(1);
-    expect(output(h)).toContain(message);
-    expect(h.fetchCalls).toEqual([]);
-    expect(h.calls).toEqual([]);
-    expect(h.tempDirs).toEqual([]);
-  });
+    [
+      ["my-app", "--setup", "--skip-docker"],
+      "--setup needs npm install and Docker",
+    ],
+  ])(
+    "%j kończy się kodem 1 bez pobierania i bez procesów",
+    async (argv, message) => {
+      const h = await harness({
+        routes: { [TAGS_PAGE_1]: jsonResponse([{ name: "v0.1.0" }]) },
+      });
+      await expect(run(argv, h.deps)).resolves.toBe(1);
+      expect(output(h)).toContain(message);
+      expect(h.fetchCalls).toEqual([]);
+      expect(h.calls).toEqual([]);
+      expect(h.tempDirs).toEqual([]);
+    },
+  );
 });
 
 describe("run: katalog docelowy i terminal", () => {
   it("istniejący niepusty katalog kończy się kodem 1 bez pobierania i procesów", async () => {
-    const h = await harness({ routes: { [TAGS_PAGE_1]: jsonResponse([{ name: "v0.1.0" }]) } });
+    const h = await harness({
+      routes: { [TAGS_PAGE_1]: jsonResponse([{ name: "v0.1.0" }]) },
+    });
     await mkdir(h.projectDir);
     await writeFile(join(h.projectDir, "README.md"), "x");
     await expect(run(["my-app", "--yes"], h.deps)).resolves.toBe(1);
@@ -346,7 +401,9 @@ describe("run: katalog docelowy i terminal", () => {
   it("istniejący pusty katalog jest w porządku", async () => {
     const h = await harness();
     await mkdir(h.projectDir);
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-install"], h.deps),
+    ).resolves.toBe(0);
     expect(steps(h)).toEqual([GATO_CREATE, GIT_INIT]);
   });
 
@@ -356,19 +413,29 @@ describe("run: katalog docelowy i terminal", () => {
       routes: { [TAGS_PAGE_1]: jsonResponse([{ name: "v0.1.0" }]) },
     });
     await expect(run(["my-app"], h.deps)).resolves.toBe(1);
-    expect(lines(h).some((line) => line.startsWith("No terminal for questions: pass --yes"))).toBe(true);
+    expect(
+      lines(h).some((line) =>
+        line.startsWith("No terminal for questions: pass --yes"),
+      ),
+    ).toBe(true);
     expect(h.fetchCalls).toEqual([]);
     expect(h.calls).toEqual([]);
   });
 
   it("bez terminala z --yes kreator działa", async () => {
     const h = await harness({ interactive: false });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-install"], h.deps),
+    ).resolves.toBe(0);
     expect(steps(h)).toEqual([GATO_CREATE, GIT_INIT]);
   });
 
   it("anulowanie pytań kończy się kodem 1, bez gato create i bez katalogu projektu", async () => {
-    const h = await harness({ script: [{ method: "multiselect", answer: new CancelledError("cancelled") }] });
+    const h = await harness({
+      script: [
+        { method: "multiselect", answer: new CancelledError("cancelled") },
+      ],
+    });
     await expect(run(["my-app", "--kit", h.kitDir], h.deps)).resolves.toBe(1);
     expect(lines(h)).toContain("Cancelled; nothing was written.");
     expect(steps(h)).toEqual([]);
@@ -377,8 +444,12 @@ describe("run: katalog docelowy i terminal", () => {
 
   it("nieznany moduł z --modules kończy się kodem 1 bez gato create", async () => {
     const h = await harness();
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--modules", "nope"], h.deps)).resolves.toBe(1);
-    expect(output(h)).toContain('Unknown module "nope". Available: api-keys, uploads.');
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--modules", "nope"], h.deps),
+    ).resolves.toBe(1);
+    expect(output(h)).toContain(
+      'Unknown module "nope". Available: api-keys, uploads.',
+    );
     expect(steps(h)).toEqual([]);
   });
 
@@ -386,8 +457,12 @@ describe("run: katalog docelowy i terminal", () => {
     const h = await harness();
     const empty = join(h.root, "empty-kit");
     await mkdir(empty);
-    await expect(run(["my-app", "--kit", empty, "--yes"], h.deps)).resolves.toBe(1);
-    expect(output(h)).toContain(`${empty} is not a GatoJS checkout (no package.json)`);
+    await expect(
+      run(["my-app", "--kit", empty, "--yes"], h.deps),
+    ).resolves.toBe(1);
+    expect(output(h)).toContain(
+      `${empty} is not a GatoJS checkout (no package.json)`,
+    );
     expect(steps(h)).toEqual([]);
   });
 });
@@ -395,8 +470,16 @@ describe("run: katalog docelowy i terminal", () => {
 describe("run: lokalny kit z --yes --skip-docker", () => {
   it("uruchamia gato create z odpowiedziami, potem git init, npm install i commit w katalogu projektu", async () => {
     const h = await harness();
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps)).resolves.toBe(0);
-    expect(steps(h)).toEqual([GATO_CREATE, GIT_INIT, NPM_INSTALL, GIT_ADD, COMMIT]);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps),
+    ).resolves.toBe(0);
+    expect(steps(h)).toEqual([
+      GATO_CREATE,
+      GIT_INIT,
+      NPM_INSTALL,
+      GIT_ADD,
+      COMMIT,
+    ]);
     const create = callNamed(h, GATO_CREATE);
     expect(create.command).toBe(NODE);
     expect(create.args).toEqual([
@@ -426,33 +509,49 @@ describe("run: lokalny kit z --yes --skip-docker", () => {
 
   it("nie uruchamia dockera ani migracji", async () => {
     const h = await harness();
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps),
+    ).resolves.toBe(0);
     expect(h.calls.some((call) => call.command === "docker")).toBe(false);
     expect(h.calls.some((call) => call.command === "npx")).toBe(false);
   });
 
   it("dopisuje do .env COMPOSE_PROJECT_NAME z przyrostkiem z randomBytes i nie rusza reszty", async () => {
     const h = await harness();
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps),
+    ).resolves.toBe(0);
     const env = await projectEnv(h);
     expect(env).toContain("COMPOSE_PROJECT_NAME=my-app-abc9ad");
-    expect(env.filter((line) => line.startsWith("COMPOSE_PROJECT_NAME="))).toHaveLength(1);
+    expect(
+      env.filter((line) => line.startsWith("COMPOSE_PROJECT_NAME=")),
+    ).toHaveLength(1);
     expect(env).toContain(`BETTER_AUTH_SECRET=${AUTH_SECRET}`);
-    expect(env).toContain("DATABASE_URL=postgresql://postgres:postgres@localhost:5432/my_app");
+    expect(env).toContain(
+      "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/my_app",
+    );
     expect(env).toContain("ADMIN_EMAIL=");
   });
 
   it("istniejący COMPOSE_PROJECT_NAME zostaje bez zmian", async () => {
-    const h = await harness({ projectEnvExtra: "COMPOSE_PROJECT_NAME=keep-me\n" });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps)).resolves.toBe(0);
+    const h = await harness({
+      projectEnvExtra: "COMPOSE_PROJECT_NAME=keep-me\n",
+    });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps),
+    ).resolves.toBe(0);
     const env = await projectEnv(h);
     expect(env).toContain("COMPOSE_PROJECT_NAME=keep-me");
-    expect(env.filter((line) => line.startsWith("COMPOSE_PROJECT_NAME="))).toEqual(["COMPOSE_PROJECT_NAME=keep-me"]);
+    expect(
+      env.filter((line) => line.startsWith("COMPOSE_PROJECT_NAME=")),
+    ).toEqual(["COMPOSE_PROJECT_NAME=keep-me"]);
   });
 
   it("następne kroki to Docker, migracja, admin i dev, bez npm install i commita", async () => {
     const h = await harness();
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps),
+    ).resolves.toBe(0);
     expect(nextStepsOf(h)).toEqual([
       "cd my-app",
       "docker compose up -d",
@@ -463,15 +562,23 @@ describe("run: lokalny kit z --yes --skip-docker", () => {
   });
 
   it("wyjście gato create nie trafia do użytkownika, gdy się udało", async () => {
-    const h = await harness({ results: { [GATO_CREATE]: { stdout: "Projekt gotowy", stderr: "Ostrzeżenie" } } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps)).resolves.toBe(0);
+    const h = await harness({
+      results: {
+        [GATO_CREATE]: { stdout: "Projekt gotowy", stderr: "Ostrzeżenie" },
+      },
+    });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps),
+    ).resolves.toBe(0);
     expect(output(h)).not.toContain("Projekt gotowy");
     expect(output(h)).not.toContain("Ostrzeżenie");
   });
 
   it("względny --kit jest liczony od cwd", async () => {
     const h = await harness();
-    await expect(run(["my-app", "--kit", "../kit", "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(["my-app", "--kit", "../kit", "--yes", "--skip-install"], h.deps),
+    ).resolves.toBe(0);
     expect(callNamed(h, GATO_CREATE).args.at(-1)).toBe(`--kit=${h.kitDir}`);
   });
 
@@ -479,7 +586,17 @@ describe("run: lokalny kit z --yes --skip-docker", () => {
     const h = await harness();
     await expect(
       run(
-        ["my-app", "--kit", h.kitDir, "--yes", "--skip-install", "--cli-source", "/t/gato-cli.tgz", "--admin-email", "a@b.co"],
+        [
+          "my-app",
+          "--kit",
+          h.kitDir,
+          "--yes",
+          "--skip-install",
+          "--cli-source",
+          "/t/gato-cli.tgz",
+          "--admin-email",
+          "a@b.co",
+        ],
         h.deps,
       ),
     ).resolves.toBe(0);
@@ -503,7 +620,9 @@ describe("run: lokalny kit z --yes --skip-docker", () => {
 describe("run: --skip-install", () => {
   it("uruchamia tylko gato create i git init, bez commita", async () => {
     const h = await harness();
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-install"], h.deps),
+    ).resolves.toBe(0);
     expect(steps(h)).toEqual([GATO_CREATE, GIT_INIT]);
     expect(nextStepsOf(h).slice(0, 2)).toEqual(["cd my-app", "npm install"]);
     expect(nextStepsOf(h)).toContain(COMMIT_HINT);
@@ -511,7 +630,9 @@ describe("run: --skip-install", () => {
 
   it("dalej zapisuje COMPOSE_PROJECT_NAME", async () => {
     const h = await harness();
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-install"], h.deps),
+    ).resolves.toBe(0);
     expect(await projectEnv(h)).toContain("COMPOSE_PROJECT_NAME=my-app-abc9ad");
   });
 });
@@ -519,29 +640,55 @@ describe("run: --skip-install", () => {
 describe("run: pełna konfiguracja z --yes", () => {
   it("przy wolnych portach uruchamia Dockera, instalację, migrację i commit w tej kolejności", async () => {
     const h = await harness();
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(0);
-    expect(steps(h)).toEqual([GATO_CREATE, DOCKER_INFO, COMPOSE_UP, GIT_INIT, NPM_INSTALL, MIGRATE, GIT_ADD, COMMIT]);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
+    expect(steps(h)).toEqual([
+      GATO_CREATE,
+      DOCKER_INFO,
+      COMPOSE_UP,
+      GIT_INIT,
+      NPM_INSTALL,
+      MIGRATE,
+      GIT_ADD,
+      COMMIT,
+    ]);
     expect(callNamed(h, COMPOSE_UP).cwd).toBe(h.projectDir);
     expect(callNamed(h, MIGRATE).cwd).toBe(h.projectDir);
-    expect(nextStepsOf(h)).toEqual(["cd my-app", "npm run admin:create -- --email <your-email>", "npm run dev"]);
+    expect(nextStepsOf(h)).toEqual([
+      "cd my-app",
+      "npm run admin:create -- --email <your-email>",
+      "npm run dev",
+    ]);
   });
 
   it("sprawdza porty db i mail przed docker info", async () => {
     const h = await harness();
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
     expect([...h.probed].sort((a, b) => a - b)).toEqual([1025, 5432, 8025]);
   });
 
   it(".env ma COMPOSE_PROJECT_NAME, zanim ruszy docker compose up", async () => {
     const h = await harness();
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
     expect(h.envAtComposeUp).toHaveLength(1);
-    expect(h.envAtComposeUp[0]?.split("\n")).toContain("COMPOSE_PROJECT_NAME=my-app-abc9ad");
+    expect(h.envAtComposeUp[0]?.split("\n")).toContain(
+      "COMPOSE_PROJECT_NAME=my-app-abc9ad",
+    );
   });
 
   it("z --admin-email tworzy administratora po migracji, przed commitem, na terminalu użytkownika", async () => {
     const h = await harness();
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--admin-email", "a@b.co"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(
+        ["my-app", "--kit", h.kitDir, "--yes", "--admin-email", "a@b.co"],
+        h.deps,
+      ),
+    ).resolves.toBe(0);
     expect(steps(h)).toEqual([
       GATO_CREATE,
       DOCKER_INFO,
@@ -561,7 +708,19 @@ describe("run: pełna konfiguracja z --yes", () => {
   it("uploads z S3 uruchamia profil s3, sprawdza porty MinIO i zapisuje magazyn w .env", async () => {
     const h = await harness();
     await expect(
-      run(["my-app", "--kit", h.kitDir, "--yes", "--modules", "uploads", "--storage", "s3"], h.deps),
+      run(
+        [
+          "my-app",
+          "--kit",
+          h.kitDir,
+          "--yes",
+          "--modules",
+          "uploads",
+          "--storage",
+          "s3",
+        ],
+        h.deps,
+      ),
     ).resolves.toBe(0);
     expect(steps(h)).toContain("docker compose --profile s3 up -d --wait");
     expect(steps(h)).not.toContain(COMPOSE_UP);
@@ -575,7 +734,12 @@ describe("run: pełna konfiguracja z --yes", () => {
 
   it("uploads z lokalnym magazynem nie włącza profilu s3 ani portów MinIO", async () => {
     const h = await harness();
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--modules", "uploads"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(
+        ["my-app", "--kit", h.kitDir, "--yes", "--modules", "uploads"],
+        h.deps,
+      ),
+    ).resolves.toBe(0);
     expect(steps(h)).toContain(COMPOSE_UP);
     expect(h.probed).not.toContain(9000);
     expect(await projectEnv(h)).toContain("STORAGE_PROVIDER=local");
@@ -583,7 +747,9 @@ describe("run: pełna konfiguracja z --yes", () => {
 
   it("DB_PORT z otoczenia zmienia sprawdzany port bazy", async () => {
     const h = await harness({ env: { DB_PORT: "5544" } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
     expect(h.probed).toContain(5544);
     expect(h.probed).not.toContain(5432);
   });
@@ -592,26 +758,49 @@ describe("run: pełna konfiguracja z --yes", () => {
 describe("run: porażki kroków", () => {
   it("zajęty port 5432 pomija Dockera i migrację, instaluje, commituje i kończy się kodem 1", async () => {
     const h = await harness({ busy: [5432] });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(1);
-    expect(steps(h)).toEqual([GATO_CREATE, GIT_INIT, NPM_INSTALL, GIT_ADD, COMMIT]);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(1);
+    expect(steps(h)).toEqual([
+      GATO_CREATE,
+      GIT_INIT,
+      NPM_INSTALL,
+      GIT_ADD,
+      COMMIT,
+    ]);
     expect(output(h)).toContain("DB_PORT=5433");
-    expect(output(h)).toContain("DATABASE_URL=postgresql://postgres:postgres@localhost:5433/my_app");
+    expect(output(h)).toContain(
+      "DATABASE_URL=postgresql://postgres:postgres@localhost:5433/my_app",
+    );
     expect(nextStepsOf(h)).toContain("docker compose up -d");
     expect(nextStepsOf(h)).toContain("npx prisma migrate dev --name init");
   });
 
   it("niedostępny Docker kończy się kodem 1 bez compose i migracji", async () => {
-    const h = await harness({ results: { [DOCKER_INFO]: { code: 1, stderr: "Cannot connect" } } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(1);
+    const h = await harness({
+      results: { [DOCKER_INFO]: { code: 1, stderr: "Cannot connect" } },
+    });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(1);
     expect(steps(h)).toContain(DOCKER_INFO);
-    expect(steps(h).some((name) => name.startsWith("docker compose"))).toBe(false);
+    expect(steps(h).some((name) => name.startsWith("docker compose"))).toBe(
+      false,
+    );
     expect(steps(h)).not.toContain(MIGRATE);
     expect(output(h)).toContain("Docker is not available");
   });
 
   it("nieudane docker compose up pomija migrację i admina, ale commituje i kończy się kodem 1", async () => {
-    const h = await harness({ results: { "docker compose": { code: 1, stderr: "port is allocated" } } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--admin-email", "a@b.co"], h.deps)).resolves.toBe(1);
+    const h = await harness({
+      results: { "docker compose": { code: 1, stderr: "port is allocated" } },
+    });
+    await expect(
+      run(
+        ["my-app", "--kit", h.kitDir, "--yes", "--admin-email", "a@b.co"],
+        h.deps,
+      ),
+    ).resolves.toBe(1);
     expect(steps(h)).not.toContain(MIGRATE);
     expect(steps(h)).not.toContain(ADMIN_CREATE);
     expect(steps(h)).toContain(NPM_INSTALL);
@@ -620,8 +809,15 @@ describe("run: porażki kroków", () => {
   });
 
   it("nieudane npm install pomija migrację i commit i kończy się kodem 1", async () => {
-    const h = await harness({ results: { [NPM_INSTALL]: { code: 1, stderr: "ERESOLVE" } } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--admin-email", "a@b.co"], h.deps)).resolves.toBe(1);
+    const h = await harness({
+      results: { [NPM_INSTALL]: { code: 1, stderr: "ERESOLVE" } },
+    });
+    await expect(
+      run(
+        ["my-app", "--kit", h.kitDir, "--yes", "--admin-email", "a@b.co"],
+        h.deps,
+      ),
+    ).resolves.toBe(1);
     expect(steps(h)).not.toContain(MIGRATE);
     expect(steps(h)).not.toContain(ADMIN_CREATE);
     expect(steps(h)).not.toContain(GIT_ADD);
@@ -633,13 +829,22 @@ describe("run: porażki kroków", () => {
 
   it("nieudane npm install bez Dockera też nie commituje", async () => {
     const h = await harness({ results: { [NPM_INSTALL]: { code: 1 } } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps)).resolves.toBe(1);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps),
+    ).resolves.toBe(1);
     expect(steps(h)).toEqual([GATO_CREATE, GIT_INIT, NPM_INSTALL]);
   });
 
   it("nieudana migracja pomija admin:create, commituje i kończy się kodem 1", async () => {
-    const h = await harness({ results: { "npx prisma": { code: 1, stderr: "P1001" } } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--admin-email", "a@b.co"], h.deps)).resolves.toBe(1);
+    const h = await harness({
+      results: { "npx prisma": { code: 1, stderr: "P1001" } },
+    });
+    await expect(
+      run(
+        ["my-app", "--kit", h.kitDir, "--yes", "--admin-email", "a@b.co"],
+        h.deps,
+      ),
+    ).resolves.toBe(1);
     expect(steps(h)).toContain(MIGRATE);
     expect(steps(h)).not.toContain(ADMIN_CREATE);
     expect(steps(h).at(-1)).toBe(COMMIT);
@@ -647,28 +852,45 @@ describe("run: porażki kroków", () => {
   });
 
   it("nieudane admin:create kończy się kodem 1", async () => {
-    const h = await harness({ results: { "npm run admin:create": { code: 1 } } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--admin-email", "a@b.co"], h.deps)).resolves.toBe(1);
+    const h = await harness({
+      results: { "npm run admin:create": { code: 1 } },
+    });
+    await expect(
+      run(
+        ["my-app", "--kit", h.kitDir, "--yes", "--admin-email", "a@b.co"],
+        h.deps,
+      ),
+    ).resolves.toBe(1);
     expect(nextStepsOf(h)).toContain("npm run admin:create -- --email a@b.co");
   });
 
   it("nieudany pierwszy commit to tylko ostrzeżenie z kodem 0", async () => {
-    const h = await harness({ results: { "git commit": { code: 1, stderr: "Author identity unknown" } } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(0);
+    const h = await harness({
+      results: { "git commit": { code: 1, stderr: "Author identity unknown" } },
+    });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
     expect(output(h)).toContain("Could not create the first commit");
     expect(nextStepsOf(h)).toContain(COMMIT_HINT);
   });
 
   it("--no-git nie uruchamia git", async () => {
     const h = await harness();
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--no-git"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--no-git"], h.deps),
+    ).resolves.toBe(0);
     expect(h.calls.some((call) => call.command === "git")).toBe(false);
     expect(nextStepsOf(h)).not.toContain(COMMIT_HINT);
   });
 
   it("nieudane gato create pokazuje jego wyjście, kończy się kodem 1 i nic więcej nie uruchamia", async () => {
-    const h = await harness({ results: { [GATO_CREATE]: { code: 2, stderr: "boom" } } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(1);
+    const h = await harness({
+      results: { [GATO_CREATE]: { code: 2, stderr: "boom" } },
+    });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(1);
     expect(output(h)).toContain("boom");
     expect(steps(h)).toEqual([GATO_CREATE]);
   });
@@ -676,8 +898,12 @@ describe("run: porażki kroków", () => {
 
 describe("run: porty z .env projektu i dodatkowe porażki", () => {
   it("DB_PORT z .env projektu zmienia sprawdzany port, a zakomentowana linia nie", async () => {
-    const h = await harness({ projectEnvExtra: "DB_PORT=5544\n# DB_PORT=6000\n" });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(0);
+    const h = await harness({
+      projectEnvExtra: "DB_PORT=5544\n# DB_PORT=6000\n",
+    });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
     expect(h.probed).toContain(5544);
     expect(h.probed).not.toContain(5432);
     expect(h.probed).not.toContain(6000);
@@ -686,24 +912,46 @@ describe("run: porty z .env projektu i dodatkowe porażki", () => {
   it("zajęte porty MinIO dostają różne wolne porty", async () => {
     const h = await harness({ busy: [9000, 9001] });
     await expect(
-      run(["my-app", "--kit", h.kitDir, "--yes", "--modules", "uploads", "--storage", "s3"], h.deps),
+      run(
+        [
+          "my-app",
+          "--kit",
+          h.kitDir,
+          "--yes",
+          "--modules",
+          "uploads",
+          "--storage",
+          "s3",
+        ],
+        h.deps,
+      ),
     ).resolves.toBe(1);
     expect(output(h)).toContain("MINIO_PORT=9002");
     expect(output(h)).toContain("MINIO_CONSOLE_PORT=9003");
-    expect(steps(h).some((name) => name.startsWith("docker compose"))).toBe(false);
+    expect(steps(h).some((name) => name.startsWith("docker compose"))).toBe(
+      false,
+    );
   });
 
   it("nieudany git init ostrzega, nie commituje i nie podpowiada commita", async () => {
-    const h = await harness({ results: { [GIT_INIT]: { code: 1, stderr: "fatal" } } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps)).resolves.toBe(0);
+    const h = await harness({
+      results: { [GIT_INIT]: { code: 1, stderr: "fatal" } },
+    });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps),
+    ).resolves.toBe(0);
     expect(steps(h)).not.toContain(GIT_ADD);
     expect(steps(h)).not.toContain(COMMIT);
     expect(nextStepsOf(h)).not.toContain(COMMIT_HINT);
   });
 
   it("nieudany git add nie uruchamia git commit i ostrzega", async () => {
-    const h = await harness({ results: { [GIT_ADD]: { code: 1, stderr: "fatal" } } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps)).resolves.toBe(0);
+    const h = await harness({
+      results: { [GIT_ADD]: { code: 1, stderr: "fatal" } },
+    });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps),
+    ).resolves.toBe(0);
     expect(steps(h)).toContain(GIT_ADD);
     expect(steps(h)).not.toContain(COMMIT);
     expect(output(h)).toContain("Could not create the first commit");
@@ -711,14 +959,21 @@ describe("run: porty z .env projektu i dodatkowe porażki", () => {
 
   it("brak programu docker kończy się kodem 1 i komunikatem o niedostępnym Dockerze", async () => {
     const h = await harness({ rejects: ["docker"] });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(1);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(1);
     expect(output(h)).toContain("Docker is not available");
     expect(steps(h)).not.toContain(MIGRATE);
   });
 
   it("odrzucone uruchomienie admin:create kończy się kodem 1", async () => {
     const h = await harness({ rejects: ["npm run admin:create"] });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--admin-email", "a@b.co"], h.deps)).resolves.toBe(1);
+    await expect(
+      run(
+        ["my-app", "--kit", h.kitDir, "--yes", "--admin-email", "a@b.co"],
+        h.deps,
+      ),
+    ).resolves.toBe(1);
   });
 });
 
@@ -731,6 +986,8 @@ describe("run: pytania interaktywne", () => {
         { method: "text", answer: "Sklep" },
         { method: "text", answer: "" },
         { method: "select", answer: "local" },
+        { method: "select", answer: "smtp" },
+        { method: "text", answer: "127.0.0.1" },
         { method: "confirm", answer: false },
       ],
     });
@@ -750,27 +1007,127 @@ describe("run: pytania interaktywne", () => {
     expect(h.calls.some((call) => call.command === "docker")).toBe(false);
     expect(await projectEnv(h)).toContain("STORAGE_PROVIDER=local");
   });
+
+  it("a chosen relay goes to .env with SMTP_URL blanked", async () => {
+    const h = await harness({
+      script: [
+        { method: "multiselect", answer: [] },
+        { method: "confirm", answer: true },
+        { method: "text", answer: "Sklep" },
+        { method: "text", answer: "" },
+        { method: "select", answer: "smtp" },
+        { method: "text", answer: "relay.internal" },
+        { method: "text", answer: "2525" },
+        { method: "text", answer: "" },
+        { method: "confirm", answer: false },
+      ],
+    });
+    await expect(run(["my-app", "--kit", h.kitDir], h.deps)).resolves.toBe(0);
+    const env = await projectEnv(h);
+    expect(env.filter((line) => line.startsWith("SMTP_URL="))).toEqual([
+      "SMTP_URL=",
+    ]);
+    expect(env).toContain("MAIL_PROVIDER=smtp");
+    expect(env).toContain("SMTP_HOST=relay.internal");
+    expect(env).toContain("SMTP_PORT=2525");
+    expect(env.some((line) => line.startsWith("SMTP_USER="))).toBe(false);
+  });
+});
+
+describe("run: mail in .env", () => {
+  it("--yes without mail flags keeps the local mailpit SMTP_URL and writes no MAIL_PROVIDER", async () => {
+    const h = await harness();
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps),
+    ).resolves.toBe(0);
+    const env = await projectEnv(h);
+    expect(env.filter((line) => line.startsWith("SMTP_URL="))).toEqual([
+      "SMTP_URL=smtp://localhost:1025",
+    ]);
+    expect(env.some((line) => line.startsWith("MAIL_PROVIDER="))).toBe(false);
+  });
+
+  it("--yes --mail-provider console writes MAIL_PROVIDER=console and an empty SMTP_URL", async () => {
+    const h = await harness();
+    await expect(
+      run(
+        [
+          "my-app",
+          "--kit",
+          h.kitDir,
+          "--yes",
+          "--skip-docker",
+          "--mail-provider",
+          "console",
+        ],
+        h.deps,
+      ),
+    ).resolves.toBe(0);
+    const env = await projectEnv(h);
+    expect(env).toContain("MAIL_PROVIDER=console");
+    expect(env.filter((line) => line.startsWith("SMTP_URL="))).toEqual([
+      "SMTP_URL=",
+    ]);
+  });
+
+  it("--yes --mail-provider resend writes the key", async () => {
+    const h = await harness();
+    await expect(
+      run(
+        [
+          "my-app",
+          "--kit",
+          h.kitDir,
+          "--yes",
+          "--skip-docker",
+          "--mail-provider",
+          "resend",
+          "--resend-api-key",
+          "re_x",
+        ],
+        h.deps,
+      ),
+    ).resolves.toBe(0);
+    const env = await projectEnv(h);
+    expect(env).toContain("MAIL_PROVIDER=resend");
+    expect(env).toContain("RESEND_API_KEY=re_x");
+    expect(env.filter((line) => line.startsWith("SMTP_URL="))).toEqual([
+      "SMTP_URL=",
+    ]);
+  });
 });
 
 describe("run: zakres Node z kitu", () => {
   it("kit wymagający ^24.0.0 odrzuca Node v22.23.2 przed jakimkolwiek procesem, także z --yes", async () => {
-    const h = await harness({ nodeVersion: "v22.23.2", kitPackageJson: { engines: { node: "^24.0.0" } } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(1);
+    const h = await harness({
+      nodeVersion: "v22.23.2",
+      kitPackageJson: { engines: { node: "^24.0.0" } },
+    });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(1);
     expect(output(h)).toContain("too old");
     expect(h.calls).toEqual([]);
     expect(existsSync(h.projectDir)).toBe(false);
   });
 
   it("z --skip-install ten sam Node tylko ostrzega i kreator idzie dalej", async () => {
-    const h = await harness({ nodeVersion: "v22.23.2", kitPackageJson: { engines: { node: "^24.0.0" } } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
+    const h = await harness({
+      nodeVersion: "v22.23.2",
+      kitPackageJson: { engines: { node: "^24.0.0" } },
+    });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-install"], h.deps),
+    ).resolves.toBe(0);
     expect(output(h)).toContain("too old");
     expect(steps(h)).toEqual([GATO_CREATE, GIT_INIT]);
   });
 
   it("nieparzysty Node jest odrzucony z zakresem kitu", async () => {
     const h = await harness({ nodeVersion: "v23.3.0" });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(1);
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(1);
     expect(output(h)).toContain(
       `Node 23.3.0 is an unsupported odd-numbered release line: GatoJS supports Node ${KIT_NODE_RANGE}.`,
     );
@@ -778,15 +1135,27 @@ describe("run: zakres Node z kitu", () => {
   });
 
   it("kit bez engines.node jest sprawdzany względem >=22", async () => {
-    const h = await harness({ nodeVersion: "v21.7.3", kitPackageJson: { name: "gatojs" } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(1);
-    expect(output(h)).toContain("Node 21.7.3 is too old: GatoJS needs Node >=22.");
+    const h = await harness({
+      nodeVersion: "v21.7.3",
+      kitPackageJson: { name: "gatojs" },
+    });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(1);
+    expect(output(h)).toContain(
+      "Node 21.7.3 is too old: GatoJS needs Node >=22.",
+    );
     expect(h.calls).toEqual([]);
   });
 
   it("kit bez engines.node przepuszcza Node 22.1.0", async () => {
-    const h = await harness({ nodeVersion: "v22.1.0", kitPackageJson: { name: "gatojs" } });
-    await expect(run(["my-app", "--kit", h.kitDir, "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
+    const h = await harness({
+      nodeVersion: "v22.1.0",
+      kitPackageJson: { name: "gatojs" },
+    });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-install"], h.deps),
+    ).resolves.toBe(0);
     expect(steps(h)).toEqual([GATO_CREATE, GIT_INIT]);
   });
 });
@@ -795,13 +1164,23 @@ describe("run: pobieranie kitu", () => {
   it("bez --kit-version pobiera listę tagów, potem package.json najwyższego tagu, potem archiwum", async () => {
     const h = await harness({
       routes: {
-        [TAGS_PAGE_1]: jsonResponse([{ name: "v0.1.0" }, { name: "v0.2.0" }, { name: "v0.10.0-rc.1" }]),
+        [TAGS_PAGE_1]: jsonResponse([
+          { name: "v0.1.0" },
+          { name: "v0.2.0" },
+          { name: "v0.10.0-rc.1" },
+        ]),
         [CONTENTS_020]: KIT_PACKAGE,
         [CODELOAD_TARBALL_020]: bytesResponse([1]),
       },
     });
-    await expect(run(["my-app", "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
-    expect(h.fetchCalls.map((call) => call.url)).toEqual([TAGS_PAGE_1, CONTENTS_020, CODELOAD_TARBALL_020]);
+    await expect(
+      run(["my-app", "--yes", "--skip-install"], h.deps),
+    ).resolves.toBe(0);
+    expect(h.fetchCalls.map((call) => call.url)).toEqual([
+      TAGS_PAGE_1,
+      CONTENTS_020,
+      CODELOAD_TARBALL_020,
+    ]);
   });
 
   it("za stary Node wobec engines kitu z GitHuba jest odrzucony przed pobraniem archiwum", async () => {
@@ -814,7 +1193,10 @@ describe("run: pobieranie kitu", () => {
       },
     });
     await expect(run(["my-app", "--yes"], h.deps)).resolves.toBe(1);
-    expect(h.fetchCalls.map((call) => call.url)).toEqual([TAGS_PAGE_1, CONTENTS_010]);
+    expect(h.fetchCalls.map((call) => call.url)).toEqual([
+      TAGS_PAGE_1,
+      CONTENTS_010,
+    ]);
     expect(output(h)).toContain("too old");
     expect(h.calls).toEqual([]);
     expect(h.removed).toEqual(h.tempDirs);
@@ -823,11 +1205,18 @@ describe("run: pobieranie kitu", () => {
   it("--yes nie omija sprawdzenia Node przy pobieraniu wskazanej wersji", async () => {
     const h = await harness({
       nodeVersion: "v20.0.0",
-      routes: { [CONTENTS_010]: KIT_PACKAGE, [CODELOAD_TARBALL_010]: bytesResponse([1]) },
+      routes: {
+        [CONTENTS_010]: KIT_PACKAGE,
+        [CODELOAD_TARBALL_010]: bytesResponse([1]),
+      },
     });
-    await expect(run(["my-app", "--kit-version", "0.1.0", "--yes"], h.deps)).resolves.toBe(1);
+    await expect(
+      run(["my-app", "--kit-version", "0.1.0", "--yes"], h.deps),
+    ).resolves.toBe(1);
     expect(h.fetchCalls.map((call) => call.url)).toEqual([CONTENTS_010]);
-    expect(output(h)).toContain(`Node 20.0.0 is too old: GatoJS needs Node ${KIT_NODE_RANGE}.`);
+    expect(output(h)).toContain(
+      `Node 20.0.0 is too old: GatoJS needs Node ${KIT_NODE_RANGE}.`,
+    );
     expect(h.calls).toEqual([]);
   });
 
@@ -840,8 +1229,14 @@ describe("run: pobieranie kitu", () => {
         [CODELOAD_TARBALL_010]: bytesResponse([1]),
       },
     });
-    await expect(run(["my-app", "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
-    expect(h.fetchCalls.map((call) => call.url)).toEqual([TAGS_PAGE_1, CONTENTS_010, CODELOAD_TARBALL_010]);
+    await expect(
+      run(["my-app", "--yes", "--skip-install"], h.deps),
+    ).resolves.toBe(0);
+    expect(h.fetchCalls.map((call) => call.url)).toEqual([
+      TAGS_PAGE_1,
+      CONTENTS_010,
+      CODELOAD_TARBALL_010,
+    ]);
   });
 
   it("niezrozumiały zakres Node kitu daje ostrzeżenie i sprawdzenie względem >=22", async () => {
@@ -851,7 +1246,12 @@ describe("run: pobieranie kitu", () => {
         [CODELOAD_TARBALL_010]: bytesResponse([1]),
       },
     });
-    await expect(run(["my-app", "--kit-version", "0.1.0", "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(
+        ["my-app", "--kit-version", "0.1.0", "--yes", "--skip-install"],
+        h.deps,
+      ),
+    ).resolves.toBe(0);
     expect(output(h)).toContain(
       `The kit's Node range "22.x" is not one create-gato-app understands; checking against >=22 instead.`,
     );
@@ -860,35 +1260,80 @@ describe("run: pobieranie kitu", () => {
   it("pobiera wskazaną wersję z tokenem z env, przekazuje kit do gato create i usuwa katalog tymczasowy", async () => {
     const h = await harness({
       env: { GITHUB_TOKEN: "tok" },
-      routes: { [CONTENTS_010]: KIT_PACKAGE, [API_TARBALL_010]: bytesResponse([31, 139]) },
+      routes: {
+        [CONTENTS_010]: KIT_PACKAGE,
+        [API_TARBALL_010]: bytesResponse([31, 139]),
+      },
     });
-    await expect(run(["my-app", "--kit-version", "0.1.0", "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
-    expect(h.fetchCalls.map((call) => call.url)).toEqual([CONTENTS_010, API_TARBALL_010]);
-    expect(h.fetchCalls.map((call) => call.headers.Authorization)).toEqual(["Bearer tok", "Bearer tok"]);
+    await expect(
+      run(
+        ["my-app", "--kit-version", "0.1.0", "--yes", "--skip-install"],
+        h.deps,
+      ),
+    ).resolves.toBe(0);
+    expect(h.fetchCalls.map((call) => call.url)).toEqual([
+      CONTENTS_010,
+      API_TARBALL_010,
+    ]);
+    expect(h.fetchCalls.map((call) => call.headers.Authorization)).toEqual([
+      "Bearer tok",
+      "Bearer tok",
+    ]);
     expect(h.tempDirs).toHaveLength(1);
     const tmp = h.tempDirs[0] as string;
-    expect(h.calls.slice(0, 3).map((call) => call.command)).toEqual(["tar", "git", "git"]);
+    expect(h.calls.slice(0, 3).map((call) => call.command)).toEqual([
+      "tar",
+      "git",
+      "git",
+    ]);
     expect(callNamed(h, GATO_CREATE).args.at(-1)).toBe(`--kit=${tmp}/kit`);
     expect(h.removed).toEqual([tmp]);
-    expect(h.events.indexOf("remove")).toBeGreaterThan(h.events.indexOf(`spawn ${GATO_CREATE}`));
+    expect(h.events.indexOf("remove")).toBeGreaterThan(
+      h.events.indexOf(`spawn ${GATO_CREATE}`),
+    );
   });
 
   it("moduły pochodzą z pobranego kitu", async () => {
     const h = await harness({
-      routes: { [CONTENTS_010]: KIT_PACKAGE, [CODELOAD_TARBALL_010]: bytesResponse([1]) },
+      routes: {
+        [CONTENTS_010]: KIT_PACKAGE,
+        [CODELOAD_TARBALL_010]: bytesResponse([1]),
+      },
     });
     await expect(
-      run(["my-app", "--kit-version", "0.1.0", "--yes", "--skip-install", "--modules", "api-keys"], h.deps),
+      run(
+        [
+          "my-app",
+          "--kit-version",
+          "0.1.0",
+          "--yes",
+          "--skip-install",
+          "--modules",
+          "api-keys",
+        ],
+        h.deps,
+      ),
     ).resolves.toBe(0);
     expect(callNamed(h, GATO_CREATE).args).toContain("--modules=api-keys");
   });
 
   it("bez tokenu pobiera z codeload bez Authorization", async () => {
     const h = await harness({
-      routes: { [CONTENTS_010]: KIT_PACKAGE, [CODELOAD_TARBALL_010]: bytesResponse([1]) },
+      routes: {
+        [CONTENTS_010]: KIT_PACKAGE,
+        [CODELOAD_TARBALL_010]: bytesResponse([1]),
+      },
     });
-    await expect(run(["my-app", "--kit-version", "0.1.0", "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
-    expect(h.fetchCalls.map((call) => call.url)).toEqual([CONTENTS_010, CODELOAD_TARBALL_010]);
+    await expect(
+      run(
+        ["my-app", "--kit-version", "0.1.0", "--yes", "--skip-install"],
+        h.deps,
+      ),
+    ).resolves.toBe(0);
+    expect(h.fetchCalls.map((call) => call.url)).toEqual([
+      CONTENTS_010,
+      CODELOAD_TARBALL_010,
+    ]);
     for (const call of h.fetchCalls) {
       expect(call.headers).not.toHaveProperty("Authorization");
     }
@@ -897,18 +1342,33 @@ describe("run: pobieranie kitu", () => {
   it("używa tokenu z gh, gdy env go nie ma", async () => {
     const h = await harness({
       gh: "gho_fromgh\n",
-      routes: { [CONTENTS_010]: KIT_PACKAGE, [API_TARBALL_010]: bytesResponse([1]) },
+      routes: {
+        [CONTENTS_010]: KIT_PACKAGE,
+        [API_TARBALL_010]: bytesResponse([1]),
+      },
     });
-    await expect(run(["my-app", "--kit-version", "0.1.0", "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
-    expect(h.fetchCalls.at(-1)?.headers.Authorization).toBe("Bearer gho_fromgh");
+    await expect(
+      run(
+        ["my-app", "--kit-version", "0.1.0", "--yes", "--skip-install"],
+        h.deps,
+      ),
+    ).resolves.toBe(0);
+    expect(h.fetchCalls.at(-1)?.headers.Authorization).toBe(
+      "Bearer gho_fromgh",
+    );
   });
 
   it("nieudane gato create z pobranym kitem daje kod 1 i usuwa katalog tymczasowy", async () => {
     const h = await harness({
       results: { [GATO_CREATE]: { code: 2, stderr: "boom" } },
-      routes: { [CONTENTS_010]: KIT_PACKAGE, [CODELOAD_TARBALL_010]: bytesResponse([1]) },
+      routes: {
+        [CONTENTS_010]: KIT_PACKAGE,
+        [CODELOAD_TARBALL_010]: bytesResponse([1]),
+      },
     });
-    await expect(run(["my-app", "--kit-version", "0.1.0", "--yes"], h.deps)).resolves.toBe(1);
+    await expect(
+      run(["my-app", "--kit-version", "0.1.0", "--yes"], h.deps),
+    ).resolves.toBe(1);
     expect(h.removed).toEqual(h.tempDirs);
     expect(h.removed).toHaveLength(1);
   });
@@ -916,10 +1376,19 @@ describe("run: pobieranie kitu", () => {
   it("błąd tar daje kod 1, usuwa katalog tymczasowy i nie uruchamia gato create", async () => {
     const h = await harness({
       env: { GITHUB_TOKEN: SECRET },
-      tarResult: { code: 2, stdout: "", stderr: "gzip: stdin: not in gzip format" },
-      routes: { [CONTENTS_010]: KIT_PACKAGE, [API_TARBALL_010]: bytesResponse([1]) },
+      tarResult: {
+        code: 2,
+        stdout: "",
+        stderr: "gzip: stdin: not in gzip format",
+      },
+      routes: {
+        [CONTENTS_010]: KIT_PACKAGE,
+        [API_TARBALL_010]: bytesResponse([1]),
+      },
     });
-    await expect(run(["my-app", "--kit-version", "0.1.0", "--yes"], h.deps)).resolves.toBe(1);
+    await expect(
+      run(["my-app", "--kit-version", "0.1.0", "--yes"], h.deps),
+    ).resolves.toBe(1);
     expect(output(h)).toContain("Could not extract");
     expect(h.removed).toEqual(h.tempDirs);
     expect(h.removed).toHaveLength(1);
@@ -929,9 +1398,14 @@ describe("run: pobieranie kitu", () => {
 
   it("404 na archiwum daje kod 1, podpowiada prywatne repozytorium i usuwa katalog tymczasowy", async () => {
     const h = await harness({
-      routes: { [CONTENTS_010]: KIT_PACKAGE, [CODELOAD_TARBALL_010]: statusResponse(404) },
+      routes: {
+        [CONTENTS_010]: KIT_PACKAGE,
+        [CODELOAD_TARBALL_010]: statusResponse(404),
+      },
     });
-    await expect(run(["my-app", "--kit-version", "0.1.0", "--yes"], h.deps)).resolves.toBe(1);
+    await expect(
+      run(["my-app", "--kit-version", "0.1.0", "--yes"], h.deps),
+    ).resolves.toBe(1);
     expect(output(h)).toContain("may be private");
     expect(h.removed).toEqual(h.tempDirs);
     expect(h.calls).toEqual([]);
@@ -939,9 +1413,14 @@ describe("run: pobieranie kitu", () => {
 
   it("404 na package.json kitu daje kod 1 bez pobierania archiwum", async () => {
     const h = await harness({
-      routes: { [CONTENTS_010]: statusResponse(404), [CODELOAD_TARBALL_010]: bytesResponse([1]) },
+      routes: {
+        [CONTENTS_010]: statusResponse(404),
+        [CODELOAD_TARBALL_010]: bytesResponse([1]),
+      },
     });
-    await expect(run(["my-app", "--kit-version", "0.1.0", "--yes"], h.deps)).resolves.toBe(1);
+    await expect(
+      run(["my-app", "--kit-version", "0.1.0", "--yes"], h.deps),
+    ).resolves.toBe(1);
     expect(output(h)).toContain("GitHub returned 404");
     expect(h.fetchCalls.map((call) => call.url)).toEqual([CONTENTS_010]);
     expect(h.calls).toEqual([]);
@@ -950,9 +1429,14 @@ describe("run: pobieranie kitu", () => {
   it("404 z tokenem nigdy nie wypisuje tokenu", async () => {
     const h = await harness({
       env: { GITHUB_TOKEN: SECRET },
-      routes: { [CONTENTS_010]: KIT_PACKAGE, [API_TARBALL_010]: statusResponse(404) },
+      routes: {
+        [CONTENTS_010]: KIT_PACKAGE,
+        [API_TARBALL_010]: statusResponse(404),
+      },
     });
-    await expect(run(["my-app", "--kit-version", "0.1.0", "--yes"], h.deps)).resolves.toBe(1);
+    await expect(
+      run(["my-app", "--kit-version", "0.1.0", "--yes"], h.deps),
+    ).resolves.toBe(1);
     expect(output(h)).toContain("404");
     expect(output(h)).not.toContain(SECRET);
   });
@@ -966,7 +1450,9 @@ describe("run: pobieranie kitu", () => {
         [API_TARBALL_010]: bytesResponse([1]),
       },
     });
-    await expect(run(["my-app", "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(["my-app", "--yes", "--skip-install"], h.deps),
+    ).resolves.toBe(0);
     expect(output(h)).not.toContain(SECRET);
   });
 
@@ -993,7 +1479,10 @@ describe("run: odrzucony token jest raz ponawiany bez niego", () => {
       h.fetchCalls.push({ url, headers: init.headers });
       h.events.push(`fetch ${url}`);
       const route = routes[url];
-      const response = init.headers.Authorization === undefined ? route?.anonymous : route?.withToken;
+      const response =
+        init.headers.Authorization === undefined
+          ? route?.anonymous
+          : route?.withToken;
       if (!response) throw new Error(`unexpected request: ${url}`);
       return response;
     };
@@ -1013,9 +1502,21 @@ describe("run: odrzucony token jest raz ponawiany bez niego", () => {
       [CONTENTS_020]: { anonymous: KIT_PACKAGE },
       [CODELOAD_TARBALL_020]: { anonymous: bytesResponse([1]) },
     });
-    await expect(run(["my-app", "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
-    expect(h.fetchCalls.map((call) => call.url)).toEqual([TAGS_PAGE_1, TAGS_PAGE_1, CONTENTS_020, CODELOAD_TARBALL_020]);
-    expect(h.fetchCalls.map((call) => call.headers.Authorization)).toEqual(["Bearer bogus", undefined, undefined, undefined]);
+    await expect(
+      run(["my-app", "--yes", "--skip-install"], h.deps),
+    ).resolves.toBe(0);
+    expect(h.fetchCalls.map((call) => call.url)).toEqual([
+      TAGS_PAGE_1,
+      TAGS_PAGE_1,
+      CONTENTS_020,
+      CODELOAD_TARBALL_020,
+    ]);
+    expect(h.fetchCalls.map((call) => call.headers.Authorization)).toEqual([
+      "Bearer bogus",
+      undefined,
+      undefined,
+      undefined,
+    ]);
     expect(retryWarnings(h)).toBe(1);
     expect(steps(h).filter((name) => name === GATO_CREATE)).toHaveLength(1);
   });
@@ -1023,12 +1524,23 @@ describe("run: odrzucony token jest raz ponawiany bez niego", () => {
   it("401 na package.json kitu ponawia bez tokenu", async () => {
     const h = await harness({ env: { GITHUB_TOKEN: BOGUS } });
     routeByToken(h, {
-      [CONTENTS_010]: { withToken: statusResponse(401), anonymous: KIT_PACKAGE },
+      [CONTENTS_010]: {
+        withToken: statusResponse(401),
+        anonymous: KIT_PACKAGE,
+      },
       [CODELOAD_TARBALL_010]: { anonymous: bytesResponse([1]) },
     });
-    await expect(run(["my-app", "--kit-version", "0.1.0", "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(
+        ["my-app", "--kit-version", "0.1.0", "--yes", "--skip-install"],
+        h.deps,
+      ),
+    ).resolves.toBe(0);
     const contents = h.fetchCalls.filter((call) => call.url === CONTENTS_010);
-    expect(contents.map((call) => call.headers.Authorization)).toEqual(["Bearer bogus", undefined]);
+    expect(contents.map((call) => call.headers.Authorization)).toEqual([
+      "Bearer bogus",
+      undefined,
+    ]);
     expect(h.fetchCalls.at(-1)?.url).toBe(CODELOAD_TARBALL_010);
     expect(retryWarnings(h)).toBe(1);
   });
@@ -1040,10 +1552,21 @@ describe("run: odrzucony token jest raz ponawiany bez niego", () => {
       [API_TARBALL_010]: { withToken: statusResponse(401) },
       [CODELOAD_TARBALL_010]: { anonymous: bytesResponse([1]) },
     });
-    await expect(run(["my-app", "--kit-version", "0.1.0", "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(
+        ["my-app", "--kit-version", "0.1.0", "--yes", "--skip-install"],
+        h.deps,
+      ),
+    ).resolves.toBe(0);
     const tarballs = h.fetchCalls.filter((call) => call.url !== CONTENTS_010);
-    expect(tarballs.map((call) => call.url)).toEqual([API_TARBALL_010, CODELOAD_TARBALL_010]);
-    expect(tarballs.map((call) => call.headers.Authorization)).toEqual(["Bearer bogus", undefined]);
+    expect(tarballs.map((call) => call.url)).toEqual([
+      API_TARBALL_010,
+      CODELOAD_TARBALL_010,
+    ]);
+    expect(tarballs.map((call) => call.headers.Authorization)).toEqual([
+      "Bearer bogus",
+      undefined,
+    ]);
     expect(retryWarnings(h)).toBe(1);
     expect(steps(h)).toEqual([GATO_CREATE, GIT_INIT]);
   });
@@ -1051,38 +1574,57 @@ describe("run: odrzucony token jest raz ponawiany bez niego", () => {
   it("ponowienie nigdy nie wypisuje tokenu", async () => {
     const h = await harness({ env: { GITHUB_TOKEN: SECRET } });
     routeByToken(h, {
-      [TAGS_PAGE_1]: { withToken: statusResponse(401), anonymous: jsonResponse([{ name: "v0.1.0" }]) },
+      [TAGS_PAGE_1]: {
+        withToken: statusResponse(401),
+        anonymous: jsonResponse([{ name: "v0.1.0" }]),
+      },
       [CONTENTS_010]: { anonymous: KIT_PACKAGE },
       [CODELOAD_TARBALL_010]: { anonymous: bytesResponse([1]) },
     });
-    await expect(run(["my-app", "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
+    await expect(
+      run(["my-app", "--yes", "--skip-install"], h.deps),
+    ).resolves.toBe(0);
     expect(output(h)).not.toContain(SECRET);
   });
 
   it("drugie 401 bez tokenu kończy się błędem bez kolejnego ponowienia", async () => {
     const h = await harness({ env: { GITHUB_TOKEN: BOGUS } });
     routeByToken(h, {
-      [TAGS_PAGE_1]: { withToken: statusResponse(401), anonymous: statusResponse(401) },
+      [TAGS_PAGE_1]: {
+        withToken: statusResponse(401),
+        anonymous: statusResponse(401),
+      },
     });
     await expect(run(["my-app", "--yes"], h.deps)).resolves.toBe(1);
-    expect(h.fetchCalls.map((call) => call.headers.Authorization)).toEqual(["Bearer bogus", undefined]);
+    expect(h.fetchCalls.map((call) => call.headers.Authorization)).toEqual([
+      "Bearer bogus",
+      undefined,
+    ]);
     expect(retryWarnings(h)).toBe(1);
     expect(output(h)).toContain("GitHub returned 401 for the tag list.");
     expect(h.calls).toEqual([]);
   });
 
-  it.each([403, 404, 429, 500])("%i z tokenem nie jest ponawiane", async (status) => {
-    const h = await harness({ env: { GITHUB_TOKEN: BOGUS } });
-    routeByToken(h, {
-      [TAGS_PAGE_1]: { withToken: statusResponse(status), anonymous: jsonResponse([{ name: "v0.1.0" }]) },
-      [CONTENTS_010]: { anonymous: KIT_PACKAGE },
-      [CODELOAD_TARBALL_010]: { anonymous: bytesResponse([1]) },
-    });
-    await expect(run(["my-app", "--yes"], h.deps)).resolves.toBe(1);
-    expect(h.fetchCalls.map((call) => call.headers.Authorization)).toEqual(["Bearer bogus"]);
-    expect(output(h)).toContain(`GitHub returned ${status}`);
-    expect(retryWarnings(h)).toBe(0);
-  });
+  it.each([403, 404, 429, 500])(
+    "%i z tokenem nie jest ponawiane",
+    async (status) => {
+      const h = await harness({ env: { GITHUB_TOKEN: BOGUS } });
+      routeByToken(h, {
+        [TAGS_PAGE_1]: {
+          withToken: statusResponse(status),
+          anonymous: jsonResponse([{ name: "v0.1.0" }]),
+        },
+        [CONTENTS_010]: { anonymous: KIT_PACKAGE },
+        [CODELOAD_TARBALL_010]: { anonymous: bytesResponse([1]) },
+      });
+      await expect(run(["my-app", "--yes"], h.deps)).resolves.toBe(1);
+      expect(h.fetchCalls.map((call) => call.headers.Authorization)).toEqual([
+        "Bearer bogus",
+      ]);
+      expect(output(h)).toContain(`GitHub returned ${status}`);
+      expect(retryWarnings(h)).toBe(0);
+    },
+  );
 
   it("401 bez żadnego tokenu nie jest ponawiane", async () => {
     const h = await harness();
@@ -1090,13 +1632,18 @@ describe("run: odrzucony token jest raz ponawiany bez niego", () => {
       [CONTENTS_010]: { anonymous: KIT_PACKAGE },
       [CODELOAD_TARBALL_010]: { anonymous: statusResponse(401) },
     });
-    await expect(run(["my-app", "--kit-version", "0.1.0", "--yes"], h.deps)).resolves.toBe(1);
-    expect(h.fetchCalls.filter((call) => call.url === CODELOAD_TARBALL_010)).toHaveLength(1);
+    await expect(
+      run(["my-app", "--kit-version", "0.1.0", "--yes"], h.deps),
+    ).resolves.toBe(1);
+    expect(
+      h.fetchCalls.filter((call) => call.url === CODELOAD_TARBALL_010),
+    ).toHaveLength(1);
     expect(retryWarnings(h)).toBe(0);
   });
 });
 
-const NAME_ERROR_SUFFIX = "use lowercase letters, digits and hyphens, start with a letter, 2-50 characters";
+const NAME_ERROR_SUFFIX =
+  "use lowercase letters, digits and hyphens, start with a letter, 2-50 characters";
 const FIFTY = `a${"b".repeat(49)}`;
 const FIFTY_ONE = `a${"b".repeat(50)}`;
 
@@ -1109,7 +1656,9 @@ describe("run: nazwa projektu", () => {
         routes: { [TAGS_PAGE_1]: jsonResponse([{ name: "v0.1.0" }]) },
       });
       await expect(run([target, "--yes"], h.deps)).resolves.toBe(1);
-      expect(lines(h)).toContain(`Project name "${target}": ${NAME_ERROR_SUFFIX}`);
+      expect(lines(h)).toContain(
+        `Project name "${target}": ${NAME_ERROR_SUFFIX}`,
+      );
       expect(h.fetchCalls).toEqual([]);
       expect(h.calls).toEqual([]);
       expect(h.tempDirs).toEqual([]);
@@ -1118,28 +1667,39 @@ describe("run: nazwa projektu", () => {
 
   it("nazwą jest ostatni segment ścieżki", async () => {
     const h = await harness();
-    await expect(run(["nested/Bad Dir", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(1);
+    await expect(
+      run(["nested/Bad Dir", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(1);
     expect(lines(h)).toContain(`Project name "Bad Dir": ${NAME_ERROR_SUFFIX}`);
     expect(h.calls).toEqual([]);
   });
 
   it(". w źle nazwanym cwd jest odrzucona z nazwą cwd", async () => {
     const h = await harness({ cwdName: "Bad Dir" });
-    await expect(run([".", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(1);
+    await expect(run([".", "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(
+      1,
+    );
     expect(lines(h)).toContain(`Project name "Bad Dir": ${NAME_ERROR_SUFFIX}`);
     expect(h.calls).toEqual([]);
   });
 
-  it.each(["ab", FIFTY, "nested/dir/my-app"])("%j jest przyjęta i przekazana do gato create", async (target) => {
-    const h = await harness();
-    await expect(run([target, "--kit", h.kitDir, "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
-    expect(callNamed(h, GATO_CREATE).args[2]).toBe(join(h.cwd, target));
-  });
+  it.each(["ab", FIFTY, "nested/dir/my-app"])(
+    "%j jest przyjęta i przekazana do gato create",
+    async (target) => {
+      const h = await harness();
+      await expect(
+        run([target, "--kit", h.kitDir, "--yes", "--skip-install"], h.deps),
+      ).resolves.toBe(0);
+      expect(callNamed(h, GATO_CREATE).args[2]).toBe(join(h.cwd, target));
+    },
+  );
 
   it(". w pustym cwd o poprawnej nazwie tworzy projekt w cwd bez kroku cd", async () => {
     const h = await harness({ cwdName: "acme-crm" });
     h.projectDir = h.cwd;
-    await expect(run([".", "--kit", h.kitDir, "--yes", "--skip-install"], h.deps)).resolves.toBe(0);
+    await expect(
+      run([".", "--kit", h.kitDir, "--yes", "--skip-install"], h.deps),
+    ).resolves.toBe(0);
     expect(callNamed(h, GATO_CREATE).args[2]).toBe(h.cwd);
     expect(callNamed(h, GATO_CREATE).args).toContain("--title=Acme Crm");
     expect(nextStepsOf(h)[0]).toBe("npm install");
@@ -1160,11 +1720,18 @@ describe("run: nazwa projektu", () => {
         ),
     ],
     { numRuns: 40 },
-  )("każda inna nazwa jednosegmentowa jest odrzucona bez skutków ubocznych", async (name) => {
-    const h = await harness();
-    await expect(run([name, "--kit", h.kitDir, "--yes"], h.deps)).resolves.toBe(1);
-    expect(lines(h)).toContain(`Project name "${name}": ${NAME_ERROR_SUFFIX}`);
-    expect(h.calls).toEqual([]);
-    expect(h.fetchCalls).toEqual([]);
-  });
+  )(
+    "każda inna nazwa jednosegmentowa jest odrzucona bez skutków ubocznych",
+    async (name) => {
+      const h = await harness();
+      await expect(
+        run([name, "--kit", h.kitDir, "--yes"], h.deps),
+      ).resolves.toBe(1);
+      expect(lines(h)).toContain(
+        `Project name "${name}": ${NAME_ERROR_SUFFIX}`,
+      );
+      expect(h.calls).toEqual([]);
+      expect(h.fetchCalls).toEqual([]);
+    },
+  );
 });
