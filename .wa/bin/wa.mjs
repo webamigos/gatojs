@@ -665,6 +665,9 @@ function fileHash(file2, content, config2) {
   if (config2.managedFiles.includes(file2)) {
     return "managed";
   }
+  if (config2.seedFiles.includes(file2)) {
+    return "seed";
+  }
   return contentHash(file2, content);
 }
 
@@ -878,6 +881,16 @@ import { dirname as dirname3, join as join4 } from "node:path";
 // src/manifest/kit-state.ts
 import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile2 } from "node:fs/promises";
 import { dirname as dirname2, join as join3 } from "node:path";
+
+// src/kit/kit-format.ts
+var SUPPORTED_KIT_FORMATS = [1, 2];
+function assertSupportedKitFormat(format) {
+  if (!SUPPORTED_KIT_FORMATS.includes(format)) {
+    throw new Error(
+      `This project uses kit format ${format}; update gato-cli (npm i -D gato-cli@latest) or run: npx gato-cli@latest update <version>`
+    );
+  }
+}
 
 // ../../node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -20627,6 +20640,7 @@ var localesSchema = external_exports.array(external_exports.enum(["pl", "en"])).
 var kitStateSchema = external_exports.object({
   kitVersion: external_exports.string(),
   kitRepo: external_exports.string().default(DEFAULT_KIT_REPO),
+  kitFormat: external_exports.number().int().positive().default(1),
   project: external_exports.object({ name: external_exports.string(), slug: external_exports.string() }).default({ name: "WA App", slug: "wa-app" }),
   locales: localesSchema.default(["pl", "en"]),
   modules: external_exports.record(
@@ -20637,7 +20651,11 @@ var kitStateSchema = external_exports.object({
       files: external_exports.record(external_exports.string(), external_exports.string())
     })
   ),
-  projectModules: external_exports.record(external_exports.string(), external_exports.object({ manifest: moduleManifestSchema })).default({})
+  projectModules: external_exports.record(external_exports.string(), external_exports.object({ manifest: moduleManifestSchema })).default({}),
+  ejected: external_exports.record(
+    external_exports.string(),
+    external_exports.object({ reason: external_exports.string().trim().min(1), ejectedAt: external_exports.string() })
+  ).default({})
 });
 
 // src/manifest/kit-state.ts
@@ -20655,6 +20673,7 @@ async function readKitState(projectDir) {
     throw error62;
   }
   const state = kitStateSchema.parse(JSON.parse(raw));
+  assertSupportedKitFormat(state.kitFormat);
   validateProjectModules(state);
   return state;
 }
@@ -20693,6 +20712,9 @@ async function writeKitState(projectDir, state) {
       ([a], [b]) => compareCodePoint(a, b)
     )
   );
+  const sortedEjected = Object.fromEntries(
+    Object.entries(state.ejected).sort(([a], [b]) => compareCodePoint(a, b))
+  );
   const target = join3(projectDir, KIT_STATE_PATH);
   await mkdir2(dirname2(target), { recursive: true });
   await writeFile2(
@@ -20701,10 +20723,12 @@ async function writeKitState(projectDir, state) {
       {
         kitVersion: state.kitVersion,
         kitRepo: state.kitRepo,
+        kitFormat: state.kitFormat,
         project: state.project,
         locales: state.locales,
         modules: sortedModules,
-        projectModules: sortedProjectModules
+        projectModules: sortedProjectModules,
+        ejected: sortedEjected
       },
       null,
       2
@@ -20918,6 +20942,7 @@ import { basename, join as join5 } from "node:path";
 var kitConfigSchema = external_exports.object({
   version: external_exports.string().min(1),
   repo: external_exports.string().min(1),
+  kitFormat: external_exports.number().int().positive().default(1),
   kitOnly: external_exports.array(external_exports.string()),
   placeholders: external_exports.object({
     projectName: external_exports.string(),
@@ -20926,7 +20951,8 @@ var kitConfigSchema = external_exports.object({
   }),
   placeholderFiles: external_exports.array(external_exports.string()),
   generatedFiles: external_exports.array(external_exports.string()),
-  managedFiles: external_exports.array(external_exports.string())
+  managedFiles: external_exports.array(external_exports.string()),
+  seedFiles: external_exports.array(external_exports.string()).default([])
 });
 async function readKitConfig(kitDir) {
   let raw;
@@ -21426,10 +21452,12 @@ async function assemble(input2) {
   await writeKitState(projectDir, {
     kitVersion: config2.version,
     kitRepo: config2.repo,
+    kitFormat: config2.kitFormat,
     project: { name: names.name, slug: names.slug },
     locales,
     modules,
-    projectModules: {}
+    projectModules: {},
+    ejected: {}
   });
   await generate(projectDir);
 }
@@ -21527,6 +21555,7 @@ async function create(options) {
   }
   assertKitDir(options.kitDir);
   const config2 = await readKitConfig(options.kitDir);
+  assertSupportedKitFormat(config2.kitFormat);
   const available = await readKitManifests(options.kitDir);
   const answers = await collectAnswers(options, available, names);
   const runSetupSteps = options.install && answers.setup;
@@ -23459,16 +23488,22 @@ async function readExisting(kitDir) {
     throw error62;
   }
 }
-async function readExistingProjectModules(raw) {
-  return raw === null ? {} : kitStateSchema.parse(JSON.parse(raw)).projectModules;
+function readExistingOwnState(raw) {
+  if (raw === null) {
+    return { projectModules: {}, ejected: {} };
+  }
+  const { projectModules, ejected } = kitStateSchema.parse(JSON.parse(raw));
+  return { projectModules, ejected };
 }
 async function kitSync(kitDir) {
   const config2 = await readKitConfig(kitDir);
   const manifests = await readKitManifests(kitDir);
   const before = await readExisting(kitDir);
+  const { projectModules, ejected } = readExistingOwnState(before);
   const state = {
     kitVersion: config2.version,
     kitRepo: config2.repo,
+    kitFormat: config2.kitFormat,
     project: {
       name: config2.placeholders.projectName,
       slug: config2.placeholders.projectSlug
@@ -23480,7 +23515,8 @@ async function kitSync(kitDir) {
         { version: manifest.version, manifest, files: {} }
       ])
     ),
-    projectModules: await readExistingProjectModules(before)
+    projectModules,
+    ejected
   };
   await writeKitState(kitDir, state);
   return { changed: before !== await readExisting(kitDir) };
@@ -23537,7 +23573,8 @@ import {
   writeFile as writeFile6
 } from "node:fs/promises";
 import { dirname as dirname5, join as join10, relative, resolve as resolve3, sep } from "node:path";
-var HASH_CONFIG = { managedFiles: [] };
+var HASH_CONFIG = { managedFiles: [], seedFiles: [] };
+var SEED = "seed";
 function assertRemovable(state, module) {
   if (module === "core") {
     throw new Error("Cannot remove core");
@@ -23611,6 +23648,9 @@ async function readIfExists(path2) {
 async function changedFiles(projectDir, files) {
   const changed = [];
   for (const [file2, savedHash] of Object.entries(files)) {
+    if (savedHash === SEED) {
+      continue;
+    }
     const content = await readIfExists(await insideProject(projectDir, file2));
     if (content === null) {
       continue;
@@ -23654,7 +23694,7 @@ async function remove(options) {
   assertRemovable(state, module);
   const entry = state.modules[module];
   const absolutePaths = await Promise.all(
-    Object.keys(entry.files).map((file2) => insideProject(projectDir, file2))
+    Object.entries(entry.files).filter(([, hash2]) => hash2 !== SEED).map(([file2]) => insideProject(projectDir, file2))
   );
   const changed = await changedFiles(projectDir, entry.files);
   if (changed.length > 0 && !options.force) {
@@ -23782,6 +23822,7 @@ async function mergeFile(input2) {
 
 // src/update/plan.ts
 var MANAGED = "managed";
+var SEED2 = "seed";
 var UNCHANGED = { file: null, mismatchedBase: false };
 function planned(path2, action, fields = {}) {
   return { path: path2, action, reason: null, content: null, mode: null, ...fields };
@@ -23836,6 +23877,9 @@ async function mergeChanged(path2, base, project, kit, input2) {
   return planned(path2, "merged", { content: merged.content, mode: kit.mode });
 }
 async function decideExisting(path2, base, kit, input2) {
+  if (input2.recordedHashes[path2] === SEED2) {
+    return UNCHANGED;
+  }
   const baseHash = contentHash(path2, base.content);
   const kitContentUnchanged = kit !== void 0 && contentHash(path2, kit.content) === baseHash;
   if (kitContentUnchanged && kit.mode === base.mode) {
@@ -24024,6 +24068,7 @@ var execFileAsync = promisify3(execFile3);
 var UNDO_HINT = "Check git status; to undo everything: git restore . && git clean -fd";
 var PERMISSION_BITS2 = 511;
 var MANAGED2 = "managed";
+var SEED3 = "seed";
 function checkVersions(current, target) {
   const order = compareVersions(target, current);
   if (order < 0) {
@@ -24152,11 +24197,13 @@ function nextState(state, target, undecided2) {
   const paths = [...target.files.keys()];
   const modules = Object.fromEntries(
     target.manifests.map((manifest) => {
-      const managed = Object.entries(state.modules[manifest.name].files).filter(
-        ([path2, hash2]) => hash2 === MANAGED2 && target.config.managedFiles.includes(path2)
+      const keptMarkers = Object.entries(
+        state.modules[manifest.name].files
+      ).filter(
+        ([path2, hash2]) => hash2 === MANAGED2 && target.config.managedFiles.includes(path2) || hash2 === SEED3 && target.config.seedFiles.includes(path2)
       );
       const files = Object.fromEntries([
-        ...managed,
+        ...keptMarkers,
         ...moduleFiles(manifest, paths).filter((path2) => !undecided2.has(path2)).map((path2) => [
           path2,
           fileHash(
@@ -24169,7 +24216,12 @@ function nextState(state, target, undecided2) {
       return [manifest.name, { version: manifest.version, manifest, files }];
     })
   );
-  return { ...state, kitVersion: target.version, modules };
+  return {
+    ...state,
+    kitVersion: target.version,
+    kitFormat: target.config.kitFormat,
+    modules
+  };
 }
 async function writeUpdate(input2) {
   const { projectDir, writes } = input2;
@@ -24230,6 +24282,7 @@ async function update(options) {
       `Target kit has version ${target.version}, expected ${version2}`
     );
   }
+  assertSupportedKitFormat(target.config.kitFormat);
   assertRequirementsInstalled(state, target);
   const recordedHashes = Object.assign(
     {},
@@ -24469,7 +24522,7 @@ function cliDependency(input2) {
 }
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.3.0" };
+var identity = { name: "wa", version: "0.4.0" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);
