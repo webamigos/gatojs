@@ -166,8 +166,8 @@ src/app/[locale]/(auth|app)
 
 ### Mail
 
-- `SMTP_URL` (dev/e2e, mailpit from `docker-compose.yml`) wins, then `RESEND_API_KEY`;
-  without either, mail is only logged. Production requires `RESEND_API_KEY`.
+- `MAIL_PROVIDER` (`smtp`/`resend`/`console`) or detection: SMTP (`SMTP_URL`, mailpit in dev/e2e, or `SMTP_HOST`) wins
+  over `RESEND_API_KEY`, else mail is only logged. Production needs a provider or `MAIL_PROVIDER=console` (ADR-64).
 
 ## Tests
 

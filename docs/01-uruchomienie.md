@@ -396,7 +396,7 @@ Problemy są ułożone w kolejności kroków [pierwszego uruchomienia](#pierwsze
 | `APP_URL` | `Invalid URL` | Adres bez `http://` lub `https://` (na przykład `localhost:3000` albo `ftp://example.com`). Wpisz pełny adres, na przykład `http://localhost:3000`. |
 | `AUTH_PUBLIC_SIGNUP`, `MULTI_ORG`, `ADMIN_IMPERSONATION` | `Invalid option: expected one of ""\|"true"\|"false"` | Wartość inna niż `true`, `false` albo pusta (na przykład `1`, `yes`, `on`). Wpisz `true` albo `false`. |
 | `NODE_ENV` | `Invalid option: expected one of "development"\|"test"\|"production"` | Niestandardowa wartość `NODE_ENV` w powłoce. Usuń ją komendą `unset NODE_ENV`. |
-| `RESEND_API_KEY` | `wymagana w produkcji` | `NODE_ENV=production` bez klucza Resend (usługi wysyłki maili używanej na produkcji). Lokalnie wystarczy dowolna niepusta wartość, bo przy ustawionym `SMTP_URL` klucz nie jest używany. |
+| `MAIL_PROVIDER` | `no mail provider configured for production: …` | `NODE_ENV=production` bez dostawcy maili. Lokalnie wystarczy `SMTP_URL` z `.env.example` (mailpit) albo `MAIL_PROVIDER=console` ([ADR-64](adrs/64-production-mail-needs-a-configured-provider-or-explicit-console.md)). |
 | `BETTER_AUTH_SECRET` | `w produkcji nie może być wartością z .env.example` | `NODE_ENV=production` z sekretem z `.env.example`. Wygeneruj własny. |
 
 Przykład z dwoma problemami (brak `DATABASE_URL`, `MULTI_ORG=1`) w raporcie serwera (sprawdzone 2026-11-04 na zbudowanym serwerze repozytorium kitu):
@@ -413,7 +413,7 @@ Ten sam przypadek w jednoliniowym komunikacie `parseEnv`, który widać w `npm r
 Nieprawidłowe zmienne środowiskowe: DATABASE_URL: Invalid input: expected string, received undefined; MULTI_ORG: Invalid option: expected one of ""|"true"|"false"
 ```
 
-Dwa ostatnie wiersze tabeli dotyczą produkcji. `NODE_ENV=production` ustawia `next start` (komenda `npm start`) i obraz Docker, więc lokalne uruchomienie zbudowanej aplikacji (`npm run build`, potem `npm start`) wymaga `RESEND_API_KEY` i własnego sekretu. `npm run dev` działa z `NODE_ENV=development`.
+Dwa ostatnie wiersze tabeli dotyczą produkcji. `NODE_ENV=production` ustawia `next start` (komenda `npm start`) i obraz Docker, więc lokalne uruchomienie zbudowanej aplikacji (`npm run build`, potem `npm start`) wymaga dostawcy maili (na przykład `SMTP_URL` z `.env.example`) i własnego sekretu. `npm run dev` działa z `NODE_ENV=development`.
 
 ### `admin:create` zgłasza brak adresu albo nieoczekiwany argument
 
@@ -442,7 +442,7 @@ Dwa ostatnie wiersze tabeli dotyczą produkcji. `NODE_ENV=production` ustawia `n
 ### Maile nie docierają do mailpit
 
 - **Objaw:** w interfejsie mailpit nie ma wiadomości po akcji, która powinna wysłać mail.
-- **Przyczyna:** `SMTP_URL` wskazuje inny port niż `MAILPIT_SMTP_PORT` albo usługa `mail` nie działa (terminal serwera pokazuje wtedy wpis zawierający `[MAILER] Failed to send`), albo `SMTP_URL` jest pusty. Przy pustym `SMTP_URL` aplikacja wysyła mail przez Resend, gdy ustawiono `RESEND_API_KEY`. Gdy nie ma żadnego z nich, mail nie jest wysyłany, a terminal serwera pokazuje wpis `[INFO] [MAILER] SMTP_URL and RESEND_API_KEY not set, email not sent`.
+- **Przyczyna:** `SMTP_URL` wskazuje inny port niż `MAILPIT_SMTP_PORT` albo usługa `mail` nie działa (terminal serwera pokazuje wtedy wpis zawierający `[MAILER] Failed to send`), albo `SMTP_URL` jest pusty. Przy pustym `SMTP_URL` aplikacja wysyła mail przez Resend, gdy ustawiono `RESEND_API_KEY`. Gdy nie ma żadnego z nich (albo `MAIL_PROVIDER=console`), mail nie jest wysyłany, a terminal serwera pokazuje wpis `[INFO] [MAILER] mail provider is console, email not sent`.
 - **Rozwiązanie:** ustaw `SMTP_URL=smtp://localhost:1025` (albo port z `MAILPIT_SMTP_PORT`) i sprawdź `docker compose ps`. Wpisy `[MAILER]` trafiają do terminala tylko przy `NODE_ENV` innym niż `production` i pustym `OTEL_EXPORTER_OTLP_ENDPOINT` (`src/shared/lib/logger.ts`). Kolejność wysyłki i wymogi produkcji opisuje [07-i18n-mail-env.md](07-i18n-mail-env.md).
 
 ### Link z zaproszenia kończy się błędem
