@@ -736,6 +736,52 @@ describe("parseCliArgs: mail", () => {
   ])("%j needs no mail credentials", (flags) => {
     expect(() => parseCliArgs(["my-app", ...flags])).not.toThrow();
   });
+
+  it.each([
+    [
+      "--smtp-host",
+      "relay x",
+      "--smtp-host: SMTP host: no spaces, quotes, backslashes, #, $ or backticks",
+    ],
+    [
+      "--smtp-user",
+      "app user",
+      "--smtp-user: SMTP user: no spaces, quotes, backslashes, #, $ or backticks",
+    ],
+    [
+      "--smtp-pass",
+      "p w",
+      "--smtp-pass: SMTP password: no spaces, quotes, backslashes, #, $ or backticks",
+    ],
+    [
+      "--smtp-pass",
+      "x\nMAIL_PROVIDER=console",
+      "--smtp-pass: SMTP password: no spaces, quotes, backslashes, #, $ or backticks",
+    ],
+  ])(
+    "%s %j unsafe in .env is rejected with the flag and its label",
+    (flag, value, message) => {
+      expect(() =>
+        parseCliArgs(["my-app", "--mail-provider", "smtp", flag, value]),
+      ).toThrow(new Error(message));
+    },
+  );
+
+  it("--resend-api-key unsafe in .env is rejected with the flag and its label", () => {
+    expect(() =>
+      parseCliArgs([
+        "my-app",
+        "--mail-provider",
+        "resend",
+        "--resend-api-key",
+        "re x",
+      ]),
+    ).toThrow(
+      new Error(
+        "--resend-api-key: Resend API key: no spaces, quotes, backslashes, #, $ or backticks",
+      ),
+    );
+  });
 });
 
 describe("USAGE", () => {

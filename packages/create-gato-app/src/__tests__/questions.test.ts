@@ -1148,6 +1148,33 @@ describe("collectAnswers: mail asked interactively", () => {
     expect(password("pw")).toBeUndefined();
   });
 
+  it("the host and user prompts accept a safe value surrounded by spaces", async () => {
+    const { answers, calls } = ask(QUIET, [
+      { method: "select", answer: "smtp" },
+      { method: "text", answer: "relay.internal" },
+      { method: "text", answer: "587" },
+      { method: "text", answer: "app" },
+      { method: "password", answer: "pw" },
+    ]);
+    await answers;
+    const host = validatorOf(textWithDefault(calls, "127.0.0.1"));
+    const user = validatorOf(smtpUserCall(calls));
+    expect(host("  relay.internal  ")).toBeUndefined();
+    expect(user("  app  ")).toBeUndefined();
+  });
+
+  it("the port prompt accepts only spaces and the answer falls back to 587", async () => {
+    const { answers, calls } = ask(QUIET, [
+      { method: "select", answer: "smtp" },
+      { method: "text", answer: "relay.internal" },
+      { method: "text", answer: "   " },
+      { method: "text", answer: "" },
+    ]);
+    expect(await mailOf(answers)).toMatchObject({ port: 587 });
+    const port = validatorOf(textWithDefault(calls, "587"));
+    expect(port("   ")).toBeUndefined();
+  });
+
   it("a host typed with spaces is trimmed", async () => {
     const { answers } = ask(QUIET, [
       { method: "select", answer: "smtp" },
