@@ -31,7 +31,7 @@ The getting-started guide is `docs/01-uruchomienie.md` (being translated).
 
 ## Code review
 
-You do not need CodeRabbit ([ADR-55](docs/adrs/55-code-review-does-not-depend-on-coderabbit.md)). Review your own change against [`.claude/skills/wa-code-review/SKILL.md`](.claude/skills/wa-code-review/SKILL.md), the checklist of what `npm run verify` cannot check (organization scoping, service mode, generated files, tests, i18n), and tick the PR template. In Claude Code the same checklist runs as the `wa-code-review` skill. If CodeRabbit is installed on the repository it comments on your pull request; treat its comments like any reviewer's. A pull request merges on the required checks and a maintainer's approval.
+You do not need CodeRabbit ([ADR-55](docs/adrs/55-code-review-does-not-depend-on-coderabbit.md)). Review your own change against [`.claude/skills/wa-code-review/SKILL.md`](.claude/skills/wa-code-review/SKILL.md), the checklist of what `npm run verify` cannot check (organization scoping, service mode, generated files, tests, i18n), and tick the PR template. In Claude Code the same checklist runs as the `wa-code-review` skill. If CodeRabbit is installed on the repository it comments on your pull request; treat its comments like any reviewer's. A pull request merges on the required checks and a maintainer's approval. CodeRabbit does not review pull requests automatically; if you want its review, comment `@coderabbitai review` on your PR.
 
 ## Reporting bugs and security issues
 
