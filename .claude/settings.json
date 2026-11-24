@@ -9,6 +9,7 @@
       "Bash(npm run test:hooks)",
       "Bash(npm run test:mutation:gate)",
       "Bash(npm run wa -- generate)",
+      "Bash(npm run wa -- doctor --files)",
       "Bash(npx tsc --noEmit)",
       "Bash(git status)",
       "Bash(git status *)",

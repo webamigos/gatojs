@@ -9,6 +9,11 @@ import { regionTargets, renderRegionTarget } from "./targets.js";
 const SERVER_REGISTRY = "src/modules.generated.ts";
 const CLIENT_REGISTRY = "src/modules.client.generated.ts";
 const LOCALES_FILE = "src/i18n/locales.generated.ts";
+export const GENERATED_FILES: readonly string[] = [
+  SERVER_REGISTRY,
+  CLIENT_REGISTRY,
+  LOCALES_FILE,
+];
 const FEATURE_GLOB = /^src\/features\/([^/*]+)\//;
 
 async function exists(path: string): Promise<boolean> {

@@ -207,7 +207,7 @@ var require_lib = __commonJS({
 });
 
 // src/bin.ts
-import { dirname as dirname7, join as join13, resolve as resolve6 } from "node:path";
+import { dirname as dirname8, join as join13, resolve as resolve7 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdtemp as mkdtemp4, rm as rm6 } from "node:fs/promises";
 import { tmpdir as tmpdir2 } from "node:os";
@@ -402,6 +402,44 @@ function parseUpdateArgs(argv) {
     fromKit: optionalValue(values["from-kit"], "--from-kit"),
     dryRun: values["dry-run"],
     install: !values["no-install"]
+  };
+}
+function parseDoctorArgs(argv) {
+  const { values, positionals } = parseOptions(argv, {
+    files: { type: "boolean", default: false }
+  });
+  assertMaxPositionals(positionals, 0);
+  if (!values.files) {
+    throw new Error("Only --files is implemented; see the gato-cli spec \xA78");
+  }
+  return { files: true };
+}
+function parseEjectArgs(argv) {
+  const { values, positionals } = parseOptions(argv, {
+    reason: { type: "string" },
+    undo: { type: "boolean", default: false },
+    kit: { type: "string" }
+  });
+  const [file2] = positionals;
+  if (file2 === void 0) {
+    throw new Error("Specify the file to eject");
+  }
+  assertMaxPositionals(positionals, 1);
+  if (values.undo && values.reason !== void 0) {
+    throw new Error("--undo takes no --reason");
+  }
+  if (!values.undo && values.kit !== void 0) {
+    throw new Error("--kit is only used with --undo");
+  }
+  const reason = values.reason?.trim() ?? "";
+  if (!values.undo && reason === "") {
+    throw new Error('Specify why the file is ejected: --reason "<why>"');
+  }
+  return {
+    file: file2,
+    reason: values.undo ? null : reason,
+    undo: values.undo,
+    kit: optionalValue(values.kit, "--kit")
   };
 }
 
@@ -5959,7 +5997,7 @@ var recursive = /* @__PURE__ */ new WeakMap();
 var NONE = 0;
 var ASSUMED = 1;
 var PROVEN = 2;
-function isRecursive(inst, stack, resolve7) {
+function isRecursive(inst, stack, resolve8) {
   const cached2 = recursive.get(inst);
   if (cached2 !== void 0)
     return cached2 ? PROVEN : NONE;
@@ -5969,7 +6007,7 @@ function isRecursive(inst, stack, resolve7) {
   let result = NONE;
   const check3 = (child) => {
     if (result !== PROVEN && child?._zod) {
-      const answer = isRecursive(child, stack, resolve7);
+      const answer = isRecursive(child, stack, resolve8);
       if (answer > result)
         result = answer;
     }
@@ -5980,7 +6018,7 @@ function isRecursive(inst, stack, resolve7) {
       const desc = Object.getOwnPropertyDescriptor(sh, key);
       if (spread && !desc.enumerable)
         continue;
-      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve7) : NONE;
+      const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve8) : NONE;
       if (child > answer)
         answer = child;
     }
@@ -6044,7 +6082,7 @@ function isRecursive(inst, stack, resolve7) {
       break;
     // `$ZodLazy` caches its inner on the def, so a resolved edge is followed exactly
     case "lazy": {
-      const inner = def._cachedInner ?? (resolve7 ? inst._zod.innerType : void 0);
+      const inner = def._cachedInner ?? (resolve8 ? inst._zod.innerType : void 0);
       merge2(inner ? isRecursive(inner, stack, false) : ASSUMED);
       break;
     }
@@ -20845,6 +20883,11 @@ function renderRegistry(modules, locales) {
 var SERVER_REGISTRY = "src/modules.generated.ts";
 var CLIENT_REGISTRY = "src/modules.client.generated.ts";
 var LOCALES_FILE = "src/i18n/locales.generated.ts";
+var GENERATED_FILES = [
+  SERVER_REGISTRY,
+  CLIENT_REGISTRY,
+  LOCALES_FILE
+];
 var FEATURE_GLOB = /^src\/features\/([^/*]+)\//;
 async function exists(path2) {
   try {
@@ -21621,6 +21664,443 @@ ${steps.join("\n")}`,
     options.log(step);
   }
   return { projectDir, modules: resolved.map((manifest) => manifest.name) };
+}
+
+// src/commands/doctor.ts
+import { readFile as readFile9 } from "node:fs/promises";
+
+// src/doctor/files.ts
+var UNHASHED = /* @__PURE__ */ new Set(["managed", "seed"]);
+function recordedHashes(state) {
+  return new Map(
+    Object.values(state.modules).flatMap((entry) => Object.entries(entry.files))
+  );
+}
+function gatoFileHashes(state) {
+  return new Map(
+    [...recordedHashes(state)].filter(([, hash2]) => !UNHASHED.has(hash2))
+  );
+}
+async function checkGatoFiles(input2) {
+  const { state } = input2;
+  const hashes = gatoFileHashes(state);
+  const report = {
+    modified: [],
+    deleted: [],
+    ejected: [],
+    staleEjected: []
+  };
+  for (const [path2, hash2] of [...hashes].sort(
+    ([a], [b]) => compareCodePoint(a, b)
+  )) {
+    const content = await input2.readProject(path2);
+    const unchanged = content !== null && contentHash(path2, content) === hash2;
+    const ejected = state.ejected[path2];
+    if (ejected !== void 0) {
+      report.ejected.push({ path: path2, reason: ejected.reason, unchanged });
+    } else if (content === null) {
+      report.deleted.push(path2);
+    } else if (!unchanged) {
+      report.modified.push(path2);
+    }
+  }
+  report.staleEjected = Object.keys(state.ejected).filter((path2) => !hashes.has(path2)).sort(compareCodePoint);
+  return report;
+}
+
+// src/doctor/mode.ts
+var FILE_PROTECTION_MODE = "warn";
+
+// src/commands/remove.ts
+import {
+  lstat as lstat2,
+  readFile as readFile8,
+  readdir as readdir4,
+  readlink,
+  realpath,
+  rm as rm3,
+  rmdir as rmdir2,
+  writeFile as writeFile6
+} from "node:fs/promises";
+import { dirname as dirname5, join as join9, relative, resolve as resolve3, sep } from "node:path";
+var HASH_CONFIG = { managedFiles: [], seedFiles: [] };
+var SEED = "seed";
+function assertRemovable(state, module) {
+  if (module === "core") {
+    throw new Error("Cannot remove core");
+  }
+  if (module in state.projectModules) {
+    throw new Error(
+      `Module ${module} belongs to the project; remove only handles kit modules. Delete its files and its projectModules entry by hand`
+    );
+  }
+  if (!(module in state.modules)) {
+    throw new Error(`Module ${module} is not installed`);
+  }
+  const requiredBy = [
+    ...Object.values(state.modules).map((entry) => entry.manifest),
+    ...projectModuleManifests(state)
+  ].filter((manifest) => manifest.requires.includes(module)).map((manifest) => manifest.name).sort(compareCodePoint);
+  if (requiredBy.length > 0) {
+    throw new Error(
+      `Module ${module} is required by: ${requiredBy.join(", ")}`
+    );
+  }
+}
+async function readLinkIfSymlink(path2) {
+  try {
+    return await readlink(path2);
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      return null;
+    }
+    throw error62;
+  }
+}
+async function realpathOfDeepestAncestor(path2) {
+  let current = path2;
+  for (; ; ) {
+    try {
+      return join9(await realpath(current), relative(current, path2));
+    } catch (error62) {
+      if (error62.code !== "ENOENT") {
+        throw error62;
+      }
+      const linkTarget = await readLinkIfSymlink(current);
+      if (linkTarget !== null) {
+        return realpathOfDeepestAncestor(
+          join9(resolve3(dirname5(current), linkTarget), relative(current, path2))
+        );
+      }
+      current = dirname5(current);
+    }
+  }
+}
+async function insideProject(projectDir, file2) {
+  const root = await realpath(projectDir);
+  const absolute = resolve3(projectDir, file2);
+  const real = await realpathOfDeepestAncestor(absolute);
+  if (!real.startsWith(root + sep)) {
+    throw new Error(`Path outside the project: ${file2}`);
+  }
+  return absolute;
+}
+async function readIfExists(path2) {
+  try {
+    return await readFile8(path2);
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      return null;
+    }
+    throw error62;
+  }
+}
+async function changedFiles(projectDir, files) {
+  const changed = [];
+  for (const [file2, savedHash] of Object.entries(files)) {
+    if (savedHash === SEED) {
+      continue;
+    }
+    const content = await readIfExists(await insideProject(projectDir, file2));
+    if (content === null) {
+      continue;
+    }
+    if (fileHash(file2, content, HASH_CONFIG) !== savedHash) {
+      changed.push(file2);
+    }
+  }
+  return changed.sort(compareCodePoint);
+}
+async function lstatIfExists(path2) {
+  try {
+    return await lstat2(path2);
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      return null;
+    }
+    throw error62;
+  }
+}
+async function removeEmptyParents(projectDir, start) {
+  const root = resolve3(projectDir);
+  let current = dirname5(start);
+  while (current.startsWith(root + sep)) {
+    const stats = await lstatIfExists(current);
+    if (stats !== null) {
+      if (!stats.isDirectory()) {
+        return;
+      }
+      if ((await readdir4(current)).length > 0) {
+        return;
+      }
+      await rmdir2(current);
+    }
+    current = dirname5(current);
+  }
+}
+async function remove(options) {
+  const { projectDir, module, runner, log } = options;
+  const state = await readKitState(projectDir);
+  assertRemovable(state, module);
+  const entry = state.modules[module];
+  const absolutePaths = await Promise.all(
+    Object.entries(entry.files).filter(([, hash2]) => hash2 !== SEED).map(([file2]) => insideProject(projectDir, file2))
+  );
+  const changed = await changedFiles(projectDir, entry.files);
+  if (changed.length > 0 && !options.force) {
+    throw new Error(
+      `Changed files in module ${module} (use --force):
+${changed.map((file2) => `  ${file2}`).join("\n")}`
+    );
+  }
+  const modules = { ...state.modules };
+  delete modules[module];
+  const remaining = [
+    ...Object.values(modules).map((remainingEntry) => remainingEntry.manifest),
+    ...projectModuleManifests(state)
+  ];
+  const packageJsonPath = join9(projectDir, "package.json");
+  const nextPackageJson = removeDependencies(
+    await readFile8(packageJsonPath, "utf8"),
+    entry.manifest,
+    remaining
+  );
+  for (const path2 of absolutePaths) {
+    await rm3(path2, { force: true });
+    await removeEmptyParents(projectDir, path2);
+  }
+  await writeFile6(packageJsonPath, nextPackageJson);
+  await writeKitState(projectDir, { ...state, modules });
+  await generate(projectDir);
+  if (options.install) {
+    try {
+      await runner("npm", ["install"], projectDir);
+    } catch {
+      throw new Error(
+        "Module removed, but npm install failed. Run: npm install"
+      );
+    }
+  }
+  log(`npx prisma migrate dev --name remove-${module}`);
+  return { removed: [module] };
+}
+
+// src/commands/doctor.ts
+function nextSteps2(path2, cli) {
+  return [
+    `    revert: ${cli} eject --undo ${path2} (or git checkout -- ${path2})`,
+    `    keep the change: ${cli} eject ${path2} --reason "<why>"`
+  ];
+}
+function ejectedLine(entry) {
+  const state = entry.unchanged ? "unchanged" : "changed";
+  return `  ejected   ${entry.path} (${state}): ${entry.reason}`;
+}
+function doctorFilesReport(report, { mode, cli }) {
+  const problems = report.modified.length + report.deleted.length + report.staleEjected.length;
+  const lines = [
+    ...report.modified.flatMap((path2) => [
+      `  modified  ${path2}`,
+      ...nextSteps2(path2, cli)
+    ]),
+    ...report.deleted.flatMap((path2) => [
+      `  deleted   ${path2}`,
+      ...nextSteps2(path2, cli)
+    ]),
+    ...report.ejected.map(ejectedLine),
+    ...report.staleEjected.map(
+      (path2) => `  stale     ${path2}: no longer a GatoJS file; remove it from ejected in .wa/kit.json`
+    )
+  ];
+  if (lines.length === 0) {
+    return { exitCode: 0, lines: ["GatoJS files: no changes"] };
+  }
+  const footer = problems === 0 ? [] : [
+    "Before changing a GatoJS file, look for an extension point in EXTENSION_POINTS.md (when present)."
+  ];
+  const warning = mode === "warn" && problems > 0 ? [
+    "This is a warning for now; a later GatoJS release makes verify fail on these files."
+  ] : [];
+  return {
+    exitCode: mode === "block" && problems > 0 ? 1 : 0,
+    lines: ["GatoJS files:", ...lines, ...footer, ...warning]
+  };
+}
+async function readIfExists2(path2) {
+  try {
+    return await readFile9(path2);
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      return null;
+    }
+    throw error62;
+  }
+}
+async function doctorFiles(options) {
+  const { projectDir } = options;
+  const state = await readKitState(projectDir);
+  const report = await checkGatoFiles({
+    state,
+    readProject: async (path2) => readIfExists2(await insideProject(projectDir, path2))
+  });
+  const { exitCode, lines } = doctorFilesReport(report, {
+    mode: options.mode ?? FILE_PROTECTION_MODE,
+    cli: options.cli
+  });
+  lines.forEach((line) => options.log(line));
+  return { exitCode };
+}
+
+// src/commands/eject.ts
+import { chmod as chmod3, mkdir as mkdir5, writeFile as writeFile7 } from "node:fs/promises";
+import { dirname as dirname6, relative as relative2, resolve as resolve4, sep as sep2 } from "node:path";
+
+// src/update/snapshot.ts
+var PACKAGE_JSON2 = "package.json";
+var PACKAGE_LOCK = "package-lock.json";
+function selectManifests(modules, available, version2) {
+  const byName = new Map(
+    available.map((manifest) => [manifest.name, manifest])
+  );
+  return [...new Set(modules)].sort(compareModuleNames).map((name) => {
+    const manifest = byName.get(name);
+    if (!manifest) {
+      throw new Error(`Module ${name} does not exist in GatoJS ${version2}`);
+    }
+    return manifest;
+  });
+}
+async function readKitSnapshot(kitDir, modules, names) {
+  const config2 = await readKitConfig(kitDir);
+  const manifests = selectManifests(
+    modules,
+    await readKitManifests(kitDir),
+    config2.version
+  );
+  const available = await assemblableFiles(kitDir, config2);
+  const files = /* @__PURE__ */ new Map();
+  for (const manifest of manifests) {
+    for (const file2 of moduleFiles(manifest, available)) {
+      if (file2 !== PACKAGE_LOCK) {
+        files.set(
+          file2,
+          await readAssembledFile({ kitDir, file: file2, config: config2, names })
+        );
+      }
+    }
+  }
+  const packageJson = files.get(PACKAGE_JSON2);
+  if (packageJson) {
+    files.set(PACKAGE_JSON2, {
+      content: Buffer.from(
+        projectPackageJson(
+          packageJson.content.toString("utf8"),
+          manifests,
+          names
+        )
+      ),
+      mode: packageJson.mode
+    });
+  }
+  return { version: config2.version, config: config2, manifests, files };
+}
+
+// src/commands/eject.ts
+var REASON_REQUIRED = 'Specify why the file is ejected: --reason "<why>"';
+async function gatoFilePath(projectDir, file2, state) {
+  const absolute = await insideProject(projectDir, file2);
+  const path2 = relative2(resolve4(projectDir), absolute).split(sep2).join("/");
+  if (GENERATED_FILES.includes(path2)) {
+    throw new Error(
+      `${path2} is generated; change the manifest or module files and run npm run wa -- generate`
+    );
+  }
+  const hash2 = recordedHashes(state).get(path2);
+  if (hash2 === "managed") {
+    throw new Error(
+      `${path2} is managed by GatoJS (wa update merges it); it needs no eject`
+    );
+  }
+  if (hash2 === "seed") {
+    throw new Error(
+      `${path2} is a seed file owned by the project; it needs no eject`
+    );
+  }
+  if (hash2 === void 0) {
+    throw new Error(`${path2} is a project file; it needs no eject`);
+  }
+  return path2;
+}
+async function eject(options) {
+  const { projectDir } = options;
+  const state = await readKitState(projectDir);
+  const path2 = await gatoFilePath(projectDir, options.file, state);
+  const existing = state.ejected[path2];
+  if (existing !== void 0) {
+    throw new Error(
+      `${path2} is already ejected ("${existing.reason}"); edit its reason in .wa/kit.json`
+    );
+  }
+  const reason = options.reason.trim();
+  if (reason === "") {
+    throw new Error(REASON_REQUIRED);
+  }
+  await writeKitState(projectDir, {
+    ...state,
+    ejected: {
+      ...state.ejected,
+      [path2]: { reason, ejectedAt: options.now().toISOString().slice(0, 10) }
+    }
+  });
+  options.log(
+    `Ejected ${path2}; wa update will merge it instead of replacing it`
+  );
+}
+async function undoEject(options) {
+  const { projectDir } = options;
+  const state = await readKitState(projectDir);
+  const path2 = await gatoFilePath(projectDir, options.file, state);
+  const snapshot = await readKitSnapshot(
+    options.kitDir,
+    Object.keys(state.modules),
+    {
+      name: state.project.name,
+      slug: state.project.slug,
+      snake: state.project.slug.replaceAll("-", "_")
+    }
+  );
+  const kitFile = snapshot.files.get(path2);
+  if (kitFile === void 0) {
+    throw new Error(`${path2} is not in GatoJS ${state.kitVersion}`);
+  }
+  const absolute = await insideProject(projectDir, path2);
+  await mkdir5(dirname6(absolute), { recursive: true });
+  await writeFile7(absolute, kitFile.content);
+  await chmod3(absolute, kitFile.mode);
+  const ejected = Object.fromEntries(
+    Object.entries(state.ejected).filter(([entry]) => entry !== path2)
+  );
+  await writeKitState(projectDir, { ...state, ejected });
+  if (REGION_FILES.includes(path2)) {
+    await generate(projectDir);
+  }
+  options.log(`Restored ${path2} from GatoJS ${state.kitVersion}`);
+}
+async function undoEjectFromSource(options) {
+  const state = await readKitState(options.projectDir);
+  const kitDir = await resolveKitSource({
+    kitFlag: options.kitFlag,
+    envSource: options.envSource,
+    state,
+    runner: options.runner,
+    tmpDir: options.tmpDir
+  });
+  await undoEject({
+    projectDir: options.projectDir,
+    file: options.file,
+    kitDir,
+    log: options.log
+  });
 }
 
 // ../../node_modules/@inquirer/core/dist/lib/key.js
@@ -22717,13 +23197,13 @@ import { AsyncResource as AsyncResource3 } from "node:async_hooks";
 
 // ../../node_modules/@inquirer/core/node_modules/@inquirer/type/dist/utils.js
 function withResolver() {
-  let resolve7;
+  let resolve8;
   let reject;
   const promise2 = new Promise((res, rej) => {
-    resolve7 = res;
+    resolve8 = res;
     reject = rej;
   });
-  return { promise: promise2, resolve: resolve7, reject };
+  return { promise: promise2, resolve: resolve8, reject };
 }
 
 // ../../node_modules/@inquirer/core/dist/lib/create-prompt.js
@@ -23105,7 +23585,7 @@ function createPrompt(view) {
     });
     output2.mute();
     const screen = new ScreenManager(rl);
-    const { promise: promise2, resolve: resolve7, reject } = withResolver();
+    const { promise: promise2, resolve: resolve8, reject } = withResolver();
     return withHooks(rl, (cycle) => {
       const clearEffects = AsyncResource3.bind(() => effectScheduler.clearAll());
       const settlePrompt = (settle2) => {
@@ -23116,7 +23596,7 @@ function createPrompt(view) {
           reject(error62);
         }
       };
-      const resolvePrompt = (value) => settlePrompt(() => resolve7(value));
+      const resolvePrompt = (value) => settlePrompt(() => resolve8(value));
       const rejectPrompt = (error62) => settlePrompt(() => reject(error62));
       const promptPromise = Object.assign(promise2.finally(() => {
         cleanups.forEach((cleanup) => cleanup());
@@ -23461,12 +23941,12 @@ var readlinePrompter = {
 
 // src/process/runner.ts
 import { spawn } from "node:child_process";
-var spawnRunner = (command, args, cwd) => new Promise((resolve7, reject) => {
+var spawnRunner = (command, args, cwd) => new Promise((resolve8, reject) => {
   const child = spawn(command, args, { cwd, stdio: "inherit" });
   child.on("error", reject);
   child.on("close", (code) => {
     if (code === 0) {
-      resolve7();
+      resolve8();
       return;
     }
     reject(
@@ -23476,11 +23956,11 @@ var spawnRunner = (command, args, cwd) => new Promise((resolve7, reject) => {
 });
 
 // src/commands/kit-sync.ts
-import { readFile as readFile8 } from "node:fs/promises";
-import { join as join9 } from "node:path";
+import { readFile as readFile10 } from "node:fs/promises";
+import { join as join10 } from "node:path";
 async function readExisting(kitDir) {
   try {
-    return await readFile8(join9(kitDir, ".wa/kit.json"), "utf8");
+    return await readFile10(join10(kitDir, ".wa/kit.json"), "utf8");
   } catch (error62) {
     if (error62.code === "ENOENT") {
       return null;
@@ -23561,199 +24041,25 @@ function list(options) {
   }
 }
 
-// src/commands/remove.ts
-import {
-  lstat as lstat2,
-  readFile as readFile9,
-  readdir as readdir4,
-  readlink,
-  realpath,
-  rm as rm3,
-  rmdir as rmdir2,
-  writeFile as writeFile6
-} from "node:fs/promises";
-import { dirname as dirname5, join as join10, relative, resolve as resolve3, sep } from "node:path";
-var HASH_CONFIG = { managedFiles: [], seedFiles: [] };
-var SEED = "seed";
-function assertRemovable(state, module) {
-  if (module === "core") {
-    throw new Error("Cannot remove core");
-  }
-  if (module in state.projectModules) {
-    throw new Error(
-      `Module ${module} belongs to the project; remove only handles kit modules. Delete its files and its projectModules entry by hand`
-    );
-  }
-  if (!(module in state.modules)) {
-    throw new Error(`Module ${module} is not installed`);
-  }
-  const requiredBy = [
-    ...Object.values(state.modules).map((entry) => entry.manifest),
-    ...projectModuleManifests(state)
-  ].filter((manifest) => manifest.requires.includes(module)).map((manifest) => manifest.name).sort(compareCodePoint);
-  if (requiredBy.length > 0) {
-    throw new Error(
-      `Module ${module} is required by: ${requiredBy.join(", ")}`
-    );
-  }
-}
-async function readLinkIfSymlink(path2) {
-  try {
-    return await readlink(path2);
-  } catch (error62) {
-    if (error62.code === "ENOENT") {
-      return null;
-    }
-    throw error62;
-  }
-}
-async function realpathOfDeepestAncestor(path2) {
-  let current = path2;
-  for (; ; ) {
-    try {
-      return join10(await realpath(current), relative(current, path2));
-    } catch (error62) {
-      if (error62.code !== "ENOENT") {
-        throw error62;
-      }
-      const linkTarget = await readLinkIfSymlink(current);
-      if (linkTarget !== null) {
-        return realpathOfDeepestAncestor(
-          join10(resolve3(dirname5(current), linkTarget), relative(current, path2))
-        );
-      }
-      current = dirname5(current);
-    }
-  }
-}
-async function insideProject(projectDir, file2) {
-  const root = await realpath(projectDir);
-  const absolute = resolve3(projectDir, file2);
-  const real = await realpathOfDeepestAncestor(absolute);
-  if (!real.startsWith(root + sep)) {
-    throw new Error(`Path outside the project: ${file2}`);
-  }
-  return absolute;
-}
-async function readIfExists(path2) {
-  try {
-    return await readFile9(path2);
-  } catch (error62) {
-    if (error62.code === "ENOENT") {
-      return null;
-    }
-    throw error62;
-  }
-}
-async function changedFiles(projectDir, files) {
-  const changed = [];
-  for (const [file2, savedHash] of Object.entries(files)) {
-    if (savedHash === SEED) {
-      continue;
-    }
-    const content = await readIfExists(await insideProject(projectDir, file2));
-    if (content === null) {
-      continue;
-    }
-    if (fileHash(file2, content, HASH_CONFIG) !== savedHash) {
-      changed.push(file2);
-    }
-  }
-  return changed.sort(compareCodePoint);
-}
-async function lstatIfExists(path2) {
-  try {
-    return await lstat2(path2);
-  } catch (error62) {
-    if (error62.code === "ENOENT") {
-      return null;
-    }
-    throw error62;
-  }
-}
-async function removeEmptyParents(projectDir, start) {
-  const root = resolve3(projectDir);
-  let current = dirname5(start);
-  while (current.startsWith(root + sep)) {
-    const stats = await lstatIfExists(current);
-    if (stats !== null) {
-      if (!stats.isDirectory()) {
-        return;
-      }
-      if ((await readdir4(current)).length > 0) {
-        return;
-      }
-      await rmdir2(current);
-    }
-    current = dirname5(current);
-  }
-}
-async function remove(options) {
-  const { projectDir, module, runner, log } = options;
-  const state = await readKitState(projectDir);
-  assertRemovable(state, module);
-  const entry = state.modules[module];
-  const absolutePaths = await Promise.all(
-    Object.entries(entry.files).filter(([, hash2]) => hash2 !== SEED).map(([file2]) => insideProject(projectDir, file2))
-  );
-  const changed = await changedFiles(projectDir, entry.files);
-  if (changed.length > 0 && !options.force) {
-    throw new Error(
-      `Changed files in module ${module} (use --force):
-${changed.map((file2) => `  ${file2}`).join("\n")}`
-    );
-  }
-  const modules = { ...state.modules };
-  delete modules[module];
-  const remaining = [
-    ...Object.values(modules).map((remainingEntry) => remainingEntry.manifest),
-    ...projectModuleManifests(state)
-  ];
-  const packageJsonPath = join10(projectDir, "package.json");
-  const nextPackageJson = removeDependencies(
-    await readFile9(packageJsonPath, "utf8"),
-    entry.manifest,
-    remaining
-  );
-  for (const path2 of absolutePaths) {
-    await rm3(path2, { force: true });
-    await removeEmptyParents(projectDir, path2);
-  }
-  await writeFile6(packageJsonPath, nextPackageJson);
-  await writeKitState(projectDir, { ...state, modules });
-  await generate(projectDir);
-  if (options.install) {
-    try {
-      await runner("npm", ["install"], projectDir);
-    } catch {
-      throw new Error(
-        "Module removed, but npm install failed. Run: npm install"
-      );
-    }
-  }
-  log(`npx prisma migrate dev --name remove-${module}`);
-  return { removed: [module] };
-}
-
 // src/commands/update.ts
 import { execFile as execFile3 } from "node:child_process";
 import { existsSync as existsSync3 } from "node:fs";
 import {
-  chmod as chmod3,
-  mkdir as mkdir5,
+  chmod as chmod4,
+  mkdir as mkdir6,
   mkdtemp as mkdtemp3,
-  readFile as readFile10,
+  readFile as readFile11,
   rm as rm5,
   rmdir as rmdir3,
   stat as stat4,
-  writeFile as writeFile8
+  writeFile as writeFile9
 } from "node:fs/promises";
-import { dirname as dirname6, join as join12, relative as relative2, resolve as resolve4, sep as sep2 } from "node:path";
+import { dirname as dirname7, join as join12, relative as relative3, resolve as resolve5, sep as sep3 } from "node:path";
 import { promisify as promisify3 } from "node:util";
 
 // src/update/merge.ts
 import { execFile as execFile2 } from "node:child_process";
-import { mkdtemp as mkdtemp2, rm as rm4, writeFile as writeFile7 } from "node:fs/promises";
+import { mkdtemp as mkdtemp2, rm as rm4, writeFile as writeFile8 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join as join11 } from "node:path";
 import { promisify as promisify2 } from "node:util";
@@ -23781,9 +24087,9 @@ async function mergeFile(input2) {
     const baseFile = join11(dir, "base");
     const theirsFile = join11(dir, "theirs");
     await Promise.all([
-      writeFile7(oursFile, sides.ours),
-      writeFile7(baseFile, sides.base),
-      writeFile7(theirsFile, sides.theirs)
+      writeFile8(oursFile, sides.ours),
+      writeFile8(baseFile, sides.base),
+      writeFile8(theirsFile, sides.theirs)
     ]);
     const args = [
       "merge-file",
@@ -24013,56 +24319,6 @@ function successHints(base, target) {
   return hints;
 }
 
-// src/update/snapshot.ts
-var PACKAGE_JSON2 = "package.json";
-var PACKAGE_LOCK = "package-lock.json";
-function selectManifests(modules, available, version2) {
-  const byName = new Map(
-    available.map((manifest) => [manifest.name, manifest])
-  );
-  return [...new Set(modules)].sort(compareModuleNames).map((name) => {
-    const manifest = byName.get(name);
-    if (!manifest) {
-      throw new Error(`Module ${name} does not exist in GatoJS ${version2}`);
-    }
-    return manifest;
-  });
-}
-async function readKitSnapshot(kitDir, modules, names) {
-  const config2 = await readKitConfig(kitDir);
-  const manifests = selectManifests(
-    modules,
-    await readKitManifests(kitDir),
-    config2.version
-  );
-  const available = await assemblableFiles(kitDir, config2);
-  const files = /* @__PURE__ */ new Map();
-  for (const manifest of manifests) {
-    for (const file2 of moduleFiles(manifest, available)) {
-      if (file2 !== PACKAGE_LOCK) {
-        files.set(
-          file2,
-          await readAssembledFile({ kitDir, file: file2, config: config2, names })
-        );
-      }
-    }
-  }
-  const packageJson = files.get(PACKAGE_JSON2);
-  if (packageJson) {
-    files.set(PACKAGE_JSON2, {
-      content: Buffer.from(
-        projectPackageJson(
-          packageJson.content.toString("utf8"),
-          manifests,
-          names
-        )
-      ),
-      mode: packageJson.mode
-    });
-  }
-  return { version: config2.version, config: config2, manifests, files };
-}
-
 // src/commands/update.ts
 var execFileAsync = promisify3(execFile3);
 var UNDO_HINT = "Check git status; to undo everything: git restore . && git clean -fd";
@@ -24114,9 +24370,9 @@ function assertRequirementsInstalled(state, target) {
     }
   }
 }
-async function readIfExists2(path2) {
+async function readIfExists3(path2) {
   try {
-    return await readFile10(path2);
+    return await readFile11(path2);
   } catch (error62) {
     if (error62.code === "ENOENT") {
       return null;
@@ -24127,7 +24383,7 @@ async function readIfExists2(path2) {
 async function writableInsideProject(projectDir, file2) {
   const absolute = await insideProject(projectDir, file2);
   let current = projectDir;
-  for (const segment of relative2(projectDir, absolute).split(sep2)) {
+  for (const segment of relative3(projectDir, absolute).split(sep3)) {
     current = join12(current, segment);
     if ((await lstatIfExists(current))?.isSymbolicLink()) {
       throw new Error(`Symbolic link on a write path: ${file2}`);
@@ -24136,7 +24392,7 @@ async function writableInsideProject(projectDir, file2) {
   return absolute;
 }
 async function rememberOriginal(absolute) {
-  const content = await readIfExists2(absolute);
+  const content = await readIfExists3(absolute);
   if (!content) {
     return null;
   }
@@ -24149,18 +24405,18 @@ async function applyWrite(projectDir, { file: file2, absolute }) {
     await removeEmptyParents(projectDir, absolute);
     return;
   }
-  await mkdir5(dirname6(absolute), { recursive: true });
-  await writeFile8(absolute, file2.content);
-  await chmod3(absolute, file2.mode);
+  await mkdir6(dirname7(absolute), { recursive: true });
+  await writeFile9(absolute, file2.content);
+  await chmod4(absolute, file2.mode);
 }
 async function restoreOriginal(original) {
-  const current = await readIfExists2(original.path);
+  const current = await readIfExists3(original.path);
   if (!current?.equals(original.content)) {
     await rm5(original.path, { force: true });
-    await mkdir5(dirname6(original.path), { recursive: true });
-    await writeFile8(original.path, original.content);
+    await mkdir6(dirname7(original.path), { recursive: true });
+    await writeFile9(original.path, original.content);
   }
-  await chmod3(original.path, original.mode);
+  await chmod4(original.path, original.mode);
 }
 async function rollbackUpdate(input2) {
   const { projectDir, originals } = input2;
@@ -24281,15 +24537,15 @@ async function update(options) {
   }
   assertSupportedKitFormat(target.config.kitFormat);
   assertRequirementsInstalled(state, target);
-  const recordedHashes = Object.assign(
+  const recordedHashes2 = Object.assign(
     {},
     ...Object.values(state.modules).map((entry) => entry.files)
   );
   const plan = await planUpdate({
     base,
     target,
-    recordedHashes,
-    readProject: async (path2) => readIfExists2(await insideProject(projectDir, path2))
+    recordedHashes: recordedHashes2,
+    readProject: async (path2) => readIfExists3(await insideProject(projectDir, path2))
   });
   const report = planReport({
     plan,
@@ -24427,7 +24683,7 @@ async function updateFromSource(options) {
         runner
       });
     }
-    const targetKitDir = args.fromKit === null ? await clone2(args.version, "target") : resolve4(args.fromKit);
+    const targetKitDir = args.fromKit === null ? await clone2(args.version, "target") : resolve5(args.fromKit);
     return await update({
       projectDir,
       version: args.version,
@@ -24444,10 +24700,19 @@ async function updateFromSource(options) {
 }
 
 // src/cli.ts
-import { resolve as resolve5 } from "node:path";
+import { resolve as resolve6 } from "node:path";
 var HELP_ALIASES = ["help", "--help", "-h"];
 var VERSION_ALIASES = ["version", "--version", "-v"];
-var COMMANDS = ["create", "add", "remove", "list", "update", "generate"];
+var COMMANDS = [
+  "create",
+  "add",
+  "remove",
+  "list",
+  "update",
+  "generate",
+  "doctor",
+  "eject"
+];
 function usage(name) {
   return [
     `Usage: ${name} <command> [options]`,
@@ -24459,11 +24724,14 @@ function usage(name) {
     `  ${name} list [--kit <path|url>]`,
     `  ${name} update <version> [--kit <path|url>] [--dry-run] [--no-install]`,
     `  ${name} generate`,
+    `  ${name} doctor --files`,
+    `  ${name} eject <file> --reason "<why>"`,
+    `  ${name} eject --undo <file> [--kit <path|url>]`,
     `  ${name} kit sync`,
     `  ${name} help`,
     `  ${name} version`,
     "",
-    "add, list and update read the kit from --kit, then GATO_KIT_SOURCE (or WA_KIT_SOURCE),",
+    "add, list, update and eject --undo read the kit from --kit, then GATO_KIT_SOURCE (or WA_KIT_SOURCE),",
     "then the kitRepo from .wa/kit.json at tag v<kitVersion>."
   ].join("\n");
 }
@@ -24499,27 +24767,30 @@ function runMetaCommand(argv, identity2) {
 ${usage(identity2.name)}`
   };
 }
+function commandPrefix(name) {
+  return name === "gato" ? "gato" : "npm run wa --";
+}
 function kitSourceFromEnv(env) {
   return env["GATO_KIT_SOURCE"] || env["WA_KIT_SOURCE"] || void 0;
 }
 function createKitDir(input2) {
   if (input2.kitFlag !== null) {
-    return resolve5(input2.kitFlag);
+    return resolve6(input2.kitFlag);
   }
   if (input2.name === "gato") {
     throw new Error("gato create needs --kit <path to a GatoJS checkout>");
   }
-  return resolve5(input2.bundleDir, "../..");
+  return resolve6(input2.bundleDir, "../..");
 }
 function cliDependency(input2) {
   if (input2.cliSource !== null) {
-    return `file:${resolve5(input2.cwd, input2.cliSource)}`;
+    return `file:${resolve6(input2.cwd, input2.cliSource)}`;
   }
   return input2.name === "gato" ? `^${input2.version}` : null;
 }
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.4.0" };
+var identity = { name: "wa", version: "0.5.0" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);
@@ -24544,8 +24815,35 @@ async function listCommand(kit) {
     await rm6(tmpDir, { recursive: true });
   }
 }
+async function ejectCommand(argv) {
+  const { file: file2, reason, undo, kit } = parseEjectArgs(argv);
+  if (!undo) {
+    await eject({
+      projectDir: process.cwd(),
+      file: file2,
+      reason: reason ?? "",
+      now: () => /* @__PURE__ */ new Date(),
+      log: console.log
+    });
+    return;
+  }
+  const tmpDir = await mkdtemp4(join13(tmpdir2(), "wa-eject-"));
+  try {
+    await undoEjectFromSource({
+      projectDir: process.cwd(),
+      file: file2,
+      kitFlag: kit,
+      envSource: kitSourceFromEnv(process.env),
+      runner: spawnRunner,
+      tmpDir,
+      log: console.log
+    });
+  } finally {
+    await rm6(tmpDir, { recursive: true });
+  }
+}
 function bundleKitDir() {
-  return resolve6(dirname7(fileURLToPath(import.meta.url)), "../..");
+  return resolve7(dirname8(fileURLToPath(import.meta.url)), "../..");
 }
 async function main(argv) {
   const meta3 = runMetaCommand(argv, identity);
@@ -24590,6 +24888,19 @@ async function main(argv) {
     });
     return 0;
   }
+  if (command === "doctor") {
+    parseDoctorArgs(argv.slice(1));
+    const { exitCode } = await doctorFiles({
+      projectDir: process.cwd(),
+      cli: commandPrefix(identity.name),
+      log: console.log
+    });
+    return exitCode;
+  }
+  if (command === "eject") {
+    await ejectCommand(argv.slice(1));
+    return 0;
+  }
   if (command === "list") {
     await listCommand(parseListArgs(argv.slice(1)).kit);
     return 0;
@@ -24610,7 +24921,7 @@ async function main(argv) {
     const { kit, cliSource, ...parsed } = parseCreateArgs(argv.slice(1));
     await create({
       ...parsed,
-      cliSource: cliSource === null ? null : resolve6(cliSource),
+      cliSource: cliSource === null ? null : resolve7(cliSource),
       cliDependency: cliDependency({
         name: identity.name,
         version: identity.version,
@@ -24620,7 +24931,7 @@ async function main(argv) {
       kitDir: createKitDir({
         kitFlag: kit,
         name: identity.name,
-        bundleDir: dirname7(fileURLToPath(import.meta.url))
+        bundleDir: dirname8(fileURLToPath(import.meta.url))
       }),
       runner: spawnRunner,
       prompter: readlinePrompter,
