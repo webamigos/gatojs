@@ -4,9 +4,9 @@ reviews:
   profile: "assertive"
   high_level_summary: true
   auto_review:
-    enabled: true
+    # Reviews run only on request: comment "@coderabbitai review" on a PR (ADR-55).
+    enabled: false
     drafts: false
-    # Auto-review PRs targeting main.
     base_branches:
       - "main"
     ignore_title_keywords:
