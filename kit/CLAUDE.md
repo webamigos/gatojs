@@ -68,6 +68,10 @@ Zasady dla plików tylko kitu (`kit/`, pakiety narzędzi `packages/gato-cli` i `
 ## Moduły i manifest
 
 - Zmieniasz pliki modułu: podbij jego `version` w manifeście (`kit/modules/<x>.json`).
+- Zmieniasz kontrakt, który czyta CLI (schemat `.wa/kit.json` albo manifestu, regiony `wa:*`, układ plików generowanych,
+  słownik hashy jak `managed`/`seed`): podbij `kitFormat` w `kit/kit.json` i dopisz nową wartość do `SUPPORTED_KIT_FORMATS`
+  w `packages/gato-cli/src/kit/kit-format.ts` ([ADR-59](../docs/adrs/59-gato-files-are-protected-and-ejected-with-a-reason.md)).
+  Projekt bez pola to format 1. Wypełnienie listy (`seedFiles`, `managedFiles`) nie zmienia formatu.
 - Moduł kitu nie zmienia plików rdzenia w swoich commitach. Zmianę rdzenia, której moduł wymaga (szew w `src/shared/`,
   `src/test/integration/setup-env.ts`, `e2e/env.ts`, `mutation-gate.json`, `stryker.integration.config.json`), rób
   osobnym commitem z podbiciem `version` w `kit/modules/core.json`; projekt dostaje ją z rdzeniem także bez modułu.
