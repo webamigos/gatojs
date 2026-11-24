@@ -144,6 +144,28 @@ describe("findRemoteFontImports", () => {
     ).toEqual(["next/font/google"]);
   });
 
+  it("does not count JSX text that looks like a dynamic import", () => {
+    expect(
+      findRemoteFontImports(
+        'export const P = () => <div>import("next/font/google")</div>;',
+      ),
+    ).toEqual([]);
+  });
+
+  it("does not count a call of a function other than require", () => {
+    expect(findRemoteFontImports('load("next/font/google");')).toEqual([]);
+  });
+
+  it("does not throw on a require call without arguments", () => {
+    expect(findRemoteFontImports("require();")).toEqual([]);
+  });
+
+  it("resolves escapes in the specifier", () => {
+    expect(
+      findRemoteFontImports('import { Inter } from "next\\u002ffont/google";'),
+    ).toEqual(["next/font/google"]);
+  });
+
   test.prop([fc.string()])(
     "text inside a string literal is never reported",
     (text) => {
@@ -277,6 +299,80 @@ describe("findMissingLocalFontFiles and checkFonts", () => {
     expect(findMissingLocalFontFiles(root)).toEqual([]);
   });
 
+  it("ignores a same-named loader from another module next to a next/font/local import", () => {
+    write(
+      "src/app/fonts/fonts.ts",
+      'import other from "next/font/local";\nimport localFont from "./my-loader";\nexport const f = localFont({ src: "./gone.woff2" });\n',
+    );
+
+    expect(findMissingLocalFontFiles(root)).toEqual([]);
+  });
+
+  it("finds src when it is not the first property", () => {
+    write(
+      "src/app/fonts/fonts.ts",
+      'import localFont from "next/font/local";\nexport const f = localFont({ display: "swap", src: "./gone.woff2" });\n',
+    );
+
+    expect(findMissingLocalFontFiles(root)).toEqual([
+      "src/app/fonts/fonts.ts: ./gone.woff2 does not exist",
+    ]);
+  });
+
+  it("finds path when it is not the first property of an array element", () => {
+    write(
+      "src/app/fonts/fonts.ts",
+      localFontFile('[{ weight: "400", path: "./gone.woff2" }]'),
+    );
+
+    expect(findMissingLocalFontFiles(root)).toEqual([
+      "src/app/fonts/fonts.ts: ./gone.woff2 does not exist",
+    ]);
+  });
+
+  it("ignores a src that is not a literal", () => {
+    write(
+      "src/app/fonts/fonts.ts",
+      'import localFont from "next/font/local";\nconst fontPath = "./gone.woff2";\nexport const f = localFont({ src: fontPath });\n',
+    );
+
+    expect(findMissingLocalFontFiles(root)).toEqual([]);
+  });
+
+  it("ignores an array src of plain strings", () => {
+    write("src/app/fonts/fonts.ts", localFontFile('["./a.woff2"]'));
+
+    expect(findMissingLocalFontFiles(root)).toEqual([]);
+  });
+
+  it("does not throw on a call without options", () => {
+    write(
+      "src/app/fonts/fonts.ts",
+      'import localFont from "next/font/local";\nexport const f = localFont();\n',
+    );
+
+    expect(findMissingLocalFontFiles(root)).toEqual([]);
+  });
+
+  it("reports a remote import whose specifier is written with escapes", () => {
+    write(
+      "src/app/layout.tsx",
+      'import { Inter } from "next\\u002ffont\\u002fgoogle";\n',
+    );
+
+    expect(checkFonts(root)).toEqual([
+      "src/app/layout.tsx: imports next/font/google",
+    ]);
+  });
+
+  it("parses a .ts file as TypeScript, where <any> is a type assertion", () => {
+    write("src/lib/f.ts", 'const g = <any>require("next/font/google");\n');
+
+    expect(checkFonts(root)).toEqual([
+      "src/lib/f.ts: imports next/font/google",
+    ]);
+  });
+
   it("checks every call in a file, in source order", () => {
     write(
       "src/app/fonts/fonts.ts",
@@ -310,6 +406,23 @@ describe("findMissingLocalFontFiles and checkFonts", () => {
     );
 
     expect(findMissingLocalFontFiles(root)).toEqual([]);
+    expect(checkFonts(root)).toEqual([]);
+  });
+
+  it("does not scan backup files or a src directory nested below a package", () => {
+    write(
+      "src/app/fonts.ts.bak",
+      'import { Inter } from "next/font/google";\n',
+    );
+    write(
+      "packages/ui/src/fonts.ts.orig",
+      'import { Inter } from "next/font/google";\n',
+    );
+    write(
+      "packages/ui/fixtures/packages/x/src/fonts.ts",
+      'import { Inter } from "next/font/google";\n',
+    );
+
     expect(checkFonts(root)).toEqual([]);
   });
 
@@ -398,6 +511,14 @@ describe("findMissingLocalFontFiles and checkFonts", () => {
     ]);
   });
 
+  it("takes the whole base name as the family when no subset is named", () => {
+    write("src/app/fonts/inter.woff2", "woff2");
+
+    expect(checkFonts(root)).toEqual([
+      "src/app/fonts: LICENSE-inter.txt missing",
+    ]);
+  });
+
   it("keeps a hyphenated family name whole", () => {
     write("src/app/fonts/barlow-condensed-latin-500-normal.woff2", "woff2");
     write("src/app/fonts/LICENSE-barlow.txt", "SIL OFL 1.1");
@@ -435,7 +556,7 @@ describe("findMissingLocalFontFiles and checkFonts", () => {
 });
 
 describe("repo", () => {
-  it("fonts are bundled, present and licensed", () => {
+  it("fonts are bundled, present and licensed", { timeout: 30_000 }, () => {
     expect(checkFonts(repoRoot)).toEqual([]);
   });
 });

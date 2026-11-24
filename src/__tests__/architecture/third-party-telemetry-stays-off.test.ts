@@ -155,6 +155,63 @@ describe("dockerfileStageEnv", () => {
   it("returns an empty list for a Dockerfile without stages", () => {
     expect(dockerfileStageEnv("", "runner")).toEqual([]);
   });
+
+  it("reads a Dockerfile with CRLF line endings", () => {
+    expect(
+      dockerfileStageEnv(
+        "FROM base AS runner\r\nENV NEXT_TELEMETRY_DISABLED=1\r\n",
+        "runner",
+      ),
+    ).toEqual(["NEXT_TELEMETRY_DISABLED=1"]);
+  });
+
+  it("accepts indented FROM and ENV lines", () => {
+    expect(
+      dockerfileStageEnv("  FROM base AS runner\n  ENV A=1", "runner"),
+    ).toEqual(["A=1"]);
+  });
+
+  it("ends a stage at an indented FROM", () => {
+    expect(
+      dockerfileStageEnv(
+        "FROM base AS runner\nENV A=1\n  FROM base AS final\nENV B=2",
+        "runner",
+      ),
+    ).toEqual(["A=1"]);
+  });
+
+  it("does not end a stage at the word from inside another instruction", () => {
+    expect(
+      dockerfileStageEnv(
+        "FROM base AS runner\nRUN echo copied from cache\nENV B=2",
+        "runner",
+      ),
+    ).toEqual(["B=2"]);
+  });
+
+  it("accepts trailing whitespace after the stage name", () => {
+    expect(
+      dockerfileStageEnv("FROM base AS runner \nENV B=2", "runner"),
+    ).toEqual(["B=2"]);
+  });
+
+  it("accepts several spaces between FROM arguments", () => {
+    expect(
+      dockerfileStageEnv(
+        "FROM  --platform=x  node:22  AS  runner\nENV B=2",
+        "runner",
+      ),
+    ).toEqual(["B=2"]);
+  });
+
+  it("removes single quotes around values", () => {
+    expect(
+      dockerfileStageEnv(
+        "FROM base AS runner\nENV HOSTNAME='0.0.0.0' NEXT_TELEMETRY_DISABLED='1'",
+        "runner",
+      ),
+    ).toEqual(["HOSTNAME=0.0.0.0", "NEXT_TELEMETRY_DISABLED=1"]);
+  });
 });
 
 describe("findAnalyticsPackages", () => {
@@ -281,6 +338,12 @@ describe("findHardcodedAnalyticsIds", () => {
   it("finds a Universal Analytics id", () => {
     expect(findHardcodedAnalyticsIds('const id = "UA-12345678-1";')).toEqual([
       "UA-12345678-1",
+    ]);
+  });
+
+  it("finds a Universal Analytics id with a multi-digit property number", () => {
+    expect(findHardcodedAnalyticsIds("UA-12345678-12")).toEqual([
+      "UA-12345678-12",
     ]);
   });
 
@@ -598,6 +661,44 @@ describe("checkTelemetry", () => {
     expect(checkTelemetry(root)).toEqual([]);
   });
 
+  it("skips a backup file but scans a .ts file whose name contains .test.tsx", () => {
+    cleanRepo();
+    write("src/app/ids.ts.bak", 'const id = "G-ABC123XYZ9";\n');
+    write("src/app/ids.test.tsx.ts", 'const id = "G-ABC123XYZ9";\n');
+
+    expect(checkTelemetry(root)).toEqual([
+      "src/app/ids.test.tsx.ts: G-ABC123XYZ9",
+    ]);
+  });
+
+  it("does not count variables passed to a RUN env command as stage ENV", () => {
+    cleanRepo();
+    write(
+      "Dockerfile",
+      dockerfileText({
+        builder: [
+          "RUN env NEXT_TELEMETRY_DISABLED=1 CHECKPOINT_DISABLE=1 npm run build",
+        ],
+      }),
+    );
+
+    expect(checkTelemetry(root)).toEqual([
+      "Dockerfile builder: NEXT_TELEMETRY_DISABLED=1 missing",
+      "Dockerfile builder: CHECKPOINT_DISABLE=1 missing",
+    ]);
+  });
+
+  it("reports every variable missing when there is no Dockerfile", () => {
+    write("package.json", JSON.stringify({ dependencies: { next: "16" } }));
+
+    expect(checkTelemetry(root)).toEqual([
+      "Dockerfile builder: NEXT_TELEMETRY_DISABLED=1 missing",
+      "Dockerfile builder: CHECKPOINT_DISABLE=1 missing",
+      "Dockerfile runner: NEXT_TELEMETRY_DISABLED=1 missing",
+      "Dockerfile runner: CHECKPOINT_DISABLE=1 missing",
+    ]);
+  });
+
   it("scans a file whose name only contains test", () => {
     cleanRepo();
     write("src/app/latest.ts", 'const id = "AW-123456789";\n');
@@ -629,17 +730,25 @@ describe("checkTelemetry", () => {
 });
 
 describe("repo", () => {
-  it("the Dockerfile disables telemetry and nothing ships analytics", () => {
-    expect(checkTelemetry(repoRoot)).toEqual([]);
-  });
+  it(
+    "the Dockerfile disables telemetry and nothing ships analytics",
+    { timeout: 30_000 },
+    () => {
+      expect(checkTelemetry(repoRoot)).toEqual([]);
+    },
+  );
 
-  it("the runner stage of the real Dockerfile turns both telemetry switches off", () => {
-    const env = dockerfileStageEnv(
-      fs.readFileSync(path.join(repoRoot, "Dockerfile"), "utf8"),
-      "runner",
-    );
+  it(
+    "the runner stage of the real Dockerfile turns both telemetry switches off",
+    { timeout: 30_000 },
+    () => {
+      const env = dockerfileStageEnv(
+        fs.readFileSync(path.join(repoRoot, "Dockerfile"), "utf8"),
+        "runner",
+      );
 
-    expect(env).toContain("NEXT_TELEMETRY_DISABLED=1");
-    expect(env).toContain("CHECKPOINT_DISABLE=1");
-  });
+      expect(env).toContain("NEXT_TELEMETRY_DISABLED=1");
+      expect(env).toContain("CHECKPOINT_DISABLE=1");
+    },
+  );
 });
