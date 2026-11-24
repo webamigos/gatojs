@@ -22,6 +22,7 @@ After a nontrivial correction or a non-obvious gotcha:
 
 - [`next build` on Next.js 16.4.3 stops once with `SecurityFatalError`; the retry passes, and the fix is an upgrade](lessons/next-security-notice-stops-the-first-build.md)
 - [When GitHub Actions billing fails, every job fails in seconds with zero steps; it is not the PR](lessons/failed-actions-billing-looks-like-red-ci.md)
+- [A build that fetches its fonts fails on whatever Google answers; serve them from the repository with `next/font/local`](lessons/a-build-that-fetches-fonts-fails-on-googles-answer.md)
 
 ### process
 
