@@ -259,6 +259,81 @@ describe("doctorFilesReport", () => {
     );
   });
 
+  it("prints exactly the header, next steps and both footers for one modified file in warn mode", () => {
+    expect(
+      doctorFilesReport(report({ modified: ["src/a.ts"] }), GATO).lines,
+    ).toEqual([
+      "GatoJS files:",
+      "  modified  src/a.ts",
+      "    revert: gato eject --undo src/a.ts (or git checkout -- src/a.ts)",
+      '    keep the change: gato eject src/a.ts --reason "<why>"',
+      "Before changing a GatoJS file, look for an extension point in EXTENSION_POINTS.md (when present).",
+      "This is a warning for now; a later GatoJS release makes verify fail on these files.",
+    ]);
+  });
+
+  it("prints exactly the header, next steps and only the extension points footer for one deleted file in block mode", () => {
+    expect(
+      doctorFilesReport(report({ deleted: ["src/d.ts"] }), GATO_BLOCK).lines,
+    ).toEqual([
+      "GatoJS files:",
+      "  deleted   src/d.ts",
+      "    revert: gato eject --undo src/d.ts (or git checkout -- src/d.ts)",
+      '    keep the change: gato eject src/d.ts --reason "<why>"',
+      "Before changing a GatoJS file, look for an extension point in EXTENSION_POINTS.md (when present).",
+    ]);
+  });
+
+  it.each([
+    ["warn", GATO],
+    ["block", GATO_BLOCK],
+  ] as const)(
+    "prints exactly the header and the ejected line without footers in %s mode",
+    (_mode, options) => {
+      expect(
+        doctorFilesReport(
+          report({
+            ejected: [
+              { path: "src/a.ts", reason: "custom login", unchanged: false },
+            ],
+          }),
+          options,
+        ).lines,
+      ).toEqual([
+        "GatoJS files:",
+        "  ejected   src/a.ts (changed): custom login",
+      ]);
+    },
+  );
+
+  it("prints exactly every kind of entry in order with both footers in warn mode", () => {
+    expect(
+      doctorFilesReport(
+        report({
+          modified: ["src/m.ts"],
+          deleted: ["src/d.ts"],
+          ejected: [
+            { path: "src/e.ts", reason: "custom login", unchanged: true },
+          ],
+          staleEjected: ["src/s.ts"],
+        }),
+        GATO,
+      ).lines,
+    ).toEqual([
+      "GatoJS files:",
+      "  modified  src/m.ts",
+      "    revert: gato eject --undo src/m.ts (or git checkout -- src/m.ts)",
+      '    keep the change: gato eject src/m.ts --reason "<why>"',
+      "  deleted   src/d.ts",
+      "    revert: gato eject --undo src/d.ts (or git checkout -- src/d.ts)",
+      '    keep the change: gato eject src/d.ts --reason "<why>"',
+      "  ejected   src/e.ts (unchanged): custom login",
+      "  stale     src/s.ts: no longer a GatoJS file; remove it from ejected in .wa/kit.json",
+      "Before changing a GatoJS file, look for an extension point in EXTENSION_POINTS.md (when present).",
+      "This is a warning for now; a later GatoJS release makes verify fail on these files.",
+    ]);
+  });
+
   it("prints deleted files in the order of the report", () => {
     const result = doctorFilesReport(
       report({ deleted: ["src/a.ts", "src/b.ts"] }),

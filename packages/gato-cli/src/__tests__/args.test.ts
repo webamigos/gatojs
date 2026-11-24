@@ -633,6 +633,7 @@ describe("parseEjectArgs", () => {
     [["--undo", "src/a.ts", "b"], "Unexpected argument: b"],
     [["src/a.ts", "--reason", "x", "--force"], "Unknown option: --force"],
     [["--undo=1", "src/a.ts"], "Option --undo takes no value"],
+    [["--undo", "src/a.ts", "--kit="], "Option --kit needs a value"],
   ])("%j reports %s", (argv, message) => {
     expect(messageOf(() => parseEjectArgs(argv))).toBe(message);
   });

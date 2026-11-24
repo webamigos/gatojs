@@ -152,6 +152,7 @@ describe("runMetaCommand", () => {
     [["add", "m"]],
     [["remove", "m"]],
     [["list"]],
+    [["update", "1.0.0"]],
     [["generate"]],
     [["kit", "sync"]],
     [["doctor", "--files"]],

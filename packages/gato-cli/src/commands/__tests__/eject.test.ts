@@ -458,6 +458,29 @@ describe("undoEject", () => {
   );
 
   it(
+    "does not regenerate wa:* regions when the restored file has none",
+    async () => {
+      const { kitDir, dir } = await createFixtureProject(["demo"]);
+      const original = await readFile(join(dir, ".env.example"), "utf8");
+      expect(original).toContain("DEMO_TOKEN");
+      const drifted = original.replace(
+        /# wa:modules:start\n[\s\S]*?# wa:modules:end/,
+        "# wa:modules:start\nDRIFTED=1\n# wa:modules:end",
+      );
+      expect(drifted).toContain("DRIFTED=1");
+      expect(drifted).not.toContain("DEMO_TOKEN");
+      await writeFile(join(dir, ".env.example"), drifted);
+      await writeFile(join(dir, AUTH_MODULE), "export default {};\n");
+      await undoEject({ projectDir: dir, file: AUTH_MODULE, kitDir, log });
+      expect(await readFile(join(dir, AUTH_MODULE), "utf8")).toBe(
+        AUTH_MODULE_CONTENT,
+      );
+      expect(await readFile(join(dir, ".env.example"), "utf8")).toBe(drifted);
+    },
+    SLOW,
+  );
+
+  it(
     "refuses a Gato file that is missing from the kit snapshot",
     async () => {
       const { kitDir, dir } = await createFixtureProject([]);
