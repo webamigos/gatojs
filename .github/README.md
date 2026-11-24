@@ -11,6 +11,7 @@ GatoJS is an open-source Next.js kit for multi-tenant business applications. Sig
 [![Built with TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Built with Next.js 16](https://img.shields.io/badge/Next.js-16-555555.svg?logo=nextdotjs&logoColor=white&labelColor=000000)](https://nextjs.org)
 
+[Documentation](https://docs.gatojs.com) ·
 [Quick start](#-quick-start) ·
 [What's in the core](#-whats-in-the-core) ·
 [Modules](#-modules) ·
@@ -20,14 +21,13 @@ GatoJS is an open-source Next.js kit for multi-tenant business applications. Sig
 [Security](../SECURITY.md)
 
 ```bash
-git clone --depth 1 https://github.com/webamigos/gatojs.git gatojs
-node gatojs/.wa/bin/wa.mjs create acme-crm
-cd acme-crm && docker compose up -d && npm run dev
+npx create-gato-app@latest acme-crm --setup
+cd acme-crm && npm run dev
 ```
 
-Needs Node.js 22 and Docker. `npm create gato-app` is on the way ([roadmap](#-roadmap)).
+Needs Node.js 22.12+ (or 24) and Docker. Full documentation: **[docs.gatojs.com](https://docs.gatojs.com)**.
 
-> **Work in progress.** GatoJS is the open-source release of the kit Web Amigos builds client apps on (working name `wa-kit`). Parts of the documentation are still in Polish while we translate them, and breaking changes can land before 1.0.
+> **Work in progress.** GatoJS is the open-source release of the kit Web Amigos builds client apps on (working name `wa-kit`). Breaking changes can land before 1.0.
 
 Built and maintained by **[Web Amigos](https://webamigos.pl/en?utm_source=github&utm_medium=readme&utm_campaign=gatojs)**.
 
@@ -77,12 +77,13 @@ Add them when a project needs them, remove them when it doesn't. A module only a
 | `audit-logs` | Who changed what, and when, in each organization: a ready audit log page plus one call to record events from your own code | Ready |
 | `api-keys` | Organization API keys with scopes, stored as hashes; your endpoints declare the scopes they need and get the organization from the key | Ready |
 | `uploads` | Organization files on local disk or S3-compatible storage, with public and private files | Ready |
+| `encryption` | Per-organization encryption of sensitive fields (AES-256-GCM, one data key per organization under a master key) | Ready |
 | Background jobs | A job queue and scheduled tasks, including retention and cleanup | Planned |
 | MCP | Expose your app to AI assistants over MCP with OAuth, built on better-auth 1.7 | Planned |
 | Legal pages | Terms, privacy policy and a cookie banner | Planned |
 
 ```bash
-npm run wa -- add uploads
+npx gato add uploads
 ```
 
 ## 🤖 Built for AI agents
@@ -104,16 +105,13 @@ Coming soon.
 ## 🚀 Quick start
 
 ```bash
-git clone --depth 1 https://github.com/webamigos/gatojs.git gatojs
-node gatojs/.wa/bin/wa.mjs create acme-crm   # asks for modules, languages and the first admin
-cd acme-crm
-docker compose up -d                          # PostgreSQL and mailpit
-npx prisma migrate dev --name init
-npm run admin:create -- --email you@example.com
-npm run dev                                   # http://localhost:3000
+npx create-gato-app@latest acme-crm   # asks for modules, languages, file storage and the first admin
+cd acme-crm && npm run dev            # http://localhost:3000
 ```
 
-`create` can also start Docker, run the first migration and create the admin for you (`--setup`). The full guide is in [`docs/01-uruchomienie.md`](../docs/01-uruchomienie.md) (Polish, being translated).
+The wizard checks your Node version, generates the secrets in `.env`, gives the project its own Docker Compose name, checks that the ports are free, starts PostgreSQL and mailpit, runs the first migration, creates the first admin and makes the first commit. `--yes` accepts the defaults, `--skip-docker` and `--skip-install` leave those steps to you (the wizard prints what is left). The full guide is in the [quickstart](https://docs.gatojs.com/quickstart); every flag is in the [CLI reference](https://docs.gatojs.com/cli/overview).
+
+In a project, `npx gato` adds and removes modules (`gato add uploads`), regenerates the registry and pulls in a newer GatoJS release with `gato update`, keeping your local changes.
 
 ## 🧰 Built on tools you already know
 
@@ -121,16 +119,15 @@ Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · shadcn/ui · Prisma 7 
 
 ## 🧭 Roadmap
 
-- `npm create gato-app` and a `gato` CLI on npm ([spec](../docs/superpowers/specs/2026-11-21-gato-cli-design.md))
 - Extending kit behaviour without editing kit files: slots, component overrides, events and command hooks
-- English documentation
 - Background jobs and MCP modules
-- A guided upgrade command for existing projects
+- Encryption keys in a cloud KMS and key rotation
 
 ## 📚 Documentation
 
 - Rules for contributors and agents: [`AGENTS.md`](../AGENTS.md), [`CLAUDE.md`](../CLAUDE.md)
-- Kit documentation: [`docs/README.md`](../docs/README.md) (Polish, being translated)
+- Documentation: **[docs.gatojs.com](https://docs.gatojs.com)**: quickstart, concepts, guides, modules, deployment and the CLI reference
+- Internal kit notes for contributors: [`docs/README.md`](../docs/README.md) (Polish)
 - Decisions: [`docs/adrs/`](../docs/adrs/README.md) (ADR-53 onwards) and [`docs/decyzje.md`](../docs/decyzje.md) (D01–D52); gotchas: [`docs/lessons.md`](../docs/lessons.md)
 
 ## 🤝 Contributing

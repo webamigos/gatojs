@@ -9,6 +9,7 @@ const SHARED_EXCLUDE = [
   "**/node_modules/**",
   "**/*.integration.test.ts",
   "docs/**",
+  ".gato/**",
   ".superpowers/**",
   ".stryker-tmp/**",
 ];

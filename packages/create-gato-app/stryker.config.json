@@ -9,7 +9,8 @@
     "src/**/*.ts",
     "!src/**/__tests__/**",
     "!src/index.ts",
-    "!src/process.ts"
+    "!src/process.ts",
+    "!src/clack-ui.ts"
   ],
   "ignorePatterns": ["reports", ".stryker-tmp", "dist"],
   "incremental": true,

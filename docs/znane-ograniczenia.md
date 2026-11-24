@@ -8,7 +8,7 @@ Po przeczytaniu będziesz wiedzieć:
 - gdzie w kodzie siedzi przyczyna każdej pozycji i który plik dokumentacji opisuje ją szczegółowo;
 - czym ograniczenie różni się od decyzji z [rejestru decyzji](decyzje.md).
 
-Zweryfikowano z kodem: 2c83429, 2026-11-21 ([guard organizacji w runtime](#guard-organizacji)); cdf13ba, 2026-11-03 (pozycje `wa update` w [Mniejszych pozycjach CLI](#cli-male); pozycja o symlinkach: 2026-11-22); 6c05f1f, 2026-11-05 (pozycje modułu `uploads`: [provider `local`](#uploads-local) i skutki dla `uploads` w [`wa add` nie uzupełnia `.env`](#add-env)); 734391b, 2026-11-04 ([magazyn bez sprzątania](#bez-sprzatania) w module `uploads`); 2788536, 2026-11-04 (skutki błędnego `env` w pozycjach [`wa add` nie uzupełnia `.env`](#add-env) i [`API_KEY_PEPPER`](#api-key-pepper)); 75f7322, 2026-10-30 (sekcje [CLI i składanie projektu](#cli) i [Moduły kitu](#moduly-kitu)); pozostałe pozycje: d416599, 2026-10-28
+Zweryfikowano z kodem: 2026-11-23 ([dawny plik fazy](#dawny-plik-fazy)); 2c83429, 2026-11-21 ([guard organizacji w runtime](#guard-organizacji)); cdf13ba, 2026-11-03 (pozycje `wa update` w [Mniejszych pozycjach CLI](#cli-male); pozycja o symlinkach: 2026-11-22); 6c05f1f, 2026-11-05 (pozycje modułu `uploads`: [provider `local`](#uploads-local) i skutki dla `uploads` w [`wa add` nie uzupełnia `.env`](#add-env)); 734391b, 2026-11-04 ([magazyn bez sprzątania](#bez-sprzatania) w module `uploads`); 2788536, 2026-11-04 (skutki błędnego `env` w pozycjach [`wa add` nie uzupełnia `.env`](#add-env) i [`API_KEY_PEPPER`](#api-key-pepper)); 75f7322, 2026-10-30 (sekcje [CLI i składanie projektu](#cli) i [Moduły kitu](#moduly-kitu)); pozostałe pozycje: d416599, 2026-10-28
 
 Źródła:
 
@@ -49,7 +49,7 @@ Priorytet „wysoki” dostają pozycje, które dotyczą domyślnej ścieżki st
 | [Język i komunikaty](#jezyk) | [wykrywanie języka](#wykrywanie-jezyka), [komunikaty i strona 404](#jezyk-male) |
 | [Logi, healthcheck i serwer](#serwer) | [logi na produkcji](#logi), [`HOSTNAME=127.0.0.1`](#hostname), [mniejsze pozycje](#serwer-male) |
 | [Wzorce kodu i reguły](#wzorce) | [`handleCommandError` i `notFound()`](#handle-command-error), [reguły z `AGENTS.md`, które kod stosuje inaczej](#reguly-agents) |
-| [Testy i proces](#testy-proces) | [hook `protect-tests`](#protect-tests), [mniejsze pozycje](#testy-male) |
+| [Testy i proces](#testy-proces) | [hook `protect-tests`](#protect-tests), [dawny plik fazy `.superpowers/phase`](#dawny-plik-fazy), [mniejsze pozycje](#testy-male) |
 | [Uruchomienie i narzędzia](#start) | [tabela](#start-male) |
 
 <a id="wysoki-priorytet"></a>
@@ -467,6 +467,20 @@ Gdy kod różni się od zdania w `AGENTS.md`, dokumentacja opisuje kod. Poniższ
 
 **Sprawdzono.** Uruchomiono `isTestPath` z hooka na wymienionych ścieżkach: żadna nie jest rozpoznana jako test. Opis: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza), [11-praca-z-kitem.md](11-praca-z-kitem.md#faza).
 
+<a id="dawny-plik-fazy"></a>
+
+### Dawny plik fazy `.superpowers/phase` działa tylko w `core` 0.15.0
+
+**Skutek.** Od `core` 0.15.0 plik fazy to `.gato/phase`. W tej wersji hook czyta jeszcze dawny `.superpowers/phase` (w tych samych dwóch miejscach), żeby projekt zaktualizowany w trakcie zadania albo orkiestrator, który zapisuje starą ścieżkę, nadal blokował edycję testów. W `core` 0.16.0 odczyt dawnego pliku i jego test znikną. Orkiestrator, który dalej zapisuje `.superpowers/phase`, nie zablokuje wtedy niczego, a implementer będzie mógł zmienić testy narzędziem `Edit`.
+
+**Gdzie.** `.claude/hooks/protect-tests.mjs` (stałe `LEGACY_PHASE_FILE` i `PHASE_FILES`).
+
+**Obejście.** Zapisuj `implement` do `.gato/phase` (`mkdir -p .gato && printf 'implement\n' > .gato/phase`) i zaktualizuj własne skrypty i polecenia orkiestratora przed przejściem na `core` 0.16.0.
+
+**Kierunek zmiany.** W `core` 0.16.0 usunąć `LEGACY_PHASE_FILE` z `PHASE_FILES`, testy dawnej ścieżki z `.claude/hooks/protect-tests.test.mjs` i tę pozycję. Wpisy `.superpowers` w plikach ignorowanych zostają, bo katalog `.superpowers/` zapisuje też plugin superpowers.
+
+**Sprawdzono.** Uruchomiono `npm run test:hooks`: testy z `.gato/phase` i z dawnym `.superpowers/phase` blokują edycję testu kodem 2. Opis: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza).
+
 <a id="testy-male"></a>
 
 ### Mniejsze pozycje
@@ -483,7 +497,6 @@ Gdy kod różni się od zdania w `AGENTS.md`, dokumentacja opisuje kod. Poniższ
 | Krok `prisma migrate dev --name init` w `.github/workflows/e2e.yml` tworzy brakującą migrację | W projekcie z zacommitowanymi migracjami zmiana schematu bez migracji przejdzie CI, a produkcja jej nie dostanie | `.github/workflows/e2e.yml` | Po tym kroku sprawdź `git status --porcelain prisma/migrations` ([10-wdrozenie.md](10-wdrozenie.md#ci)) |
 | commitlint i Prettier działają tylko w hookach husky | Żaden workflow ich nie uruchamia, a `git commit --no-verify` albo `HUSKY=0` je pomija | `.husky/`, `.lintstagedrc.json` | Sprawdź `npm run verify` przed pushem ([11-praca-z-kitem.md](11-praca-z-kitem.md#commity)) |
 | Katalog handoffów w `.claude` nie jest w `.gitignore` | `git add -A` doda handoffy do commitu | `.gitignore` | Dodawaj pliki jawnie ([11-praca-z-kitem.md](11-praca-z-kitem.md#superpowers)) |
-| `next dev` uruchomione przez agenta AI dopisuje blok do `AGENTS.md` | Zmienia plik kitu kopiowany do projektów | `next.config.ts` | `git restore AGENTS.md` ([11-praca-z-kitem.md](11-praca-z-kitem.md#next-dev-agents-md)) |
 
 <a id="start"></a>
 

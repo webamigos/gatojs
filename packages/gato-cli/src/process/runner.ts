@@ -16,7 +16,7 @@ export const spawnRunner: Runner = (command, args, cwd) =>
         return;
       }
       reject(
-        new Error(`${[command, ...args].join(" ")} zakończone kodem ${code}`),
+        new Error(`${[command, ...args].join(" ")} exited with code ${code}`),
       );
     });
   });

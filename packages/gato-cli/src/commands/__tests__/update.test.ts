@@ -35,9 +35,8 @@ import { assertCleanTree, checkVersions, update } from "../update.js";
 const exec = promisify(execFile);
 
 const RESOLVE_LINE =
-  "Rozwiąż konflikty, potem: npm run wa -- generate && npm install";
-const UNDO_LINE =
-  "Cofnięcie całej aktualizacji: git restore . && git clean -fd";
+  "Resolve the conflicts, then run: npm run wa -- generate && npm install";
+const UNDO_LINE = "To undo the whole update: git restore . && git clean -fd";
 const STALE_REGISTRY = "export const stale = true;\n";
 const AUTH_MODULE = "src/features/auth/module.ts";
 const PROJECT_CONFIG = "src/shared/config/project.ts";
@@ -233,10 +232,10 @@ describe("checkVersions", () => {
 
   it("niższa wersja docelowa rzuca błąd o obniżaniu", () => {
     expect(() => checkVersions("0.10.0", "0.9.0")).toThrow(
-      "Projekt ma wa-kit 0.10.0, nowszą niż 0.9.0; wa update nie obniża wersji",
+      "Project has GatoJS 0.10.0, newer than 0.9.0; update does not downgrade",
     );
     expect(() => checkVersions("0.2.0", "0.1.0")).toThrow(
-      "Projekt ma wa-kit 0.2.0, nowszą niż 0.1.0; wa update nie obniża wersji",
+      "Project has GatoJS 0.2.0, newer than 0.1.0; update does not downgrade",
     );
   });
 });
@@ -263,7 +262,7 @@ describe("assertCleanTree", () => {
     const dir = await gitProject();
     await writeFile(join(dir, "a.txt"), "b\n");
     await expect(assertCleanTree(dir)).rejects.toThrow(
-      "Niezacommitowane zmiany w projekcie; zrób commit albo stash przed wa update",
+      "Uncommitted changes in the project; commit or stash them before updating",
     );
   });
 
@@ -271,7 +270,7 @@ describe("assertCleanTree", () => {
     const dir = await gitProject();
     await writeFile(join(dir, "nowy.txt"), "n\n");
     await expect(assertCleanTree(dir)).rejects.toThrow(
-      "Niezacommitowane zmiany w projekcie; zrób commit albo stash przed wa update",
+      "Uncommitted changes in the project; commit or stash them before updating",
     );
   });
 
@@ -279,7 +278,7 @@ describe("assertCleanTree", () => {
     const dir = await makeTempDir("wa-kit-nogit-");
     const failure = assertCleanTree(dir);
     await expect(failure).rejects.toThrow(
-      `${dir} nie jest repozytorium git; wa update wymaga gita, żeby dało się cofnąć zmiany`,
+      `${dir} is not a git repository; update needs git so changes can be undone`,
     );
     await expect(failure).rejects.toMatchObject({
       cause: expect.any(Error),
@@ -294,7 +293,7 @@ describe("assertCleanTree", () => {
     try {
       const failure = assertCleanTree(dir);
       await expect(failure).rejects.toThrow(
-        "Nie znaleziono polecenia git; zainstaluj git, żeby uruchomić wa update",
+        "git command not found; install git to run update",
       );
       await expect(failure).rejects.toMatchObject({
         cause: expect.objectContaining({ code: "ENOENT" }),
@@ -324,8 +323,8 @@ describe("update: kit zmienił plik, projekt nie", () => {
       'export default { key: "auth", version: "v0.2.0" };\n',
     );
     expect(lines()).toEqual([
-      "Aktualizacja wa-kit 0.1.0 → 0.2.0",
-      "  zaktualizowano src/features/auth/module.ts",
+      "Updating GatoJS 0.1.0 → 0.2.0",
+      "  updated        src/features/auth/module.ts",
     ]);
     const state = await rawState(setup.dir);
     expect(state.kitVersion).toBe("0.2.0");
@@ -408,7 +407,7 @@ describe("update: kit zmienił plik, projekt nie", () => {
 
     expect(await run(setup)).toEqual({ exitCode: 0 });
 
-    expect(lines()).toEqual(["Projekt ma już wa-kit 0.2.0"]);
+    expect(lines()).toEqual(["Project is already on GatoJS 0.2.0"]);
     expect(runner).not.toHaveBeenCalled();
   });
 
@@ -425,8 +424,8 @@ describe("update: kit zmienił plik, projekt nie", () => {
     expect(await run(setup)).toEqual({ exitCode: 0 });
 
     expect(lines()).toEqual([
-      "Aktualizacja wa-kit 0.1.0 → 0.2.0",
-      "  bez zmian w plikach",
+      "Updating GatoJS 0.1.0 → 0.2.0",
+      "  no file changes",
     ]);
     expect((await rawState(setup.dir)).kitVersion).toBe("0.2.0");
   });
@@ -441,12 +440,12 @@ describe("update: kit zmienił plik, projekt nie", () => {
         );
       },
     });
-    const installError = new Error("npm install zakończone kodem 1");
+    const installError = new Error("npm install exited with code 1");
     runner.mockRejectedValue(installError);
 
     const failure = run(setup);
     await expect(failure).rejects.toThrow(
-      "Zaktualizowano do wa-kit 0.2.0, ale npm install się nie powiódł. Uruchom: npm install",
+      "Updated to GatoJS 0.2.0, but npm install failed. Run: npm install",
     );
     await expect(failure).rejects.toMatchObject({ cause: installError });
 
@@ -475,11 +474,11 @@ describe("update: kit zmienił plik, projekt nie", () => {
 
     const failure = run(setup);
     await expect(failure).rejects.toThrow(
-      "Zaktualizowano do wa-kit 0.2.0, ale wa generate się nie powiódł. Uruchom: npm run wa -- generate",
+      "Updated to GatoJS 0.2.0, but generate failed. Run: npm run wa -- generate",
     );
     const error: unknown = await failure.catch((caught: unknown) => caught);
     expect((error as Error).cause).toMatchObject({
-      message: ".env.example: uszkodzony region wa:modules",
+      message: ".env.example: malformed region wa:modules",
     });
 
     expect(await read(setup.dir, AUTH_MODULE)).toBe(
@@ -509,7 +508,7 @@ describe("update: kit zmienił plik, projekt nie", () => {
     const before = await snapshotDir(setup.dir, IGNORE);
 
     await expect(run(setup, { version: "0.3.0" })).rejects.toThrow(
-      "Kit docelowy ma wersję 0.2.0, oczekiwano 0.3.0",
+      "Target kit has version 0.2.0, expected 0.3.0",
     );
 
     expect(await snapshotDir(setup.dir, IGNORE)).toEqual(before);
@@ -559,8 +558,8 @@ describe("update: scalanie", () => {
       'export const kitVersion = "0.2.0";\nexport const project = {\n  name: "App",\n  slug: "app",\n} as const;\nexport const local = true;\n',
     );
     expect(lines()).toEqual([
-      "Aktualizacja wa-kit 0.1.0 → 0.2.0",
-      "  scalono        src/shared/config/project.ts",
+      "Updating GatoJS 0.1.0 → 0.2.0",
+      "  merged         src/shared/config/project.ts",
     ]);
     const state = await rawState(setup.dir);
     expect(state.kitVersion).toBe("0.2.0");
@@ -590,9 +589,9 @@ describe("update: scalanie", () => {
     await run(setup);
 
     expect(lines()).toContain(
-      "Uwaga: 1 plik różni się od v0.1.0 z tagu; potraktowano go jak zmieniony w projekcie",
+      "Warning: 1 file differs from the v0.1.0 tag; treated it as changed in the project",
     );
-    expect(lines()).toContain("  scalono        src/shared/config/project.ts");
+    expect(lines()).toContain("  merged         src/shared/config/project.ts");
   });
 });
 
@@ -613,7 +612,7 @@ describe("update: konflikty", () => {
 
     expect(await read(setup.dir, AUTH_MODULE)).toBe(
       [
-        "<<<<<<< projekt",
+        "<<<<<<< project",
         'export default { key: "auth", local: true };',
         "||||||| v0.1.0",
         'export default { key: "auth" };',
@@ -624,8 +623,8 @@ describe("update: konflikty", () => {
       ].join("\n"),
     );
     expect(lines()).toEqual([
-      "Aktualizacja wa-kit 0.1.0 → 0.2.0",
-      "  konflikt       src/features/auth/module.ts",
+      "Updating GatoJS 0.1.0 → 0.2.0",
+      "  conflict       src/features/auth/module.ts",
       RESOLVE_LINE,
       UNDO_LINE,
     ]);
@@ -666,7 +665,7 @@ describe("update: konflikty", () => {
         '    "dev": "next dev"',
         "  },",
         '  "dependencies": {',
-        "<<<<<<< projekt",
+        "<<<<<<< project",
         '    "zod": "^4.4.0"',
         "||||||| v0.1.0",
         '    "zod": "^4.3.6"',
@@ -680,8 +679,8 @@ describe("update: konflikty", () => {
       ].join("\n"),
     );
     expect(lines()).toEqual([
-      "Aktualizacja wa-kit 0.1.0 → 0.2.0",
-      "  konflikt       package.json",
+      "Updating GatoJS 0.1.0 → 0.2.0",
+      "  conflict       package.json",
       RESOLVE_LINE,
       UNDO_LINE,
     ]);
@@ -718,9 +717,9 @@ describe("update: pliki dodane i usunięte w kicie", () => {
     expect(existsSync(join(setup.dir, AUTH_MODULE))).toBe(false);
     expect(existsSync(join(setup.dir, "src/features/auth"))).toBe(false);
     expect(lines()).toEqual([
-      "Aktualizacja wa-kit 0.1.0 → 0.2.0",
-      "  dodano         src/shared/lib/rate-limit.sh",
-      "  usunięto       src/features/auth/module.ts",
+      "Updating GatoJS 0.1.0 → 0.2.0",
+      "  added          src/shared/lib/rate-limit.sh",
+      "  removed        src/features/auth/module.ts",
     ]);
     const files = (await rawState(setup.dir)).modules.core?.files ?? {};
     expect(files["src/shared/lib/rate-limit.sh"]).toBe(
@@ -739,7 +738,7 @@ describe("update: pliki dodane i usunięte w kicie", () => {
     expect(await run(setup)).toEqual({ exitCode: 0 });
 
     expect((await stat(join(setup.dir, AUTH_MODULE))).mode & 0o777).toBe(0o755);
-    expect(lines()).toContain("  zaktualizowano src/features/auth/module.ts");
+    expect(lines()).toContain("  updated        src/features/auth/module.ts");
   });
 
   it("usunięty w kicie, zmieniony w projekcie: plik zostaje, do decyzji, kod 1, generate i npm install wołane, brak wpisu w files", async () => {
@@ -761,9 +760,9 @@ describe("update: pliki dodane i usunięte w kicie", () => {
     expect(await read(setup.dir, AUTH_MODULE)).toBe(
       'export default { key: "auth", local: true };\n',
     );
-    expect(lines()[0]).toBe("Aktualizacja wa-kit 0.1.0 → 0.2.0");
+    expect(lines()[0]).toBe("Updating GatoJS 0.1.0 → 0.2.0");
     expect(lines()).toContain(
-      "  do decyzji     src/features/auth/module.ts (zmieniony w projekcie, usunięty w kicie)",
+      "  needs decision src/features/auth/module.ts (changed in the project, deleted in the kit)",
     );
     expect(lines()).not.toContain(RESOLVE_LINE);
     expect(runner).toHaveBeenCalledWith("npm", ["install"], setup.dir);
@@ -792,12 +791,12 @@ describe("update: pliki dodane i usunięte w kicie", () => {
     expect(await run(setup)).toEqual({ exitCode: 0 });
 
     expect(lines()).toEqual([
-      "Aktualizacja wa-kit 0.1.0 → 0.2.0",
-      "  zaktualizowano src/features/auth/module.ts",
-      "  zaktualizowano src/i18n/config.ts",
-      "  dodano         src/shared/lib/a.ts",
-      "  dodano         src/shared/lib/b.ts",
-      "  usunięto       .wa/bin/wa.mjs",
+      "Updating GatoJS 0.1.0 → 0.2.0",
+      "  updated        src/features/auth/module.ts",
+      "  updated        src/i18n/config.ts",
+      "  added          src/shared/lib/a.ts",
+      "  added          src/shared/lib/b.ts",
+      "  removed        .wa/bin/wa.mjs",
     ]);
   });
 });
@@ -812,7 +811,7 @@ describe("update: regiony i podpowiedzi", () => {
           json.version = "0.4.0";
           json.env = [
             { name: "DEMO_TOKEN", example: "{{projectSlug}}_demo_" },
-            { name: "DEMO_SECRET", example: "sekret" },
+            { name: "DEMO_EXTRA", example: "sekret" },
             { name: "ALPHA_KEY", example: "alfa" },
           ];
         });
@@ -822,12 +821,12 @@ describe("update: regiony i podpowiedzi", () => {
     expect(await run(setup)).toEqual({ exitCode: 0 });
 
     expect(await read(setup.dir, ".env.example")).toBe(
-      "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/app\nBETTER_AUTH_SECRET=change-me-to-a-random-string-of-at-least-32-chars\nADMIN_EMAIL=\nLOG_LEVEL=info\n\n# wa:modules:start\n# demo\nDEMO_TOKEN=app_demo_\nDEMO_SECRET=sekret\nALPHA_KEY=alfa\n# wa:modules:end\n",
+      "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/app\nBETTER_AUTH_SECRET=change-me-to-a-random-string-of-at-least-32-chars\nADMIN_EMAIL=\nLOG_LEVEL=info\n\n# wa:modules:start\n# demo\nDEMO_TOKEN=app_demo_\nDEMO_EXTRA=sekret\nALPHA_KEY=alfa\n# wa:modules:end\n",
     );
     expect(lines()).toEqual([
-      "Aktualizacja wa-kit 0.1.0 → 0.2.0",
-      "  zaktualizowano .env.example",
-      "Nowe zmienne w .env.example: ALPHA_KEY, DEMO_SECRET; uzupełnij .env",
+      "Updating GatoJS 0.1.0 → 0.2.0",
+      "  updated        .env.example",
+      "New variables in .env.example: ALPHA_KEY, DEMO_EXTRA; add them to .env",
     ]);
     const state = await rawState(setup.dir);
     expect(state.modules.demo?.version).toBe("0.4.0");
@@ -857,11 +856,11 @@ describe("update: regiony i podpowiedzi", () => {
     expect(await run(setup)).toEqual({ exitCode: 0 });
 
     expect(await read(setup.dir, ".env.example")).toBe(
-      "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/app\nBETTER_AUTH_SECRET=change-me-to-a-random-string-of-at-least-32-chars\nADMIN_EMAIL=\nLOG_LEVEL=info\n\n# wa:modules:start\n# demo\nDEMO_TOKEN=app_demo_\n# wa:modules:end\n",
+      "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/app\nBETTER_AUTH_SECRET=change-me-to-a-random-string-of-at-least-32-chars\nADMIN_EMAIL=\nLOG_LEVEL=info\n\n# wa:modules:start\n# demo\nDEMO_TOKEN=app_demo_\nDEMO_SECRET=demo-secret-example\n# wa:modules:end\n",
     );
     expect(lines()).toEqual([
-      "Aktualizacja wa-kit 0.1.0 → 0.2.0",
-      "  zaktualizowano .env.example",
+      "Updating GatoJS 0.1.0 → 0.2.0",
+      "  updated        .env.example",
     ]);
     expect(runner).toHaveBeenCalledWith("npm", ["install"], setup.dir);
   });
@@ -882,8 +881,8 @@ describe("update: regiony i podpowiedzi", () => {
       "model User {\n  id String @id\n  email String\n  // wa:relations:start\n  // wa:relations:end\n}\n",
     );
     expect(lines()).toEqual([
-      "Aktualizacja wa-kit 0.1.0 → 0.2.0",
-      "  zaktualizowano prisma/schema/auth.prisma",
+      "Updating GatoJS 0.1.0 → 0.2.0",
+      "  updated        prisma/schema/auth.prisma",
       "npx prisma migrate dev --name kit-0.2.0",
     ]);
   });
@@ -907,9 +906,9 @@ describe("update --dry-run", () => {
     expect(await run(setup, { dryRun: true })).toEqual({ exitCode: 0 });
 
     expect(lines()).toEqual([
-      "Plan aktualizacji wa-kit 0.1.0 → 0.2.0 (bez zmian w projekcie)",
-      "  dodano         src/shared/lib/a.ts",
-      "  konflikt       src/features/auth/module.ts",
+      "Update plan for GatoJS 0.1.0 → 0.2.0 (project not changed)",
+      "  added          src/shared/lib/a.ts",
+      "  conflict       src/features/auth/module.ts",
     ]);
     expect(await snapshotDir(setup.dir, IGNORE)).toEqual(before);
     expect(runner).not.toHaveBeenCalled();
@@ -923,7 +922,7 @@ describe("update: kontrole przed zapisem", () => {
     const before = await snapshotDir(setup.dir, IGNORE);
 
     await expect(run(setup)).rejects.toThrow(
-      "Niezacommitowane zmiany w projekcie; zrób commit albo stash przed wa update",
+      "Uncommitted changes in the project; commit or stash them before updating",
     );
 
     expect(await snapshotDir(setup.dir, IGNORE)).toEqual(before);
@@ -937,7 +936,7 @@ describe("update: kontrole przed zapisem", () => {
 
     const failure = run(setup);
     await expect(failure).rejects.toThrow(
-      `${setup.dir} nie jest repozytorium git; wa update wymaga gita, żeby dało się cofnąć zmiany`,
+      `${setup.dir} is not a git repository; update needs git so changes can be undone`,
     );
     await expect(failure).rejects.toMatchObject({
       cause: expect.any(Error),
@@ -958,7 +957,7 @@ describe("update: kontrole przed zapisem", () => {
       ),
     ).toEqual({ exitCode: 0 });
 
-    expect(lines()).toEqual(["Projekt ma już wa-kit 0.1.0"]);
+    expect(lines()).toEqual(["Project is already on GatoJS 0.1.0"]);
     expect(await snapshotDir(setup.dir, IGNORE)).toEqual(before);
     expect(runner).not.toHaveBeenCalled();
   });
@@ -970,7 +969,7 @@ describe("update: kontrole przed zapisem", () => {
     await expect(
       run({ ...setup, targetKitDir: setup.baseKitDir }, { version: "0.0.9" }),
     ).rejects.toThrow(
-      "Projekt ma wa-kit 0.1.0, nowszą niż 0.0.9; wa update nie obniża wersji",
+      "Project has GatoJS 0.1.0, newer than 0.0.9; update does not downgrade",
     );
 
     expect(await snapshotDir(setup.dir, IGNORE)).toEqual(before);
@@ -988,7 +987,7 @@ describe("update: kontrole przed zapisem", () => {
     const before = await snapshotDir(setup.dir, IGNORE);
 
     await expect(run(setup)).rejects.toThrow(
-      "Moduł demo nie istnieje w wa-kit 0.2.0",
+      "Module demo does not exist in GatoJS 0.2.0",
     );
 
     expect(await snapshotDir(setup.dir, IGNORE)).toEqual(before);
@@ -1026,7 +1025,7 @@ describe("update: kontrole przed zapisem", () => {
     const before = await snapshotDir(setup.dir, IGNORE);
 
     await expect(run(setup)).rejects.toThrow(
-      "Moduł needs-demo w wa-kit 0.2.0 wymaga niezainstalowanych modułów: extra, zeta",
+      "Module needs-demo in GatoJS 0.2.0 requires modules that are not installed: extra, zeta",
     );
 
     expect(await snapshotDir(setup.dir, IGNORE)).toEqual(before);
@@ -1049,7 +1048,7 @@ describe("update: kontrole przed zapisem", () => {
     const outsideBefore = await snapshotDir(outside, IGNORE);
     const before = await snapshotDir(setup.dir, [...IGNORE, "shared"]);
 
-    await expect(run(setup)).rejects.toThrow(/^Ścieżka poza projektem: /);
+    await expect(run(setup)).rejects.toThrow(/^Path outside the project: /);
 
     expect(await snapshotDir(outside, IGNORE)).toEqual(outsideBefore);
     expect(await snapshotDir(setup.dir, [...IGNORE, "shared"])).toEqual(before);
@@ -1071,7 +1070,7 @@ describe("update: kontrole przed zapisem", () => {
     const authBefore = await read(setup.dir, AUTH_MODULE);
 
     await expect(run(setup)).rejects.toThrow(
-      "Ścieżka poza projektem: .wa/kit.json",
+      "Path outside the project: .wa/kit.json",
     );
 
     expect(await readFile(outside, "utf8")).toBe(outsideBefore);
@@ -1095,7 +1094,7 @@ describe("update: kontrole przed zapisem", () => {
     const authBefore = await read(setup.dir, AUTH_MODULE);
 
     await expect(run(setup)).rejects.toThrow(
-      "Ścieżka poza projektem: src/modules.generated.ts",
+      "Path outside the project: src/modules.generated.ts",
     );
 
     expect(await readFile(outside, "utf8")).toBe(STALE_REGISTRY);
@@ -1121,7 +1120,7 @@ describe("update: kontrole przed zapisem", () => {
     const authBefore = await read(setup.dir, AUTH_MODULE);
 
     await expect(run(setup)).rejects.toThrow(
-      "Ścieżka poza projektem: docker-compose.yml",
+      "Path outside the project: docker-compose.yml",
     );
 
     expect(await readFile(outside, "utf8")).toBe(outsideBefore);
@@ -1149,7 +1148,7 @@ describe("update: kontrole przed zapisem", () => {
     const before = await snapshotTree(setup.dir);
 
     await expect(run(setup)).rejects.toThrow(
-      "Dowiązanie symboliczne na ścieżce zapisu: src/features/auth/module.ts",
+      "Symbolic link on a write path: src/features/auth/module.ts",
     );
 
     expect(await read(setup.dir, SHARED)).toBe(sharedBefore);
@@ -1174,7 +1173,7 @@ describe("update: kontrole przed zapisem", () => {
     const before = await snapshotTree(setup.dir);
 
     await expect(run(setup)).rejects.toThrow(
-      "Dowiązanie symboliczne na ścieżce zapisu: src/features/auth/module.ts",
+      "Symbolic link on a write path: src/features/auth/module.ts",
     );
 
     expect(await read(setup.dir, SHARED)).toBe(sharedBefore);
@@ -1197,7 +1196,7 @@ describe("update: kontrole przed zapisem", () => {
     const before = await snapshotTree(setup.dir);
 
     await expect(run(setup)).rejects.toThrow(
-      "Dowiązanie symboliczne na ścieżce zapisu: .wa/kit.json",
+      "Symbolic link on a write path: .wa/kit.json",
     );
 
     expect(await read(setup.dir, ".wa/state.json")).toBe(stateBefore);
@@ -1218,7 +1217,7 @@ describe("update: kontrole przed zapisem", () => {
     const before = await snapshotTree(setup.dir);
 
     await expect(run(setup)).rejects.toThrow(
-      "Dowiązanie symboliczne na ścieżce zapisu: src/modules.generated.ts",
+      "Symbolic link on a write path: src/modules.generated.ts",
     );
 
     expect(await read(setup.dir, "src/registry.ts")).toBe(STALE_REGISTRY);
@@ -1240,7 +1239,7 @@ describe("update: kontrole przed zapisem", () => {
     const before = await snapshotTree(setup.dir);
 
     await expect(run(setup)).rejects.toThrow(
-      "Dowiązanie symboliczne na ścieżce zapisu: docker-compose.yml",
+      "Symbolic link on a write path: docker-compose.yml",
     );
 
     expect(await read(setup.dir, "compose.local.yml")).toBe(composeBefore);
@@ -1263,7 +1262,7 @@ describe("update: kontrole przed zapisem", () => {
     const before = await snapshotTree(setup.dir);
 
     await expect(run(setup)).rejects.toThrow(
-      "Dowiązanie symboliczne na ścieżce zapisu: .env.example",
+      "Symbolic link on a write path: .env.example",
     );
 
     expect(await snapshotTree(setup.dir)).toEqual(before);
@@ -1288,7 +1287,7 @@ describe("update: kontrole przed zapisem", () => {
     );
 
     await expect(run(setup)).rejects.toThrow(
-      "Dowiązanie symboliczne na ścieżce zapisu: src/features/auth/module.ts",
+      "Symbolic link on a write path: src/features/auth/module.ts",
     );
 
     expect(await read(setup.dir, "src/features/auth-real/module.ts")).toBe(
@@ -1312,7 +1311,7 @@ describe("update: kontrole przed zapisem", () => {
     const before = await snapshotTree(setup.dir);
 
     await expect(run(setup)).rejects.toThrow(
-      "Ścieżka poza projektem: src/shared/lib/rate-limit.ts",
+      "Path outside the project: src/shared/lib/rate-limit.ts",
     );
 
     expect(await snapshotTree(outside)).toEqual(outsideBefore);
@@ -1332,7 +1331,7 @@ describe("update: kontrole przed zapisem", () => {
     const before = await snapshotTree(setup.dir);
 
     await expect(run(setup)).rejects.toThrow(
-      "Dowiązanie symboliczne na ścieżce zapisu: src/shared/lib/rate-limit.ts",
+      "Symbolic link on a write path: src/shared/lib/rate-limit.ts",
     );
 
     expect(existsSync(join(setup.dir, "src/shared/lib/missing.ts"))).toBe(
@@ -1447,7 +1446,7 @@ describe("update: wpisy files w .wa/kit.json po aktualizacji", () => {
     expect(files["package.json"]).toBe("managed");
   });
 
-  it("usunięty w projekcie, zmieniony w kicie: plik nie wraca, do decyzji, kod 1, brak wpisu w files", async () => {
+  it("deleted in the project, changed in the kit: plik nie wraca, do decyzji, kod 1, brak wpisu w files", async () => {
     const setup = await prepare({
       kit: changeAuthModule,
       project: async (dir) => {
@@ -1459,7 +1458,7 @@ describe("update: wpisy files w .wa/kit.json po aktualizacji", () => {
 
     expect(existsSync(join(setup.dir, AUTH_MODULE))).toBe(false);
     expect(lines()).toContain(
-      "  do decyzji     src/features/auth/module.ts (usunięty w projekcie, zmieniony w kicie)",
+      "  needs decision src/features/auth/module.ts (deleted in the project, changed in the kit)",
     );
     const state = await rawState(setup.dir);
     expect(state.kitVersion).toBe("0.2.0");

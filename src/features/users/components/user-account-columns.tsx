@@ -1,7 +1,7 @@
 import { format } from "date-fns";
 import type { Locale as DateFnsLocale } from "date-fns";
 import { UserCog } from "lucide-react";
-import { useTranslations } from "next-intl";
+import type { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type ColumnDef } from "@/components/ui/data-table";

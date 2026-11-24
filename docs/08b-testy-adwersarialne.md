@@ -15,6 +15,7 @@ Zweryfikowano z kodem: 4a6ffcb, 2026-10-27
 
 - `.claude/agents/test-writer.md`
 - `.claude/agents/test-reviewer.md`
+- `.claude/skills/gato-task/SKILL.md`
 - `.claude/hooks/protect-tests.mjs`
 - `.claude/hooks/protect-tests.test.mjs`
 - `.claude/settings.json`
@@ -37,7 +38,7 @@ Reguły procesu są w [AGENTS.md](../AGENTS.md#testy-które-próbują-złamać-k
 Pojęcia używane w tym pliku:
 
 - **Test adwersarialny**: test, który ma złamać kod, a nie potwierdzić to, co założył jego autor.
-- **Orkiestrator**: główna sesja agenta, która prowadzi plan zadanie po zadaniu i uruchamia subagentów (tryb subagent-driven-development z pakietu umiejętności superpowers dla Claude Code).
+- **Orkiestrator**: główna sesja agenta, która prowadzi plan zadanie po zadaniu według skilla `gato-task` (`.claude/skills/gato-task/SKILL.md`) i uruchamia subagentów. Agent bez skilli wykonuje te same kroki z `AGENTS.md` („Running a task”). Plugin superpowers dla Claude Code (brainstorming, writing-plans, subagent-driven-development) jest polecany w `.claude/settings.json`, ale opcjonalny: kit od niego nie zależy ([ADR-57](adrs/57-the-agent-workflow-is-shipped-by-gatojs.md)).
 - **Subagent**: osobna sesja agenta z własnym kontekstem. Nie widzi rozmowy orkiestratora ani innych subagentów, tylko to, co dostał w poleceniu.
 - **Implementer**: subagent, który pisze kod produkcyjny zadania.
 - **Mutant**: kopia kodu z jedną celową zmianą, na przykład odwróconym warunkiem. Mutant, którego żaden test nie wykrywa, wskazuje zachowanie bez testu.
@@ -73,7 +74,7 @@ Po audycie dopisano testy, które zabijają wskazane mutanty, a do repozytorium 
 
 | Rola | Co dostaje | Czego nie robi | Narzędzia | Definicja |
 | --- | --- | --- | --- | --- |
-| Orkiestrator | Plan zadania. | Nie pisze testów ani kodu zadania. Uruchamia subagentów, zapisuje i usuwa plik fazy `.superpowers/phase`. | wszystkie | brak osobnej definicji |
+| Orkiestrator | Plan zadania. | Nie pisze testów ani kodu zadania. Uruchamia subagentów, zapisuje i usuwa plik fazy `.gato/phase`. | wszystkie | skill `.claude/skills/gato-task/SKILL.md` |
 | `test-writer` | Zadanie z planu (sekcje „Zachowania” i „Mutacje do zabicia”), sygnatury, kontrakty z `contracts/`, istniejące testy jako wzór stylu. | Nie czyta implementacji zadania ani rozumowania implementera. Istniejącą implementację traktuje jak czarną skrzynkę. | `Read`, `Grep`, `Glob`, `Write`, `Edit`, `Bash` | `.claude/agents/test-writer.md` |
 | Implementer | Plan i gotowe testy. | Nie zmienia testów. Błędny test zgłasza w raporcie. | wszystkie, w fazie `implement` bez edycji testów | brak osobnej definicji |
 | `test-reviewer` | Pliki zadania (diff) i raporty Strykera. | Nie edytuje plików. Nie dopisuje wpisów do `mutation-gate.json`, tylko je proponuje. | `Read`, `Grep`, `Glob`, `Bash` | `.claude/agents/test-reviewer.md` |
@@ -90,11 +91,11 @@ flowchart TD
     plan["Plan zadania:<br/>„Zachowania” i „Mutacje do zabicia”"] --> writer["test-writer pisze testy<br/>z planu i sygnatur, bez implementacji"]
     writer --> red{"Testy czerwone<br/>z właściwego powodu?"}
     red -->|"nie: błąd składni albo importu,<br/>test od razu zielony"| writer
-    red -->|"tak"| phaseOn["Orkiestrator zapisuje implement<br/>do .superpowers/phase"]
+    red -->|"tak"| phaseOn["Orkiestrator zapisuje implement<br/>do .gato/phase"]
     phaseOn --> impl["Implementer pisze kod.<br/>Hook protect-tests blokuje<br/>Edit i Write na plikach testów"]
     impl --> wrong{"Test błędny albo<br/>sprzeczny z planem?"}
     wrong -->|"tak"| report["Implementer zatrzymuje się<br/>i zgłasza to w raporcie.<br/>Rozstrzyga orkiestrator."]
-    wrong -->|"nie, testy zielone"| phaseOff["Orkiestrator usuwa<br/>.superpowers/phase"]
+    wrong -->|"nie, testy zielone"| phaseOff["Orkiestrator usuwa<br/>.gato/phase"]
     phaseOff --> reviewer["test-reviewer:<br/>test:mutation:task, klasyfikacja mutantów,<br/>test:mutation:gate, checklista"]
     reviewer --> verdict{"Werdykt"}
     verdict -->|"WRACA DO TESTERA"| fix["test-writer dopisuje testy,<br/>które zabijają luki"]
@@ -105,7 +106,7 @@ flowchart TD
 
 1. **Plan.** Każde zadanie ma sekcję „Zachowania” (wejście → oczekiwany wynik jako literał) i „Mutacje do zabicia” (zmiany w kodzie, które test musi wychwycić). Tak wyglądał plan komendy przełączania organizacji, z którego powstał test z [08-testy.md](08-testy.md#izolacja): w „Zachowaniach” było „owner A → `enterOrganizationCommand(B)` → odmowa, `activeOrganizationId` sesji bez zmian”, a w „Mutacjach do zabicia” między innymi „superadmin wpuszczany do nieistniejącej organizacji” i „brak sprawdzenia członkostwa dla nie-superadmina w komendzie”.
 2. **Testy przed kodem.** `test-writer` pisze testy, uruchamia je i oddaje listę testów z mutacją, którą każdy zabija. Testy mają być czerwone z właściwego powodu: brak eksportu albo zła wartość, a nie błąd składni czy importu. Na tym etapie kodu zadania nie ma, więc asercja nie może go odtworzyć. Definicja `test-writer` każe uruchomić testy komendą `npx vitest run <pliki>`, która pomija `*.integration.test.ts` i bez innych plików kończy się `No test files found` z kodem 1. Dla testów integracyjnych orkiestrator wskazuje więc w poleceniu komendę `npm run test:integration -- <pliki>` i bazę `_test` ([08-testy.md](08-testy.md#integracyjne)).
-3. **Faza implementacji.** Orkiestrator zapisuje `implement` do `.superpowers/phase` i uruchamia implementera. Hook blokuje mu edycję testów ([Faza implementacji](#faza)). Implementer, który uzna test za błędny, zatrzymuje się i zgłasza to w raporcie.
+3. **Faza implementacji.** Orkiestrator zapisuje `implement` do `.gato/phase` i uruchamia implementera. Hook blokuje mu edycję testów ([Faza implementacji](#faza)). Implementer, który uzna test za błędny, zatrzymuje się i zgłasza to w raporcie.
 4. **Koniec fazy.** Gdy testy są zielone, orkiestrator usuwa plik fazy.
 5. **Recenzja testów.** `test-reviewer` ustala pliki produkcyjne zadania (`git diff --name-only <base>...HEAD`, bez testów i plików generowanych), uruchamia Strykera na tych plikach i klasyfikuje każdy mutant `Survived` albo `NoCoverage` w liniach zmienionych przez zadanie:
    - **luka**: mutant zmienia zachowanie widoczne z zewnątrz, więc trzeba dopisać test;
@@ -120,7 +121,7 @@ flowchart TD
 
 ## Faza implementacji i hook `protect-tests`
 
-Hook `.claude/hooks/protect-tests.mjs` jest zarejestrowany w `.claude/settings.json` jako `PreToolUse` dla narzędzi pasujących do `Edit|Write`, obok hooka komentarzy ([D23](decyzje.md#d23)). Przed każdą edycją pliku Claude Code przekazuje mu ścieżkę pliku. Hook czyta plik `.superpowers/phase` z dwóch miejsc: z kopii roboczej, w której leży edytowany plik, i z katalogu projektu sesji ([Faza w worktree](#faza-worktree)). Blokuje edycję, gdy w którymkolwiek z nich zawartość pliku po obcięciu białych znaków na brzegach ma wartość dokładnie `implement`, a ścieżka pasuje do wzorca:
+Hook `.claude/hooks/protect-tests.mjs` jest zarejestrowany w `.claude/settings.json` jako `PreToolUse` dla narzędzi pasujących do `Edit|Write`, obok hooka komentarzy ([D23](decyzje.md#d23)). Przed każdą edycją pliku Claude Code przekazuje mu ścieżkę pliku. Hook czyta plik `.gato/phase` z dwóch miejsc: z kopii roboczej, w której leży edytowany plik, i z katalogu projektu sesji ([Faza w worktree](#faza-worktree)). W tych samych miejscach czyta też dawny plik `.superpowers/phase`, żeby projekt zaktualizowany w trakcie zadania albo orkiestrator, który zapisuje jeszcze starą ścieżkę, nadal blokował testy ([Znane ograniczenia](znane-ograniczenia.md#dawny-plik-fazy)). Blokuje edycję, gdy w którymkolwiek z nich zawartość pliku po obcięciu białych znaków na brzegach ma wartość dokładnie `implement`, a ścieżka pasuje do wzorca:
 
 `.claude/hooks/protect-tests.mjs`
 
@@ -130,18 +131,18 @@ const TEST_PATH = /(^|\/)(__tests__|e2e)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
 
 Wzorzec obejmuje każdy plik w katalogu `__tests__/` albo `e2e/` (na każdym poziomie ścieżki, także pomocniki w `__tests__/helpers/`) i każdy plik z końcówką `.test.` albo `.spec.` i rozszerzeniem `ts`, `tsx`, `js`, `jsx`, `mts`, `mjs`, `cts` albo `cjs`. Ukośniki odwrotne z Windows są zamieniane na zwykłe. Test hooka sprawdza, że nie są blokowane nazwy tylko podobne, na przykład „src/features/testimonials/service.ts”, „src/contest.ts” i „docs/e2e-notes.md” (ścieżki wymyślone na potrzeby testu).
 
-Zablokowana edycja kończy hook kodem 2. Claude Code jej nie wykonuje i pokazuje agentowi komunikat:
+Zablokowana edycja kończy hook kodem 2. Claude Code jej nie wykonuje i pokazuje agentowi komunikat z nazwą pliku fazy, który zablokował edycję:
 
 ```text
-Zablokowane: faza implementacji (.superpowers/phase = implement), testy są tylko do odczytu.
-Jeśli test jest błędny albo sprzeczny ze specyfikacją, zatrzymaj się i zgłoś to w raporcie zamiast go zmieniać.
+Blocked: implementation phase (.gato/phase = implement), tests are read-only.
+If a test is wrong or contradicts the spec, stop and report it instead of changing it.
 ```
 
 Fazę włącza i wyłącza orkiestrator w katalogu głównym kopii roboczej, w której pracuje implementer, czyli w katalogu worktree, gdy zadanie ma własny worktree:
 
 ```bash
-mkdir -p .superpowers && printf 'implement\n' > .superpowers/phase
-rm .superpowers/phase
+mkdir -p .gato && printf 'implement\n' > .gato/phase
+rm .gato/phase
 ```
 
 Hook czyta plik przy każdej edycji, więc zmiana działa od razu, bez restartu sesji.
@@ -173,7 +174,7 @@ Skrypt hooka Claude Code uruchamia z katalogu projektu sesji (`$CLAUDE_PROJECT_D
 | Pomocniki testów poza `__tests__/`: `src/test/fake-prisma.ts`, `src/test/integration/`. | Implementer może zmienić `resetDatabase` albo zachowanie Prismy w pamięci. | Tylko przegląd diffu. |
 | Konfiguracja testów i mutacji: `vitest.config.ts`, `vitest.integration.config.ts`, `playwright.config.ts`, `stryker.config.json`, `stryker.integration.config.json`, `mutation-gate.json`, a także sam hook i `.claude/settings.json`. | Implementer może na przykład zawęzić `mutate` albo dopisać wpis do `allowed`. | Tylko przegląd diffu. |
 | Inne narzędzia niż Claude Code (Codex, Cursor, edytor człowieka). | Hook działa tylko w sesji Claude Code. | Przegląd diffu. |
-| Plik fazy poza kopią roboczą edytowanego pliku i poza katalogiem projektu sesji, na przykład w worktree innego zadania. | Hook nie widzi takiego pliku i przepuszcza edycję testów ([Faza w worktree](#faza-worktree)). `.superpowers/` jest w `.gitignore`, więc nowy worktree nie dostaje pliku fazy z głównej kopii. | `test-reviewer`: punkt checklisty o zmianach w plikach testowych. |
+| Plik fazy poza kopią roboczą edytowanego pliku i poza katalogiem projektu sesji, na przykład w worktree innego zadania. | Hook nie widzi takiego pliku i przepuszcza edycję testów ([Faza w worktree](#faza-worktree)). `.gato/` jest w `.gitignore`, więc nowy worktree nie dostaje pliku fazy z głównej kopii. | `test-reviewer`: punkt checklisty o zmianach w plikach testowych. |
 
 `test-reviewer` najłatwiej sprawdzi, czy implementer nie zmienił testów, gdy testy mają własny commit sprzed implementacji. Wystarczy wtedy porównać pliki testów, ich pomocników i bramki od tego commitu, na przykład:
 
@@ -541,7 +542,7 @@ Katalog `.stryker-tmp/` sam w sobie nie jest problemem: każdy przebieg ma w nim
 | `.claude/hooks/protect-tests.mjs` | Blokada edycji testów w fazie `implement`. |
 | `.claude/hooks/protect-tests.test.mjs` | Testy hooka (`npm run test:hooks`). |
 | `.claude/settings.json` | Rejestracja hooków `PreToolUse` dla narzędzi `Edit` i `Write`. |
-| `.superpowers/phase` | Plik fazy, lokalny, poza git. |
+| `.gato/phase` | Plik fazy, lokalny, poza git. Dawny `.superpowers/phase` hook czyta jeszcze w `core` 0.15.0. |
 | `stryker.config.json`, `stryker.integration.config.json` | Konfiguracje Strykera. |
 | `vitest.setup.ts`, `packages/gato-cli/vitest.setup.ts` | Stały seed testów właściwości w procesach Strykera ([Testy właściwości pod Strykerem](#seed)). |
 | `src/__tests__/vitest-setup.test.ts`, `packages/gato-cli/src/__tests__/vitest-setup.test.ts` | Testy tego seeda (w `npm test` i `npm test --prefix packages/gato-cli`). |

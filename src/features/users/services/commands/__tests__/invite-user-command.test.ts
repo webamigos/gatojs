@@ -242,7 +242,7 @@ describe("inviteUserCommand", () => {
   it("mailer zwraca { error } → sukces z ostrzeżeniem mail-failed", async () => {
     mockPrisma.user.findUnique.mockResolvedValueOnce(null);
     mockSendWelcomeEmail.mockResolvedValue({
-      error: "Nie udało się wysłać emaila powitalnego",
+      error: "Failed to send welcome email",
     });
 
     const result = await inviteUserCommand(validInput);

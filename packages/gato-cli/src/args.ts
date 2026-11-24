@@ -17,7 +17,7 @@ export type CreateArgs = {
   cliSource: string | null;
 };
 
-const LOCALES_ERROR = "--locales: dozwolone pl,en; pl jest wymagany";
+const LOCALES_ERROR = "--locales: allowed values are pl,en; pl is required";
 const ALLOWED_LOCALES: string[] = ["pl", "en"];
 
 export function parseList(value: string): string[] {
@@ -48,15 +48,15 @@ function translateParseError(
   }
   const option = error.message.split("'")[1].split(" ")[0];
   if (error.code === "ERR_PARSE_ARGS_UNKNOWN_OPTION") {
-    return new Error(`Nieznana opcja: ${option}`);
+    return new Error(`Unknown option: ${option}`);
   }
   const takesValue = Object.entries(options).some(
     ([name, config]) => `--${name}` === option && config.type === "string",
   );
   return new Error(
     takesValue
-      ? `Opcja ${option} wymaga wartości`
-      : `Opcja ${option} nie przyjmuje wartości`,
+      ? `Option ${option} needs a value`
+      : `Option ${option} takes no value`,
   );
 }
 
@@ -65,7 +65,7 @@ function optionalValue(
   option: string,
 ): string | null {
   if (value === "") {
-    throw new Error(`Opcja ${option} wymaga wartości`);
+    throw new Error(`Option ${option} needs a value`);
   }
   return value ?? null;
 }
@@ -84,7 +84,7 @@ function parseOptions<const T extends ParseArgsOptionsConfig>(
 function assertMaxPositionals(positionals: string[], allowed: number): void {
   const unexpected = positionals[allowed];
   if (unexpected !== undefined) {
-    throw new Error(`Nieoczekiwany argument: ${unexpected}`);
+    throw new Error(`Unexpected argument: ${unexpected}`);
   }
 }
 
@@ -103,11 +103,11 @@ export function parseCreateArgs(argv: string[]): CreateArgs {
   });
   const [target] = positionals;
   if (target === undefined) {
-    throw new Error("Podaj katalog projektu");
+    throw new Error("Specify the project directory");
   }
   assertMaxPositionals(positionals, 1);
   if (values.setup && values["no-install"]) {
-    throw new Error("--setup wymaga instalacji zależności (bez --no-install)");
+    throw new Error("--setup needs dependencies installed (drop --no-install)");
   }
   return {
     target,
@@ -133,7 +133,7 @@ export function parseAddArgs(argv: string[]): AddArgs {
   });
   const [module] = positionals;
   if (module === undefined) {
-    throw new Error("Podaj nazwę modułu");
+    throw new Error("Specify the module name");
   }
   assertMaxPositionals(positionals, 1);
   return {
@@ -152,7 +152,7 @@ export function parseRemoveArgs(argv: string[]): RemoveArgs {
   });
   const [module] = positionals;
   if (module === undefined) {
-    throw new Error("Podaj nazwę modułu");
+    throw new Error("Specify the module name");
   }
   assertMaxPositionals(positionals, 1);
   return { module, force: values.force, install: !values["no-install"] };
@@ -185,7 +185,7 @@ export function parseUpdateArgs(argv: string[]): UpdateArgs {
   });
   const [version] = positionals;
   if (version === undefined) {
-    throw new Error("Podaj wersję kitu");
+    throw new Error("Specify the kit version");
   }
   assertMaxPositionals(positionals, 1);
   return {

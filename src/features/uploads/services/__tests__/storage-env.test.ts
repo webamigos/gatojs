@@ -34,30 +34,30 @@ const PRODUCTION_ON_RAILWAY = {
 
 const UNKNOWN_PROVIDER = {
   name: "STORAGE_PROVIDER",
-  message: "dozwolone wartości: local, s3",
+  message: "allowed values: local, s3",
 };
 
 const RAILWAY_WITHOUT_VOLUME = {
   name: "STORAGE_PROVIDER",
   message:
-    "na Railway bez wolumenu pliki zginą przy redeployu: podepnij wolumen albo ustaw STORAGE_PROVIDER=s3",
+    "on Railway without a volume, files are lost on redeploy: attach a volume or set STORAGE_PROVIDER=s3",
 };
 
 const OUTSIDE_DATA_VOLUME = {
   name: "STORAGE_LOCAL_PATH",
-  message: "musi leżeć wewnątrz wolumenu Railway (/data)",
+  message: "must be inside the Railway volume (/data)",
 };
 
 const PATH_REQUIRED = {
   name: "STORAGE_LOCAL_PATH",
   message:
-    "wymagana w produkcji przy STORAGE_PROVIDER=local: wskaż trwały katalog",
+    "required in production with STORAGE_PROVIDER=local: point it at a persistent directory",
 };
 
 const PATH_NOT_ABSOLUTE = {
   name: "STORAGE_LOCAL_PATH",
   message:
-    "w produkcji poza Railway musi być ścieżką bezwzględną: wskaż trwały katalog",
+    "must be an absolute path in production outside Railway: point it at a persistent directory",
 };
 
 const ANY_ZOD_MESSAGE = expect.stringMatching(/\S/);
@@ -527,7 +527,7 @@ describe("resolveStorageEnv: reguły produkcyjne providera local", () => {
       [
         {
           name: "STORAGE_LOCAL_PATH",
-          message: "musi leżeć wewnątrz wolumenu Railway (/data/)",
+          message: "must be inside the Railway volume (/data/)",
         },
       ],
     ],

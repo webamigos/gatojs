@@ -29,7 +29,7 @@ export async function clearMailbox(): Promise<void> {
     method: "DELETE",
   });
   if (!response.ok) {
-    throw new Error(`mailpit DELETE /messages zwrócił ${response.status}`);
+    throw new Error(`mailpit DELETE /messages returned ${response.status}`);
   }
 }
 
@@ -49,7 +49,7 @@ export async function getLastMail(to: string): Promise<MailpitMessage> {
         );
         return latest?.ID;
       },
-      { message: `brak maila do ${to}`, timeout: 15_000 },
+      { message: `no email for ${to}`, timeout: 15_000 },
     )
     .toBeTruthy();
 
@@ -64,7 +64,7 @@ export function extractLink(mail: MailpitMessage, fragment: string): string {
   const link = links.find((href) => href.includes(fragment));
   if (!link) {
     throw new Error(
-      `Brak linku zawierającego ${fragment} w mailu "${mail.Subject}"`,
+      `No link containing ${fragment} in email "${mail.Subject}"`,
     );
   }
   return link;

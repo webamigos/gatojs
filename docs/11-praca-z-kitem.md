@@ -328,15 +328,9 @@ Gdzie dokumentacja wyjaśnia sekcje `AGENTS.md`:
 
 ### `next dev` uruchomione przez agenta zmienia `AGENTS.md`
 
-Next.js 16.3.8 przy starcie `next dev` sprawdza, czy uruchomił go agent AI, na przykład sesja Claude Code. Jeśli tak, a ani `AGENTS.md`, ani `CLAUDE.md` nie ma aktualnego bloku reguł Next.js, funkcja `writeAgentFiles` dopisuje ten blok na końcu `AGENTS.md`. `next.config.ts` kitu nie wyłącza tego ustawieniem `agentRules: false`. Uruchomienie przez człowieka w zwykłym terminalu niczego nie zmienia.
+Next.js od 16.3 przy starcie `next dev` sprawdza, czy uruchomił go agent AI, na przykład sesja Claude Code. Jeśli tak, dopisuje na końcu `AGENTS.md` blok między liniami `<!-- BEGIN:nextjs-agent-rules -->` i `<!-- END:nextjs-agent-rules -->`. `AGENTS.md` pochodzi z kitu, a zmieniony plik zatrzymuje `gato update` („niezacommitowane zmiany”), dlatego `next.config.ts` kitu ustawia `agentRules: false`. Przy tym ustawieniu `next dev` niczego nie dopisuje, a blok dopisany wcześniej usuwa przy następnym starcie (Next.js 16.4, dokumentacja: `node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/agentRules.md`).
 
-Po czym to poznasz:
-
-- terminal `next dev` wypisuje ``✓ Generated AGENTS.md for AI agents. Set `agentRules: false` in next.config to disable.``;
-- `git status --short` pokazuje `AGENTS.md` jako zmieniony (` M AGENTS.md`);
-- na końcu `AGENTS.md` jest blok między liniami `<!-- BEGIN:nextjs-agent-rules -->` i `<!-- END:nextjs-agent-rules -->`.
-
-Co zrobić: `AGENTS.md` pochodzi z kitu, a `AGENTS.md` kitu tego bloku nie zawiera, więc nie commituj go razem z inną zmianą, choć tekst bloku do tego zachęca. Jeśli sam nie zmieniasz `AGENTS.md`, przed `git add` przywróć plik komendą `git restore AGENTS.md`. Gdy zmiana jest już w indeksie, samo `git restore AGENTS.md` nic nie da, bo przywraca plik z indeksu. Wtedy użyj `git restore --staged --worktree AGENTS.md`. Obie komendy kasują też Twoje niezacommitowane zmiany w `AGENTS.md`, więc gdy je masz, usuń blok ręcznie. Blok wraca przy każdym starcie `next dev` przez agenta. **Zalecenie:** przed każdym commitem sprawdź `git status`. Tę samą sytuację z przebiegu tutorialu opisuje [09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#krok-8-przegladarka).
+Projekt sprzed tej zmiany (rdzeń w wersji niższej niż ta, która dodała `agentRules: false`) dostaje ustawienie z `gato update`. Do tego czasu, gdy `git status --short` pokazuje ` M AGENTS.md`, przywróć plik komendą `git restore AGENTS.md`, a gdy zmiana jest już w indeksie: `git restore --staged --worktree AGENTS.md`. Obie komendy kasują też Twoje niezacommitowane zmiany w `AGENTS.md`, więc gdy je masz, usuń blok ręcznie.
 
 <a id="hooki"></a>
 
@@ -377,11 +371,11 @@ Jak to działa:
 
 | | `block-comments.mjs` | `protect-tests.mjs` |
 | --- | --- | --- |
-| Kiedy blokuje | Edycja dodaje linię komentarza w pliku `.ts/.tsx/.js/.jsx/.mjs/.cjs/.mts/.cts`. | Plik `.superpowers/phase` w kopii roboczej edytowanego pliku albo w katalogu projektu sesji (`$CLAUDE_PROJECT_DIR`) ma treść `implement` (po obcięciu białych znaków), a ścieżka edytowanego pliku wskazuje test. |
+| Kiedy blokuje | Edycja dodaje linię komentarza w pliku `.ts/.tsx/.js/.jsx/.mjs/.cjs/.mts/.cts`. | Plik `.gato/phase` (albo dawny `.superpowers/phase`) w kopii roboczej edytowanego pliku albo w katalogu projektu sesji (`$CLAUDE_PROJECT_DIR`) ma treść `implement` (po obcięciu białych znaków), a ścieżka edytowanego pliku wskazuje test. |
 | Co przepuszcza | `// WHY:` do 3 linii, dyrektywy narzędzi i kilka innych form ([Komentarze](06-wzorce-kodu.md#komentarze)); komentarze, które tylko się przesunęły; ścieżki z katalogami `node_modules`, `generated` i `components/ui`. | Każdą edycję, gdy pliku fazy nie ma albo ma inną treść; pliki poza wzorcem testów. |
 | Co porównuje | Przy `Edit` zastępowany fragment z nowym tekstem, przy `Write` istniejący plik z nową treścią. | Tylko ścieżkę pliku. |
 | Wzorzec ścieżki | Stałe `CODE_FILE` (rozszerzenia) i `EXEMPT_PATH` (wyjątki). | Stała `TEST_PATH`: katalogi `__tests__` i `e2e`, pliki `*.test.*` i `*.spec.*` z rozszerzeniem JS albo TS. |
-| Komunikat | `Blocked: this edit adds code comments. The code must explain itself.` i znalezione linie. | `Zablokowane: faza implementacji (.superpowers/phase = implement), testy są tylko do odczytu.` |
+| Komunikat | `Blocked: this edit adds code comments. The code must explain itself.` i znalezione linie. | `Blocked: implementation phase (.gato/phase = implement), tests are read-only.` |
 | Testy | `.claude/hooks/block-comments.test.mjs` | `.claude/hooks/protect-tests.test.mjs` |
 | Decyzja i opis | [D23](decyzje.md#d23), [Komentarze](06-wzorce-kodu.md#komentarze) | [D25](decyzje.md#d25), [Faza implementacji](08b-testy-adwersarialne.md#faza) |
 
@@ -508,7 +502,8 @@ Spec i plan opisują zamiar z chwili pisania. W trakcie wykonania zmieniają go 
 | `docs/superpowers/specs/` | Dokumenty projektowe (spec). | Tak. |
 | `docs/superpowers/plans/` | Plany wykonania. | Tak. |
 | `docs/superpowers/notes/` | Handoffy, rulingi, research, audyty. | Tak. |
-| `.superpowers/` | Lokalny warsztat: katalogi planów w `.superpowers/sdd/` z postępem, poleceniami i raportami zadań, szkice, plik fazy. | Nie, katalog jest w `.gitignore`. |
+| `.superpowers/` | Lokalny warsztat pluginu superpowers: katalogi planów w `.superpowers/sdd/` z postępem, poleceniami i raportami zadań, szkice. | Nie, katalog jest w `.gitignore`. |
+| `.gato/` | Lokalny stan GatoJS: plik fazy `.gato/phase`. | Nie, katalog jest w `.gitignore`. |
 | `.worktrees/` | Osobne kopie robocze (`git worktree`), które tworzy umiejętność `using-git-worktrees`. | Nie, katalog jest w `.gitignore`. |
 | Podkatalog `handoffs` w `.claude/` | Handoffy z sesji agentów zapisane lokalnie. | Nie jest śledzony, ale nie ma go w `.gitignore`, więc `git add -A` doda go do commitu. Przed commitem sprawdź `git status`. |
 
@@ -523,12 +518,12 @@ Zasady:
 
 ### Plik fazy
 
-Plik `.superpowers/phase` włącza blokadę testów. Orkiestrator zapisuje do niego `implement` przed uruchomieniem implementera i usuwa go po implementacji ([AGENTS.md](../AGENTS.md#testy-które-próbują-złamać-kod)). Hook czyta plik przy każdej edycji, więc zmiana działa od razu. Komendy i pełny opis: [Faza implementacji](08b-testy-adwersarialne.md#faza).
+Plik `.gato/phase` włącza blokadę testów. Orkiestrator zapisuje do niego `implement` przed uruchomieniem implementera i usuwa go po implementacji ([AGENTS.md](../AGENTS.md#testy-które-próbują-złamać-kod)). Hook czyta plik przy każdej edycji, więc zmiana działa od razu. Komendy i pełny opis: [Faza implementacji](08b-testy-adwersarialne.md#faza).
 
 Skutki dla codziennej pracy:
 
-- Hook czyta `.superpowers/phase` z kopii roboczej edytowanego pliku i z katalogu projektu sesji (`$CLAUDE_PROJECT_DIR`). Plik zapisany w worktree blokuje więc edycję testów w tym worktree w każdej sesji. Plik w głównej kopii blokuje edycję testów we wszystkich kopiach roboczych w sesjach, których `$CLAUDE_PROJECT_DIR` wskazuje główną kopię: w sesji uruchomionej w głównej kopii i w każdej sesji aplikacji Claude dla tego repozytorium, także działającej w `.claude/worktrees/`. Sesji uruchomionej w katalogu worktree poza aplikacją plik z głównej kopii nie blokuje, bo hook nie szuka go powyżej katalogu z `.git` ([Faza w worktree](08b-testy-adwersarialne.md#faza-worktree)). Plik nie trafia do git (`.superpowers/` jest w `.gitignore`), więc nowe kopie robocze go nie dostają.
-- Plik pozostawiony po przerwanym zadaniu blokuje edycję testów w swojej kopii roboczej w każdej sesji, a plik w głównej kopii także w pozostałych kopiach roboczych sesji opisanych wyżej. Dotyczy to również `test-writer` i Twojej sesji Claude Code. Gdy hook zgłasza „Zablokowane: faza implementacji”, a żadne zadanie nie trwa, usuń plik komendą `rm .superpowers/phase` w kopii roboczej edytowanego pliku i w głównej kopii.
+- Hook czyta `.gato/phase` (i dawny `.superpowers/phase`) z kopii roboczej edytowanego pliku i z katalogu projektu sesji (`$CLAUDE_PROJECT_DIR`). Plik zapisany w worktree blokuje więc edycję testów w tym worktree w każdej sesji. Plik w głównej kopii blokuje edycję testów we wszystkich kopiach roboczych w sesjach, których `$CLAUDE_PROJECT_DIR` wskazuje główną kopię: w sesji uruchomionej w głównej kopii i w każdej sesji aplikacji Claude dla tego repozytorium, także działającej w `.claude/worktrees/`. Sesji uruchomionej w katalogu worktree poza aplikacją plik z głównej kopii nie blokuje, bo hook nie szuka go powyżej katalogu z `.git` ([Faza w worktree](08b-testy-adwersarialne.md#faza-worktree)). Plik nie trafia do git (`.superpowers/` jest w `.gitignore`), więc nowe kopie robocze go nie dostają.
+- Plik pozostawiony po przerwanym zadaniu blokuje edycję testów w swojej kopii roboczej w każdej sesji, a plik w głównej kopii także w pozostałych kopiach roboczych sesji opisanych wyżej. Dotyczy to również `test-writer` i Twojej sesji Claude Code. Gdy hook zgłasza „Blocked: implementation phase”, a żadne zadanie nie trwa, usuń plik wymieniony w komunikacie, na przykład komendą `rm .gato/phase`, w kopii roboczej edytowanego pliku i w głównej kopii.
 - Deweloper, który sam pisze kod i testy, pliku fazy nie używa ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md)).
 
 <a id="pliki-generowane"></a>

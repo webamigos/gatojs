@@ -19,7 +19,7 @@ export const coreEnvSchema = z
     BETTER_AUTH_SECRET: z
       .string()
       .refine((value) => value.trim().length >= SECRET_MIN_LENGTH, {
-        message: `co najmniej ${SECRET_MIN_LENGTH} znaki bez spacji na brzegach`,
+        message: `at least ${SECRET_MIN_LENGTH} characters, no leading or trailing spaces`,
       }),
     APP_URL: httpUrl(),
     RESEND_API_KEY: optionalString(),
@@ -35,7 +35,7 @@ export const coreEnvSchema = z
   })
   .refine((value) => value.NODE_ENV !== "production" || value.RESEND_API_KEY, {
     path: ["RESEND_API_KEY"],
-    message: "wymagana w produkcji",
+    message: "required in production",
   })
   .refine(
     (value) =>
@@ -43,7 +43,7 @@ export const coreEnvSchema = z
       value.BETTER_AUTH_SECRET !== EXAMPLE_BETTER_AUTH_SECRET,
     {
       path: ["BETTER_AUTH_SECRET"],
-      message: "w produkcji nie może być wartością z .env.example",
+      message: "must not be the .env.example value in production",
     },
   );
 

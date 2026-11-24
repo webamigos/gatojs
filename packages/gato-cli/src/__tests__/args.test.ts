@@ -8,8 +8,8 @@ import {
 } from "../args.js";
 
 describe("parseCreateArgs", () => {
-  it("brak katalogu zgłasza Podaj katalog projektu", () => {
-    expect(() => parseCreateArgs([])).toThrow("Podaj katalog projektu");
+  it("brak katalogu zgłasza Specify the project directory", () => {
+    expect(() => parseCreateArgs([])).toThrow("Specify the project directory");
   });
 
   it("sam cel dostaje wartości domyślne", () => {
@@ -55,7 +55,7 @@ describe("parseCreateArgs", () => {
 
   it("--locales en odrzuca brak pl", () => {
     expect(() => parseCreateArgs(["acme", "--locales", "en"])).toThrow(
-      "--locales: dozwolone pl,en; pl jest wymagany",
+      "--locales: allowed values are pl,en; pl is required",
     );
   });
 
@@ -63,14 +63,14 @@ describe("parseCreateArgs", () => {
     "--locales %s odrzuca duplikaty",
     (value) => {
       expect(() => parseCreateArgs(["app", "--locales", value])).toThrow(
-        "--locales: dozwolone pl,en; pl jest wymagany",
+        "--locales: allowed values are pl,en; pl is required",
       );
     },
   );
 
   it("--locales pl,de odrzuca nieznany język", () => {
     expect(() => parseCreateArgs(["acme", "--locales", "pl,de"])).toThrow(
-      "--locales: dozwolone pl,en; pl jest wymagany",
+      "--locales: allowed values are pl,en; pl is required",
     );
   });
 
@@ -82,7 +82,7 @@ describe("parseCreateArgs", () => {
 
   it("--setup z --no-install zgłasza błąd", () => {
     expect(() => parseCreateArgs(["acme", "--setup", "--no-install"])).toThrow(
-      "--setup wymaga instalacji zależności (bez --no-install)",
+      "--setup needs dependencies installed (drop --no-install)",
     );
   });
 
@@ -158,7 +158,7 @@ describe("parseCreateArgs --cli-source", () => {
 
   it("the --cli-source value alone is not a project directory", () => {
     expect(() => parseCreateArgs(["--cli-source", "/t/x.tgz"])).toThrow(
-      "Podaj katalog projektu",
+      "Specify the project directory",
     );
   });
 
@@ -173,9 +173,9 @@ describe("parseCreateArgs --cli-source", () => {
     [["app", "--cli-source"]],
     [["app", "--cli-source", ""]],
     [["app", "--cli-source", "--yes"]],
-  ])("%j reports Opcja --cli-source wymaga wartości", (argv) => {
+  ])("%j reports Option --cli-source needs a value", (argv) => {
     expect(messageOf(() => parseCreateArgs(argv))).toBe(
-      "Opcja --cli-source wymaga wartości",
+      "Option --cli-source needs a value",
     );
   });
 });
@@ -197,8 +197,8 @@ describe("parseAddArgs", () => {
     });
   });
 
-  it("brak modułu zgłasza Podaj nazwę modułu", () => {
-    expect(() => parseAddArgs([])).toThrow("Podaj nazwę modułu");
+  it("brak modułu zgłasza Specify the module name", () => {
+    expect(() => parseAddArgs([])).toThrow("Specify the module name");
   });
 });
 
@@ -219,8 +219,8 @@ describe("parseRemoveArgs", () => {
     });
   });
 
-  it("brak nazwy modułu zgłasza Podaj nazwę modułu", () => {
-    expect(() => parseRemoveArgs([])).toThrow("Podaj nazwę modułu");
+  it("brak nazwy modułu zgłasza Specify the module name", () => {
+    expect(() => parseRemoveArgs([])).toThrow("Specify the module name");
   });
 });
 
@@ -279,36 +279,38 @@ describe("parseUpdateArgs", () => {
     });
   });
 
-  it("brak wersji zgłasza Podaj wersję kitu", () => {
-    expect(() => parseUpdateArgs([])).toThrow("Podaj wersję kitu");
-    expect(() => parseUpdateArgs(["--dry-run"])).toThrow("Podaj wersję kitu");
+  it("brak wersji zgłasza Specify the kit version", () => {
+    expect(() => parseUpdateArgs([])).toThrow("Specify the kit version");
+    expect(() => parseUpdateArgs(["--dry-run"])).toThrow(
+      "Specify the kit version",
+    );
   });
 
   it("nadmiarowy argument zgłasza Nieoczekiwany argument", () => {
     expect(messageOf(() => parseUpdateArgs(["0.2.0", "x"]))).toBe(
-      "Nieoczekiwany argument: x",
+      "Unexpected argument: x",
     );
   });
 
   it.each([
-    [["0.2.0", "--kit="], "Opcja --kit wymaga wartości"],
-    [["0.2.0", "--kit", ""], "Opcja --kit wymaga wartości"],
-    [["0.2.0", "--kit"], "Opcja --kit wymaga wartości"],
-    [["0.2.0", "--from-kit="], "Opcja --from-kit wymaga wartości"],
-    [["0.2.0", "--from-kit"], "Opcja --from-kit wymaga wartości"],
+    [["0.2.0", "--kit="], "Option --kit needs a value"],
+    [["0.2.0", "--kit", ""], "Option --kit needs a value"],
+    [["0.2.0", "--kit"], "Option --kit needs a value"],
+    [["0.2.0", "--from-kit="], "Option --from-kit needs a value"],
+    [["0.2.0", "--from-kit"], "Option --from-kit needs a value"],
   ])("%j zgłasza %s", (argv, message) => {
     expect(messageOf(() => parseUpdateArgs(argv))).toBe(message);
   });
 
   it("nieznana opcja zgłasza Nieznana opcja", () => {
     expect(messageOf(() => parseUpdateArgs(["0.2.0", "--force"]))).toBe(
-      "Nieznana opcja: --force",
+      "Unknown option: --force",
     );
   });
 
   it("flaga z wartością jest odrzucana", () => {
     expect(messageOf(() => parseUpdateArgs(["0.2.0", "--dry-run=1"]))).toBe(
-      "Opcja --dry-run nie przyjmuje wartości",
+      "Option --dry-run takes no value",
     );
   });
 
@@ -316,7 +318,7 @@ describe("parseUpdateArgs", () => {
     "nieprawidłowa wersja %s zgłasza błąd parseVersion",
     (value) => {
       expect(messageOf(() => parseUpdateArgs([value]))).toBe(
-        `Nieprawidłowa wersja: ${value}; podaj na przykład 0.2.0`,
+        `Invalid version: ${value}; use a version like 0.2.0`,
       );
     },
   );
@@ -332,47 +334,47 @@ describe("parseListArgs", () => {
   });
 
   it("argument pozycyjny jest odrzucany z komunikatem Nieoczekiwany argument", () => {
-    expect(() => parseListArgs(["x"])).toThrow("Nieoczekiwany argument: x");
+    expect(() => parseListArgs(["x"])).toThrow("Unexpected argument: x");
   });
 });
 
 describe("nadmiarowe argumenty pozycyjne", () => {
   it("parseAddArgs zgłasza pierwszy nadmiarowy argument", () => {
     expect(() => parseAddArgs(["auth", "extra"])).toThrow(
-      "Nieoczekiwany argument: extra",
+      "Unexpected argument: extra",
     );
   });
 
   it("parseRemoveArgs zgłasza pierwszy nadmiarowy argument", () => {
     expect(() => parseRemoveArgs(["auth", "extra"])).toThrow(
-      "Nieoczekiwany argument: extra",
+      "Unexpected argument: extra",
     );
   });
 
   it("parseCreateArgs zgłasza nadmiarowy argument", () => {
     expect(() => parseCreateArgs(["acme", "extra"])).toThrow(
-      "Nieoczekiwany argument: extra",
+      "Unexpected argument: extra",
     );
   });
 
   it("parseCreateArgs przy dwóch nadmiarowych zgłasza pierwszy z nich", () => {
     expect(() => parseCreateArgs(["acme", "b", "c"])).toThrow(
-      "Nieoczekiwany argument: b",
+      "Unexpected argument: b",
     );
   });
 
   it("parseAddArgs i parseRemoveArgs przy dwóch nadmiarowych zgłaszają pierwszy z nich", () => {
     expect(() => parseAddArgs(["auth", "b", "c"])).toThrow(
-      "Nieoczekiwany argument: b",
+      "Unexpected argument: b",
     );
     expect(() => parseRemoveArgs(["auth", "b", "c"])).toThrow(
-      "Nieoczekiwany argument: b",
+      "Unexpected argument: b",
     );
   });
 
   it("flaga przed celem nie zmienia liczenia nadmiarowych argumentów w create", () => {
     expect(() => parseCreateArgs(["--yes", "acme", "extra"])).toThrow(
-      "Nieoczekiwany argument: extra",
+      "Unexpected argument: extra",
     );
   });
 });
@@ -389,49 +391,49 @@ function messageOf(run: () => unknown): string {
 describe("błędy opcji po polsku", () => {
   it("nieznana długa opcja", () => {
     expect(() => parseAddArgs(["auth", "--foo"])).toThrow(
-      "Nieznana opcja: --foo",
+      "Unknown option: --foo",
     );
     expect(messageOf(() => parseAddArgs(["auth", "--foo"]))).toBe(
-      "Nieznana opcja: --foo",
+      "Unknown option: --foo",
     );
   });
 
   it("nieznana krótka opcja", () => {
     expect(messageOf(() => parseAddArgs(["auth", "-x"]))).toBe(
-      "Nieznana opcja: -x",
+      "Unknown option: -x",
     );
   });
 
   it("nieznana opcja w list, create i remove", () => {
     expect(messageOf(() => parseListArgs(["--foo"]))).toBe(
-      "Nieznana opcja: --foo",
+      "Unknown option: --foo",
     );
     expect(messageOf(() => parseCreateArgs(["acme", "--foo"]))).toBe(
-      "Nieznana opcja: --foo",
+      "Unknown option: --foo",
     );
     expect(messageOf(() => parseRemoveArgs(["auth", "--foo"]))).toBe(
-      "Nieznana opcja: --foo",
+      "Unknown option: --foo",
     );
   });
 
   it("opcja z wartością bez wartości", () => {
     expect(messageOf(() => parseAddArgs(["auth", "--kit"]))).toBe(
-      "Opcja --kit wymaga wartości",
+      "Option --kit needs a value",
     );
     expect(messageOf(() => parseCreateArgs(["acme", "--title"]))).toBe(
-      "Opcja --title wymaga wartości",
+      "Option --title needs a value",
     );
   });
 
   it("opcja z wartością, po której stoi inna opcja", () => {
     expect(
       messageOf(() => parseAddArgs(["auth", "--kit", "--no-install"])),
-    ).toBe("Opcja --kit wymaga wartości");
+    ).toBe("Option --kit needs a value");
   });
 
   it("flaga z wartością", () => {
     expect(messageOf(() => parseRemoveArgs(["auth", "--force=1"]))).toBe(
-      "Opcja --force nie przyjmuje wartości",
+      "Option --force takes no value",
     );
   });
 
@@ -443,9 +445,9 @@ describe("błędy opcji po polsku", () => {
     () => parseRemoveArgs(["auth", "--force=1"]),
     () => parseListArgs(["--foo"]),
     () => parseCreateArgs(["acme", "--title"]),
-  ])("komunikat nie zawiera angielskiego tekstu Node", (run) => {
+  ])("komunikat nie jest surowym tekstem parseArgs z Node", (run) => {
     const message = messageOf(run);
-    expect(message).not.toContain("Unknown option");
+    expect(message).not.toContain("Unknown option '");
     expect(message).not.toContain("argument missing");
     expect(message).not.toContain("ambiguous");
     expect(message).not.toContain("does not take");
@@ -467,8 +469,8 @@ describe("pusta wartość --kit", () => {
       "create --kit z pustym argumentem",
       () => parseCreateArgs(["acme", "--kit", ""]),
     ],
-  ])("%s zgłasza Opcja --kit wymaga wartości", (_nazwa, run) => {
-    expect(messageOf(run)).toBe("Opcja --kit wymaga wartości");
+  ])("%s zgłasza Option --kit needs a value", (_nazwa, run) => {
+    expect(messageOf(run)).toBe("Option --kit needs a value");
   });
 
   it("niepusty --kit jest przekazywany w add, list i create", () => {
@@ -496,46 +498,46 @@ describe("pusta wartość --kit", () => {
 describe("rozróżnianie opcji z wartością i flag w komunikatach", () => {
   it("nieznana opcja z wartością po znaku równości podaje samą nazwę", () => {
     expect(messageOf(() => parseAddArgs(["auth", "--foo=bar"]))).toBe(
-      "Nieznana opcja: --foo",
+      "Unknown option: --foo",
     );
   });
 
   it("flaga z wartością nie przyjmuje wartości także tam, gdzie istnieje opcja string", () => {
     expect(messageOf(() => parseAddArgs(["auth", "--no-install=1"]))).toBe(
-      "Opcja --no-install nie przyjmuje wartości",
+      "Option --no-install takes no value",
     );
     expect(messageOf(() => parseCreateArgs(["acme", "--no-git=1"]))).toBe(
-      "Opcja --no-git nie przyjmuje wartości",
+      "Option --no-git takes no value",
     );
     expect(messageOf(() => parseCreateArgs(["acme", "--setup=1"]))).toBe(
-      "Opcja --setup nie przyjmuje wartości",
+      "Option --setup takes no value",
     );
   });
 
   it("flaga z wartością w remove, gdzie nie ma opcji string", () => {
     expect(messageOf(() => parseRemoveArgs(["auth", "--force=1"]))).toBe(
-      "Opcja --force nie przyjmuje wartości",
+      "Option --force takes no value",
     );
     expect(messageOf(() => parseRemoveArgs(["auth", "--no-install=1"]))).toBe(
-      "Opcja --no-install nie przyjmuje wartości",
+      "Option --no-install takes no value",
     );
   });
 
   it("opcja string bez wartości wymaga wartości w create i list", () => {
     expect(messageOf(() => parseCreateArgs(["acme", "--kit"]))).toBe(
-      "Opcja --kit wymaga wartości",
+      "Option --kit needs a value",
     );
     expect(messageOf(() => parseListArgs(["--kit"]))).toBe(
-      "Opcja --kit wymaga wartości",
+      "Option --kit needs a value",
     );
     expect(messageOf(() => parseCreateArgs(["acme", "--admin-email"]))).toBe(
-      "Opcja --admin-email wymaga wartości",
+      "Option --admin-email needs a value",
     );
   });
 
   it("opcja string zakończona flagą wymaga wartości", () => {
     expect(
       messageOf(() => parseAddArgs(["auth", "--kit", "--no-install"])),
-    ).toBe("Opcja --kit wymaga wartości");
+    ).toBe("Option --kit needs a value");
   });
 });

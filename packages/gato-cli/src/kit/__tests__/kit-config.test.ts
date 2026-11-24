@@ -42,13 +42,14 @@ describe("readKitConfig", () => {
       "src/modules.client.generated.ts",
       "src/i18n/locales.generated.ts",
     ]);
-    expect(config.kitOnly).toHaveLength(8);
+    expect(config.kitOnly).toHaveLength(9);
+    expect(config.kitOnly).toContain(".gato/**");
     expect(config.placeholderFiles).toHaveLength(10);
   });
 
   it("brak kit/kit.json zglasza katalog i to, ze to nie repozytorium wa-kit", async () => {
     await expect(readKitConfig(tmp)).rejects.toThrow(
-      `Brak kit/kit.json w ${tmp} — to nie jest repozytorium wa-kit`,
+      `No kit/kit.json in ${tmp} — this is not a GatoJS repository`,
     );
   });
 
@@ -79,7 +80,7 @@ describe("readKitConfig", () => {
       (e: Error) => e,
     );
     expect(error?.message).toContain("EISDIR");
-    expect(error?.message).not.toContain("Brak kit/kit.json");
+    expect(error?.message).not.toContain("No kit/kit.json");
   });
 
   it("niepoprawny typ wersji odrzucony przez kitConfigSchema", () => {
@@ -129,6 +130,11 @@ describe("readKitManifests", () => {
     expect(demo?.dependencies).toEqual({ "left-pad": "^1.3.0" });
     expect(demo?.env).toEqual([
       { name: "DEMO_TOKEN", example: "{{projectSlug}}_demo_" },
+      {
+        name: "DEMO_SECRET",
+        example: "demo-secret-example",
+        generate: "secret-64",
+      },
     ]);
     expect(demo?.schemaRelations).toEqual([
       { model: "User", field: "demos Demo[]" },
@@ -138,7 +144,7 @@ describe("readKitManifests", () => {
 
   it("name rozne od nazwy pliku zglasza blad z nazwa pliku", async () => {
     await expect(readKitManifests(badKit)).rejects.toThrow(
-      'kit/modules/demo.json: name "inny" nie zgadza się z nazwą pliku',
+      'kit/modules/demo.json: name "inny" does not match the file name',
     );
   });
 });

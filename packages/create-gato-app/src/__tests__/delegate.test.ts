@@ -2,67 +2,85 @@ import { describe, expect, it } from "vitest";
 import { gatoCreateCommand } from "../delegate.js";
 
 describe("gatoCreateCommand", () => {
-  it("runs the gato-cli bin with create, passthrough and the kit appended", () => {
+  it("buduje pełne wywołanie gato create z odpowiedziami w formie --flaga=wartość i kitem na końcu", () => {
     expect(
       gatoCreateCommand({
-        nodePath: "/usr/bin/node",
-        gatoBin: "/nm/gato-cli/dist/gato.mjs",
+        nodePath: "/n",
+        gatoBin: "/g.mjs",
         kitDir: "/k",
-        passthrough: ["app", "--yes"],
+        projectDir: "/w/acme-shop",
+        answers: { modules: ["uploads"], locales: ["pl", "en"], title: "Acme Shop", adminEmail: "a@b.co" },
+        cliSource: "/c.tgz",
       }),
     ).toEqual({
-      command: "/usr/bin/node",
+      command: "/n",
       args: [
-        "/nm/gato-cli/dist/gato.mjs",
+        "/g.mjs",
         "create",
-        "app",
+        "/w/acme-shop",
         "--yes",
-        "--kit",
-        "/k",
+        "--no-install",
+        "--no-git",
+        "--modules=uploads",
+        "--locales=pl,en",
+        "--title=Acme Shop",
+        "--admin-email=a@b.co",
+        "--cli-source=/c.tgz",
+        "--kit=/k",
       ],
     });
   });
 
-  it("keeps passthrough order and appends --kit last", () => {
+  it("bez e-maila i źródła CLI pomija te dwie flagi, a pusta lista modułów daje --modules=", () => {
     expect(
       gatoCreateCommand({
-        nodePath: "/opt/node/bin/node",
-        gatoBin: "/x/gato.mjs",
-        kitDir: "/tmp/x/kit",
-        passthrough: [
-          "--title",
-          "Acme",
-          "app",
-          "--cli-source",
-          "/t/gato-cli-0.2.0.tgz",
-          "--no-install",
-        ],
+        nodePath: "/n",
+        gatoBin: "/g.mjs",
+        kitDir: "/k",
+        projectDir: "/w/acme-shop",
+        answers: { modules: [], locales: ["pl"], title: "Acme Shop", adminEmail: null },
+        cliSource: null,
       }),
     ).toEqual({
-      command: "/opt/node/bin/node",
+      command: "/n",
       args: [
-        "/x/gato.mjs",
+        "/g.mjs",
         "create",
-        "--title",
-        "Acme",
-        "app",
-        "--cli-source",
-        "/t/gato-cli-0.2.0.tgz",
+        "/w/acme-shop",
+        "--yes",
         "--no-install",
-        "--kit",
-        "/tmp/x/kit",
+        "--no-git",
+        "--modules=",
+        "--locales=pl",
+        "--title=Acme Shop",
+        "--kit=/k",
       ],
     });
   });
 
-  it("never runs the kit's own wa.mjs", () => {
+  it("kilka modułów łączy przecinkiem w podanej kolejności", () => {
     const { args } = gatoCreateCommand({
-      nodePath: "/usr/bin/node",
+      nodePath: "/n",
+      gatoBin: "/g.mjs",
+      kitDir: "/k",
+      projectDir: "/w/acme-shop",
+      answers: { modules: ["demo", "needs-demo", "uploads"], locales: ["pl"], title: "-Acme", adminEmail: null },
+      cliSource: null,
+    });
+    expect(args).toContain("--modules=demo,needs-demo,uploads");
+    expect(args).toContain("--title=-Acme");
+    expect(args).not.toContain("-Acme");
+  });
+
+  it("nigdy nie uruchamia wa.mjs kitu", () => {
+    const { args } = gatoCreateCommand({
+      nodePath: "/n",
       gatoBin: "/nm/gato-cli/dist/gato.mjs",
       kitDir: "/k",
-      passthrough: ["app"],
+      projectDir: "/w/app",
+      answers: { modules: [], locales: ["pl"], title: "App", adminEmail: null },
+      cliSource: null,
     });
     expect(args.some((arg) => arg.includes("wa.mjs"))).toBe(false);
-    expect(args.some((arg) => arg.includes(".wa/bin"))).toBe(false);
   });
 });

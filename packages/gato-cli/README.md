@@ -13,9 +13,8 @@ npm install -g gato-cli       # or install it, then just `gato`
 Reach for `npx` for a one-off `create`. A global install goes stale without saying so; upgrade it
 yourself (`npm install -g gato-cli@latest`).
 
-> **The GatoJS repository is private until it goes public.** Until then `gato` needs read access to
-> `webamigos/gatojs`: either a local clone passed with `--kit`, or `git` credentials that can clone it
-> (`gh auth status`).
+`gato create` reads the kit from a local clone of the public `webamigos/gatojs` repository, passed with `--kit`;
+`create-gato-app` downloads one for you. `add`, `list` and `update` clone the kit themselves (see `gato help`).
 
 ## The package is `gato-cli`; the command is `gato`
 

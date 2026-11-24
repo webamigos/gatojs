@@ -193,7 +193,7 @@ describe("adminCreate", () => {
         yes: false,
         confirm: async () => false,
       }),
-    ).rejects.toThrow("Przerwano");
+    ).rejects.toThrow("Aborted");
     expect(db.users[0].role).toBe("user");
     expect(db.orgs).toHaveLength(0);
     expect(db.members).toHaveLength(0);
@@ -233,7 +233,7 @@ describe("adminCreate", () => {
       confirm,
     });
     expect(confirm).toHaveBeenCalledWith(
-      "Użytkownik d@x.pl istnieje. Nadać rolę admin? [t/N]",
+      "User d@x.pl already exists. Grant role admin? [y/N]",
     );
     expect(mockAuth.api.createUser).not.toHaveBeenCalled();
     expect(db.users[0].role).toBe("admin");
@@ -335,7 +335,7 @@ describe("adminCreate z rolą globalną", () => {
     await adminCreate({ email: "u1@x.pl", yes: false, confirm });
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(confirm).toHaveBeenCalledWith(
-      "Użytkownik u1@x.pl istnieje. Nadać rolę admin? [t/N]",
+      "User u1@x.pl already exists. Grant role admin? [y/N]",
     );
     expect(db.users[0].role).toBe("admin");
   });
@@ -351,7 +351,7 @@ describe("adminCreate z rolą globalną", () => {
     });
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(confirm).toHaveBeenCalledWith(
-      "Użytkownik u2@x.pl istnieje. Nadać rolę superadmin? [t/N]",
+      "User u2@x.pl already exists. Grant role superadmin? [y/N]",
     );
     expect(mockAuth.api.createUser).not.toHaveBeenCalled();
     expect(db.users[0].role).toBe("superadmin");
@@ -368,7 +368,7 @@ describe("adminCreate z rolą globalną", () => {
     });
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(confirm).toHaveBeenCalledWith(
-      "Użytkownik ad@x.pl istnieje. Nadać rolę superadmin? [t/N]",
+      "User ad@x.pl already exists. Grant role superadmin? [y/N]",
     );
     expect(db.users[0].role).toBe("superadmin");
   });
@@ -382,7 +382,7 @@ describe("adminCreate z rolą globalną", () => {
         yes: false,
         confirm: async () => false,
       }),
-    ).rejects.toThrow("Przerwano");
+    ).rejects.toThrow("Aborted");
     expect(db.users[0].role).toBe("admin");
     expect(mockPrisma.user.update).not.toHaveBeenCalled();
     expect(db.orgs).toHaveLength(0);
@@ -398,7 +398,7 @@ describe("adminCreate z rolą globalną", () => {
         yes: false,
         confirm: async () => false,
       }),
-    ).rejects.toThrow("Przerwano");
+    ).rejects.toThrow("Aborted");
     expect(db.users[0].role).toBe("user");
     expect(mockPrisma.user.update).not.toHaveBeenCalled();
     expect(db.members).toHaveLength(0);
@@ -536,7 +536,7 @@ describe("adminCreate z rolą globalną", () => {
           yes: true,
           confirm,
         }),
-      ).rejects.toThrow("Nieznana rola: root (dozwolone: admin, superadmin)");
+      ).rejects.toThrow("Unknown role: root (allowed: admin, superadmin)");
       expect(confirm).not.toHaveBeenCalled();
       expect(mockAuth.api.createUser).not.toHaveBeenCalled();
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
@@ -556,7 +556,7 @@ describe("adminCreate z rolą globalną", () => {
       ...yes,
     }).catch((e: unknown) => e);
     expect((error as Error).message).toBe(
-      "Nieznana rola: root (dozwolone: admin, superadmin)",
+      "Unknown role: root (allowed: admin, superadmin)",
     );
   });
 

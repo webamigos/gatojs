@@ -72,11 +72,11 @@ describe("list", () => {
         available: [core, demo, needsDemo],
       }),
     ).toEqual([
-      "Zainstalowane:",
+      "Installed:",
       "  core 0.1.0",
       "  demo 1.0.0",
-      "Dostępne:",
-      "  needs-demo 1.0.0 — Wymaga dema (wymaga: demo)",
+      "Available:",
+      "  needs-demo 1.0.0 — Wymaga dema (requires: demo)",
     ]);
   });
 
@@ -84,9 +84,9 @@ describe("list", () => {
     expect(
       render({ state: stateWith([core]), available: [core, demo] }),
     ).toEqual([
-      "Zainstalowane:",
+      "Installed:",
       "  core 0.1.0",
-      "Dostępne:",
+      "Available:",
       "  demo 1.0.0 — Demo",
     ]);
   });
@@ -94,10 +94,10 @@ describe("list", () => {
   it("wiele zależności łączy przecinkiem", () => {
     const many = manifest("many", "2.0.0", "Dużo", ["demo", "other"]);
     expect(render({ state: stateWith([core]), available: [many] })).toEqual([
-      "Zainstalowane:",
+      "Installed:",
       "  core 0.1.0",
-      "Dostępne:",
-      "  many 2.0.0 — Dużo (wymaga: demo, other)",
+      "Available:",
+      "  many 2.0.0 — Dużo (requires: demo, other)",
     ]);
   });
 
@@ -106,11 +106,11 @@ describe("list", () => {
     expect(
       render({ state: stateWith([zeta, demo, core]), available: [] }),
     ).toEqual([
-      "Zainstalowane:",
+      "Installed:",
       "  core 0.1.0",
       "  demo 1.0.0",
       "  zeta 1.0.0",
-      "Dostępne: brak",
+      "Available: none",
     ]);
   });
 
@@ -120,9 +120,9 @@ describe("list", () => {
     expect(
       render({ state: stateWith([core]), available: [beta, alpha] }),
     ).toEqual([
-      "Zainstalowane:",
+      "Installed:",
       "  core 0.1.0",
-      "Dostępne:",
+      "Available:",
       "  alpha 1.0.0 — A",
       "  beta 1.0.0 — B",
     ]);
@@ -135,11 +135,11 @@ describe("list", () => {
         available: [needsDemo, demo, core],
       }),
     ).toEqual([
-      "Zainstalowane:",
+      "Installed:",
       "  core 0.1.0",
       "  demo 1.0.0",
-      "Dostępne:",
-      "  needs-demo 1.0.0 — Wymaga dema (wymaga: demo)",
+      "Available:",
+      "  needs-demo 1.0.0 — Wymaga dema (requires: demo)",
     ]);
   });
 
@@ -150,11 +150,11 @@ describe("list", () => {
         available: [core, demo, needsDemo],
       }),
     ).toEqual([
-      "Zainstalowane:",
+      "Installed:",
       "  core 0.1.0",
       "  demo 1.0.0",
       "  needs-demo 1.0.0",
-      "Dostępne: brak",
+      "Available: none",
     ]);
   });
 
@@ -166,10 +166,10 @@ describe("list", () => {
         availableError: "brak sieci",
       }),
     ).toEqual([
-      "Zainstalowane:",
+      "Installed:",
       "  core 0.1.0",
       "  demo 1.0.0",
-      "Dostępne: nie udało się pobrać kitu (brak sieci)",
+      "Available: could not fetch the kit (brak sieci)",
     ]);
   });
 
@@ -181,12 +181,12 @@ describe("list", () => {
         available: [core, demo, needsDemo],
       }),
     ).toEqual([
-      "Zainstalowane:",
+      "Installed:",
       "  core 0.1.0",
       "  demo 1.0.0",
-      "Dostępne:",
-      "  needs-demo 1.0.0 — Wymaga dema (wymaga: demo)",
-      "Projektu:",
+      "Available:",
+      "  needs-demo 1.0.0 — Wymaga dema (requires: demo)",
+      "Project modules:",
       "  notes — Notatki",
     ]);
   });
@@ -197,10 +197,10 @@ describe("list", () => {
     expect(
       render({ state: stateWith([core], [zebra, notes]), available: [core] }),
     ).toEqual([
-      "Zainstalowane:",
+      "Installed:",
       "  core 0.1.0",
-      "Dostępne: brak",
-      "Projektu:",
+      "Available: none",
+      "Project modules:",
       "  notes — Notatki",
       "  zebra — Zebry",
     ]);
@@ -215,18 +215,18 @@ describe("list", () => {
         availableError: "brak sieci",
       }),
     ).toEqual([
-      "Zainstalowane:",
+      "Installed:",
       "  core 0.1.0",
-      "Dostępne: nie udało się pobrać kitu (brak sieci)",
-      "Projektu:",
+      "Available: could not fetch the kit (brak sieci)",
+      "Project modules:",
       "  notes — Notatki",
     ]);
   });
 
   it("bez modułów projektu nie ma grupy Projektu", () => {
     const lines = render({ state: stateWith([core]), available: [core] });
-    expect(lines).not.toContain("Projektu:");
-    expect(lines).toEqual(["Zainstalowane:", "  core 0.1.0", "Dostępne: brak"]);
+    expect(lines).not.toContain("Project modules:");
+    expect(lines).toEqual(["Installed:", "  core 0.1.0", "Available: none"]);
   });
 
   it("moduły projektu nie trafiają do zainstalowanych ani dostępnych", () => {
@@ -236,9 +236,9 @@ describe("list", () => {
       available: [core, demo],
     });
     expect(lines.slice(0, 4)).toEqual([
-      "Zainstalowane:",
+      "Installed:",
       "  core 0.1.0",
-      "Dostępne:",
+      "Available:",
       "  demo 1.0.0 — Demo",
     ]);
   });
@@ -249,6 +249,6 @@ describe("list", () => {
         state: stateWith([demo]),
         available: [core, demo],
       }),
-    ).toEqual(["Zainstalowane:", "  demo 1.0.0", "Dostępne: brak"]);
+    ).toEqual(["Installed:", "  demo 1.0.0", "Available: none"]);
   });
 });

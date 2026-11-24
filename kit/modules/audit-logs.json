@@ -1,7 +1,7 @@
 {
   "name": "audit-logs",
   "version": "0.1.2",
-  "description": "Dziennik zdarzeń organizacji: model AuditLog, sink i redakcja danych wrażliwych",
+  "description": "Organization audit log: AuditLog model, sink and redaction of sensitive data",
   "requires": [],
   "files": [
     "prisma/schema/audit-logs.prisma",

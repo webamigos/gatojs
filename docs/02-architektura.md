@@ -25,7 +25,7 @@ Zweryfikowano z kodem: 734391b, 2026-11-04 (punkt „Usługi modułów” w [Us�
 - `packages/env/src/*.ts`, `src/env.ts`
 - `src/shared/lib/prisma.ts`
 - `src/shared/lib/mailer.ts`
-- `src/shared/lib/logger.ts`
+- `src/shared/lib/logger.ts`, `packages/observability/src/*.ts`
 - `src/shared/lib/audit.ts`
 - `src/shared/lib/security-headers.ts`
 - `src/shared/components/app-sidebar.tsx`
@@ -91,7 +91,7 @@ Kit opiera się na kilku decyzjach. Każda ma w [rejestrze decyzji](decyzje.md) 
 - **Definicja modułu to same dane.** Czyta ją guard stron na serwerze i menu w przeglądarce, więc `module.ts` nie może importować kodu serwerowego. Oba miejsca rozstrzygają dostęp tą samą funkcją `canAccessModule`, więc menu pokazuje dokładnie to, przez co guard wpuszcza ([D05](decyzje.md#d05)).
 - **Moduł przynosi własny schemat, a feature własne teksty.** Modele Prismy moduł dodaje we własnym pliku w `prisma/schema/` ([D14](decyzje.md#d14)), a feature trzyma tłumaczenia w `src/features/<x>/i18n/`, pod namespace równym nazwie katalogu ([D27](decyzje.md#d27)). Moduł nie edytuje plików schematu ani tłumaczeń rdzenia: relacje zwrotne w modelach rdzenia trafiają do regionu `wa:relations`.
 - **Dane i dostęp sprawdza serwer, nie interfejs.** Każde zapytanie o dane domenowe filtruje po `organizationId` z `getOrgContext()` ([D07](decyzje.md#d07)), każda strona feature w `(app)` woła `requireModuleAccess(key)`, a każda akcja serwerowa sprawdza uprawnienia sama ([D11](decyzje.md#d11)). Ukrycie pozycji w menu niczego nie chroni, bo adres strony można wpisać ręcznie.
-- **Logi idą przez OpenTelemetry.** `logger` z `src/shared/lib/logger.ts` wysyła wpisy przez API logów OpenTelemetry, a eksport do zewnętrznego odbiornika włącza `OTEL_EXPORTER_OTLP_ENDPOINT` ([D15](decyzje.md#d15)).
+- **Logi i ślady idą przez OpenTelemetry.** `logger` z `src/shared/lib/logger.ts` (`createLogger` z pakietu `@gatojs/observability`) wysyła wpisy przez API logów OpenTelemetry, `withSpan` z `createTelemetry` otwiera ślady, a eksport do zewnętrznego odbiornika włącza `OTEL_EXPORTER_OTLP_ENDPOINT` ([D15](decyzje.md#d15)).
 
 <a id="uslugi"></a>
 
@@ -132,7 +132,7 @@ flowchart LR
 - **Przeglądarka → aplikacja.** Przeglądarka pobiera strony, wywołuje akcje serwerowe (żądania POST pod adres bieżącej strony) i endpoint better-auth `/api/auth/*` (`src/app/api/auth/[...all]/route.ts`). Endpoint `/api/healthcheck` (`src/app/api/healthcheck/route.ts`) wykonuje na bazie `SELECT 1` i służy Railway jako healthcheck.
 - **Aplikacja → PostgreSQL.** Prisma łączy się przez adapter `@prisma/adapter-pg` i pulę połączeń `pg` pod adresem z `DATABASE_URL` (`src/shared/lib/prisma.ts`). W tej samej bazie better-auth trzyma konta i sesje (`prismaAdapter` w `src/shared/lib/auth/index.ts`). Model danych opisuje [03-dane-i-organizacje.md](03-dane-i-organizacje.md).
 - **Aplikacja → poczta.** `src/shared/lib/mailer.ts` wysyła przez SMTP, gdy ustawiono `SMTP_URL` (lokalnie wskazuje mailpit). W przeciwnym razie wysyła przez API Resend, gdy ustawiono `RESEND_API_KEY`, a bez obu tylko zapisuje wpis w logu. Na produkcji walidacja zmiennych wymaga `RESEND_API_KEY` ([D18](decyzje.md#d18), [07-i18n-mail-env.md](07-i18n-mail-env.md)).
-- **Aplikacja → odbiornik logów.** Gdy ustawiono `OTEL_EXPORTER_OTLP_ENDPOINT`, funkcja `register()` z `src/instrumentation.ts`, którą Next.js wywołuje przy starcie serwera, włącza wysyłkę logów protokołem OTLP przez HTTP pod `<endpoint>/v1/logs`. Działa tak samo lokalnie i na produkcji. Bez endpointu na produkcji wpisy z `logger` nigdzie nie trafiają ([D15](decyzje.md#d15)).
+- **Aplikacja → odbiornik logów.** Gdy ustawiono `OTEL_EXPORTER_OTLP_ENDPOINT`, funkcja `register()` z `src/instrumentation.ts`, którą Next.js wywołuje przy starcie serwera, włącza wysyłkę logów i śladów protokołem OTLP przez HTTP pod `<endpoint>/v1/logs` i `<endpoint>/v1/traces`. Działa tak samo lokalnie i na produkcji. Bez endpointu na produkcji wpisy z `logger` nigdzie nie trafiają ([D15](decyzje.md#d15)).
 - **Railway.** Buduje obraz z `Dockerfile` (Next.js z `output: "standalone"` w `next.config.ts`), przed każdym wdrożeniem uruchamia `npx prisma migrate deploy`, a jako healthcheck ma ustawione `/api/healthcheck` (`railway.toml` albo ustawienia usługi, bo nowa usługa nie czyta `railway.toml`, [10-wdrozenie.md](10-wdrozenie.md#config-as-code)). Wdrożenie opisuje [10-wdrozenie.md](10-wdrozenie.md).
 - **Usługi modułów.** Moduł `uploads` zapisuje pliki według `STORAGE_PROVIDER`: domyślnie w katalogu na dysku serwera (`local`, lokalnie `volumes/uploads`), a przy `s3` w magazynie zgodnym z S3 (zmienne `S3_*`). Na Railway jest to wolumen usługi aplikacji albo Railway Bucket ([10-wdrozenie.md](10-wdrozenie.md#pliki-uploads)). Lokalnym magazynem S3 jest MinIO: usługi `minio` i `minio-init` z profilem Compose `s3` trafiają do `docker-compose.yml` przez region `wa:services` z pliku `docker/uploads.compose.yml`, a uruchamia je dopiero `docker compose --profile s3 up -d` ([15-modul-uploads.md](15-modul-uploads.md#provider)). Moduły dokładają też własne trasy API: `uploads` trasy `/api/uploads` i `/api/uploads/[id]`, a `api-keys` trasę `/api/v1/organization` dla żądań z kluczem API ([14-modul-api-keys.md](14-modul-api-keys.md)).
 

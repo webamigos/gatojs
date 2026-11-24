@@ -3,14 +3,14 @@ import type { PlanAction, PlannedFile, UpdatePlan } from "./plan.js";
 import type { KitSnapshot } from "./snapshot.js";
 
 const ACTION_ORDER: PlanAction[] = [
-  "zaktualizowano",
-  "scalono",
-  "dodano",
-  "usunięto",
-  "konflikt",
-  "do decyzji",
+  "updated",
+  "merged",
+  "added",
+  "removed",
+  "conflict",
+  "needs decision",
 ];
-const ACTION_WIDTH = "zaktualizowano".length;
+const ACTION_WIDTH = "needs decision".length;
 const SCHEMA_PREFIX = "prisma/schema/";
 
 function fileLine(file: PlannedFile): string {
@@ -19,18 +19,11 @@ function fileLine(file: PlannedFile): string {
 }
 
 function mismatchedBaseWarning(count: number, from: string): string {
-  const source = `od v${from} z tagu`;
+  const source = `from the v${from} tag`;
   if (count === 1) {
-    return `Uwaga: 1 plik różni się ${source}; potraktowano go jak zmieniony w projekcie`;
+    return `Warning: 1 file differs ${source}; treated it as changed in the project`;
   }
-  const lastDigit = count % 10;
-  const lastTwoDigits = count % 100;
-  const few =
-    lastDigit >= 2 &&
-    lastDigit <= 4 &&
-    (lastTwoDigits < 12 || lastTwoDigits > 14);
-  const files = few ? "pliki różnią się" : "plików różni się";
-  return `Uwaga: ${count} ${files} ${source}; potraktowano je jak zmienione w projekcie`;
+  return `Warning: ${count} files differ ${source}; treated them as changed in the project`;
 }
 
 export function planReport(input: {
@@ -41,8 +34,8 @@ export function planReport(input: {
 }): string[] {
   const { plan, from, to } = input;
   const header = input.dryRun
-    ? `Plan aktualizacji wa-kit ${from} → ${to} (bez zmian w projekcie)`
-    : `Aktualizacja wa-kit ${from} → ${to}`;
+    ? `Update plan for GatoJS ${from} → ${to} (project not changed)`
+    : `Updating GatoJS ${from} → ${to}`;
   const items = ACTION_ORDER.flatMap((action) =>
     plan.files
       .filter((file) => file.action === action)
@@ -55,7 +48,7 @@ export function planReport(input: {
       : [];
   return [
     header,
-    ...(items.length > 0 ? items : ["  bez zmian w plikach"]),
+    ...(items.length > 0 ? items : ["  no file changes"]),
     ...warning,
   ];
 }
@@ -89,7 +82,7 @@ export function successHints(base: KitSnapshot, target: KitSnapshot): string[] {
   const envNames = newEnvNames(base, target);
   if (envNames.length > 0) {
     hints.push(
-      `Nowe zmienne w .env.example: ${envNames.join(", ")}; uzupełnij .env`,
+      `New variables in .env.example: ${envNames.join(", ")}; add them to .env`,
     );
   }
   return hints;

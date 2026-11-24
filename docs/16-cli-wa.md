@@ -128,7 +128,7 @@ node <klon>/.wa/bin/wa.mjs create <nazwa>
 
 Bez `--kit` CLI bierze kit z katalogu, w którym leży uruchomiony bundel: dwa poziomy nad `.wa/bin/wa.mjs` (`resolve(dirname(…), "../..")` w `bin.ts`). Opcja `--kit <ścieżka>` wskazuje inny klon. `create` nie sprawdza tagu ani commita klonu: projekt dostaje to, co klon ma w drzewie roboczym ([Lokalny klon jako źródło](#lokalny-klon-zrodlo)).
 
-Bundel w projekcie nie ma obok siebie kitu, więc `npm run wa -- create …` w projekcie kończy się błędem `Uruchom create z klonu wa-kit albo podaj --kit <ścieżka>` (sprawdzone).
+Bundel w projekcie nie ma obok siebie kitu, więc `npm run wa -- create …` w projekcie kończy się błędem `<katalog projektu> is not a GatoJS checkout (no kit/kit.json)`.
 
 <a id="create-opcje"></a>
 
@@ -203,16 +203,16 @@ flowchart TD
 ```
 
 1. **Opcje, nazwa, katalog.** Najpierw parsowanie opcji, potem wzorzec slugu, potem katalog docelowy. Katalog, który istnieje i ma jakikolwiek wpis (także ukryty plik), kończy komendę błędem `Katalog <ścieżka> istnieje i nie jest pusty` (sprawdzone). Pusty istniejący katalog jest akceptowany. Żadne pytanie ani polecenie nie pada przed tymi kontrolami.
-2. **Kit.** Brak `kit/kit.json` w klonie daje `Uruchom create z klonu wa-kit albo podaj --kit <ścieżka>` (sprawdzone). Potem CLI czyta `kit/kit.json` i manifesty `kit/modules/*.json`.
+2. **Kit.** Nieistniejąca ścieżka kitu daje `--kit: <ścieżka> does not exist`, a katalog bez `kit/kit.json` daje `<ścieżka> is not a GatoJS checkout (no kit/kit.json)`. Potem CLI czyta `kit/kit.json` i manifesty `kit/modules/*.json`.
 3. **Pytania** ([wyżej](#create-pytania)).
 4. **Moduły.** Do wybranych modułów CLI dodaje moduły z ich `requires` i zawsze `core` (`resolveModules` w `packages/gato-cli/src/assemble/resolve-modules.ts`). Nieznana nazwa daje `Nieznany moduł: <nazwa>. Dostępne: <lista>`, zanim powstanie katalog (sprawdzone). W wersji `v0.1.0` moduły `audit-logs`, `api-keys` i `uploads` mają puste `requires`.
-5. **Składanie.** CLI sprawdza jeszcze raz, czy katalog jest pusty, tworzy go i kopiuje pliki wybranych modułów. Pomija pliki tylko dla kitu (`kitOnly` w `kit/kit.json`: `kit/**`, `docs/**`, `.superpowers/**`, `.claude/handoffs/**`, `.wa/kit.json`, workflowy kitu, `prisma/migrations/.gitignore`) i pliki generowane (`generatedFiles`), które odtwarza generator. Kopia ma te same bity uprawnień co plik w kicie. W plikach z `placeholderFiles` podmienia nazwy, a hash każdego pliku zapisuje w `.wa/kit.json` ([D31](decyzje.md#d31)). `package.json` dostaje slug jako `name`, wersję `0.1.0` i sumę zależności wybranych manifestów ([D30](decyzje.md#d30)). Na końcu CLI zapisuje `.wa/kit.json` i uruchamia `wa generate`.
+5. **Składanie.** CLI sprawdza jeszcze raz, czy katalog jest pusty, tworzy go i kopiuje pliki wybranych modułów. Pomija pliki tylko dla kitu (`kitOnly` w `kit/kit.json`: `kit/**`, pakiety narzędzi `packages/gato-cli/**` i `packages/create-gato-app/**`, `docs/**`, `.gato/**`, `.superpowers/**`, `.claude/handoffs/**`, `.wa/kit.json`, workflowy kitu, `prisma/migrations/.gitignore`) i pliki generowane (`generatedFiles`), które odtwarza generator. Kopia ma te same bity uprawnień co plik w kicie. W plikach z `placeholderFiles` podmienia nazwy, a hash każdego pliku zapisuje w `.wa/kit.json` ([D31](decyzje.md#d31)). `package.json` dostaje slug jako `name`, wersję `0.1.0` i sumę zależności wybranych manifestów ([D30](decyzje.md#d30)). `package-lock.json` dostaje slug i wersję `0.1.0`, a traci wpisy workspace'ów z `kitOnly` (`packages/gato-cli`, `packages/create-gato-app`, ich `node_modules` i linki `node_modules/<nazwa>`; [ADR-56](adrs/56-workspace-packages-replace-d29.md)). Na końcu CLI zapisuje `.wa/kit.json` i uruchamia `wa generate`.
 6. **`.env`.** Kopia `.env.example` z `BETTER_AUTH_SECRET` ustawionym na 32 losowe bajty w base64url (43 znaki) i z `ADMIN_EMAIL`, jeśli podano adres. Plik ma uprawnienia `0600` (sprawdzone). Zmienne modułów (`API_KEY_PEPPER`, `STORAGE_PROVIDER`, `STORAGE_LOCAL_PATH`, `S3_*`) trafiają do `.env` z wartościami przykładowymi z regionu `wa:modules` (sprawdzone; `STORAGE_PROVIDER=local` i `STORAGE_LOCAL_PATH=./volumes/uploads` na projekcie z lokalnego klonu kitu 2026-11-04).
 7. **`git init`**, gdy nie podano `--no-git`.
-8. **`npm install`**, gdy nie podano `--no-install`. Lockfile jest skopiowany z kitu, a `npm install` dopasowuje go do `package.json` projektu. Z `--no-install` `package-lock.json` ma do pierwszej instalacji `"name": "wa-app"`, `"version": "0.0.0"` i zależności kitu (sprawdzone).
-9. **Pierwszy commit** `chore: initial commit from wa-kit v<wersja>`, z `--no-verify`, czyli bez hooków husky. Nieudany commit (na przykład brak `user.name` albo `user.email`) nie przerywa komendy: CLI wypisuje `Uwaga: nie utworzono commita (<powód>). Skonfiguruj git i zrób commit ręcznie.`
-10. **Setup** (z `--setup` albo po odpowiedzi „t”): `docker compose up -d --wait`, `npx prisma migrate dev --name init` i, jeśli podano adres, `npm run admin:create -- --email <adres>`.
-11. **Kolejne kroki.** Bez setupu CLI wypisuje `cd <ścieżka>`, `docker compose up -d`, `npx prisma migrate dev --name init`, `npm run admin:create -- --email <adres albo twój-email>` i `npm run dev` (sprawdzone). Po setupie tylko `cd <ścieżka>` i `npm run dev`, także wtedy, gdy setup pominął `admin:create` z braku adresu; pierwsze konto założysz wtedy sam ([01-uruchomienie.md](01-uruchomienie.md#admin-create)).
+8. **`npm install`**, gdy nie podano `--no-install`. `npm install` dopasowuje lockfile do `package.json` projektu. Z `--no-install` `package-lock.json` ma do pierwszej instalacji zależności całego kitu.
+9. **Pierwszy commit** `chore: initial commit from wa-kit v<wersja>`, z `--no-verify`, czyli bez hooków husky, tylko po `npm install`. Z `--no-install` CLI robi samo `git init`, bo pierwsza instalacja zmieniłaby zacommitowany lockfile i `wa update` odmówiłby pracy na brudnym drzewie; commit robisz po `npm install` (kolejne kroki). Nieudany commit (na przykład brak `user.name` albo `user.email`) nie przerywa komendy: CLI wypisuje `Uwaga: nie utworzono commita (<powód>). Skonfiguruj git i zrób commit ręcznie.`
+10. **Setup** (z `--setup` albo po odpowiedzi „t”): `docker compose up -d --wait`, `npx prisma migrate dev --name init` i, jeśli podano adres, `npm run admin:create -- --email <adres>`. Nieudany krok kończy komendę błędem `Project created at <ścieżka>, but the setup failed (<powód>). Continue with:` z listą kroków do uruchomienia; projekt i pierwszy commit zostają.
+11. **Kolejne kroki.** Bez setupu CLI wypisuje `cd <ścieżka>`, `docker compose up -d`, `npx prisma migrate dev --name init`, `npm run admin:create -- --email <adres albo <your-email>>` i `npm run dev`. Z `--no-install` po `cd` dochodzi `npm install`, a z gitem także `git add -A && git commit -m "chore: initial commit"`. Po setupie tylko `cd <ścieżka>` i `npm run dev`, także wtedy, gdy setup pominął `admin:create` z braku adresu; pierwsze konto założysz wtedy sam ([01-uruchomienie.md](01-uruchomienie.md#admin-create)).
 
 <a id="create-cofanie"></a>
 
@@ -725,7 +725,7 @@ Puste i brakujące wartości (sprawdzone):
 | --- | --- |
 | `--kit=`, `--kit ""` | `Opcja --kit wymaga wartości`; pusta wartość jest błędem tylko dla `--kit` i `--from-kit` (`optionalValue`). |
 | `--kit` na końcu, `--title --yes`, `--kit -x` | `Opcja <opcja> wymaga wartości`: po opcji nie ma wartości albo stoi inna opcja lub wartość zaczynająca się od `-`. |
-| `--kit=-x` | Wartość przyjęta. W `add`, `list` i `update` potem `Nieprawidłowe źródło wa-kit: -x`; w `create` ścieżka `-x` nie ma `kit/kit.json`, więc `Uruchom create z klonu wa-kit albo podaj --kit <ścieżka>` (sprawdzone). |
+| `--kit=-x` | Wartość przyjęta. W `add`, `list` i `update` potem `Nieprawidłowe źródło wa-kit: -x`; w `create` ścieżka `-x` nie istnieje, więc `--kit: <ścieżka>/-x does not exist`. |
 | `--modules=` | Sam rdzeń. |
 | `--locales=` | `--locales: dozwolone pl,en; pl jest wymagany`. |
 | `--title=` | Pusta nazwa wyświetlana. |
@@ -768,7 +768,8 @@ Każdy komunikat z tej tabeli trafia na stderr i kończy komendę kodem 1. Komun
 | `create` | `--setup` z `--no-install` | `--setup wymaga instalacji zależności (bez --no-install)` |
 | `create` | zła nazwa katalogu | `Nazwa projektu "<slug>": dozwolone małe litery, cyfry i myślniki, pierwsza litera, 2–50 znaków` |
 | `create` | niepusty katalog | `Katalog <ścieżka> istnieje i nie jest pusty` |
-| `create` | brak `kit/kit.json` w katalogu kitu | `Uruchom create z klonu wa-kit albo podaj --kit <ścieżka>` |
+| `create` | ścieżka kitu nie istnieje | `--kit: <ścieżka> does not exist` |
+| `create` | brak `kit/kit.json` w katalogu kitu | `<ścieżka> is not a GatoJS checkout (no kit/kit.json)` |
 | `create` | pytanie bez terminala | `Brak terminala: użyj --yes` |
 | `create`, `add` | nieznany moduł | `Nieznany moduł: <nazwa>. Dostępne: <lista>` |
 | `create`, `add`, `list` | `kit/kit.json` albo manifest kitu nie przechodzi schematu | surowy błąd Zod; w `list` jako powód w linii `Dostępne: …` |

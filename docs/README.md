@@ -64,6 +64,7 @@ Kolejność to kolejność czytania dla nowej osoby. Podział na pliki z literą
 | [15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md) | `uploads` we własnym kodzie: własny cel, formularz z `<FileUpload>`, zapis `id` pliku w encji, pokazanie i usuwanie pliku, bezpieczeństwo, testy bez MinIO i z MinIO, typowe problemy (w tym komunikaty walidacji magazynu) i referencja. |
 | [16-cli-wa.md](16-cli-wa.md) | CLI `wa` w projekcie: `wa create` (one-liner z GitHuba i lokalny klon), źródło kitu, `wa add`, `wa remove`, `wa list`, `wa update` (przejście na nowszą wersję kitu, konflikty), cofanie i jego granice, moduły projektu, kody wyjścia i komunikaty. |
 | [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md) | Praca nad repozytorium kitu: pliki tylko dla kitu, manifesty, `wa kit sync`, własność plików i zależności, hashe, placeholdery, bundel CLI, bramka i mutacje CLI, CI kitu, wydanie z tagiem i dodanie nowego modułu. |
+| [17-encryption-module.md](17-encryption-module.md) | Moduł `encryption` (po angielsku): `@gatojs/crypto`, format koperty, `ENCRYPTION_MASTER_KEY`, klucze danych organizacji, `encryptForOrganization` / `decryptForOrganization`, sonda providera i zakres poza modułem (providery KMS, rotacja kluczy). |
 | [decyzje.md](decyzje.md) | Rejestr decyzji D01–D52: dlaczego kit jest zbudowany tak, a nie inaczej, co pilnuje przestrzegania każdej decyzji i które decyzje zastąpiono nowszymi. |
 | [znane-ograniczenia.md](znane-ograniczenia.md) | Znane luki kodu z ich skutkami, plikami i obejściami: dwie pozycje o wysokim priorytecie, luki CLI i modułów kitu oraz reszta pogrupowana tematycznie. |
 | README.md | Ten plik: indeks, ścieżki czytania, słownik i zakres dokumentacji. |
@@ -126,7 +127,7 @@ Jedno pojęcie oznacza w całej dokumentacji jedną rzecz. Definicje „moduł�
 | Migracja | Zapis zmiany schematu bazy w `prisma/migrations/`. Kit ich nie commituje, a projekt tak. | [03b](03b-schemat-i-migracje.md#migracje), [D13](decyzje.md#d13) |
 | Test izolacji | Test na prawdziwej bazie z dwiema organizacjami: odczyt i zapis z kontekstem jednej nie dotyka danych drugiej. | [08](08-testy.md#izolacja) |
 | `test-writer`, `test-reviewer` | Agenci procesu testów adwersarialnych: pierwszy pisze testy zadania przed kodem, drugi sprawdza ich siłę mutacjami. Tester to nie implementer. | [08b](08b-testy-adwersarialne.md#role), [D25](decyzje.md#d25) |
-| Faza `implement` | Stan zapisany w `.superpowers/phase`, w którym hook `protect-tests` blokuje edycję testów. | [08b](08b-testy-adwersarialne.md#faza) |
+| Faza `implement` | Stan zapisany w `.gato/phase`, w którym hook `protect-tests` blokuje edycję testów. | [08b](08b-testy-adwersarialne.md#faza) |
 | Mutant | Kopia kodu z jedną celową zmianą, na przykład odwróconym warunkiem. Mutant, którego żaden test nie wykrywa, wskazuje lukę w testach. | [08b](08b-testy-adwersarialne.md#wynik) |
 | Bramka mutacji | `npm run test:mutation:gate`: w plikach z listy `critical` w `mutation-gate.json` każdy niewykryty mutant musi być zabity albo mieć wpis w `allowed`. | [08b](08b-testy-adwersarialne.md#bramka), [D26](decyzje.md#d26) |
 | Handoff, ruling | Handoff to notatka przekazania pracy między sesjami. Ruling to decyzja, którą prowadzący wykonanie planu podjął sam, gdy plan czegoś nie rozstrzygał. | [decyzje.md](decyzje.md#pojęcia) |

@@ -13,7 +13,7 @@ import {
 
 export class NoOrganizationError extends Error {
   constructor() {
-    super("Użytkownik nie należy do aktywnej organizacji");
+    super("User is not a member of the active organization");
     this.name = "NoOrganizationError";
   }
 }

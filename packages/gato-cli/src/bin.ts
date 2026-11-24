@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- the CLI entry point: the console is its output */
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -77,7 +78,7 @@ async function main(argv: string[]): Promise<number> {
   const [command] = argv;
   if (command === "kit") {
     const { changed } = await kitSync(process.cwd());
-    console.log(changed ? "Zaktualizowano .wa/kit.json" : "Bez zmian");
+    console.log(changed ? "Updated .wa/kit.json" : "No changes");
     return 0;
   }
   if (command === "add") {
@@ -146,10 +147,10 @@ async function main(argv: string[]): Promise<number> {
   }
   const { changed } = await generate(process.cwd());
   if (changed.length === 0) {
-    console.log("Bez zmian");
+    console.log("No changes");
   } else {
     for (const file of changed) {
-      console.log(`zmieniono ${file}`);
+      console.log(`changed ${file}`);
     }
   }
   return 0;

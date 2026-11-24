@@ -16,6 +16,11 @@ import {
   projectPackageJson,
   withCliDependency,
 } from "../assemble/package-json.js";
+import { projectPackageLock } from "../assemble/package-lock.js";
+import {
+  generatedVariables,
+  withGeneratedSecrets,
+} from "../assemble/secrets.js";
 import { projectNames } from "../assemble/project-names.js";
 import type { ProjectNames } from "../assemble/project-names.js";
 import { moduleFiles, resolveModules } from "../assemble/resolve-modules.js";
@@ -55,7 +60,8 @@ type Answers = {
 };
 
 const DEFAULT_LOCALES = "pl,en";
-const SETUP_QUESTION = "Uruchomić bazę, migrację i admin:create teraz? [t/N]";
+const SETUP_QUESTION =
+  "Start the database, run migrations and admin:create now? [y/N]";
 
 async function isNonEmptyDirectory(dir: string): Promise<boolean> {
   if (!existsSync(dir)) {
@@ -87,21 +93,21 @@ async function collectAnswers(
   let modules = options.modules ?? [];
   const choices = moduleChoices(manifests);
   if (options.modules === null && !yes && choices.length > 0) {
-    modules = await prompter.select("Moduły", choices);
+    modules = await prompter.select("Modules", choices);
   }
   let locales = options.locales ?? parseLocales(DEFAULT_LOCALES);
   if (options.locales === null && !yes) {
     locales = parseLocales(
-      (await prompter.select("Języki", LOCALE_CHOICES)).join(","),
+      (await prompter.select("Languages", LOCALE_CHOICES)).join(","),
     );
   }
   let title = options.title;
   if (title === null && !yes) {
-    title = await prompter.ask("Nazwa wyświetlana", names.name);
+    title = await prompter.ask("Display name", names.name);
   }
   let adminEmail = options.adminEmail;
   if (adminEmail === null && !yes) {
-    const answer = await prompter.ask("Email admina (puste = pomiń)", "");
+    const answer = await prompter.ask("Admin email (empty = skip)", "");
     adminEmail = answer === "" ? null : answer;
   }
   let setup = options.setup;
@@ -161,6 +167,14 @@ async function assemble(input: {
       options.cliDependency ?? null,
     ),
   );
+  const packageLockPath = join(projectDir, "package-lock.json");
+  await writeFile(
+    packageLockPath,
+    projectPackageLock(await readFile(packageLockPath, "utf8"), {
+      kitOnly: config.kitOnly,
+      names,
+    }),
+  );
   await writeKitState(projectDir, {
     kitVersion: config.version,
     kitRepo: config.repo,
@@ -175,12 +189,13 @@ async function assemble(input: {
 async function writeEnvFile(
   projectDir: string,
   adminEmail: string | null,
+  manifests: ModuleManifest[],
 ): Promise<void> {
   const example = await readFile(join(projectDir, ".env.example"), "utf8");
-  const secret = randomBytes(32).toString("base64url");
-  let env = example.replace(
-    /^BETTER_AUTH_SECRET=.*/m,
-    () => `BETTER_AUTH_SECRET=${secret}`,
+  let env = withGeneratedSecrets(
+    example,
+    generatedVariables(manifests),
+    randomBytes,
   );
   if (adminEmail !== null) {
     env = env.replace(/^ADMIN_EMAIL=.*/m, () => `ADMIN_EMAIL=${adminEmail}`);
@@ -205,14 +220,14 @@ async function commitInitial(
         "-q",
         "--no-verify",
         "-m",
-        `chore: initial commit from wa-kit v${version}`,
+        `chore: initial commit from GatoJS v${version}`,
       ],
       projectDir,
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log(
-      `Uwaga: nie utworzono commita (${message}). Skonfiguruj git i zrób commit ręcznie.`,
+      `Warning: no commit created (${message}). Configure git and commit by hand.`,
     );
   }
 }
@@ -238,19 +253,44 @@ async function runSetup(
   }
 }
 
-function logNextSteps(
-  log: (line: string) => void,
-  projectDir: string,
-  setup: boolean,
-  adminEmail: string | null,
-): void {
-  log(`cd ${projectDir}`);
-  if (!setup) {
-    log("docker compose up -d");
-    log("npx prisma migrate dev --name init");
-    log(`npm run admin:create -- --email ${adminEmail ?? "twój-email"}`);
+const ADMIN_EMAIL_PLACEHOLDER = "<your-email>";
+
+function setupSteps(adminEmail: string | null): string[] {
+  return [
+    "docker compose up -d",
+    "npx prisma migrate dev --name init",
+    `npm run admin:create -- --email ${adminEmail ?? ADMIN_EMAIL_PLACEHOLDER}`,
+  ];
+}
+
+function nextSteps(input: {
+  projectDir: string;
+  install: boolean;
+  git: boolean;
+  setupDone: boolean;
+  adminEmail: string | null;
+}): string[] {
+  const steps = [`cd ${input.projectDir}`];
+  if (!input.install) {
+    steps.push("npm install");
+    if (input.git) {
+      steps.push('git add -A && git commit -m "chore: initial commit"');
+    }
   }
-  log("npm run dev");
+  if (!input.setupDone) {
+    steps.push(...setupSteps(input.adminEmail));
+  }
+  steps.push("npm run dev");
+  return steps;
+}
+
+function assertKitDir(kitDir: string): void {
+  if (!existsSync(kitDir)) {
+    throw new Error(`--kit: ${kitDir} does not exist`);
+  }
+  if (!existsSync(join(kitDir, "kit/kit.json"))) {
+    throw new Error(`${kitDir} is not a GatoJS checkout (no kit/kit.json)`);
+  }
 }
 
 export async function create(
@@ -263,11 +303,9 @@ export async function create(
   const names = projectNames(projectDir, options.title);
   const existed = existsSync(projectDir);
   if (await isNonEmptyDirectory(projectDir)) {
-    throw new Error(`Katalog ${projectDir} istnieje i nie jest pusty`);
+    throw new Error(`Directory ${projectDir} exists and is not empty`);
   }
-  if (!existsSync(join(options.kitDir, "kit/kit.json"))) {
-    throw new Error("Uruchom create z klonu wa-kit albo podaj --kit <ścieżka>");
-  }
+  assertKitDir(options.kitDir);
   const config = await readKitConfig(options.kitDir);
   const available = await readKitManifests(options.kitDir);
   const answers = await collectAnswers(options, available, names);
@@ -276,7 +314,7 @@ export async function create(
   const finalNames = projectNames(projectDir, answers.title);
 
   if (await isNonEmptyDirectory(projectDir)) {
-    throw new Error(`Katalog ${projectDir} istnieje i nie jest pusty`);
+    throw new Error(`Directory ${projectDir} exists and is not empty`);
   }
   await mkdir(projectDir, { recursive: true });
   try {
@@ -292,7 +330,7 @@ export async function create(
     await discardAssembly(projectDir, existed).catch(() => undefined);
     throw error;
   }
-  await writeEnvFile(projectDir, answers.adminEmail);
+  await writeEnvFile(projectDir, answers.adminEmail, resolved);
 
   if (options.git) {
     await options.runner("git", ["init", "-q"], projectDir);
@@ -302,16 +340,37 @@ export async function create(
       await options.runner("npm", ["install"], projectDir);
     } catch {
       throw new Error(
-        `Projekt utworzony w ${projectDir}, ale npm install się nie powiódł. Uruchom: cd ${projectDir} && npm install`,
+        `Project created at ${projectDir}, but npm install failed. Run: cd ${projectDir} && npm install`,
       );
     }
   }
-  if (options.git) {
+  if (options.git && options.install) {
     await commitInitial(options, projectDir, config.version);
   }
   if (runSetupSteps) {
-    await runSetup(options, projectDir, answers.adminEmail);
+    try {
+      await runSetup(options, projectDir, answers.adminEmail);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const steps = [
+        `cd ${projectDir}`,
+        ...setupSteps(answers.adminEmail),
+        "npm run dev",
+      ];
+      throw new Error(
+        `Project created at ${projectDir}, but the setup failed (${message}). Continue with:\n${steps.join("\n")}`,
+        { cause: error },
+      );
+    }
   }
-  logNextSteps(options.log, projectDir, runSetupSteps, answers.adminEmail);
+  for (const step of nextSteps({
+    projectDir,
+    install: options.install,
+    git: options.git,
+    setupDone: runSetupSteps,
+    adminEmail: answers.adminEmail,
+  })) {
+    options.log(step);
+  }
   return { projectDir, modules: resolved.map((manifest) => manifest.name) };
 }

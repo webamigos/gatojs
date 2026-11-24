@@ -63,6 +63,7 @@ Repozytorium kitu to działająca aplikacja referencyjna: rdzeń i wszystkie mod
   "kitOnly": [
     "kit/**",
     "docs/**",
+    ".gato/**",
     ".superpowers/**",
     ".claude/handoffs/**",
     ".wa/kit.json",
@@ -82,7 +83,7 @@ Repozytorium kitu to działająca aplikacja referencyjna: rdzeń i wszystkie mod
 | `.github/workflows/kit.yml`, `.github/workflows/kit-mutation.yml` | Bramka CLI, składanie projektów z kitu i ręczny przebieg mutacji CLI ([CI kitu](#ci-kitu)). |
 | `prisma/migrations/.gitignore` | Ignoruje migracje: kit ich nie commituje, projekt commituje własne ([D13](decyzje.md#d13)). |
 | `docs/` | Ta dokumentacja. |
-| `.superpowers/**`, `.claude/handoffs/**` | Notatki procesu pracy nad kitem. |
+| `.gato/**`, `.superpowers/**`, `.claude/handoffs/**` | Plik fazy hooka `protect-tests` i notatki procesu pracy nad kitem. |
 
 Narzędzia aplikacji pomijają `kit/`: ESLint (`kit/**` w `globalIgnores` w `eslint.config.mjs`), Vitest (`exclude` w `vitest.config.ts`), TypeScript (`exclude` w `tsconfig.json`) i obraz Dockera (`kit` i `docs` w `.dockerignore`). Raporty i katalog roboczy Strykera CLI wyklucza z repozytorium `.gitignore`:
 
@@ -342,7 +343,7 @@ CLI to workspace `packages/gato-cli` z własnym `package.json`; jego zależnośc
 | Komenda | Co robi |
 | --- | --- |
 | `npm run verify --prefix packages/gato-cli` | Bramka CLI: lint → typecheck → testy → build bundla (skrypt `verify` w `packages/gato-cli/package.json`). |
-| `npm run lint --prefix packages/gato-cli` | ESLint z `packages/gato-cli/eslint.config.mjs`: zalecane reguły JS i `typescript-eslint` oraz `curly` (wyłączone w `__tests__/`) i `no-nested-ternary`; pomija `src/__tests__/fixtures/**`, `reports/**` i `.stryker-tmp/**`. |
+| `npm run lint --prefix packages/gato-cli` | ESLint z `packages/gato-cli/eslint.config.mjs`: wspólna konfiguracja `@gatojs/eslint-config/node` (zalecane reguły JS i `typescript-eslint`, `curly`, `eqeqeq`, `no-nested-ternary`, `no-console` poza testami, `consistent-type-imports`, reguła nazwy klasy błędu) z `curly` wyłączonym w `__tests__/`; pomija `src/__tests__/fixtures/**` i wspólną listę ignorowanych ścieżek (`reports/**`, `.stryker-tmp/**`, `dist/**`). |
 | `npm run typecheck --prefix packages/gato-cli` | `tsc --noEmit` z `packages/gato-cli/tsconfig.json` (bez fikstur). |
 | `npm test --prefix packages/gato-cli` | Vitest w środowisku `node`, pliki `src/**/*.test.ts` (`packages/gato-cli/vitest.config.ts`), plik ustawień `packages/gato-cli/vitest.setup.ts` ze stałym seedem testów właściwości w procesach Strykera ([08b](08b-testy-adwersarialne.md#seed)). Testy kopiują fikstury do katalogu tymczasowego ([08](08-testy.md#cli-hooki)); wyjątkiem jest test własności na repozytorium kitu. |
 | `npm run build --prefix packages/gato-cli` | Typecheck i bundel ([wyżej](#bundel)). |
