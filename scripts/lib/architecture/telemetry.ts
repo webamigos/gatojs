@@ -54,7 +54,7 @@ export function dockerfileStageEnv(
 ): string[] {
   const env: string[] = [];
   let inStage = false;
-  for (const line of dockerfile.split("\n")) {
+  for (const line of dockerfile.split(/\r?\n/)) {
     if (ANY_FROM.test(line)) {
       inStage = STAGE_START.exec(line)?.[1] === stage;
       continue;

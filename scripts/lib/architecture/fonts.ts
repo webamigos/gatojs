@@ -5,15 +5,14 @@ import { listFiles, readRepoFile, unique } from "./repo-files";
 
 const REMOTE_FONT_MODULE = "next/font/google";
 const LOCAL_FONT_MODULE = "next/font/local";
-const FONT_LOADER_PREFIX = "next/font/";
 const FONTS_DIRECTORY = "src/app/fonts";
 const SOURCE_FILE = /\.tsx?$/;
 const PACKAGE_SOURCE_FILE = /^packages\/[^/]+\/src\/.+\.tsx?$/;
 const FONT_FILE =
   /^(.+?)-(?:latin-ext|latin|cyrillic-ext|cyrillic|greek-ext|greek|vietnamese)-.+\.woff2$/;
 
-function parse(source: string): ts.SourceFile {
-  return ts.createSourceFile("module.tsx", source, ts.ScriptTarget.Latest);
+function parse(source: string, fileName = "module.tsx"): ts.SourceFile {
+  return ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest);
 }
 
 function isRemoteFontModule(specifier: string): boolean {
@@ -62,23 +61,29 @@ function moduleSpecifiers(sourceFile: ts.SourceFile): string[] {
   return specifiers;
 }
 
+function remoteFontImports(sourceFile: ts.SourceFile): string[] {
+  return moduleSpecifiers(sourceFile).filter(isRemoteFontModule);
+}
+
 export function findRemoteFontImports(source: string): string[] {
-  return moduleSpecifiers(parse(source)).filter(isRemoteFontModule);
+  return remoteFontImports(parse(source));
 }
 
 interface RepoSource {
   file: string;
-  source: string;
+  sourceFile: ts.SourceFile;
 }
 
-function fontLoaderSources(root: string): RepoSource[] {
+function repoSources(root: string): RepoSource[] {
   return [
     ...listFiles(root, "src", (file) => SOURCE_FILE.test(file)),
     ...listFiles(root, "packages", (file) => PACKAGE_SOURCE_FILE.test(file)),
   ]
     .sort()
-    .map((file) => ({ file, source: readRepoFile(root, file) }))
-    .filter(({ source }) => source.includes(FONT_LOADER_PREFIX));
+    .map((file) => ({
+      file,
+      sourceFile: parse(readRepoFile(root, file), path.posix.basename(file)),
+    }));
 }
 
 function localFontLoaderNames(sourceFile: ts.SourceFile): Set<string> {
@@ -128,8 +133,7 @@ function fontSourcePaths(source: ts.Expression | undefined): string[] {
   );
 }
 
-function localFontSources(source: string): string[] {
-  const sourceFile = parse(source);
+function localFontSources(sourceFile: ts.SourceFile): string[] {
   const loaders = localFontLoaderNames(sourceFile);
   const sources: string[] = [];
   if (loaders.size === 0) {
@@ -153,21 +157,21 @@ function localFontSources(source: string): string[] {
 }
 
 function missingFontFiles(root: string, sources: RepoSource[]): string[] {
-  return sources.flatMap(({ file, source }) => {
+  return sources.flatMap(({ file, sourceFile }) => {
     const directory = path.dirname(path.join(root, file));
-    return localFontSources(source)
+    return localFontSources(sourceFile)
       .filter((src) => !fs.existsSync(path.resolve(directory, src)))
       .map((src) => `${file}: ${src} does not exist`);
   });
 }
 
 export function findMissingLocalFontFiles(root: string): string[] {
-  return missingFontFiles(root, fontLoaderSources(root));
+  return missingFontFiles(root, repoSources(root));
 }
 
 function remoteFontFiles(sources: RepoSource[]): string[] {
   return sources
-    .filter(({ source }) => findRemoteFontImports(source).length > 0)
+    .filter(({ sourceFile }) => remoteFontImports(sourceFile).length > 0)
     .map(({ file }) => `${file}: imports ${REMOTE_FONT_MODULE}`);
 }
 
@@ -193,7 +197,7 @@ function findMissingLicenses(root: string): string[] {
 }
 
 export function checkFonts(root: string): string[] {
-  const sources = fontLoaderSources(root);
+  const sources = repoSources(root);
   return [
     ...remoteFontFiles(sources),
     ...missingFontFiles(root, sources),
