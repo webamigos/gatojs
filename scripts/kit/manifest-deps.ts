@@ -116,7 +116,12 @@ function topLevelKeyEnd(text: string, key: string): number {
     const char = text[index];
     if (char === '"') {
       const end = stringEnd(text, index);
-      if (depth === 1 && JSON.parse(text.slice(index, end + 1)) === key) {
+      const isKey = /^\s*:/.test(text.slice(end + 1));
+      if (
+        depth === 1 &&
+        isKey &&
+        JSON.parse(text.slice(index, end + 1)) === key
+      ) {
         return end + 1;
       }
       index = end + 1;
@@ -143,8 +148,11 @@ function closingBrace(text: string, open: number): number {
 function replaceVersion(text: string, from: string, to: string): string {
   const keyEnd = topLevelKeyEnd(text, "version");
   const pattern = new RegExp(`^(\\s*:\\s*)"${escapeRegExp(from)}"`);
-  const rest = text.slice(keyEnd).replace(pattern, `$1"${to}"`);
-  return text.slice(0, keyEnd) + rest;
+  const rest = text.slice(keyEnd);
+  if (!pattern.test(rest)) {
+    throw new Error(`Cannot find "version": "${from}" to bump`);
+  }
+  return text.slice(0, keyEnd) + rest.replace(pattern, `$1"${to}"`);
 }
 
 function replacePin(

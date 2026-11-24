@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- a command-line script: the console is its output */
 import { spawn } from "node:child_process";
 import { formatReport, parseSyncArgs } from "./manifest-deps";
 import { runManifestSync } from "./run-manifest-sync";
