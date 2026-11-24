@@ -47,3 +47,15 @@ export function envValueError(label: string, value: string): string | null {
   }
   return null;
 }
+
+export const PORT_ERROR = "expected a port 1-65535";
+const MAX_PORT = 65535;
+const DIGITS = /^\d+$/;
+
+export function parsePort(value: string): number | null {
+  if (!DIGITS.test(value)) {
+    return null;
+  }
+  const port = Number(value);
+  return port >= 1 && port <= MAX_PORT ? port : null;
+}

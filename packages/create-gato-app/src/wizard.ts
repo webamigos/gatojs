@@ -94,6 +94,7 @@ async function writeWizardEnv(
       slug: basename(context.projectDir),
       suffix: randomSuffix(context.deps.randomBytes(SUFFIX_LENGTH)),
       storage: answers.storage,
+      mail: answers.mail,
     }),
   );
   await writeFile(envPath, text, { mode: 0o600 });

@@ -1,6 +1,6 @@
 {
   "name": "create-gato-app",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Create a GatoJS project (Next.js kit) with one command",
   "license": "Apache-2.0",
   "type": "module",
