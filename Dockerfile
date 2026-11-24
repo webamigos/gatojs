@@ -20,6 +20,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+ENV CHECKPOINT_DISABLE=1
 RUN npx prisma generate
 RUN mkdir -p public
 
@@ -31,6 +32,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV CHECKPOINT_DISABLE=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
