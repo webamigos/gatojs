@@ -4,7 +4,9 @@ import { dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-export const PHASE_FILE = join(".superpowers", "phase");
+export const PHASE_FILE = join(".gato", "phase");
+export const LEGACY_PHASE_FILE = join(".superpowers", "phase");
+export const PHASE_FILES = [PHASE_FILE, LEGACY_PHASE_FILE];
 export const IMPLEMENT_PHASE = "implement";
 
 const TEST_PATH = /(^|\/)(__tests__|e2e)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
@@ -13,8 +15,8 @@ export function isTestPath(path) {
   return TEST_PATH.test(path.replaceAll("\\", "/"));
 }
 
-export function readPhase(projectDir) {
-  const file = join(projectDir, PHASE_FILE);
+export function readPhase(projectDir, phaseFile = PHASE_FILE) {
+  const file = join(projectDir, phaseFile);
   return existsSync(file) ? readFileSync(file, "utf8").trim() : null;
 }
 
@@ -35,19 +37,31 @@ function findUp(path, matches) {
 
 function workingCopyOf(path) {
   const existingDir = findUp(dirname(resolve(path)), existsSync);
-  return existingDir && findUp(realpathSync(existingDir), (dir) => existsSync(join(dir, ".git")));
+  return (
+    existingDir &&
+    findUp(realpathSync(existingDir), (dir) => existsSync(join(dir, ".git")))
+  );
 }
 
-const isEntrypoint = process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+const isEntrypoint =
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
 
 if (isEntrypoint) {
   const input = JSON.parse(readFileSync(0, "utf8"));
-  const sessionDir = process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? process.cwd();
-  const phaseDirs = [workingCopyOf(input.tool_input?.file_path ?? "") ?? sessionDir, sessionDir];
-  if (phaseDirs.some((dir) => isBlocked(input, readPhase(dir)))) {
+  const sessionDir =
+    process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? process.cwd();
+  const phaseDirs = [
+    workingCopyOf(input.tool_input?.file_path ?? "") ?? sessionDir,
+    sessionDir,
+  ];
+  const lockingPhaseFile = PHASE_FILES.find((phaseFile) =>
+    phaseDirs.some((dir) => isBlocked(input, readPhase(dir, phaseFile))),
+  );
+  if (lockingPhaseFile) {
     process.stderr.write(
       [
-        `Blocked: implementation phase (${PHASE_FILE} = ${IMPLEMENT_PHASE}), tests are read-only.`,
+        `Blocked: implementation phase (${lockingPhaseFile} = ${IMPLEMENT_PHASE}), tests are read-only.`,
         "If a test is wrong or contradicts the spec, stop and report it instead of changing it.",
       ].join("\n") + "\n",
     );
