@@ -292,3 +292,86 @@ jobs:
           '
           npm run wa -- generate
           npm test
+
+  # The S3 presets in docs/15-modul-uploads.md marked "verified in CI" run here.
+  storage-presets:
+    name: Storage preset (${{ matrix.store.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        store:
+          - name: minio
+            image: cgr.dev/chainguard/minio:latest@sha256:3b6e40c30ecd5cea627e382ff0b82ca841f58c52294578787043ee80c8ef7c82
+            args: server /data
+            access-key: minioadmin
+            secret-key: minioadmin
+            env: -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin
+            health: /minio/health/live
+          - name: rustfs
+            image: rustfs/rustfs:1.0.6@sha256:ee717072290bec9b11abfc0365f8310b00df1cd9b3639943edae47bdef05044a
+            args: ""
+            access-key: gato-rustfs
+            secret-key: gato-rustfs-secret
+            env: -e RUSTFS_ACCESS_KEY=gato-rustfs -e RUSTFS_SECRET_KEY=gato-rustfs-secret
+            health: /health/ready
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wa_app_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      STORE_IMAGE: ${{ matrix.store.image }}
+      STORE_ARGS: ${{ matrix.store.args }}
+      STORE_ENV: ${{ matrix.store.env }}
+      STORE_HEALTH: ${{ matrix.store.health }}
+      INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wa_app_test
+      INTEGRATION_S3_ENDPOINT: http://localhost:9000
+      INTEGRATION_S3_BUCKET: preset-uploads
+      INTEGRATION_S3_ACCESS_KEY_ID: ${{ matrix.store.access-key }}
+      INTEGRATION_S3_SECRET_ACCESS_KEY: ${{ matrix.store.secret-key }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start the store
+        run: |
+          # shellcheck disable=SC2086
+          docker run -d --name store -p 9000:9000 $STORE_ENV "$STORE_IMAGE" $STORE_ARGS
+          for _ in $(seq 1 30); do
+            curl -fs "http://localhost:9000$STORE_HEALTH" && exit 0
+            sleep 2
+          done
+          docker logs store
+          echo "The store did not become healthy" >&2
+          exit 1
+
+      - name: Create the bucket
+        run: |
+          docker run --rm --network host \
+            -e AWS_ACCESS_KEY_ID="$INTEGRATION_S3_ACCESS_KEY_ID" \
+            -e AWS_SECRET_ACCESS_KEY="$INTEGRATION_S3_SECRET_ACCESS_KEY" \
+            -e AWS_DEFAULT_REGION=us-east-1 \
+            amazon/aws-cli:2.39.2 --endpoint-url http://localhost:9000 s3 mb "s3://$INTEGRATION_S3_BUCKET"
+
+      - name: Storage integration test
+        run: npx vitest run --config vitest.integration.config.ts src/features/uploads/services/__tests__/storage.integration.test.ts
