@@ -5,9 +5,10 @@ set -euo pipefail
 # projects from a local GatoJS checkout with the packed gato-cli. Never touches the npm registry
 # for these two packages.
 # Usage: scripts/smoke-pack.sh <gatojs-checkout> [extra create-gato-app flags]
-# Without SMOKE_INSTALL it checks generated secrets, COMPOSE_PROJECT_NAME and storage answers in .env.
+# Without SMOKE_INSTALL it checks generated secrets, COMPOSE_PROJECT_NAME, storage and mail answers in .env.
 # SMOKE_INSTALL=1 lets the wizard install one project with --skip-docker (one clean commit), checks the
-# projects' gato-cli, and runs the wizard against a busy DB_PORT (exit 1, port report, no containers).
+# projects' gato-cli, checks the .env of the default and the --mail-provider console projects with
+# checkEnv, and runs the wizard against a busy DB_PORT (exit 1, port report, no containers).
 
 kit_dir=$(cd "${1:?usage: smoke-pack.sh <gatojs-checkout>}" && pwd)
 shift
@@ -114,6 +115,37 @@ assert_env "$secrets_app" STORAGE_PROVIDER '^s3$'
 assert_env "$secrets_app" S3_ENDPOINT '^https://s3\.example\.com$'
 assert_env "$secrets_app" S3_ACCESS_KEY_ID '^SMOKEKEY$'
 assert_env "$secrets_app" S3_SECRET_ACCESS_KEY '^smoke/secret\+1$'
+assert_env "$app" SMTP_URL '^smtp://localhost:1025$'
+assert_env "$app" MAIL_PROVIDER '^$'
+
+mail_app="$work_dir/mail-app"
+"$creator" "$mail_app" --kit "$kit_dir" --yes --skip-install --no-git --cli-source "$gato_tarball" \
+  --mail-provider console "$@" >/dev/null
+assert_env "$mail_app" MAIL_PROVIDER '^console$'
+assert_env "$mail_app" SMTP_URL '^$'
+[ "$(grep -c '^SMTP_URL=' "$mail_app/.env")" = "1" ] || fail "$mail_app/.env has more than one SMTP_URL line"
+
+# Checks a project's .env with checkEnv from @gatojs/env and the env schemas of the project's modules.
+check_project_env() {
+  cat >"$1/smoke-check-env.mts" <<'EOF'
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { parse } from "dotenv";
+import { checkEnv, formatEnvReport } from "@gatojs/env";
+
+const features = readdirSync("src/features").filter((name) => existsSync(`src/features/${name}/env.ts`));
+const schemas = await Promise.all(
+  features.map(async (name) => (await import(`./src/features/${name}/env.ts`)).envSchema),
+);
+const result = checkEnv({ ...parse(readFileSync(".env", "utf8")), NODE_ENV: "development" }, schemas);
+if (!result.ok) {
+  console.error(formatEnvReport(result.issues));
+  process.exit(1);
+}
+EOF
+  (cd "$1" && npx --no-install tsx smoke-check-env.mts) || fail "$1/.env does not pass checkEnv"
+  rm "$1/smoke-check-env.mts"
+}
+
 [ "$(dependency_of "$app")" = "file:$gato_tarball" ] ||
   fail "the project does not use the packed gato-cli: $(dependency_of "$app")"
 for kit_only in kit packages/gato-cli packages/create-gato-app; do
@@ -141,6 +173,11 @@ if [ "${SMOKE_INSTALL:-0}" = "1" ]; then
   (cd "$registry_app" && npm install --no-save --no-audit --no-fund --ignore-scripts --silent "$gato_tarball")
   [ "$(cd "$registry_app" && npx --no-install gato --version)" = "$gato_version" ] ||
     fail "the gato of a project created without --cli-source is not $gato_version"
+  check_project_env "$app"
+  # WHY: mail-app has the same modules as the installed app, so it borrows its node_modules
+  # instead of a second npm install.
+  ln -s "$app/node_modules" "$mail_app/node_modules"
+  check_project_env "$mail_app"
 fi
 
 if [ "${SMOKE_INSTALL:-0}" = "1" ]; then

@@ -1,10 +1,18 @@
 import { parseArgs } from "node:util";
 import { isHttpUrl, LOCAL_MINIO_ENDPOINT } from "./questions.js";
-import { adminEmailError, envValueError, titleError } from "./validate.js";
+import {
+  adminEmailError,
+  envValueError,
+  parsePort,
+  PORT_ERROR,
+  titleError,
+} from "./validate.js";
 
 export type Locale = "pl" | "en";
 
 export type StorageProvider = "local" | "s3";
+
+export type MailProvider = "smtp" | "resend" | "console";
 
 export type CreateCliArgs = {
   kind: "create";
@@ -25,6 +33,12 @@ export type CreateCliArgs = {
   s3Endpoint: string | null;
   s3AccessKeyId: string | null;
   s3SecretAccessKey: string | null;
+  mailProvider: MailProvider | null;
+  smtpHost: string | null;
+  smtpPort: number | null;
+  smtpUser: string | null;
+  smtpPass: string | null;
+  resendApiKey: string | null;
 };
 
 export type CliArgs = { kind: "help" } | { kind: "version" } | CreateCliArgs;
@@ -44,6 +58,13 @@ export const USAGE = [
   "  --s3-endpoint <url>          S3 endpoint (default http://localhost:9000, local MinIO)",
   "  --s3-access-key-id <id>      S3 access key id",
   "  --s3-secret-access-key <key> S3 secret access key",
+  "  --mail-provider <smtp|resend|console>",
+  "                               how the app sends mail (default smtp: local mailpit)",
+  "  --smtp-host <host>           SMTP relay host (default 127.0.0.1, local mailpit)",
+  "  --smtp-port <port>           SMTP relay port (default 587)",
+  "  --smtp-user <user>           SMTP user (none = no authentication)",
+  "  --smtp-pass <pass>           SMTP password",
+  "  --resend-api-key <key>       Resend API key",
   "",
   "Steps:",
   "  --yes                        accept defaults, ask nothing",
@@ -78,6 +99,13 @@ const S3_FLAGS = [
   "s3-access-key-id",
   "s3-secret-access-key",
 ] as const;
+const SMTP_FLAGS = [
+  "smtp-host",
+  "smtp-port",
+  "smtp-user",
+  "smtp-pass",
+] as const;
+const MAIL_PROVIDERS: readonly string[] = ["smtp", "resend", "console"];
 
 const OPTIONS = {
   help: { type: "boolean", short: "h" },
@@ -90,6 +118,12 @@ const OPTIONS = {
   "s3-endpoint": { type: "string" },
   "s3-access-key-id": { type: "string" },
   "s3-secret-access-key": { type: "string" },
+  "mail-provider": { type: "string" },
+  "smtp-host": { type: "string" },
+  "smtp-port": { type: "string" },
+  "smtp-user": { type: "string" },
+  "smtp-pass": { type: "string" },
+  "resend-api-key": { type: "string" },
   yes: { type: "boolean" },
   setup: { type: "boolean" },
   "skip-docker": { type: "boolean" },
@@ -237,6 +271,80 @@ function parseStorage(
   };
 }
 
+function isMailProvider(value: string): value is MailProvider {
+  return MAIL_PROVIDERS.includes(value);
+}
+
+function envValue(
+  values: Values,
+  flag: (typeof SMTP_FLAGS)[number] | "resend-api-key",
+  label: string,
+): string | null {
+  return checked(values[flag], `--${flag}`, (value) =>
+    envValueError(label, value),
+  );
+}
+
+function parseSmtpPort(value: string | undefined): number | null {
+  if (value === undefined) {
+    return null;
+  }
+  const port = parsePort(value);
+  if (port === null) {
+    throw new Error(`--smtp-port: ${PORT_ERROR}`);
+  }
+  return port;
+}
+
+function parseMail(
+  values: Values,
+): Pick<
+  CreateCliArgs,
+  | "mailProvider"
+  | "smtpHost"
+  | "smtpPort"
+  | "smtpUser"
+  | "smtpPass"
+  | "resendApiKey"
+> {
+  const provider = values["mail-provider"];
+  if (provider !== undefined && !isMailProvider(provider)) {
+    throw new Error("--mail-provider: use smtp, resend or console");
+  }
+  for (const flag of SMTP_FLAGS) {
+    if (values[flag] !== undefined && provider !== "smtp") {
+      throw new Error(`--${flag} needs --mail-provider smtp`);
+    }
+  }
+  if (values["resend-api-key"] !== undefined && provider !== "resend") {
+    throw new Error("--resend-api-key needs --mail-provider resend");
+  }
+  return {
+    mailProvider: provider ?? null,
+    smtpHost: envValue(values, "smtp-host", "SMTP host"),
+    smtpPort: parseSmtpPort(values["smtp-port"]),
+    smtpUser: envValue(values, "smtp-user", "SMTP user"),
+    smtpPass: envValue(values, "smtp-pass", "SMTP password"),
+    resendApiKey: envValue(values, "resend-api-key", "Resend API key"),
+  };
+}
+
+function assertMailCredentials(args: CreateCliArgs): void {
+  if (!args.yes) {
+    return;
+  }
+  if (args.mailProvider === "resend" && args.resendApiKey === null) {
+    throw new Error(
+      "--mail-provider resend needs --resend-api-key (or drop --yes to be asked)",
+    );
+  }
+  if (args.smtpUser !== null && args.smtpPass === null) {
+    throw new Error(
+      "--smtp-user needs --smtp-pass (or drop --yes to be asked)",
+    );
+  }
+}
+
 function assertExternalS3Keys(args: CreateCliArgs): void {
   const external =
     args.s3Endpoint !== null && args.s3Endpoint !== LOCAL_MINIO_ENDPOINT;
@@ -307,7 +415,9 @@ export function parseCliArgs(argv: string[]): CliArgs {
     git: !values["no-git"],
     cliSource: nonEmpty(values["cli-source"], "--cli-source"),
     ...parseStorage(values),
+    ...parseMail(values),
   };
   assertExternalS3Keys(args);
+  assertMailCredentials(args);
   return args;
 }
