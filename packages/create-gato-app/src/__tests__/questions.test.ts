@@ -5,18 +5,26 @@ import {
   CancelledError,
   collectAnswers,
   displayName,
+  LOCAL_MAILPIT_HOST,
   LOCAL_MINIO_ENDPOINT,
   LOCAL_MINIO_KEY,
 } from "../questions.js";
-import { scriptedPrompter, silentPrompter, type PromptCall, type ScriptedAnswer } from "./fake-prompter.js";
+import {
+  scriptedPrompter,
+  silentPrompter,
+  type PromptCall,
+  type ScriptedAnswer,
+} from "./fake-prompter.js";
 
 const M_MODULES = "Modules (space to toggle, enter to confirm)";
 const M_ENGLISH = "Add English? Polish is always included.";
 const M_TITLE = "Display name";
 const M_EMAIL = "First admin's email (empty to skip)";
 const M_STORAGE = "File storage for uploads";
-const M_ENDPOINT = "S3 endpoint (http://localhost:9000 = local MinIO started with Docker)";
-const M_SETUP = "Start the database with Docker, run migrations and create the admin now?";
+const M_ENDPOINT =
+  "S3 endpoint (http://localhost:9000 = local MinIO started with Docker)";
+const M_SETUP =
+  "Start the database with Docker, run migrations and create the admin now?";
 
 const TITLE_MESSAGE =
   "Title: use 1-60 characters without quotes, backslashes, <, >, $, backticks or control characters";
@@ -48,6 +56,12 @@ const BASE: CreateCliArgs = {
   s3Endpoint: null,
   s3AccessKeyId: null,
   s3SecretAccessKey: null,
+  mailProvider: null,
+  smtpHost: null,
+  smtpPort: null,
+  smtpUser: null,
+  smtpPass: null,
+  resendApiKey: null,
 };
 
 function args(overrides: Partial<CreateCliArgs>): CreateCliArgs {
@@ -58,7 +72,12 @@ function ask(overrides: Partial<CreateCliArgs>, script: ScriptedAnswer[]) {
   const { prompter, calls } = scriptedPrompter(script);
   return {
     calls,
-    answers: collectAnswers({ args: args(overrides), slug: "acme-shop", modules: MODULES, prompter }),
+    answers: collectAnswers({
+      args: args(overrides),
+      slug: "acme-shop",
+      modules: MODULES,
+      prompter,
+    }),
   };
 }
 
@@ -74,11 +93,16 @@ function callFor(calls: PromptCall[], message: string): PromptCall {
 
 function validatorOf(call: PromptCall): (value: string) => string | undefined {
   const validate = call.input.validate;
-  if (!validate) throw new Error(`prompt "${call.input.message}" has no validate`);
+  if (!validate)
+    throw new Error(`prompt "${call.input.message}" has no validate`);
   return validate;
 }
 
 const TAKE_DEFAULT = (input: { defaultValue?: string }) => input.defaultValue;
+
+const M_MAIL: string = expect.any(String);
+const MAIL_CONSOLE: ScriptedAnswer = { method: "select", answer: "console" };
+const MAILPIT = { provider: "smtp", localMailpit: true };
 
 describe("displayName", () => {
   it.each([
@@ -100,6 +124,7 @@ describe("collectAnswers z --yes", () => {
       title: "Acme Shop",
       adminEmail: null,
       storage: null,
+      mail: MAILPIT,
       setup: true,
     });
     expect(calls).toEqual([]);
@@ -107,21 +132,31 @@ describe("collectAnswers z --yes", () => {
 
   it("z uploads przyjmuje lokalny magazyn plików", async () => {
     const { answers } = ask({ yes: true, modules: ["uploads"] }, []);
-    await expect(answers).resolves.toMatchObject({ modules: ["uploads"], storage: { provider: "local" } });
+    await expect(answers).resolves.toMatchObject({
+      modules: ["uploads"],
+      storage: { provider: "local" },
+    });
   });
 
   it("dokłada moduły wymagane przez wybrane", async () => {
     const { answers } = ask({ yes: true, modules: ["needs-demo"] }, []);
-    await expect(answers).resolves.toMatchObject({ modules: ["demo", "needs-demo"] });
+    await expect(answers).resolves.toMatchObject({
+      modules: ["demo", "needs-demo"],
+    });
   });
 
   it("nieznany moduł z flagi odrzuca z listą dostępnych", async () => {
     const { answers } = ask({ yes: true, modules: ["nope"] }, []);
-    await expect(answers).rejects.toThrow('Unknown module "nope". Available: api-keys, demo, needs-demo, uploads.');
+    await expect(answers).rejects.toThrow(
+      'Unknown module "nope". Available: api-keys, demo, needs-demo, uploads.',
+    );
   });
 
   it("--storage s3 bez endpointu oznacza lokalne MinIO z kluczami minioadmin", async () => {
-    const { answers } = ask({ yes: true, modules: ["uploads"], storage: "s3" }, []);
+    const { answers } = ask(
+      { yes: true, modules: ["uploads"], storage: "s3" },
+      [],
+    );
     await expect(answers).resolves.toMatchObject({
       storage: {
         provider: "s3",
@@ -159,27 +194,45 @@ describe("collectAnswers z --yes", () => {
   });
 
   it("--storage s3 bez modułu uploads nie ustawia magazynu", async () => {
-    const { answers } = ask({ yes: true, modules: ["api-keys"], storage: "s3" }, []);
-    await expect(answers).resolves.toMatchObject({ modules: ["api-keys"], storage: null });
+    const { answers } = ask(
+      { yes: true, modules: ["api-keys"], storage: "s3" },
+      [],
+    );
+    await expect(answers).resolves.toMatchObject({
+      modules: ["api-keys"],
+      storage: null,
+    });
   });
 
   it("flagi tytułu, języków i e-maila mają pierwszeństwo przed wartościami domyślnymi", async () => {
-    const { answers } = ask({ yes: true, title: "Sklep", locales: ["pl"], adminEmail: "a@b.co" }, []);
-    await expect(answers).resolves.toMatchObject({ title: "Sklep", locales: ["pl"], adminEmail: "a@b.co" });
+    const { answers } = ask(
+      { yes: true, title: "Sklep", locales: ["pl"], adminEmail: "a@b.co" },
+      [],
+    );
+    await expect(answers).resolves.toMatchObject({
+      title: "Sklep",
+      locales: ["pl"],
+      adminEmail: "a@b.co",
+    });
   });
 
-  it.each([
-    [{ install: false, docker: false }],
-    [{ docker: false }],
-  ])("%j wyłącza konfigurację środowiska", async (overrides) => {
-    const { answers, calls } = ask({ yes: true, ...overrides }, []);
-    await expect(answers).resolves.toMatchObject({ setup: false });
-    expect(calls).toEqual([]);
-  });
+  it.each([[{ install: false, docker: false }], [{ docker: false }]])(
+    "%j wyłącza konfigurację środowiska",
+    async (overrides) => {
+      const { answers, calls } = ask({ yes: true, ...overrides }, []);
+      await expect(answers).resolves.toMatchObject({ setup: false });
+      expect(calls).toEqual([]);
+    },
+  );
 
   it("nie woła promptera nawet bez terminala", async () => {
     await expect(
-      collectAnswers({ args: args({ yes: true, modules: ["uploads"] }), slug: "acme-shop", modules: MODULES, prompter: silentPrompter }),
+      collectAnswers({
+        args: args({ yes: true, modules: ["uploads"] }),
+        slug: "acme-shop",
+        modules: MODULES,
+        prompter: silentPrompter,
+      }),
     ).resolves.toMatchObject({ storage: { provider: "local" } });
   });
 });
@@ -191,10 +244,12 @@ describe("collectAnswers interaktywnie", () => {
     { method: "text", answer: TAKE_DEFAULT },
     { method: "text", answer: "" },
     { method: "select", answer: "local" },
+    { method: "select", answer: "smtp" },
+    { method: "text", answer: TAKE_DEFAULT },
     { method: "confirm", answer: true },
   ];
 
-  it("pyta po kolei o moduły, angielski, nazwę, e-mail, magazyn i konfigurację", async () => {
+  it("asks modules, English, name, email, storage, mail and setup in this order", async () => {
     const { answers, calls } = ask({}, FULL_SCRIPT);
     await expect(answers).resolves.toStrictEqual({
       modules: ["uploads"],
@@ -202,6 +257,7 @@ describe("collectAnswers interaktywnie", () => {
       title: "Acme Shop",
       adminEmail: null,
       storage: { provider: "local" },
+      mail: MAILPIT,
       setup: true,
     });
     expect(calls.map((call) => call.method)).toEqual([
@@ -210,9 +266,25 @@ describe("collectAnswers interaktywnie", () => {
       "text",
       "text",
       "select",
+      "select",
+      "text",
       "confirm",
     ]);
-    expect(messages(calls)).toEqual([M_MODULES, M_ENGLISH, M_TITLE, M_EMAIL, M_STORAGE, M_SETUP]);
+    expect(messages(calls)).toEqual([
+      M_MODULES,
+      M_ENGLISH,
+      M_TITLE,
+      M_EMAIL,
+      M_STORAGE,
+      M_MAIL,
+      M_MAIL,
+      M_SETUP,
+    ]);
+    expect(calls[5]?.input.options?.map((option) => option.value)).toEqual([
+      "smtp",
+      "resend",
+      "console",
+    ]);
   });
 
   it("lista modułów pokazuje każdy moduł z opisem i nic nie zaznacza", async () => {
@@ -236,7 +308,10 @@ describe("collectAnswers interaktywnie", () => {
     expect(callFor(calls, M_EMAIL).input.defaultValue).toBe("");
     const storage = callFor(calls, M_STORAGE);
     expect(storage.input.initialValue).toBe("local");
-    expect(storage.input.options?.map((option) => option.value)).toEqual(["local", "s3"]);
+    expect(storage.input.options?.map((option) => option.value)).toEqual([
+      "local",
+      "s3",
+    ]);
     expect(callFor(calls, M_SETUP).input.initialValue).toBe(true);
   });
 
@@ -246,9 +321,13 @@ describe("collectAnswers interaktywnie", () => {
       { method: "confirm", answer: true },
       { method: "text", answer: "Acme Shop" },
       { method: "text", answer: "" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
-    await expect(answers).resolves.toMatchObject({ modules: ["demo", "needs-demo"], storage: null });
+    await expect(answers).resolves.toMatchObject({
+      modules: ["demo", "needs-demo"],
+      storage: null,
+    });
   });
 
   it("bez uploads nie pyta o magazyn plików", async () => {
@@ -257,9 +336,13 @@ describe("collectAnswers interaktywnie", () => {
       { method: "confirm", answer: true },
       { method: "text", answer: "Acme Shop" },
       { method: "text", answer: "" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: false },
     ]);
-    await expect(answers).resolves.toMatchObject({ storage: null, setup: false });
+    await expect(answers).resolves.toMatchObject({
+      storage: null,
+      setup: false,
+    });
     expect(messages(calls)).not.toContain(M_STORAGE);
   });
 
@@ -269,6 +352,7 @@ describe("collectAnswers interaktywnie", () => {
       { method: "confirm", answer: false },
       { method: "text", answer: "Acme Shop" },
       { method: "text", answer: "" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
     await expect(answers).resolves.toMatchObject({ locales: ["pl"] });
@@ -280,9 +364,13 @@ describe("collectAnswers interaktywnie", () => {
       { method: "confirm", answer: true },
       { method: "text", answer: "  Sklep Acme  " },
       { method: "text", answer: "a@b.co" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
-    await expect(answers).resolves.toMatchObject({ title: "Sklep Acme", adminEmail: "a@b.co" });
+    await expect(answers).resolves.toMatchObject({
+      title: "Sklep Acme",
+      adminEmail: "a@b.co",
+    });
   });
 
   it("walidacja tytułu i e-maila zwraca komunikaty walidatorów", async () => {
@@ -291,6 +379,7 @@ describe("collectAnswers interaktywnie", () => {
       { method: "confirm", answer: true },
       { method: "text", answer: "Acme" },
       { method: "text", answer: "" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
     await answers;
@@ -313,6 +402,7 @@ describe("collectAnswers interaktywnie", () => {
       { method: "text", answer: "https://s3.example.com" },
       { method: "text", answer: "AK" },
       { method: "password", answer: "SK" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
     await expect(answers).resolves.toMatchObject({
@@ -333,6 +423,7 @@ describe("collectAnswers interaktywnie", () => {
       "text",
       "text",
       "password",
+      "select",
       "confirm",
     ]);
     const endpoint = callFor(calls, M_ENDPOINT);
@@ -346,8 +437,12 @@ describe("collectAnswers interaktywnie", () => {
       if (!keyCall) throw new Error("missing key prompt");
       const validate = validatorOf(keyCall);
       expect(validate("AK/12+=")).toBeUndefined();
-      expect(validate("a b")).toMatch(/: no spaces, quotes, backslashes, #, \$ or backticks$/);
-      expect(validate("a$b")).toMatch(/: no spaces, quotes, backslashes, #, \$ or backticks$/);
+      expect(validate("a b")).toMatch(
+        /: no spaces, quotes, backslashes, #, \$ or backticks$/,
+      );
+      expect(validate("a$b")).toMatch(
+        /: no spaces, quotes, backslashes, #, \$ or backticks$/,
+      );
       expect(validate("")).toMatch(/: required$/);
     }
   });
@@ -360,6 +455,7 @@ describe("collectAnswers interaktywnie", () => {
       { method: "text", answer: "" },
       { method: "select", answer: "s3" },
       { method: "text", answer: TAKE_DEFAULT },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
     await expect(answers).resolves.toMatchObject({
@@ -372,11 +468,22 @@ describe("collectAnswers interaktywnie", () => {
       },
     });
     expect(calls.map((call) => call.method)).not.toContain("password");
-    expect(messages(calls)).toEqual([M_MODULES, M_ENGLISH, M_TITLE, M_EMAIL, M_STORAGE, M_ENDPOINT, M_SETUP]);
+    expect(messages(calls)).toEqual([
+      M_MODULES,
+      M_ENGLISH,
+      M_TITLE,
+      M_EMAIL,
+      M_STORAGE,
+      M_ENDPOINT,
+      M_MAIL,
+      M_SETUP,
+    ]);
   });
 
   it("anulowanie w prompterze odrzuca CancelledError", async () => {
-    const { answers } = ask({}, [{ method: "multiselect", answer: new CancelledError("cancelled") }]);
+    const { answers } = ask({}, [
+      { method: "multiselect", answer: new CancelledError("cancelled") },
+    ]);
     await expect(answers).rejects.toBeInstanceOf(CancelledError);
   });
 
@@ -396,10 +503,17 @@ describe("collectAnswers: flagi pomijają swoje pytania", () => {
       { method: "multiselect", answer: [] },
       { method: "confirm", answer: true },
       { method: "text", answer: "" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
     await expect(answers).resolves.toMatchObject({ title: "Sklep" });
-    expect(messages(calls)).toEqual([M_MODULES, M_ENGLISH, M_EMAIL, M_SETUP]);
+    expect(messages(calls)).toEqual([
+      M_MODULES,
+      M_ENGLISH,
+      M_EMAIL,
+      M_MAIL,
+      M_SETUP,
+    ]);
   });
 
   it('--modules "" pomija wybór modułów i magazyn', async () => {
@@ -407,10 +521,20 @@ describe("collectAnswers: flagi pomijają swoje pytania", () => {
       { method: "confirm", answer: true },
       { method: "text", answer: "Acme Shop" },
       { method: "text", answer: "" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
-    await expect(answers).resolves.toMatchObject({ modules: [], storage: null });
-    expect(messages(calls)).toEqual([M_ENGLISH, M_TITLE, M_EMAIL, M_SETUP]);
+    await expect(answers).resolves.toMatchObject({
+      modules: [],
+      storage: null,
+    });
+    expect(messages(calls)).toEqual([
+      M_ENGLISH,
+      M_TITLE,
+      M_EMAIL,
+      M_MAIL,
+      M_SETUP,
+    ]);
   });
 
   it("--modules z wymaganiami dokłada je także bez --yes", async () => {
@@ -418,9 +542,12 @@ describe("collectAnswers: flagi pomijają swoje pytania", () => {
       { method: "confirm", answer: true },
       { method: "text", answer: "Acme Shop" },
       { method: "text", answer: "" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
-    await expect(answers).resolves.toMatchObject({ modules: ["demo", "needs-demo"] });
+    await expect(answers).resolves.toMatchObject({
+      modules: ["demo", "needs-demo"],
+    });
   });
 
   it("--locales pl pomija pytanie o angielski", async () => {
@@ -428,10 +555,17 @@ describe("collectAnswers: flagi pomijają swoje pytania", () => {
       { method: "multiselect", answer: [] },
       { method: "text", answer: "Acme Shop" },
       { method: "text", answer: "" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
     await expect(answers).resolves.toMatchObject({ locales: ["pl"] });
-    expect(messages(calls)).toEqual([M_MODULES, M_TITLE, M_EMAIL, M_SETUP]);
+    expect(messages(calls)).toEqual([
+      M_MODULES,
+      M_TITLE,
+      M_EMAIL,
+      M_MAIL,
+      M_SETUP,
+    ]);
   });
 
   it("--locales pl,en pomija pytanie o angielski", async () => {
@@ -439,6 +573,7 @@ describe("collectAnswers: flagi pomijają swoje pytania", () => {
       { method: "multiselect", answer: [] },
       { method: "text", answer: "Acme Shop" },
       { method: "text", answer: "" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
     await expect(answers).resolves.toMatchObject({ locales: ["pl", "en"] });
@@ -450,10 +585,17 @@ describe("collectAnswers: flagi pomijają swoje pytania", () => {
       { method: "multiselect", answer: [] },
       { method: "confirm", answer: true },
       { method: "text", answer: "Acme Shop" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
     await expect(answers).resolves.toMatchObject({ adminEmail: "a@b.co" });
-    expect(messages(calls)).toEqual([M_MODULES, M_ENGLISH, M_TITLE, M_SETUP]);
+    expect(messages(calls)).toEqual([
+      M_MODULES,
+      M_ENGLISH,
+      M_TITLE,
+      M_MAIL,
+      M_SETUP,
+    ]);
   });
 
   it("--storage local pomija wybór magazynu", async () => {
@@ -462,44 +604,66 @@ describe("collectAnswers: flagi pomijają swoje pytania", () => {
       { method: "confirm", answer: true },
       { method: "text", answer: "Acme Shop" },
       { method: "text", answer: "" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
-    await expect(answers).resolves.toMatchObject({ storage: { provider: "local" } });
-    expect(messages(calls)).toEqual([M_MODULES, M_ENGLISH, M_TITLE, M_EMAIL, M_SETUP]);
+    await expect(answers).resolves.toMatchObject({
+      storage: { provider: "local" },
+    });
+    expect(messages(calls)).toEqual([
+      M_MODULES,
+      M_ENGLISH,
+      M_TITLE,
+      M_EMAIL,
+      M_MAIL,
+      M_SETUP,
+    ]);
   });
 
   it("--storage s3 z --s3-endpoint pyta tylko o brakujące klucze", async () => {
     const { answers, calls } = ask(
-      { modules: ["uploads"], storage: "s3", s3Endpoint: "https://s3.example.com" },
+      {
+        modules: ["uploads"],
+        storage: "s3",
+        s3Endpoint: "https://s3.example.com",
+      },
       [
         { method: "confirm", answer: true },
         { method: "text", answer: "Acme Shop" },
         { method: "text", answer: "" },
         { method: "text", answer: "AK" },
         { method: "password", answer: "SK" },
+        MAIL_CONSOLE,
         { method: "confirm", answer: true },
       ],
     );
     await expect(answers).resolves.toMatchObject({
-      storage: { provider: "s3", endpoint: "https://s3.example.com", accessKeyId: "AK", secretAccessKey: "SK", localMinio: false },
+      storage: {
+        provider: "s3",
+        endpoint: "https://s3.example.com",
+        accessKeyId: "AK",
+        secretAccessKey: "SK",
+        localMinio: false,
+      },
     });
     expect(messages(calls)).not.toContain(M_STORAGE);
     expect(messages(calls)).not.toContain(M_ENDPOINT);
   });
 
-  it.each([
-    [{ install: false, docker: false }],
-    [{ docker: false }],
-  ])("%j daje setup false bez pytania o konfigurację", async (overrides) => {
-    const { answers, calls } = ask(overrides, [
-      { method: "multiselect", answer: [] },
-      { method: "confirm", answer: true },
-      { method: "text", answer: "Acme Shop" },
-      { method: "text", answer: "" },
-    ]);
-    await expect(answers).resolves.toMatchObject({ setup: false });
-    expect(messages(calls)).not.toContain(M_SETUP);
-  });
+  it.each([[{ install: false, docker: false }], [{ docker: false }]])(
+    "%j daje setup false bez pytania o konfigurację",
+    async (overrides) => {
+      const { answers, calls } = ask(overrides, [
+        { method: "multiselect", answer: [] },
+        { method: "confirm", answer: true },
+        { method: "text", answer: "Acme Shop" },
+        { method: "text", answer: "" },
+        MAIL_CONSOLE,
+      ]);
+      await expect(answers).resolves.toMatchObject({ setup: false });
+      expect(messages(calls)).not.toContain(M_SETUP);
+    },
+  );
 
   it("--setup daje setup true bez pytania o konfigurację", async () => {
     const { answers, calls } = ask({ setup: true }, [
@@ -507,6 +671,7 @@ describe("collectAnswers: flagi pomijają swoje pytania", () => {
       { method: "confirm", answer: true },
       { method: "text", answer: "Acme Shop" },
       { method: "text", answer: "" },
+      MAIL_CONSOLE,
     ]);
     await expect(answers).resolves.toMatchObject({ setup: true });
     expect(messages(calls)).not.toContain(M_SETUP);
@@ -518,6 +683,7 @@ describe("collectAnswers: flagi pomijają swoje pytania", () => {
       { method: "confirm", answer: true },
       { method: "text", answer: "Acme Shop" },
       { method: "text", answer: "" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: false },
     ]);
     await expect(answers).resolves.toMatchObject({ setup: false });
@@ -525,7 +691,14 @@ describe("collectAnswers: flagi pomijają swoje pytania", () => {
 
   it("wszystkie flagi razem zostawiają tylko pytanie o konfigurację", async () => {
     const { answers, calls } = ask(
-      { modules: ["uploads"], locales: ["pl"], title: "Sklep", adminEmail: "a@b.co", storage: "local" },
+      {
+        modules: ["uploads"],
+        locales: ["pl"],
+        title: "Sklep",
+        adminEmail: "a@b.co",
+        storage: "local",
+        mailProvider: "console",
+      },
       [{ method: "confirm", answer: true }],
     );
     await expect(answers).resolves.toStrictEqual({
@@ -534,6 +707,7 @@ describe("collectAnswers: flagi pomijają swoje pytania", () => {
       title: "Sklep",
       adminEmail: "a@b.co",
       storage: { provider: "local" },
+      mail: { provider: "console" },
       setup: true,
     });
     expect(messages(calls)).toEqual([M_SETUP]);
@@ -547,6 +721,7 @@ describe("collectAnswers: przycinanie i puste odpowiedzi", () => {
       { method: "confirm", answer: true },
       { method: "text", answer: "Acme Shop" },
       { method: "text", answer: " a@b.co " },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
     await expect(answers).resolves.toMatchObject({ adminEmail: "a@b.co" });
@@ -561,6 +736,7 @@ describe("collectAnswers: przycinanie i puste odpowiedzi", () => {
       { method: "confirm", answer: true },
       { method: "text", answer: "Acme Shop" },
       { method: "text", answer: "   " },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
     await expect(answers).resolves.toMatchObject({ adminEmail: null });
@@ -578,6 +754,7 @@ describe("collectAnswers: przycinanie i puste odpowiedzi", () => {
     const { answers, calls } = ask({}, [
       ...S3_PREFIX,
       { method: "text", answer: "" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
     await answers;
@@ -596,10 +773,15 @@ describe("collectAnswers: przycinanie i puste odpowiedzi", () => {
       { method: "text", answer: " https://s3.example.com " },
       { method: "text", answer: "AK" },
       { method: "password", answer: "SK" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
     await expect(answers).resolves.toMatchObject({
-      storage: { provider: "s3", endpoint: "https://s3.example.com", localMinio: false },
+      storage: {
+        provider: "s3",
+        endpoint: "https://s3.example.com",
+        localMinio: false,
+      },
     });
     expect(calls[6]?.method).toBe("text");
     expect(calls[6]?.input.defaultValue).toBe("");
@@ -609,6 +791,7 @@ describe("collectAnswers: przycinanie i puste odpowiedzi", () => {
     const { answers, calls } = ask({}, [
       ...S3_PREFIX,
       { method: "text", answer: "   " },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
     await expect(answers).resolves.toMatchObject({
@@ -628,11 +811,414 @@ describe("collectAnswers: przycinanie i puste odpowiedzi", () => {
       { method: "confirm", answer: true },
       { method: "text", answer: "Acme Shop" },
       { method: "text", answer: "" },
+      MAIL_CONSOLE,
       { method: "confirm", answer: true },
     ]);
     await expect(
-      collectAnswers({ args: args({}), slug: "acme-shop", modules: [], prompter }),
+      collectAnswers({
+        args: args({}),
+        slug: "acme-shop",
+        modules: [],
+        prompter,
+      }),
     ).resolves.toMatchObject({ modules: [], storage: null });
     expect(messages(calls)).not.toContain(M_MODULES);
+  });
+});
+
+const QUIET: Partial<CreateCliArgs> = {
+  modules: [],
+  locales: ["pl"],
+  title: "Acme",
+  adminEmail: "a@b.co",
+  setup: true,
+};
+
+function mailSelect(calls: PromptCall[]): PromptCall {
+  const call = calls.find(
+    (candidate) =>
+      candidate.method === "select" &&
+      candidate.input.options?.some((option) => option.value === "resend"),
+  );
+  if (!call) throw new Error("no mail provider prompt");
+  return call;
+}
+
+function textWithDefault(
+  calls: PromptCall[],
+  defaultValue: string,
+): PromptCall {
+  const call = calls.find(
+    (candidate) =>
+      candidate.method === "text" &&
+      candidate.input.defaultValue === defaultValue,
+  );
+  if (!call) throw new Error(`no text prompt with default "${defaultValue}"`);
+  return call;
+}
+
+async function mailOf(answers: Promise<{ mail: unknown }>): Promise<unknown> {
+  return (await answers).mail;
+}
+
+describe("collectAnswers: mail with --yes", () => {
+  it("the local mailpit host is 127.0.0.1", () => {
+    expect(LOCAL_MAILPIT_HOST).toBe("127.0.0.1");
+  });
+
+  it("without mail flags takes local mailpit and asks nothing", async () => {
+    const { answers, calls } = ask({ yes: true }, []);
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "smtp",
+      localMailpit: true,
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("does not call the prompter even without a terminal", async () => {
+    await expect(
+      collectAnswers({
+        args: args({ yes: true }),
+        slug: "acme-shop",
+        modules: MODULES,
+        prompter: silentPrompter,
+      }),
+    ).resolves.toMatchObject({
+      mail: { provider: "smtp", localMailpit: true },
+    });
+  });
+
+  it("--mail-provider console gives the console answer", async () => {
+    const { answers, calls } = ask({ yes: true, mailProvider: "console" }, []);
+    expect(await mailOf(answers)).toStrictEqual({ provider: "console" });
+    expect(calls).toEqual([]);
+  });
+
+  it("--mail-provider resend with a key gives the resend answer", async () => {
+    const { answers, calls } = ask(
+      { yes: true, mailProvider: "resend", resendApiKey: "re_x" },
+      [],
+    );
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "resend",
+      apiKey: "re_x",
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("--mail-provider smtp with a relay host defaults the port to 587 and has no credentials", async () => {
+    const { answers, calls } = ask(
+      { yes: true, mailProvider: "smtp", smtpHost: "relay.internal" },
+      [],
+    );
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "smtp",
+      localMailpit: false,
+      host: "relay.internal",
+      port: 587,
+      user: null,
+      pass: null,
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("--mail-provider smtp with every relay flag keeps them all", async () => {
+    const { answers, calls } = ask(
+      {
+        yes: true,
+        mailProvider: "smtp",
+        smtpHost: "relay.internal",
+        smtpPort: 2525,
+        smtpUser: "app",
+        smtpPass: "pw",
+      },
+      [],
+    );
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "smtp",
+      localMailpit: false,
+      host: "relay.internal",
+      port: 2525,
+      user: "app",
+      pass: "pw",
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("--mail-provider smtp without a host means local mailpit", async () => {
+    const { answers, calls } = ask({ yes: true, mailProvider: "smtp" }, []);
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "smtp",
+      localMailpit: true,
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("--smtp-host 127.0.0.1 means local mailpit", async () => {
+    const { answers } = ask(
+      { yes: true, mailProvider: "smtp", smtpHost: "127.0.0.1" },
+      [],
+    );
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "smtp",
+      localMailpit: true,
+    });
+  });
+});
+
+describe("collectAnswers: mail asked interactively", () => {
+  it("offers smtp, resend and console with smtp as the default", async () => {
+    const { answers, calls } = ask(QUIET, [MAIL_CONSOLE]);
+    await answers;
+    const select = mailSelect(calls);
+    expect(select.input.options?.map((option) => option.value)).toEqual([
+      "smtp",
+      "resend",
+      "console",
+    ]);
+    expect(select.input.initialValue).toBe("smtp");
+  });
+
+  it("smtp with the default host is local mailpit and asks no port, user or password", async () => {
+    const { answers, calls } = ask(QUIET, [
+      { method: "select", answer: "smtp" },
+      { method: "text", answer: TAKE_DEFAULT },
+    ]);
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "smtp",
+      localMailpit: true,
+    });
+    expect(calls.map((call) => call.method)).toEqual(["select", "text"]);
+    expect(calls[1]?.input.defaultValue).toBe("127.0.0.1");
+  });
+
+  it("smtp with a typed 127.0.0.1 host is local mailpit", async () => {
+    const { answers, calls } = ask(QUIET, [
+      { method: "select", answer: "smtp" },
+      { method: "text", answer: "127.0.0.1" },
+    ]);
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "smtp",
+      localMailpit: true,
+    });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("a relay host asks the port with default 587 and the user with an empty default", async () => {
+    const { answers, calls } = ask(QUIET, [
+      { method: "select", answer: "smtp" },
+      { method: "text", answer: "relay.internal" },
+      { method: "text", answer: TAKE_DEFAULT },
+      { method: "text", answer: TAKE_DEFAULT },
+    ]);
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "smtp",
+      localMailpit: false,
+      host: "relay.internal",
+      port: 587,
+      user: null,
+      pass: null,
+    });
+    expect(calls.map((call) => call.method)).toEqual([
+      "select",
+      "text",
+      "text",
+      "text",
+    ]);
+    expect(calls[2]?.input.defaultValue).toBe("587");
+    expect(calls[3]?.input.defaultValue).toBe("");
+  });
+
+  it("an empty user asks no password", async () => {
+    const { answers, calls } = ask(QUIET, [
+      { method: "select", answer: "smtp" },
+      { method: "text", answer: "relay.internal" },
+      { method: "text", answer: "2525" },
+      { method: "text", answer: "" },
+    ]);
+    expect(await mailOf(answers)).toMatchObject({
+      port: 2525,
+      user: null,
+      pass: null,
+    });
+    expect(calls.map((call) => call.method)).not.toContain("password");
+  });
+
+  it("a user asks the password and keeps both", async () => {
+    const { answers, calls } = ask(QUIET, [
+      { method: "select", answer: "smtp" },
+      { method: "text", answer: "relay.internal" },
+      { method: "text", answer: "587" },
+      { method: "text", answer: "app" },
+      { method: "password", answer: "pw" },
+    ]);
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "smtp",
+      localMailpit: false,
+      host: "relay.internal",
+      port: 587,
+      user: "app",
+      pass: "pw",
+    });
+    expect(calls.map((call) => call.method)).toEqual([
+      "select",
+      "text",
+      "text",
+      "text",
+      "password",
+    ]);
+  });
+
+  it("the port prompt rejects values outside 1-65535", async () => {
+    const { answers, calls } = ask(QUIET, [
+      { method: "select", answer: "smtp" },
+      { method: "text", answer: "relay.internal" },
+      { method: "text", answer: "587" },
+      { method: "text", answer: "" },
+    ]);
+    await answers;
+    const port = validatorOf(textWithDefault(calls, "587"));
+    for (const value of ["70000", "0", "65536", "abc", "25.5"]) {
+      expect(port(value)).toEqual(expect.any(String));
+    }
+    for (const value of ["1", "2525", "65535"]) {
+      expect(port(value)).toBeUndefined();
+    }
+  });
+
+  it("resend asks the key as a password and keeps it", async () => {
+    const { answers, calls } = ask(QUIET, [
+      { method: "select", answer: "resend" },
+      { method: "password", answer: "re_x" },
+    ]);
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "resend",
+      apiKey: "re_x",
+    });
+    expect(calls.map((call) => call.method)).toEqual(["select", "password"]);
+  });
+
+  it("the resend key prompt rejects values unsafe in .env", async () => {
+    const { answers, calls } = ask(QUIET, [
+      { method: "select", answer: "resend" },
+      { method: "password", answer: "re_x" },
+    ]);
+    await answers;
+    const key = calls[1];
+    if (!key) throw new Error("missing key prompt");
+    const validate = validatorOf(key);
+    expect(validate("re_x")).toBeUndefined();
+    expect(validate("")).toMatch(/: required$/);
+    expect(validate("re x")).toMatch(
+      /: no spaces, quotes, backslashes, #, \$ or backticks$/,
+    );
+    expect(validate("re\nMAIL_PROVIDER=x")).toMatch(
+      /: no spaces, quotes, backslashes, #, \$ or backticks$/,
+    );
+    expect(validate("re$x")).toMatch(
+      /: no spaces, quotes, backslashes, #, \$ or backticks$/,
+    );
+  });
+
+  it("console asks nothing more", async () => {
+    const { answers, calls } = ask(QUIET, [MAIL_CONSOLE]);
+    expect(await mailOf(answers)).toStrictEqual({ provider: "console" });
+    expect(calls.map((call) => call.method)).toEqual(["select"]);
+  });
+
+  it("mail is asked even when Docker is skipped", async () => {
+    const { answers, calls } = ask({ ...QUIET, setup: false, docker: false }, [
+      MAIL_CONSOLE,
+    ]);
+    expect(await mailOf(answers)).toStrictEqual({ provider: "console" });
+    expect(calls).toHaveLength(1);
+  });
+});
+
+describe("collectAnswers: mail flags skip their questions", () => {
+  it("--mail-provider console asks no mail question", async () => {
+    const { answers, calls } = ask({ ...QUIET, mailProvider: "console" }, []);
+    expect(await mailOf(answers)).toStrictEqual({ provider: "console" });
+    expect(calls).toEqual([]);
+  });
+
+  it("--mail-provider smtp asks the host but not the provider", async () => {
+    const { answers, calls } = ask({ ...QUIET, mailProvider: "smtp" }, [
+      { method: "text", answer: TAKE_DEFAULT },
+    ]);
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "smtp",
+      localMailpit: true,
+    });
+    expect(calls.map((call) => call.method)).toEqual(["text"]);
+  });
+
+  it("--smtp-host and --smtp-port leave only the user question", async () => {
+    const { answers, calls } = ask(
+      {
+        ...QUIET,
+        mailProvider: "smtp",
+        smtpHost: "relay.internal",
+        smtpPort: 2525,
+      },
+      [{ method: "text", answer: "" }],
+    );
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "smtp",
+      localMailpit: false,
+      host: "relay.internal",
+      port: 2525,
+      user: null,
+      pass: null,
+    });
+    expect(calls.map((call) => call.method)).toEqual(["text"]);
+    expect(calls[0]?.input.defaultValue).toBe("");
+  });
+
+  it("--smtp-user without --smtp-pass asks only the port and the password", async () => {
+    const { answers, calls } = ask(
+      {
+        ...QUIET,
+        mailProvider: "smtp",
+        smtpHost: "relay.internal",
+        smtpUser: "app",
+      },
+      [
+        { method: "text", answer: TAKE_DEFAULT },
+        { method: "password", answer: "pw" },
+      ],
+    );
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "smtp",
+      localMailpit: false,
+      host: "relay.internal",
+      port: 587,
+      user: "app",
+      pass: "pw",
+    });
+    expect(calls.map((call) => call.method)).toEqual(["text", "password"]);
+  });
+
+  it("--mail-provider resend without a key asks only the key", async () => {
+    const { answers, calls } = ask({ ...QUIET, mailProvider: "resend" }, [
+      { method: "password", answer: "re_y" },
+    ]);
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "resend",
+      apiKey: "re_y",
+    });
+    expect(calls.map((call) => call.method)).toEqual(["password"]);
+  });
+
+  it("--mail-provider resend with a key asks nothing", async () => {
+    const { answers, calls } = ask(
+      { ...QUIET, mailProvider: "resend", resendApiKey: "re_x" },
+      [],
+    );
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "resend",
+      apiKey: "re_x",
+    });
+    expect(calls).toEqual([]);
   });
 });
