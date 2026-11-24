@@ -17,6 +17,7 @@
     ".github/workflows/packages.yml",
     ".github/workflows/publish-packages.yml",
     ".github/workflows/release.yml",
+    ".github/workflows/docker-platforms.yml",
     "prisma/migrations/.gitignore",
     "LICENSE",
     "NOTICE",
