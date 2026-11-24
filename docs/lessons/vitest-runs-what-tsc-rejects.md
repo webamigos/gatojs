@@ -12,7 +12,7 @@ topics: ['typescript', 'vitest', 'tsconfig', 'test-writer']
 
 **Problem**:
 
-- The test-writer shows only a Vitest run, so the type error surfaces after implementation, when the implementer may not edit tests (`.superpowers/phase` = `implement`).
+- The test-writer shows only a Vitest run, so the type error surfaces after implementation, when the implementer may not edit tests (`.gato/phase` = `implement`).
 - The fix then needs another round trip to the test-writer.
 
 **Rule**: The test-writer runs `npx tsc --noEmit -p tsconfig.json` next to the red Vitest run (type errors from missing exports are expected; any other error is a test bug). Write bigints as `BigInt(10)`.

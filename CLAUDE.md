@@ -32,7 +32,7 @@ Queries on domain data always go through `getOrgContext()` and an `organizationI
 ## Tests
 
 - A task's tests are written by a different agent (`test-writer`) than the code, before the implementation; the implementer
-  doesn't change them (`.superpowers/phase` = `implement` turns on the `.claude/hooks/protect-tests.mjs` hook).
+  doesn't change them (`.gato/phase` = `implement` turns on the `.claude/hooks/protect-tests.mjs` hook).
 - The expected value is a literal or a value from the spec, never the output of production code.
 - The reviewer (`test-reviewer`) runs `npm run test:mutation:task -- <files>` and `npm run test:mutation:gate`;
   a surviving mutant in a critical file without an entry in `mutation-gate.json` blocks the task. A human adds entries.

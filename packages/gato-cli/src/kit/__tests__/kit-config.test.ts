@@ -42,7 +42,8 @@ describe("readKitConfig", () => {
       "src/modules.client.generated.ts",
       "src/i18n/locales.generated.ts",
     ]);
-    expect(config.kitOnly).toHaveLength(8);
+    expect(config.kitOnly).toHaveLength(9);
+    expect(config.kitOnly).toContain(".gato/**");
     expect(config.placeholderFiles).toHaveLength(10);
   });
 

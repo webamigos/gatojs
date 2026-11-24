@@ -5,6 +5,7 @@ coverage
 package-lock.json
 prisma/migrations
 volumes
+.gato
 .superpowers
 src/modules.generated.ts
 src/modules.client.generated.ts

@@ -127,7 +127,7 @@ Jedno pojęcie oznacza w całej dokumentacji jedną rzecz. Definicje „moduł�
 | Migracja | Zapis zmiany schematu bazy w `prisma/migrations/`. Kit ich nie commituje, a projekt tak. | [03b](03b-schemat-i-migracje.md#migracje), [D13](decyzje.md#d13) |
 | Test izolacji | Test na prawdziwej bazie z dwiema organizacjami: odczyt i zapis z kontekstem jednej nie dotyka danych drugiej. | [08](08-testy.md#izolacja) |
 | `test-writer`, `test-reviewer` | Agenci procesu testów adwersarialnych: pierwszy pisze testy zadania przed kodem, drugi sprawdza ich siłę mutacjami. Tester to nie implementer. | [08b](08b-testy-adwersarialne.md#role), [D25](decyzje.md#d25) |
-| Faza `implement` | Stan zapisany w `.superpowers/phase`, w którym hook `protect-tests` blokuje edycję testów. | [08b](08b-testy-adwersarialne.md#faza) |
+| Faza `implement` | Stan zapisany w `.gato/phase`, w którym hook `protect-tests` blokuje edycję testów. | [08b](08b-testy-adwersarialne.md#faza) |
 | Mutant | Kopia kodu z jedną celową zmianą, na przykład odwróconym warunkiem. Mutant, którego żaden test nie wykrywa, wskazuje lukę w testach. | [08b](08b-testy-adwersarialne.md#wynik) |
 | Bramka mutacji | `npm run test:mutation:gate`: w plikach z listy `critical` w `mutation-gate.json` każdy niewykryty mutant musi być zabity albo mieć wpis w `allowed`. | [08b](08b-testy-adwersarialne.md#bramka), [D26](decyzje.md#d26) |
 | Handoff, ruling | Handoff to notatka przekazania pracy między sesjami. Ruling to decyzja, którą prowadzący wykonanie planu podjął sam, gdy plan czegoś nie rozstrzygał. | [decyzje.md](decyzje.md#pojęcia) |

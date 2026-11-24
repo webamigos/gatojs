@@ -58,11 +58,11 @@ describe("skill gato-task", () => {
     expect(descriptionOf(readRepoFile(skillPath))).not.toBe("");
   });
 
-  it("opisuje kroki w kolejności: testy, faza, recenzja testów, mutacje, bramka, verify, code review", () => {
+  it("opisuje kroki w kolejności: testy, faza w .gato/phase, recenzja testów, mutacje, bramka, verify, code review", () => {
     const body = bodyOf(readRepoFile(skillPath));
     const steps = [
       "test-writer",
-      ".superpowers/phase",
+      ".gato/phase",
       "test-reviewer",
       "npm run test:mutation:task",
       "npm run test:mutation:gate",
@@ -81,7 +81,7 @@ describe("skill gato-task", () => {
     }
     expect(foundInOrder).toEqual([
       "test-writer",
-      ".superpowers/phase",
+      ".gato/phase",
       "test-reviewer",
       "npm run test:mutation:task",
       "npm run test:mutation:gate",
@@ -108,8 +108,8 @@ describe("skill gato-task", () => {
     expect({
       testWriter: firstStepContaining(content, "test-writer"),
       implementPhase: firstStepContaining(content, "`implement`"),
-      phaseFile: firstStepContaining(content, ".superpowers/phase"),
-      unlock: firstStepContaining(content, "rm .superpowers/phase"),
+      phaseFile: firstStepContaining(content, ".gato/phase"),
+      unlock: firstStepContaining(content, "rm .gato/phase"),
       testReviewer: firstStepContaining(content, "test-reviewer"),
       mutationTask: firstStepContaining(content, "npm run test:mutation:task"),
       mutationGate: firstStepContaining(content, "npm run test:mutation:gate"),
@@ -139,6 +139,27 @@ describe("skill gato-task", () => {
 
   it("wymienia fazę `implement` w backtickach", () => {
     expect(bodyOf(readRepoFile(skillPath))).toContain("`implement`");
+  });
+
+  it("krok blokady zapisuje `implement` do .gato/phase poleceniem mkdir -p .gato", () => {
+    const lock =
+      numberedStepsOf(readRepoFile(skillPath)).find((step) => step.number === 3)
+        ?.text ?? "";
+    expect(lock).toContain("mkdir -p .gato");
+    expect(lock).toContain("> .gato/phase");
+  });
+
+  it("krok odblokowania usuwa .gato/phase", () => {
+    const unlock =
+      numberedStepsOf(readRepoFile(skillPath)).find((step) => step.number === 5)
+        ?.text ?? "";
+    expect(unlock).toContain("rm .gato/phase");
+  });
+
+  it("treść skilla nie wspomina już ścieżki .superpowers", () => {
+    const body = bodyOf(readRepoFile(skillPath));
+    expect(body).not.toBe("");
+    expect(body).not.toContain(".superpowers");
   });
 });
 

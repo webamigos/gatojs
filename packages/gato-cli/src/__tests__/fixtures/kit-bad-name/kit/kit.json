@@ -4,6 +4,7 @@
   "kitOnly": [
     "kit/**",
     "docs/**",
+    ".gato/**",
     ".superpowers/**",
     ".claude/handoffs/**",
     ".wa/kit.json",

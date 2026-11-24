@@ -138,6 +138,7 @@ node_modules
 !.env.example
 *.md
 .claude
+.gato
 .superpowers
 .turbo
 volumes
