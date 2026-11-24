@@ -5,6 +5,7 @@
     "kit/**",
     "packages/gato-cli/**",
     "packages/create-gato-app/**",
+    "scripts/kit/**",
     "docs/**",
     ".gato/**",
     ".superpowers/**",

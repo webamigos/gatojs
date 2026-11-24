@@ -73,6 +73,23 @@ Zasady dla plików tylko kitu (`kit/`, pakiety narzędzi `packages/gato-cli` i `
   osobnym commitem z podbiciem `version` w `kit/modules/core.json`; projekt dostaje ją z rdzeniem także bez modułu.
 - `kit/modules/*.json` opisują moduły (pliki, schemat, env); `kit/kit.json` opisuje stan kitu. Oba są źródłem dla generatora i projektów.
 
+## Dependabot PRs
+
+- Dependabot updates `package.json` and `package-lock.json` only, but the module manifests pin the same versions, so the
+  ownership check (`dependencyMismatch`) and the `kit sync` diff stay red until the manifests follow.
+- Fix on the PR branch: `npm ci && npx tsx scripts/kit/sync-manifest-deps.ts`, then
+  `git commit -am "chore(kit): sync manifests with the dependency bumps"` and push. The script copies every root version
+  into the owning manifest (same section), bumps each changed module's `version` by a patch once, then runs
+  `wa generate` and `wa kit sync`. A second run changes nothing.
+- The bump is decided against `git merge-base origin/main HEAD` (`--base <ref>` for another base): a module whose
+  `version` already differs from the merge base is not bumped again. A workspace package a module owns
+  (`packages/env/**`, `packages/observability/**` in core) bumps its owner when its dependency pins changed; the script
+  never edits workspace `package.json` files and warns when one still pins the old version.
+- CI: job `dependabot-manifests` in `kit.yml` runs `--check` on PRs opened by `dependabot[bot]` and prints the exact
+  command. It is read-only on purpose: no write-back, no secret, `npm ci --ignore-scripts`.
+- The script lives in `scripts/kit/` (kit-only, `kitOnly` in `kit/kit.json`) and has no root `npm run` entry, because the
+  root `package.json` is copied into projects.
+
 ## Składanie i wydanie
 
 - Job `assemble` w `.github/workflows/kit.yml` składa projekt z kitu (`wa create`) dla każdej kombinacji modułów z macierzy `combo` i uruchamia w nim `verify`, testy integracyjne oraz `docker build`. Nowy moduł kitu dopisz do macierzy.
