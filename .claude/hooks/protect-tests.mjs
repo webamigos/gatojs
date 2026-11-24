@@ -37,15 +37,24 @@ function findUp(path, matches) {
 
 function workingCopyOf(path) {
   const existingDir = findUp(dirname(resolve(path)), existsSync);
-  return existingDir && findUp(realpathSync(existingDir), (dir) => existsSync(join(dir, ".git")));
+  return (
+    existingDir &&
+    findUp(realpathSync(existingDir), (dir) => existsSync(join(dir, ".git")))
+  );
 }
 
-const isEntrypoint = process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+const isEntrypoint =
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
 
 if (isEntrypoint) {
   const input = JSON.parse(readFileSync(0, "utf8"));
-  const sessionDir = process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? process.cwd();
-  const phaseDirs = [workingCopyOf(input.tool_input?.file_path ?? "") ?? sessionDir, sessionDir];
+  const sessionDir =
+    process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? process.cwd();
+  const phaseDirs = [
+    workingCopyOf(input.tool_input?.file_path ?? "") ?? sessionDir,
+    sessionDir,
+  ];
   const lockingPhaseFile = PHASE_FILES.find((phaseFile) =>
     phaseDirs.some((dir) => isBlocked(input, readPhase(dir, phaseFile))),
   );

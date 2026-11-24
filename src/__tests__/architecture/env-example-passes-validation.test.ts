@@ -125,11 +125,49 @@ describe("checkEnvExample", () => {
     ]);
   });
 
-  it("nadpisuje NODE_ENV na development, więc pusty RESEND_API_KEY przy NODE_ENV=production przechodzi", () => {
+  it("overrides NODE_ENV to development, so NODE_ENV=production without any mail provider passes", () => {
+    const withoutMail = [
+      "RESEND_API_KEY",
+      "SMTP_URL",
+      "SMTP_HOST",
+      "MAIL_PROVIDER",
+    ].reduce(withoutVariable, realEnvExample);
     writeEnvExample(
-      `${withoutVariable(realEnvExample, "RESEND_API_KEY")}\nRESEND_API_KEY=\nNODE_ENV=production\n`,
+      `${withoutMail}\nRESEND_API_KEY=\nSMTP_URL=\nSMTP_HOST=\nMAIL_PROVIDER=\nNODE_ENV=production\n`,
     );
     expect(checkEnvExample(root)).toEqual([]);
+  });
+
+  it("reports SMTP_URL next to SMTP_HOST even outside production", () => {
+    writeEnvExample(
+      `${withoutVariable(withoutVariable(realEnvExample, "SMTP_URL"), "SMTP_HOST")}\nSMTP_URL=smtp://127.0.0.1:1025\nSMTP_HOST=relay.internal\n`,
+    );
+    expect(checkEnvExample(root)).toEqual([
+      ".env.example: SMTP_HOST: SMTP_URL is set: drop SMTP_HOST, or drop SMTP_URL and use SMTP_HOST",
+    ]);
+  });
+
+  it("declares the mail provider variables blank in the core part, next to SMTP_URL", () => {
+    const coreSection = parseDotenv(
+      realEnvExample.split("# wa:modules:start")[0],
+    );
+    expect({
+      SMTP_URL: coreSection.SMTP_URL,
+      MAIL_PROVIDER: coreSection.MAIL_PROVIDER,
+      SMTP_HOST: coreSection.SMTP_HOST,
+      SMTP_PORT: coreSection.SMTP_PORT,
+      SMTP_USER: coreSection.SMTP_USER,
+      SMTP_PASS: coreSection.SMTP_PASS,
+      SMTP_SECURE: coreSection.SMTP_SECURE,
+    }).toStrictEqual({
+      SMTP_URL: "smtp://localhost:1025",
+      MAIL_PROVIDER: "",
+      SMTP_HOST: "",
+      SMTP_PORT: "",
+      SMTP_USER: "",
+      SMTP_PASS: "",
+      SMTP_SECURE: "",
+    });
   });
 
   it.skipIf(!isModuleInstalled("api-keys"))(

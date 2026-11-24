@@ -471,13 +471,13 @@ Gdy kod różni się od zdania w `AGENTS.md`, dokumentacja opisuje kod. Poniższ
 
 ### Dawny plik fazy `.superpowers/phase` działa tylko w `core` 0.15.0
 
-**Skutek.** Od `core` 0.15.0 plik fazy to `.gato/phase`. W tej wersji hook czyta jeszcze dawny `.superpowers/phase` (w tych samych dwóch miejscach), żeby projekt zaktualizowany w trakcie zadania albo orkiestrator, który zapisuje starą ścieżkę, nadal blokował edycję testów. W `core` 0.16.0 odczyt dawnego pliku i jego test znikną. Orkiestrator, który dalej zapisuje `.superpowers/phase`, nie zablokuje wtedy niczego, a implementer będzie mógł zmienić testy narzędziem `Edit`.
+**Skutek.** Od `core` 0.15.0 plik fazy to `.gato/phase`. W tej wersji hook czyta jeszcze dawny `.superpowers/phase` (w tych samych dwóch miejscach), żeby projekt zaktualizowany w trakcie zadania albo orkiestrator, który zapisuje starą ścieżkę, nadal blokował edycję testów. W `core` 0.17.0 odczyt dawnego pliku i jego test znikną. Orkiestrator, który dalej zapisuje `.superpowers/phase`, nie zablokuje wtedy niczego, a implementer będzie mógł zmienić testy narzędziem `Edit`.
 
 **Gdzie.** `.claude/hooks/protect-tests.mjs` (stałe `LEGACY_PHASE_FILE` i `PHASE_FILES`).
 
-**Obejście.** Zapisuj `implement` do `.gato/phase` (`mkdir -p .gato && printf 'implement\n' > .gato/phase`) i zaktualizuj własne skrypty i polecenia orkiestratora przed przejściem na `core` 0.16.0.
+**Obejście.** Zapisuj `implement` do `.gato/phase` (`mkdir -p .gato && printf 'implement\n' > .gato/phase`) i zaktualizuj własne skrypty i polecenia orkiestratora przed przejściem na `core` 0.17.0.
 
-**Kierunek zmiany.** W `core` 0.16.0 usunąć `LEGACY_PHASE_FILE` z `PHASE_FILES`, testy dawnej ścieżki z `.claude/hooks/protect-tests.test.mjs` i tę pozycję. Wpisy `.superpowers` w plikach ignorowanych zostają, bo katalog `.superpowers/` zapisuje też plugin superpowers.
+**Kierunek zmiany.** W `core` 0.17.0 usunąć `LEGACY_PHASE_FILE` z `PHASE_FILES`, testy dawnej ścieżki z `.claude/hooks/protect-tests.test.mjs` i tę pozycję. Wpisy `.superpowers` w plikach ignorowanych zostają, bo katalog `.superpowers/` zapisuje też plugin superpowers.
 
 **Sprawdzono.** Uruchomiono `npm run test:hooks`: testy z `.gato/phase` i z dawnym `.superpowers/phase` blokują edycję testu kodem 2. Opis: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza).
 

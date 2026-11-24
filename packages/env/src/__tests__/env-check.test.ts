@@ -207,7 +207,7 @@ describe("parseEnv", () => {
       parseEnv({ ...validCore, NODE_ENV: "production" }, moduleSchemas),
     ).toThrow(
       new Error(
-        "Invalid environment variables: RESEND_API_KEY: required in production",
+        "Invalid environment variables: MAIL_PROVIDER: no mail provider configured for production: set SMTP_HOST, SMTP_URL or RESEND_API_KEY, or MAIL_PROVIDER=console to send no mail",
       ),
     );
   });
@@ -308,7 +308,7 @@ describe("verifyEnvOnStartup", () => {
     expect(io.exit).toHaveBeenCalledWith(1);
   });
 
-  it("production without RESEND_API_KEY → report with the production rule and exit code 1", () => {
+  it("production without a mail provider → report with the production mail rule and exit code 1", () => {
     const io = createIo();
 
     verifyEnvOnStartup(
@@ -319,7 +319,7 @@ describe("verifyEnvOnStartup", () => {
 
     expect(io.error.mock.calls).toEqual([
       [
-        "Invalid environment variables (1):\n- RESEND_API_KEY: required in production",
+        "Invalid environment variables (1):\n- MAIL_PROVIDER: no mail provider configured for production: set SMTP_HOST, SMTP_URL or RESEND_API_KEY, or MAIL_PROVIDER=console to send no mail",
       ],
     ]);
     expect(io.exit.mock.calls).toEqual([[1]]);
@@ -342,6 +342,30 @@ describe("verifyEnvOnStartup", () => {
     expect(io.error).not.toHaveBeenCalled();
     expect(io.exit).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["MAIL_PROVIDER=console", { MAIL_PROVIDER: "console" }],
+    ["only SMTP_HOST", { SMTP_HOST: "relay.internal" }],
+  ])(
+    "production with %s and no RESEND_API_KEY → prints nothing and does not exit",
+    (_, mail) => {
+      const io = createIo();
+
+      verifyEnvOnStartup(
+        {
+          ...validCore,
+          ...mail,
+          NODE_ENV: "production",
+          BETTER_AUTH_SECRET: "p".repeat(48),
+        },
+        io,
+        moduleSchemas,
+      );
+
+      expect(io.error).not.toHaveBeenCalled();
+      expect(io.exit).not.toHaveBeenCalled();
+    },
+  );
 
   it("does not remember the result: every call checks the given variables again", () => {
     const io = createIo();
