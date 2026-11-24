@@ -1,6 +1,11 @@
 import { Resend } from "resend";
 import nodemailer, { type Transporter } from "nodemailer";
 import { render } from "@react-email/render";
+import {
+  resolveMailConfig,
+  type MailConfig,
+  type SmtpOptions,
+} from "@gatojs/env";
 import type { ReactNode } from "react";
 import { OrganizationInvitationEmail } from "@/app/emails/organization-invitation-email";
 import { PasswordResetEmail } from "@/app/emails/password-reset-email";
@@ -17,8 +22,8 @@ function getResend(apiKey: string): Resend {
   return resendClient;
 }
 
-function getSmtpTransport(smtpUrl: string): Transporter {
-  smtpTransport ??= nodemailer.createTransport(smtpUrl);
+function getSmtpTransport(settings: string | SmtpOptions): Transporter {
+  smtpTransport ??= nodemailer.createTransport(settings);
   return smtpTransport;
 }
 
@@ -26,11 +31,11 @@ type MailMessage = { to: string; subject: string; react: ReactNode };
 type MailDelivery = { data: unknown } | { error: unknown };
 
 async function deliverViaSmtp(
-  smtpUrl: string,
+  settings: string | SmtpOptions,
   message: MailMessage,
 ): Promise<MailDelivery> {
   const html = await render(message.react);
-  const info = await getSmtpTransport(smtpUrl).sendMail({
+  const info = await getSmtpTransport(settings).sendMail({
     from: env.EMAIL_FROM,
     to: message.to,
     subject: message.subject,
@@ -50,6 +55,15 @@ async function deliverViaResend(
     react: message.react,
   });
   return response.error ? { error: response.error } : { data: response.data };
+}
+
+function deliver(
+  config: Exclude<MailConfig, { provider: "console" }>,
+  message: MailMessage,
+): Promise<MailDelivery> {
+  return config.provider === "smtp"
+    ? deliverViaSmtp(config.transport, message)
+    : deliverViaResend(config.apiKey, message);
 }
 
 function maskEmail(email: string): string {
@@ -76,24 +90,18 @@ async function sendTransactionalEmail({
   logContext: string;
   fallbackErrorMessage: string;
 }) {
-  const smtpUrl = env.SMTP_URL;
-  const apiKey = env.RESEND_API_KEY;
-  if (!smtpUrl && !apiKey) {
-    logger.info(
-      "[MAILER] SMTP_URL and RESEND_API_KEY not set, email not sent",
-      {
-        to,
-        subject,
-      },
-    );
+  const config = resolveMailConfig(env);
+  if (config.provider === "console") {
+    logger.info("[MAILER] mail provider is console, email not sent", {
+      to,
+      subject,
+    });
     return { data: null };
   }
 
   const message = { to, subject, react };
   try {
-    const delivery = smtpUrl
-      ? await deliverViaSmtp(smtpUrl, message)
-      : await deliverViaResend(apiKey as string, message);
+    const delivery = await deliver(config, message);
     if ("error" in delivery) {
       logger.error(logContext, {
         toMasked: maskEmail(to),

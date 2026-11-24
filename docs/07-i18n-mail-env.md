@@ -271,60 +271,46 @@ Aplikacja wysyła trzy rodzaje maili: reset hasła, powitanie z linkiem do ustaw
 
 ### Wybór sposobu wysyłki
 
-`src/shared/lib/mailer.ts`
+`sendTransactionalEmail` wywołuje `resolveMailConfig(env)` z `@gatojs/env` (`packages/env/src/mail.ts`, czysta funkcja) i dostaje jeden z wariantów `MailConfig` ([ADR-64](adrs/64-production-mail-needs-a-configured-provider-or-explicit-console.md)). Jawne `MAIL_PROVIDER` (`smtp`, `resend`, `console`; spacje z brzegów i wielkość liter bez znaczenia) wygrywa z wykrywaniem. Puste `MAIL_PROVIDER` wykrywa dostawcę z danych dostępowych:
 
-```ts
-  const smtpUrl = env.SMTP_URL;
-  const apiKey = env.RESEND_API_KEY;
-  if (!smtpUrl && !apiKey) {
-// …
-    return { data: null };
-  }
-// …
-    const delivery = smtpUrl
-      ? await deliverViaSmtp(smtpUrl, message)
-      : await deliverViaResend(apiKey as string, message);
-```
+| `MAIL_PROVIDER` | Dane | `MailConfig` | Wysyłka | Wynik przy powodzeniu |
+| --- | --- | --- | --- | --- |
+| puste albo `smtp` | `SMTP_URL` | `{ provider: "smtp", transport: "<SMTP_URL>" }` | SMTP przez nodemailer, `createTransport("<SMTP_URL>")`. HTML powstaje z szablonu przez `render` z `@react-email/render`. | `{ data: { id: <messageId> } }` |
+| puste albo `smtp` | `SMTP_HOST` (bez `SMTP_URL`) | `{ provider: "smtp", transport: { host, port, secure, auth? } }` | SMTP przez nodemailer z opcjami: `SMTP_PORT` (domyślnie 587), `SMTP_SECURE` (domyślnie `false`), `auth: { user, pass }` tylko przy ustawionych `SMTP_USER` i `SMTP_PASS`. | `{ data: { id: <messageId> } }` |
+| puste albo `resend` | `RESEND_API_KEY` (przy pustym `MAIL_PROVIDER` tylko bez `SMTP_URL` i `SMTP_HOST`) | `{ provider: "resend", apiKey }` | Żądanie `POST https://api.resend.com/emails`. Szablon jako `react` renderuje SDK Resend. | `{ data }` z odpowiedzi Resend |
+| puste | brak | `{ provider: "console", explicit: false }` | Brak. `logger.info("[MAILER] mail provider is console, email not sent", { to, subject })`. Na produkcji start się nie uda ([Produkcja](#mail-produkcja)). | `{ data: null }` |
+| `console` | dowolne | `{ provider: "console", explicit: true }` | Jak wyżej, także na produkcji i przy ustawionym `SMTP_HOST` albo kluczu Resend. | `{ data: null }` |
 
-| `SMTP_URL` | `RESEND_API_KEY` | Wysyłka | Wynik przy powodzeniu |
-| --- | --- | --- | --- |
-| ustawiony | dowolny | SMTP przez nodemailer. HTML powstaje z szablonu przez `render` z `@react-email/render`. | `{ data: { id: <messageId> } }` |
-| brak | ustawiony | Żądanie `POST https://api.resend.com/emails`. Szablon jako `react` renderuje SDK Resend. | `{ data }` z odpowiedzi Resend |
-| brak | brak | Brak. `logger.info("[MAILER] SMTP_URL and RESEND_API_KEY not set, email not sent", { to, subject })`. | `{ data: null }` |
+„Brak” obejmuje pustą wartość, bo schemat zamienia pusty napis na brak zmiennej ([Reguły parsowania](#reguly-parsowania)). Przy pustym `MAIL_PROVIDER` SMTP wygrywa z Resend, jak przed ADR-64. Reguły spójności (sprawdzane przy starcie w każdym `NODE_ENV`):
 
-„Brak” obejmuje pustą wartość, bo schemat zamienia pusty napis na brak zmiennej ([Reguły parsowania](#reguly-parsowania)). Wszystkie trzy wiersze są sprawdzone, z lokalnym serwerem SMTP i z podmienionym `fetch` zamiast API Resend.
+- `SMTP_URL` obok `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` albo `SMTP_SECURE` to błąd na tej zmiennej, na przykład `SMTP_HOST: SMTP_URL is set: drop SMTP_HOST, or drop SMTP_URL and use SMTP_HOST`. Ustawienia SMTP mają jedno źródło.
+- `MAIL_PROVIDER=smtp` bez `SMTP_HOST` i `SMTP_URL` → `SMTP_HOST: SMTP_HOST or SMTP_URL is required when MAIL_PROVIDER is "smtp"`; `MAIL_PROVIDER=resend` bez klucza → `RESEND_API_KEY: RESEND_API_KEY is required when MAIL_PROVIDER is "resend"`.
+- `SMTP_USER` i `SMTP_PASS` są ustawione obie albo żadna (`allOrNone`, komunikat `SMTP authentication is half-configured: …`).
+- `SMTP_PORT` to liczba całkowita 1–65535; pusta wartość daje 587.
 
 Zachowanie wspólne dla obu sposobów wysyłki:
 
-- Błąd wysyłki nie rzuca wyjątku. Wyjątek (na przykład `ECONNREFUSED`, gdy mailpit nie działa) i błąd zwrócony przez Resend kończą się wpisem `logger.error` z kontekstem, na przykład `[MAILER] Failed to send password reset email`, i wynikiem `{ error: <komunikat> }`, na przykład `{ error: "Nie udało się wysłać emaila z resetem hasła" }`. Wyjątek rzuca tylko odczyt `env.SMTP_URL` przed `try`, gdy zmienne środowiskowe są błędne.
+- Błąd wysyłki nie rzuca wyjątku. Wyjątek (na przykład `ECONNREFUSED`, gdy mailpit nie działa) i błąd zwrócony przez Resend kończą się wpisem `logger.error` z kontekstem, na przykład `[MAILER] Failed to send password reset email`, i wynikiem `{ error: <komunikat> }`, na przykład `{ error: "Nie udało się wysłać emaila z resetem hasła" }`. Wyjątek rzuca tylko odczyt `env` w `resolveMailConfig(env)` przed `try`, gdy zmienne środowiskowe są błędne.
 - Wpis błędu nie zawiera pełnego adresu: `maskEmail` zostawia dwa pierwsze znaki części lokalnej, a resztę zastępuje gwiazdkami (`jan.kowalski@example.com` → `ja**********@example.com`).
 - Mail ma tylko część HTML, bez wersji tekstowej. Nadawca to `EMAIL_FROM`.
-- Klient SMTP i klient Resend powstają raz na proces, a `env` też jest odczytany raz ([Walidacja](#walidacja-env)). Po zmianie `SMTP_URL` albo `RESEND_API_KEY` zrestartuj serwer.
+- Klient SMTP i klient Resend powstają raz na proces, a `env` też jest odczytany raz ([Walidacja](#walidacja-env)). Po zmianie zmiennych maili zrestartuj serwer.
 
 Kto obsługuje wynik:
 
 - Reset hasła i zaproszenie do organizacji wysyła better-auth (`sendResetPassword` i `sendInvitationEmail` w `src/shared/lib/auth/index.ts`). Oba wywołania pomijają wynik, więc użytkownik widzi sukces także wtedy, gdy mail nie wyszedł.
-- Mail powitalny wysyła `inviteUserCommand`. Przy `{ error }` zwraca sukces z `warning: "mail-failed"`, a okno zaproszenia pokazuje ostrzeżenie z prośbą o reset hasła. Bez `SMTP_URL` i `RESEND_API_KEY` wynik to `{ data: null }`, a nie błąd, więc zaproszenie kończy się sukcesem bez ostrzeżenia, chociaż mail nie wyszedł.
+- Mail powitalny wysyła `inviteUserCommand`. Przy `{ error }` zwraca sukces z `warning: "mail-failed"`, a okno zaproszenia pokazuje ostrzeżenie z prośbą o reset hasła. Przy dostawcy `console` wynik to `{ data: null }`, a nie błąd, więc zaproszenie kończy się sukcesem bez ostrzeżenia, chociaż mail nie wyszedł.
 
 <a id="mail-produkcja"></a>
 
 ### Produkcja
 
-`mailer.ts` nie sprawdza `NODE_ENV`. Wymóg produkcji jest w schemacie zmiennych:
-
-`packages/env/src/core-env-schema.ts`
-
-```ts
-  .refine((value) => value.NODE_ENV !== "production" || value.RESEND_API_KEY, {
-    path: ["RESEND_API_KEY"],
-    message: "wymagana w produkcji",
-  })
-```
+`mailer.ts` nie sprawdza `NODE_ENV`. Wymóg produkcji jest w `mailRules` (`packages/env/src/mail.ts`), które `coreEnvSchema` stosuje do surowych zmiennych ([ADR-64](adrs/64-production-mail-needs-a-configured-provider-or-explicit-console.md)).
 
 Skutki:
 
-- Przy `NODE_ENV=production` brak `RESEND_API_KEY` (albo pusta wartość) kończy walidację błędem `RESEND_API_KEY: wymagana w produkcji`, także gdy ustawiono `SMTP_URL`.
-- `SMTP_URL` wygrywa z Resend także na produkcji: przy obu zmiennych mail idzie przez SMTP (sprawdzone). Na produkcji zostaw `SMTP_URL` pusty, chyba że celowo wysyłasz przez własny serwer SMTP.
+- Przy `NODE_ENV=production` bez `MAIL_PROVIDER`, `SMTP_HOST`, `SMTP_URL` i `RESEND_API_KEY` start kończy się błędem `MAIL_PROVIDER: no mail provider configured for production: set SMTP_HOST, SMTP_URL or RESEND_API_KEY, or MAIL_PROVIDER=console to send no mail`. Operator nie traci po cichu zaproszeń i resetów hasła.
+- Wystarczy jeden dostawca: własny serwer SMTP (`SMTP_HOST` albo `SMTP_URL`), sam `RESEND_API_KEY` (wdrożenia na Railway z kluczem startują jak wcześniej) albo jawne `MAIL_PROVIDER=console`, gdy instalacja nie wysyła maili.
+- SMTP wygrywa z Resend także na produkcji, gdy `MAIL_PROVIDER` jest puste.
 - Z tego korzystają testy e2e: serwery testowe działają z `NODE_ENV=production` i wysyłają do mailpit.
 
   `e2e/env.ts`
@@ -530,8 +516,13 @@ Linie w regionie `# wa:modules:start` / `# wa:modules:end` w `.env.example` poch
 | `DATABASE_URL` | napis, co najmniej 1 znak | brak | wymagana (zawsze) | `prisma.ts` i `prisma.config.ts` przez `process.env` | Adres PostgreSQL. |
 | `BETTER_AUTH_SECRET` | napis, co najmniej 32 znaki po pominięciu spacji z brzegów; wartość nie jest przycinana | brak | wymagana (zawsze); nie może być wartością z `.env.example` | `auth` (`secret`) | Sekret better-auth do podpisywania sesji i tokenów ([D17](decyzje.md#d17)). |
 | `APP_URL` | `httpUrl()`: pełny adres z protokołem `http` albo `https`; spacje z brzegów są przycinane, a tabulatory i znaki nowej linii usuwane, ścieżka i końcowy ukośnik zostają (sprawdzone) | brak | wymagana (zawsze) | `auth` (`baseURL`), link zaproszenia | Publiczny adres aplikacji ([D16](decyzje.md#d16)). |
-| `RESEND_API_KEY` | opcjonalna | brak | wymagana, także przy ustawionym `SMTP_URL` | `mailer.ts` | Klucz API Resend. Używany tylko bez `SMTP_URL`. |
-| `SMTP_URL` | opcjonalna, format nie jest sprawdzany | brak | nie | `mailer.ts` | Adres serwera SMTP dla nodemailer. Ma pierwszeństwo przed Resend. |
+| `MAIL_PROVIDER` | opcjonalna; `smtp`, `resend` albo `console` po przycięciu spacji i zmianie na małe litery | brak (wykrywanie) | jeden dostawca maili albo `console` jest wymagany ([ADR-64](adrs/64-production-mail-needs-a-configured-provider-or-explicit-console.md)) | `mailer.ts` przez `resolveMailConfig` | Jawny wybór dostawcy maili ([Wybór sposobu wysyłki](#transport)). |
+| `RESEND_API_KEY` | opcjonalna | brak | wymagana przy `MAIL_PROVIDER=resend` | `mailer.ts` | Klucz API Resend. Przy pustym `MAIL_PROVIDER` używany tylko bez `SMTP_URL` i `SMTP_HOST`. |
+| `SMTP_URL` | opcjonalna, format nie jest sprawdzany | brak | nie | `mailer.ts` | Adres serwera SMTP dla nodemailer (dev i e2e: mailpit). Wyklucza `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` i `SMTP_SECURE`. |
+| `SMTP_HOST` | opcjonalna | brak | nie | `mailer.ts` | Host serwera SMTP, na przykład firmowego relaya. |
+| `SMTP_PORT` | liczba całkowita 1–65535 | 587 | nie | `mailer.ts` | Port serwera SMTP. |
+| `SMTP_USER`, `SMTP_PASS` | opcjonalne, obie albo żadna | brak | nie | `mailer.ts` | Logowanie do serwera SMTP; bez nich połączenie bez uwierzytelnienia. |
+| `SMTP_SECURE` | flaga | `false` | nie | `mailer.ts` | `true`: TLS od początku połączenia (zwykle port 465); `false`: STARTTLS, gdy serwer go oferuje. |
 | `EMAIL_FROM` | napis, co najmniej 1 znak, format nie jest sprawdzany | brak | wymagana (zawsze) | `mailer.ts` | Nadawca maili, na przykład `WA App <noreply@example.com>`. |
 | `AUTH_PUBLIC_SIGNUP` | flaga | `false` | nie | hook `before` better-auth, strona `/sign-up` | `true`: rejestracja bez zaproszenia ([04-auth-i-role.md](04-auth-i-role.md#rejestracja)). |
 | `MULTI_ORG` | flaga | `false` | nie | hook `before`, `allowUserToCreateOrganization`, `requireModuleAccess`, layout `(app)`, strona `no-organization` | `true`: wiele organizacji ([03-dane-i-organizacje.md](03-dane-i-organizacje.md#tryby-multi-org)). |

@@ -44,7 +44,7 @@ Sposoby egzekwowania różnią się siłą:
 - `zastąpiona przez Dxx`: decyzja przestała obowiązywać. Wpis zostaje w pliku z nowym statusem i jednym zdaniem o tym, co się zmieniło, a decyzja, która go zastąpiła, ma własny numer i mówi, co zmieniła. Pozostała treść zastąpionego wpisu jest zapisem historii i nie opisuje kodu.
 - Gdy w decyzji zmieniły się tylko fakty (na przykład lista plików generowanych albo miejsc w kodzie), wpis poprawia się w miejscu, bez nowego numeru.
 - Numery `D01`, `D02`… są stałe i nie są używane ponownie. Inne pliki linkują do wpisu przez kotwicę, na przykład `[D07](decyzje.md#d07)`, więc zmiana numeru zepsułaby linki. Odnośnik, który opisuje bieżący stan kodu, wskazuje decyzję obowiązującą, a nie zastąpioną.
-- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D52 bez luk: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), D29 przez [ADR-56](adrs/56-workspace-packages-replace-d29.md), a D28 częściowo przez ADR-56; pozostałe obowiązują.
+- Numer decyzji, która nie obowiązuje w kodzie, jest pomijany bez przenumerowania pozostałych. Rejestr obejmuje numery D01–D52 bez luk: D01 i D02 są zastąpione (przez [D39](#d39) i [D38](#d38)), D29 przez [ADR-56](adrs/56-workspace-packages-replace-d29.md), a D28 częściowo przez ADR-56, D17 i D18 częściowo przez [ADR-64](adrs/64-production-mail-needs-a-configured-provider-or-explicit-console.md); pozostałe obowiązują.
 - Nową decyzję dopisuje się na końcu z następnym wolnym numerem, kotwicą `<a id="dNN"></a>` i wszystkimi polami.
 - Jeden plik wystarcza, dopóki decyzje dopisuje jedna gałąź naraz. Gdy zaczną to robić równolegle różne gałęzie, dwie mogą dopisać ten sam następny numer; wtedy warto rozważyć osobne pliki `docs/decyzje/NNNN-*.md`.
 
@@ -105,8 +105,8 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 | [D14](#d14) | Schemat Prisma w wielu plikach | Dane i organizacje | obowiązuje |
 | [D15](#d15) | Logger na OpenTelemetry | Konfiguracja i usługi | obowiązuje |
 | [D16](#d16) | `APP_URL` jako publiczny adres | Konfiguracja i usługi | obowiązuje |
-| [D17](#d17) | Ścisła walidacja zmiennych środowiskowych | Konfiguracja i usługi | obowiązuje |
-| [D18](#d18) | Maile: SMTP, Resend, log | Konfiguracja i usługi | obowiązuje |
+| [D17](#d17) | Ścisła walidacja zmiennych środowiskowych | Konfiguracja i usługi | obowiązuje częściowo ([ADR-64](adrs/64-production-mail-needs-a-configured-provider-or-explicit-console.md)) |
+| [D18](#d18) | Maile: SMTP, Resend, log | Konfiguracja i usługi | obowiązuje częściowo ([ADR-64](adrs/64-production-mail-needs-a-configured-provider-or-explicit-console.md)) |
 | [D19](#d19) | `superadmin` jako rola serwisowa | Superadmin | obowiązuje |
 | [D20](#d20) | Impersonacja zależna od roli | Superadmin | obowiązuje |
 | [D21](#d21) | Superadmin wchodzi do dowolnej organizacji, zawsze jednej | Superadmin | obowiązuje |
@@ -626,6 +626,8 @@ Strona `/sign-up` przy wyłączonej rejestracji i bez `invitationId` przekierowu
 
 ## D17 · Ścisła walidacja env: sekret co najmniej 32 znaki, flagi tylko `true` albo `false`
 
+**Częściowo zastąpiona przez [ADR-64](adrs/64-production-mail-needs-a-configured-provider-or-explicit-console.md):** na produkcji nie jest już wymagany `RESEND_API_KEY`, tylko skonfigurowany dostawca maili (`SMTP_HOST`, `SMTP_URL`, `RESEND_API_KEY`) albo jawne `MAIL_PROVIDER=console`. Reszta decyzji obowiązuje.
+
 **Status:** obowiązuje · **Data:** 2026-10-26 (minimalna długość sekretu), 2026-10-27 (flagi, `APP_URL`, sekret ze spacjami) · **Kto zdecydował:** wykonawca planu 1 (ruling R18, sekret); poprawki z audytu testów planu 1 (znaleziska P1–P3), wdrożone w commicie `494224e`
 
 **Kontekst.** Audyt testów planu 1 znalazł trzy wartości, które schemat przyjmował bez błędu:
@@ -659,6 +661,8 @@ Problemy trafiają do jednego komunikatu `Nieprawidłowe zmienne środowiskowe: 
 <a id="d18"></a>
 
 ## D18 · Wysyłka maili: SMTP, potem Resend, potem tylko log
+
+**Częściowo zastąpiona przez [ADR-64](adrs/64-production-mail-needs-a-configured-provider-or-explicit-console.md):** `MAIL_PROVIDER` (`smtp`, `resend`, `console`) wybiera dostawcę jawnie, SMTP można ustawić przez `SMTP_HOST` i pokrewne zmienne, a uwaga o `RESEND_API_KEY` wymaganym na produkcji nie obowiązuje. Kolejność wykrywania przy pustym `MAIL_PROVIDER` (SMTP, potem Resend, potem log) zostaje.
 
 **Status:** obowiązuje · **Data:** 2026-10-26 · **Kto zdecydował:** autor planu 1 (zadania z mailerem i infrastrukturą); wybór lokalnego serwera pocztowego design doc zostawił wykonawcy (§10)
 
@@ -927,7 +931,7 @@ Audyt testów planu 1 potwierdził to w repozytorium: testy były słabe tam, gd
 - Definicje agentów w `.claude/agents/`.
 - Rozdzielenie testera i implementera, literały i czerwony przebieg przed implementacją: tylko konwencja procesu, sprawdzana przez recenzenta i mierzona mutacjami ([D26](#d26)).
 
-**Uwaga (2026-11-23).** Od `core` 0.15.0 plik fazy to `.gato/phase` (zadanie 2 planu `docs/superpowers/plans/2026-11-22-agent-workflow.md`, [ADR-57](adrs/57-the-agent-workflow-is-shipped-by-gatojs.md)). Hook czyta jeszcze dawny `.superpowers/phase` do `core` 0.16.0 ([Znane ograniczenia](znane-ograniczenia.md#dawny-plik-fazy)). Ścieżka `.superpowers/phase` w tym wpisie opisuje decyzję z chwili jej podjęcia.
+**Uwaga (2026-11-23).** Od `core` 0.15.0 plik fazy to `.gato/phase` (zadanie 2 planu `docs/superpowers/plans/2026-11-22-agent-workflow.md`, [ADR-57](adrs/57-the-agent-workflow-is-shipped-by-gatojs.md)). Hook czyta jeszcze dawny `.superpowers/phase` do `core` 0.17.0 ([Znane ograniczenia](znane-ograniczenia.md#dawny-plik-fazy)). Ścieżka `.superpowers/phase` w tym wpisie opisuje decyzję z chwili jej podjęcia.
 
 **Źródło.** Commity `0650fc4` i `e40c0e8`; [AGENTS.md](../AGENTS.md), „Testy, które próbują złamać kod”; [CLAUDE.md](../CLAUDE.md), „Testy”; research i audyt testów planu 1.
 
