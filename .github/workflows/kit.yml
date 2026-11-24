@@ -36,6 +36,32 @@ jobs:
       - name: Bundle is up to date
         run: git diff --exit-code -- .wa/bin/wa.mjs
 
+  # Dependabot updates package.json only; the module manifests pin the same versions.
+  # Read-only on purpose: no write-back, no secret, the job prints the command to run.
+  dependabot-manifests:
+    name: Dependabot manifests follow package.json
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+
+      - name: Manifests follow package.json
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: npx tsx scripts/kit/sync-manifest-deps.ts --check --base "origin/$BASE_REF"
+
   release-scripts:
     name: Release scripts
     runs-on: ubuntu-latest
