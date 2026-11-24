@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   parseAddArgs,
   parseCreateArgs,
+  parseDoctorArgs,
+  parseEjectArgs,
   parseListArgs,
   parseRemoveArgs,
   parseUpdateArgs,
@@ -539,5 +541,99 @@ describe("rozróżnianie opcji z wartością i flag w komunikatach", () => {
     expect(
       messageOf(() => parseAddArgs(["auth", "--kit", "--no-install"])),
     ).toBe("Option --kit needs a value");
+  });
+});
+
+describe("parseDoctorArgs", () => {
+  it("--files gives files true", () => {
+    expect(parseDoctorArgs(["--files"])).toEqual({ files: true });
+  });
+
+  it("without --files reports that only --files is implemented", () => {
+    expect(messageOf(() => parseDoctorArgs([]))).toBe(
+      "Only --files is implemented; see the gato-cli spec §8",
+    );
+  });
+
+  it("rejects an extra positional argument", () => {
+    expect(messageOf(() => parseDoctorArgs(["--files", "x"]))).toBe(
+      "Unexpected argument: x",
+    );
+  });
+
+  it("rejects an unknown option", () => {
+    expect(messageOf(() => parseDoctorArgs(["--files", "--foo"]))).toBe(
+      "Unknown option: --foo",
+    );
+  });
+
+  it("rejects a value given to --files", () => {
+    expect(messageOf(() => parseDoctorArgs(["--files=1"]))).toBe(
+      "Option --files takes no value",
+    );
+  });
+});
+
+describe("parseEjectArgs", () => {
+  it("file with --reason gives the file, the reason, undo false and no kit", () => {
+    expect(parseEjectArgs(["src/a.ts", "--reason", "custom login"])).toEqual({
+      file: "src/a.ts",
+      reason: "custom login",
+      undo: false,
+      kit: null,
+    });
+  });
+
+  it("--reason before the file is accepted", () => {
+    expect(parseEjectArgs(["--reason", "custom login", "src/a.ts"])).toEqual({
+      file: "src/a.ts",
+      reason: "custom login",
+      undo: false,
+      kit: null,
+    });
+  });
+
+  it("--undo with a file gives undo true and no reason", () => {
+    expect(parseEjectArgs(["--undo", "src/a.ts"])).toEqual({
+      file: "src/a.ts",
+      reason: null,
+      undo: true,
+      kit: null,
+    });
+  });
+
+  it("--undo with --kit passes the kit source", () => {
+    expect(parseEjectArgs(["--undo", "src/a.ts", "--kit", "/k"])).toEqual({
+      file: "src/a.ts",
+      reason: null,
+      undo: true,
+      kit: "/k",
+    });
+  });
+
+  it.each([
+    [[], "Specify the file to eject"],
+    [["--reason", "x"], "Specify the file to eject"],
+    [["--undo"], "Specify the file to eject"],
+    [["src/a.ts"], 'Specify why the file is ejected: --reason "<why>"'],
+    [
+      ["src/a.ts", "--reason", "   "],
+      'Specify why the file is ejected: --reason "<why>"',
+    ],
+    [
+      ["src/a.ts", "--reason="],
+      'Specify why the file is ejected: --reason "<why>"',
+    ],
+    [["--undo", "src/a.ts", "--reason", "x"], "--undo takes no --reason"],
+    [
+      ["src/a.ts", "--reason", "x", "--kit", "/k"],
+      "--kit is only used with --undo",
+    ],
+    [["src/a.ts", "b", "--reason", "x"], "Unexpected argument: b"],
+    [["--undo", "src/a.ts", "b"], "Unexpected argument: b"],
+    [["src/a.ts", "--reason", "x", "--force"], "Unknown option: --force"],
+    [["--undo=1", "src/a.ts"], "Option --undo takes no value"],
+  ])("%j reports %s", (argv, message) => {
+    expect(messageOf(() => parseEjectArgs(argv))).toBe(message);
   });
 });

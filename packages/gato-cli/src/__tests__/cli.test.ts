@@ -3,6 +3,7 @@ import { fc, test } from "@fast-check/vitest";
 import { describe, expect, it } from "vitest";
 import {
   cliDependency,
+  commandPrefix,
   createKitDir,
   kitSourceFromEnv,
   runMetaCommand,
@@ -153,6 +154,10 @@ describe("runMetaCommand", () => {
     [["list"]],
     [["generate"]],
     [["kit", "sync"]],
+    [["doctor", "--files"]],
+    [["doctor"]],
+    [["eject", "src/a.ts", "--reason", "x"]],
+    [["eject", "--undo", "src/a.ts"]],
   ])("known command %j is left to the caller", (argv) => {
     expect(runMetaCommand(argv, gato)).toBeNull();
     expect(runMetaCommand(argv, wa)).toBeNull();
@@ -442,5 +447,28 @@ describe("cliDependency", () => {
     expect(
       cliDependency({ name, version: "0.2.0", cliSource: source, cwd: "/w" }),
     ).toBe(`file:${source}`);
+  });
+});
+
+describe("doctor and eject in usage", () => {
+  it.each([
+    ["gato", "  gato doctor --files"],
+    ["gato", "  gato eject <file> --reason"],
+    ["wa", "  wa doctor --files"],
+    ["wa", "  wa eject <file> --reason"],
+  ] as const)("%s usage lists a line starting with %s", (name, prefix) => {
+    expect(linesOf(usage(name)).some((line) => line.startsWith(prefix))).toBe(
+      true,
+    );
+  });
+});
+
+describe("commandPrefix", () => {
+  it("gato runs its commands as gato", () => {
+    expect(commandPrefix("gato")).toBe("gato");
+  });
+
+  it("wa runs its commands through npm run wa --", () => {
+    expect(commandPrefix("wa")).toBe("npm run wa --");
   });
 });
