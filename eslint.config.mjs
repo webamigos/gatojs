@@ -9,6 +9,7 @@ const eslintConfig = defineConfig([
     "packages/create-gato-app/**",
     "kit/**",
     "docs/**",
+    ".gato/**",
     ".superpowers/**",
     ".claude/**",
     ".wa/**",
