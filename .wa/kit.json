@@ -83,10 +83,10 @@
       "files": {}
     },
     "core": {
-      "version": "0.16.0",
+      "version": "0.16.1",
       "manifest": {
         "name": "core",
-        "version": "0.16.0",
+        "version": "0.16.1",
         "description": "GatoJS core: auth, organizations, users, account, dashboard",
         "requires": [],
         "files": [
@@ -155,6 +155,7 @@
           "src/app/api/auth/**",
           "src/app/api/healthcheck/**",
           "src/app/emails/**",
+          "src/app/fonts/**",
           "src/app/messages/**",
           "src/app/[locale]/*",
           "src/app/[locale]/(app)/*",
