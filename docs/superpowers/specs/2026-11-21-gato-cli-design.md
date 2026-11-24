@@ -73,8 +73,8 @@ Outside a project (no `.wa/kit.json`), `gato` does not assemble anything; it pri
 
 ## 6. Versions and compatibility
 
-- `kit/kit.json` gains `kitFormat` (an integer, starting at `1`). The format changes when a contract read by the CLI changes: the manifest schema, `.wa/kit.json`, `wa:*` regions, the layout of generated files.
-- `gato-cli` declares the formats it supports (`SUPPORTED_KIT_FORMATS`). A project or kit in a format outside that list ends the command with an error: `This project uses kit format <n>; update gato-cli (npm i -D gato-cli@latest)`, or, for a format older than any supported one, the last CLI version that knows it.
+- `kit/kit.json` gains `kitFormat` (an integer; a project or kit without the field is format `1`, and the first kit that declares it is format `2`). The format changes when a contract read by the CLI changes: the manifest schema, `.wa/kit.json`, `wa:*` regions, the layout of generated files.
+- `gato-cli` declares the formats it supports (`SUPPORTED_KIT_FORMATS`). A project or kit in a format outside that list ends the command with an error: `This project uses kit format <n>; update gato-cli (npm i -D gato-cli@latest) or run: npx gato-cli@latest update <version>` (the second hint is for a project whose bundled CLI, `npm run wa`, is older than the target kit; decided by Patryk on 2026-11-23, implemented in extensibility Task 1, ADR-59), or, for a format older than any supported one, the last CLI version that knows it.
 - **Which `gato-cli` a new project gets.** `create-gato-app` depends on an exact `gato-cli` version (no range) and writes `"gato-cli": "^<that exact version>"` into the project. The version therefore always exists in the registry, whatever the creator's own version number is. The release workflow publishes `gato-cli` before `create-gato-app` when both change, and a CI check fails when the creator's pinned `gato-cli` version is not the one in the workspace.
 - `.wa/kit.json` records `kitFormat` and `cliVersion` at the time of the last operation.
 

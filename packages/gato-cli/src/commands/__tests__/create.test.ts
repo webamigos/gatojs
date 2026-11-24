@@ -691,6 +691,123 @@ describe("create: błąd podczas składania", () => {
   });
 });
 
+describe("create: kitFormat and seed files", () => {
+  async function editKitConfig(
+    edit: (json: Record<string, unknown>) => void,
+  ): Promise<void> {
+    const configPath = join(kit, "kit/kit.json");
+    const json = JSON.parse(await readFile(configPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    edit(json);
+    await writeFile(configPath, `${JSON.stringify(json, null, 2)}\n`);
+  }
+
+  it("writes kitFormat 2 of the fixture kit into .wa/kit.json after kitRepo", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true }));
+    const raw = JSON.parse(await read(dir, ".wa/kit.json")) as Record<
+      string,
+      unknown
+    >;
+    expect(raw.kitFormat).toBe(2);
+    expect(Object.keys(raw).slice(0, 3)).toEqual([
+      "kitVersion",
+      "kitRepo",
+      "kitFormat",
+    ]);
+    expect((await readKitState(dir)).kitFormat).toBe(2);
+  });
+
+  it("writes an empty ejected map into .wa/kit.json of a new project", async () => {
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true }));
+    const raw = JSON.parse(await read(dir, ".wa/kit.json")) as Record<
+      string,
+      unknown
+    >;
+    expect(raw.ejected).toEqual({});
+  });
+
+  it("a kit without kitFormat creates a project with kitFormat 1", async () => {
+    await editKitConfig((json) => {
+      delete json.kitFormat;
+    });
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true }));
+    expect(JSON.parse(await read(dir, ".wa/kit.json")).kitFormat).toBe(1);
+  });
+
+  it("a kit with kitFormat 99 stops with the update gato-cli message and creates no directory", async () => {
+    await editKitConfig((json) => {
+      json.kitFormat = 99;
+    });
+    const dir = join(tmp, "acme-shop");
+    await expect(
+      messageOf(create(opts({ target: dir, yes: true, install: true }))),
+    ).resolves.toBe(
+      "This project uses kit format 99; update gato-cli (npm i -D gato-cli@latest) or run: npx gato-cli@latest update <version>",
+    );
+    expect(existsSync(dir)).toBe(false);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("a kit with kitFormat 99 leaves an existing empty target empty", async () => {
+    await editKitConfig((json) => {
+      json.kitFormat = 99;
+    });
+    const dir = join(tmp, "acme-shop");
+    await mkdir(dir);
+    await expect(create(opts({ target: dir, yes: true }))).rejects.toThrow(
+      "This project uses kit format 99; update gato-cli",
+    );
+    expect(await readdir(dir)).toEqual([]);
+  });
+
+  it("an interactive create from a kit with kitFormat 99 stops before any question or log line", async () => {
+    await editKitConfig((json) => {
+      json.kitFormat = 99;
+    });
+    const dir = join(tmp, "acme-shop");
+    const { prompter } = scriptedPrompter([]);
+    await expect(
+      messageOf(create(opts({ target: dir, modules: null, prompter }))),
+    ).resolves.toBe(
+      "This project uses kit format 99; update gato-cli (npm i -D gato-cli@latest) or run: npx gato-cli@latest update <version>",
+    );
+    expect(prompter.ask).not.toHaveBeenCalled();
+    expect(prompter.select).not.toHaveBeenCalled();
+    expect(logs).toEqual([]);
+    expect(existsSync(dir)).toBe(false);
+  });
+
+  it("records a file from seedFiles with the hash seed and copies its content", async () => {
+    await editKitConfig((json) => {
+      json.seedFiles = ["src/i18n/config.ts"];
+    });
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true }));
+    const coreFiles = (await readKitState(dir)).modules["core"]?.files ?? {};
+    expect(coreFiles["src/i18n/config.ts"]).toBe("seed");
+    expect(coreFiles["src/features/auth/module.ts"]).toMatch(/^[0-9a-f]{64}$/);
+    expect(await read(dir, "src/i18n/config.ts")).toBe(
+      'export type Locale = "pl" | "en";\n',
+    );
+  });
+
+  it("a file in both managedFiles and seedFiles is recorded as managed", async () => {
+    await editKitConfig((json) => {
+      json.seedFiles = ["package.json"];
+    });
+    const dir = join(tmp, "acme-shop");
+    await create(opts({ target: dir, yes: true }));
+    expect(
+      (await readKitState(dir)).modules["core"]?.files["package.json"],
+    ).toBe("managed");
+  });
+});
+
 describe("create: polecenia", () => {
   it("bez install i git nie woła runnera", async () => {
     await create(opts({ yes: true }));

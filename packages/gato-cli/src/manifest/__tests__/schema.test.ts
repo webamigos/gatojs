@@ -97,9 +97,11 @@ describe("kitStateSchema", () => {
       kitVersion: "0.0.0",
       kitRepo: "https://github.com/webamigos/wa-kit.git",
       project: { name: "WA App", slug: "wa-app" },
+      kitFormat: 1,
       locales: ["pl", "en"],
       modules: {},
       projectModules: {},
+      ejected: {},
     });
   });
 
@@ -132,5 +134,80 @@ describe("kitStateSchema", () => {
     expect(kitStateSchema.safeParse({ ...base, kitRepo: 5 }).success).toBe(
       false,
     );
+  });
+
+  it("keeps an explicit kitFormat 2", () => {
+    expect(kitStateSchema.parse({ ...base, kitFormat: 2 }).kitFormat).toBe(2);
+  });
+
+  it.each([[0], [-1], [1.5], ["1"]])(
+    "kitFormat %j is rejected",
+    (kitFormat) => {
+      expect(kitStateSchema.safeParse({ ...base, kitFormat }).success).toBe(
+        false,
+      );
+    },
+  );
+
+  it("keeps an ejected entry with its reason and date", () => {
+    expect(
+      kitStateSchema.parse({
+        ...base,
+        ejected: {
+          "src/a.ts": { reason: "custom login", ejectedAt: "2026-11-23" },
+        },
+      }).ejected,
+    ).toEqual({
+      "src/a.ts": { reason: "custom login", ejectedAt: "2026-11-23" },
+    });
+  });
+
+  it("trims the reason of an ejected entry", () => {
+    expect(
+      kitStateSchema.parse({
+        ...base,
+        ejected: {
+          "src/a.ts": { reason: "  custom login  ", ejectedAt: "2026-11-23" },
+        },
+      }).ejected,
+    ).toEqual({
+      "src/a.ts": { reason: "custom login", ejectedAt: "2026-11-23" },
+    });
+  });
+
+  it("rejects an ejected entry with a blank reason", () => {
+    expect(
+      kitStateSchema.safeParse({
+        ...base,
+        ejected: { x: { reason: "  ", ejectedAt: "2026-11-23" } },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an ejected entry with an empty reason", () => {
+    expect(
+      kitStateSchema.safeParse({
+        ...base,
+        ejected: { x: { reason: "", ejectedAt: "2026-11-23" } },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an ejected entry without ejectedAt", () => {
+    expect(
+      kitStateSchema.safeParse({
+        ...base,
+        ejected: { x: { reason: "custom login" } },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an ejected entry without a reason", () => {
+    expect(
+      kitStateSchema.safeParse({
+        ...base,
+        ejected: { x: { ejectedAt: "2026-11-23" } },
+      }).success,
+    ).toBe(false);
   });
 });

@@ -22,11 +22,13 @@ function snapshot(
     config: {
       version,
       repo: "webamigos/wa-kit",
+      kitFormat: 2,
       kitOnly: [],
       placeholders: { projectName: "", projectSlug: "", projectSnake: "" },
       placeholderFiles: [],
       generatedFiles: [],
       managedFiles: ["package.json", "package-lock.json"],
+      seedFiles: [],
     },
     manifests: [],
     files: new Map(
@@ -36,7 +38,10 @@ function snapshot(
 }
 
 function recorded(path: string, content: string | Buffer): string {
-  return fileHash(path, Buffer.from(content), { managedFiles: [] });
+  return fileHash(path, Buffer.from(content), {
+    managedFiles: [],
+    seedFiles: [],
+  });
 }
 
 function plan(input: {
@@ -664,5 +669,81 @@ describe("planUpdate", () => {
       ["src/m.ts", "updated"],
       ["src/z.ts", "removed"],
     ]);
+  });
+});
+
+describe("planUpdate: files recorded as seed", () => {
+  const README_BASE = "# WA App\n\nStart here.\n";
+  const README_KIT = "# WA App\n\nStart here, then read the docs.\n";
+  const README_PROJECT = "# Acme\n\nOur own readme.\n";
+  const UPDATED_A = {
+    path: "src/a.ts",
+    action: "updated",
+    reason: null,
+    content: Buffer.from("a\nb\nc\nd\ne\nKIT\n"),
+    mode: 0o644,
+  };
+
+  it("does not plan a seed file equal to the base when the kit changed it, but still updates other files", async () => {
+    expect(
+      await plan({
+        base: { "README.md": README_BASE, "src/a.ts": BASE },
+        target: { "README.md": README_KIT, "src/a.ts": KIT },
+        project: { "README.md": README_BASE, "src/a.ts": BASE },
+        recordedHashes: {
+          "README.md": "seed",
+          "src/a.ts": recorded("src/a.ts", BASE),
+        },
+      }),
+    ).toEqual({ files: [UPDATED_A], mismatchedBase: [] });
+  });
+
+  it("does not merge a seed file changed both in the project and in the kit", async () => {
+    expect(
+      await plan({
+        base: { "README.md": README_BASE, "src/a.ts": BASE },
+        target: { "README.md": README_KIT, "src/a.ts": KIT },
+        project: { "README.md": README_PROJECT, "src/a.ts": BASE },
+        recordedHashes: {
+          "README.md": "seed",
+          "src/a.ts": recorded("src/a.ts", BASE),
+        },
+      }),
+    ).toEqual({ files: [UPDATED_A], mismatchedBase: [] });
+  });
+
+  it("does not ask about a seed file deleted in the project and changed in the kit", async () => {
+    expect(
+      await plan({
+        base: { "README.md": README_BASE },
+        target: { "README.md": README_KIT },
+        project: {},
+        recordedHashes: { "README.md": "seed" },
+      }),
+    ).toEqual({ files: [], mismatchedBase: [] });
+  });
+
+  it("does not remove a seed file equal to the base when the kit deleted it", async () => {
+    expect(
+      await plan({
+        base: { "README.md": README_BASE },
+        target: {},
+        project: { "README.md": README_BASE },
+        recordedHashes: { "README.md": "seed" },
+      }),
+    ).toEqual({ files: [], mismatchedBase: [] });
+  });
+
+  it("does not report a seed file as differing from the base", async () => {
+    expect(
+      (
+        await plan({
+          base: { "README.md": README_BASE },
+          target: { "README.md": README_KIT },
+          project: { "README.md": README_PROJECT },
+          recordedHashes: { "README.md": "seed" },
+        })
+      ).mismatchedBase,
+    ).toEqual([]);
   });
 });

@@ -26,6 +26,7 @@ type PlanInput = {
 type Decision = { file: PlannedFile | null; mismatchedBase: boolean };
 
 const MANAGED = "managed";
+const SEED = "seed";
 const UNCHANGED: Decision = { file: null, mismatchedBase: false };
 
 function planned(
@@ -104,6 +105,9 @@ async function decideExisting(
   kit: KitFile | undefined,
   input: PlanInput,
 ): Promise<Decision> {
+  if (input.recordedHashes[path] === SEED) {
+    return UNCHANGED;
+  }
   const baseHash = contentHash(path, base.content);
   const kitContentUnchanged =
     kit !== undefined && contentHash(path, kit.content) === baseHash;

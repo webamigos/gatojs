@@ -1,6 +1,7 @@
 import { compareCodePoint, compareModuleNames } from "../compare.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { assertSupportedKitFormat } from "../kit/kit-format.js";
 import { kitStateSchema } from "./schema.js";
 import type { KitState, ModuleManifest } from "./schema.js";
 
@@ -19,6 +20,7 @@ export async function readKitState(projectDir: string): Promise<KitState> {
     throw error;
   }
   const state = kitStateSchema.parse(JSON.parse(raw));
+  assertSupportedKitFormat(state.kitFormat);
   validateProjectModules(state);
   return state;
 }
@@ -64,6 +66,9 @@ export async function writeKitState(
       compareCodePoint(a, b),
     ),
   );
+  const sortedEjected = Object.fromEntries(
+    Object.entries(state.ejected).sort(([a], [b]) => compareCodePoint(a, b)),
+  );
   const target = join(projectDir, KIT_STATE_PATH);
   await mkdir(dirname(target), { recursive: true });
   await writeFile(
@@ -72,10 +77,12 @@ export async function writeKitState(
       {
         kitVersion: state.kitVersion,
         kitRepo: state.kitRepo,
+        kitFormat: state.kitFormat,
         project: state.project,
         locales: state.locales,
         modules: sortedModules,
         projectModules: sortedProjectModules,
+        ejected: sortedEjected,
       },
       null,
       2,

@@ -88,6 +88,60 @@ describe("readKitConfig", () => {
   });
 });
 
+describe("readKitConfig: kitFormat and seedFiles", () => {
+  async function writeKitJson(edit: (raw: Record<string, unknown>) => void) {
+    const raw = JSON.parse(
+      await readFile(join(fixtureKit, "kit/kit.json"), "utf8"),
+    ) as Record<string, unknown>;
+    edit(raw);
+    await mkdir(join(tmp, "kit"), { recursive: true });
+    await writeFile(join(tmp, "kit/kit.json"), JSON.stringify(raw));
+  }
+
+  it("reads kitFormat 2 and empty seedFiles from the fixture kit", async () => {
+    const config = await readKitConfig(fixtureKit);
+    expect(config.kitFormat).toBe(2);
+    expect(config.seedFiles).toEqual([]);
+  });
+
+  it("a kit released before kitFormat existed reads as format 1 without seed files", async () => {
+    await writeKitJson((raw) => {
+      delete raw.kitFormat;
+      delete raw.seedFiles;
+    });
+    const config = await readKitConfig(tmp);
+    expect(config.kitFormat).toBe(1);
+    expect(config.seedFiles).toEqual([]);
+  });
+
+  it("keeps the listed seed files", async () => {
+    await writeKitJson((raw) => {
+      raw.seedFiles = ["README.md", "src/app/page.tsx"];
+    });
+    expect((await readKitConfig(tmp)).seedFiles).toEqual([
+      "README.md",
+      "src/app/page.tsx",
+    ]);
+  });
+
+  it.each([[0], [-1], [1.5], ["2"]])(
+    "kitFormat %j is rejected",
+    async (kitFormat) => {
+      await writeKitJson((raw) => {
+        raw.kitFormat = kitFormat;
+      });
+      await expect(readKitConfig(tmp)).rejects.toThrow();
+    },
+  );
+
+  it("seedFiles with a non-string entry is rejected", async () => {
+    await writeKitJson((raw) => {
+      raw.seedFiles = ["README.md", 5];
+    });
+    await expect(readKitConfig(tmp)).rejects.toThrow();
+  });
+});
+
 describe("readKitManifests", () => {
   it("ignoruje pliki spoza .json w kit/modules", async () => {
     const copy = join(tmp, "kit-copy");

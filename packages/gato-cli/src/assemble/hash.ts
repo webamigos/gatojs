@@ -43,10 +43,13 @@ export function contentHash(file: string, content: Buffer): string {
 export function fileHash(
   file: string,
   content: Buffer,
-  config: Pick<KitConfig, "managedFiles">,
+  config: Pick<KitConfig, "managedFiles" | "seedFiles">,
 ): string {
   if (config.managedFiles.includes(file)) {
     return "managed";
+  }
+  if (config.seedFiles.includes(file)) {
+    return "seed";
   }
   return contentHash(file, content);
 }

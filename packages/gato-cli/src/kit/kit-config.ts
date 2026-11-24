@@ -8,6 +8,7 @@ import type { ModuleManifest } from "../manifest/schema.js";
 export const kitConfigSchema = z.object({
   version: z.string().min(1),
   repo: z.string().min(1),
+  kitFormat: z.number().int().positive().default(1),
   kitOnly: z.array(z.string()),
   placeholders: z.object({
     projectName: z.string(),
@@ -17,6 +18,7 @@ export const kitConfigSchema = z.object({
   placeholderFiles: z.array(z.string()),
   generatedFiles: z.array(z.string()),
   managedFiles: z.array(z.string()),
+  seedFiles: z.array(z.string()).default([]),
 });
 
 export type KitConfig = z.infer<typeof kitConfigSchema>;

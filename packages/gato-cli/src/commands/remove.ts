@@ -31,7 +31,8 @@ export type RemoveOptions = {
   log: (line: string) => void;
 };
 
-const HASH_CONFIG = { managedFiles: [] };
+const HASH_CONFIG = { managedFiles: [], seedFiles: [] };
+const SEED = "seed";
 
 function assertRemovable(state: KitState, module: string): void {
   if (module === "core") {
@@ -120,6 +121,9 @@ async function changedFiles(
 ): Promise<string[]> {
   const changed: string[] = [];
   for (const [file, savedHash] of Object.entries(files)) {
+    if (savedHash === SEED) {
+      continue;
+    }
     const content = await readIfExists(await insideProject(projectDir, file));
     if (content === null) {
       continue;
@@ -173,7 +177,9 @@ export async function remove(
     (typeof state.modules)[string]
   >;
   const absolutePaths = await Promise.all(
-    Object.keys(entry.files).map((file) => insideProject(projectDir, file)),
+    Object.entries(entry.files)
+      .filter(([, hash]) => hash !== SEED)
+      .map(([file]) => insideProject(projectDir, file)),
   );
   const changed = await changedFiles(projectDir, entry.files);
   if (changed.length > 0 && !options.force) {

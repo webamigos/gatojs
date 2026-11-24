@@ -31,6 +31,7 @@ function stateWith(
   return {
     kitVersion: "0.1.0",
     kitRepo: "https://github.com/webamigos/wa-kit.git",
+    kitFormat: 1,
     project: { name: "App", slug: "app" },
     locales: ["pl", "en"],
     modules: Object.fromEntries(
@@ -42,6 +43,7 @@ function stateWith(
     projectModules: Object.fromEntries(
       projectModules.map((m) => [m.name, { manifest: m }]),
     ),
+    ejected: {},
   };
 }
 

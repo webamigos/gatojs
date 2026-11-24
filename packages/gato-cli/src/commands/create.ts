@@ -28,6 +28,7 @@ import { generate } from "../generate/index.js";
 import { assemblableFiles } from "../kit/files.js";
 import { readKitConfig, readKitManifests } from "../kit/kit-config.js";
 import type { KitConfig } from "../kit/kit-config.js";
+import { assertSupportedKitFormat } from "../kit/kit-format.js";
 import { writeKitState } from "../manifest/kit-state.js";
 import type { ModuleManifest } from "../manifest/schema.js";
 import type { Prompter, SelectChoice } from "../process/prompter.js";
@@ -178,10 +179,12 @@ async function assemble(input: {
   await writeKitState(projectDir, {
     kitVersion: config.version,
     kitRepo: config.repo,
+    kitFormat: config.kitFormat,
     project: { name: names.name, slug: names.slug },
     locales,
     modules,
     projectModules: {},
+    ejected: {},
   });
   await generate(projectDir);
 }
@@ -307,6 +310,7 @@ export async function create(
   }
   assertKitDir(options.kitDir);
   const config = await readKitConfig(options.kitDir);
+  assertSupportedKitFormat(config.kitFormat);
   const available = await readKitManifests(options.kitDir);
   const answers = await collectAnswers(options, available, names);
   const runSetupSteps = options.install && answers.setup;

@@ -15,6 +15,7 @@ import { promisify } from "node:util";
 import type { UpdateArgs } from "../args.js";
 import { fileHash } from "../assemble/hash.js";
 import { readKitConfig } from "../kit/kit-config.js";
+import { assertSupportedKitFormat } from "../kit/kit-format.js";
 import { cloneKitVersion, kitSourceLocation } from "../kit/source.js";
 import { moduleFiles } from "../assemble/resolve-modules.js";
 import { compareCodePoint } from "../compare.js";
@@ -242,7 +243,12 @@ function nextState(
       return [manifest.name, { version: manifest.version, manifest, files }];
     }),
   );
-  return { ...state, kitVersion: target.version, modules };
+  return {
+    ...state,
+    kitVersion: target.version,
+    kitFormat: target.config.kitFormat,
+    modules,
+  };
 }
 
 async function writeUpdate(input: {
@@ -311,6 +317,7 @@ export async function update(
       `Target kit has version ${target.version}, expected ${version}`,
     );
   }
+  assertSupportedKitFormat(target.config.kitFormat);
   assertRequirementsInstalled(state, target);
   const recordedHashes = Object.assign(
     {},
