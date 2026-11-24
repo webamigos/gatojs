@@ -447,7 +447,7 @@ Error: Failed to resolve import "../create-note-command" from "src/features/note
 
 Dlatego przed testami powstają puste pliki komendy i query. Komenda: pierwsza linia `"use server";` i `export {};`. Query: `import "server-only";` i `export {};`. Kto je zakłada, definicje agentów nie mówią. W przebiegu powstały razem z planem zadania, przed testami. Wtedy wszystkie testy padają z właściwego powodu, na przykład `TypeError: createNoteCommand is not a function` (jednostkowe: 20 z 20, integracyjne: 7 z 7, w tym `TypeError: listNotesQuery is not a function`).
 
-Gdy pracujesz z agentami, przed implementacją zapisz `implement` do `.superpowers/phase` w tej samej kopii roboczej, w której pracuje implementer, żeby hook zablokował mu edycję testów ([Faza implementacji](08b-testy-adwersarialne.md#faza)). Po implementacji orkiestrator usuwa ten plik. Bez tego nikt nie zmieni przez `Edit` i `Write` testów rdzenia z kroku 8, bo leżą w katalogach `__tests__/`.
+Gdy pracujesz z agentami, przed implementacją zapisz `implement` do `.gato/phase` w tej samej kopii roboczej, w której pracuje implementer, żeby hook zablokował mu edycję testów ([Faza implementacji](08b-testy-adwersarialne.md#faza)). Po implementacji orkiestrator usuwa ten plik. Bez tego nikt nie zmieni przez `Edit` i `Write` testów rdzenia z kroku 8, bo leżą w katalogach `__tests__/`.
 
 ### Test jednostkowy komendy
 

@@ -600,6 +600,6 @@ const UNGUARDED_ALLOWED = new Map([
 
 Hook better-auth `databaseHooks.session.create.before` z `src/shared/lib/auth/index.ts` woła `getDefaultActiveOrganizationId`, zanim sesja powstanie, więc nie ma jeszcze sesji, którą guard mógłby sprawdzić. Wyjątek ma sens tylko dla takiej funkcji: wołanej wyłącznie z kodu serwera, w miejscu bez sesji. Dopisujesz kolejną parę: klucz `<ścieżka>#<nazwa>` i uzasadnienie. Test „wyjątki z listy UNGUARDED_ALLOWED nadal istnieją” zatrzyma wpis, który przestał pasować do kodu. Reguła 2 nie ma mapy wyjątków.
 
-Plik testu leży w `__tests__/`, więc w fazie implementacji (plik `.superpowers/phase` z wartością `implement`) hook `.claude/hooks/protect-tests.mjs` blokuje jego edycję. Implementer, który potrzebuje wyjątku, zgłasza to w raporcie zamiast dopisywać wpis ([D25](decyzje.md#d25), [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza)).
+Plik testu leży w `__tests__/`, więc w fazie implementacji (plik `.gato/phase` z wartością `implement`) hook `.claude/hooks/protect-tests.mjs` blokuje jego edycję. Implementer, który potrzebuje wyjątku, zgłasza to w raporcie zamiast dopisywać wpis ([D25](decyzje.md#d25), [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza)).
 
 Analiza jest składniowa, a nie oparta na przebiegu programu, więc łapie pomyłki, ale nie celowe obejście: nie widzi na przykład akcji `"use server"` zdefiniowanej wewnątrz funkcji ani Prismy wołanej przez serwis z innego pliku. Pełną listę ograniczeń ma [AGENTS.md](../AGENTS.md#testy).
