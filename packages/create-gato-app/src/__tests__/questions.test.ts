@@ -857,6 +857,17 @@ function textWithDefault(
   return call;
 }
 
+function smtpUserCall(calls: PromptCall[]): PromptCall {
+  const call = calls.find(
+    (candidate) =>
+      candidate.method === "text" &&
+      candidate.input.message.startsWith("SMTP user"),
+  );
+  if (!call) throw new Error("no SMTP user prompt");
+  expect(call.input.defaultValue).toBe("");
+  return call;
+}
+
 async function mailOf(answers: Promise<{ mail: unknown }>): Promise<unknown> {
   return (await answers).mail;
 }
@@ -1081,9 +1092,108 @@ describe("collectAnswers: mail asked interactively", () => {
     for (const value of ["70000", "0", "65536", "abc", "25.5"]) {
       expect(port(value)).toEqual(expect.any(String));
     }
-    for (const value of ["1", "2525", "65535"]) {
+    for (const value of ["1", "2525", "65535", "", " 2525 "]) {
       expect(port(value)).toBeUndefined();
     }
+    expect(port("70000")).toBe("SMTP port: expected a port 1-65535");
+  });
+
+  it("a port typed with spaces is trimmed", async () => {
+    const { answers } = ask(QUIET, [
+      { method: "select", answer: "smtp" },
+      { method: "text", answer: "relay.internal" },
+      { method: "text", answer: " 2525 " },
+      { method: "text", answer: "" },
+    ]);
+    expect(await mailOf(answers)).toMatchObject({ port: 2525 });
+  });
+
+  it("the host and user prompts accept empty input and reject values unsafe in .env", async () => {
+    const { answers, calls } = ask(QUIET, [
+      { method: "select", answer: "smtp" },
+      { method: "text", answer: "relay.internal" },
+      { method: "text", answer: "587" },
+      { method: "text", answer: "app" },
+      { method: "password", answer: "pw" },
+    ]);
+    await answers;
+    const host = validatorOf(textWithDefault(calls, "127.0.0.1"));
+    const user = validatorOf(smtpUserCall(calls));
+    for (const validate of [host, user]) {
+      expect(validate("")).toBeUndefined();
+      expect(validate("   ")).toBeUndefined();
+      expect(validate("relay x")).toMatch(
+        /: no spaces, quotes, backslashes, #, \$ or backticks$/,
+      );
+      expect(validate("a\nB=1")).toMatch(
+        /: no spaces, quotes, backslashes, #, \$ or backticks$/,
+      );
+    }
+  });
+
+  it("the password prompt requires a value safe in .env", async () => {
+    const { answers, calls } = ask(QUIET, [
+      { method: "select", answer: "smtp" },
+      { method: "text", answer: "relay.internal" },
+      { method: "text", answer: "587" },
+      { method: "text", answer: "app" },
+      { method: "password", answer: "pw" },
+    ]);
+    await answers;
+    const password = validatorOf(callFor(calls, "SMTP password"));
+    expect(password("")).toMatch(/: required$/);
+    expect(password("p w")).toMatch(
+      /: no spaces, quotes, backslashes, #, \$ or backticks$/,
+    );
+    expect(password("pw")).toBeUndefined();
+  });
+
+  it("a host typed with spaces is trimmed", async () => {
+    const { answers } = ask(QUIET, [
+      { method: "select", answer: "smtp" },
+      { method: "text", answer: "  relay.internal  " },
+      { method: "text", answer: "587" },
+      { method: "text", answer: "" },
+    ]);
+    expect(await mailOf(answers)).toMatchObject({
+      localMailpit: false,
+      host: "relay.internal",
+    });
+  });
+
+  it("127.0.0.1 typed with spaces is local mailpit and asks nothing more", async () => {
+    const { answers, calls } = ask(QUIET, [
+      { method: "select", answer: "smtp" },
+      { method: "text", answer: " 127.0.0.1 " },
+    ]);
+    expect(await mailOf(answers)).toStrictEqual({
+      provider: "smtp",
+      localMailpit: true,
+    });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("a user typed with spaces is trimmed and the password is asked", async () => {
+    const { answers, calls } = ask(QUIET, [
+      { method: "select", answer: "smtp" },
+      { method: "text", answer: "relay.internal" },
+      { method: "text", answer: "587" },
+      { method: "text", answer: "  app  " },
+      { method: "password", answer: "pw" },
+    ]);
+    expect(await mailOf(answers)).toMatchObject({ user: "app", pass: "pw" });
+    expect(calls.map((call) => call.method)).toContain("password");
+  });
+
+  it("a user of only spaces means no authentication and no password question", async () => {
+    const { answers, calls } = ask(QUIET, [
+      { method: "select", answer: "smtp" },
+      { method: "text", answer: "relay.internal" },
+      { method: "text", answer: "587" },
+      { method: "text", answer: "   " },
+    ]);
+    expect(await mailOf(answers)).toMatchObject({ user: null, pass: null });
+    expect(calls.map((call) => call.method)).not.toContain("password");
   });
 
   it("resend asks the key as a password and keeps it", async () => {
