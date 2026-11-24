@@ -1,10 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import { getLocale } from "next-intl/server";
 import { project } from "@/shared/config/project";
+import { fontVariables } from "./fonts/fonts";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: project.name,
@@ -24,7 +22,7 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
-      className={`${inter.variable} antialiased`}
+      className={`${fontVariables} antialiased`}
       suppressHydrationWarning
     >
       <body>{children}</body>

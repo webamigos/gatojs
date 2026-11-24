@@ -22,6 +22,7 @@ After a nontrivial correction or a non-obvious gotcha:
 
 - [`next build` on Next.js 16.4.3 stops once with `SecurityFatalError`; the retry passes, and the fix is an upgrade](lessons/next-security-notice-stops-the-first-build.md)
 - [When GitHub Actions billing fails, every job fails in seconds with zero steps; it is not the PR](lessons/failed-actions-billing-looks-like-red-ci.md)
+- [A build that fetches its fonts fails on whatever Google answers; serve them from the repository with `next/font/local`](lessons/a-build-that-fetches-fonts-fails-on-googles-answer.md)
 
 ### process
 
@@ -39,6 +40,7 @@ After a nontrivial correction or a non-obvious gotcha:
 - [A new file outside an owned glob (a test in `src/__tests__/`, a file in `packages/<name>/`) needs a manifest entry, and only the CLI gate notices](lessons/a-new-file-needs-an-owner-only-the-cli-gate-checks.md)
 - [Vitest runs test code that `tsc` rejects: a bigint literal passes `npm test` and fails `npm run typecheck` under the ES2017 target](lessons/vitest-runs-what-tsc-rejects.md)
 - [Stryker with the TypeScript checker crashes on `.mjs` files; mutate `packages/eslint-config` with `--checkers ""` and low concurrency](lessons/stryker-typescript-checker-cannot-mutate-mjs.md)
+- [A Zod 4 intersection throws `Unmergable intersection` when one side keeps raw values the other side parses; use `.overwrite(() => ({}))` on the rule side](lessons/a-zod-intersection-throws-when-a-refined-side-keeps-raw-values.md)
 
 ### dependencies
 

@@ -37,8 +37,10 @@ npm run dev
 | `DATABASE_URL`                  | Połączenie z PostgreSQL                                                 |
 | `BETTER_AUTH_SECRET`            | Sekret better-auth, min. 32 znaki                                       |
 | `APP_URL`                       | Publiczny adres aplikacji (better-auth, linki w mailach)                |
-| `RESEND_API_KEY`                | Klucz Resend; wymagany na produkcji                                     |
+| `MAIL_PROVIDER`                 | `smtp`, `resend` albo `console`; puste: wykrywanie z danych poniżej     |
+| `RESEND_API_KEY`                | Klucz Resend                                                            |
 | `SMTP_URL`                      | SMTP (dev/e2e: mailpit); ma pierwszeństwo przed Resend                  |
+| `SMTP_HOST`, `SMTP_PORT`, …     | Własny serwer SMTP (zamiast `SMTP_URL`); produkcja wymaga dostawcy      |
 | `EMAIL_FROM`                    | Nadawca maili                                                           |
 | `AUTH_PUBLIC_SIGNUP`            | `true` — publiczna rejestracja; domyślnie `false` (tylko z zaproszenia) |
 | `MULTI_ORG`                     | `true` — wiele organizacji i `OrgSwitcher`; domyślnie `false`           |

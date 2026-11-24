@@ -15,5 +15,14 @@ export {
   type CoreEnv,
 } from "./core-env-schema";
 export { createEnv } from "./create-env";
+export {
+  MAIL_PROVIDERS,
+  mailRules,
+  resolveMailConfig,
+  type MailConfig,
+  type MailEnv,
+  type MailProvider,
+  type SmtpOptions,
+} from "./mail";
 export { blankAsUndefined, flag, httpUrl } from "./fragments";
 export { allOrNone, requiredForProvider, type EnvRule } from "./rules";

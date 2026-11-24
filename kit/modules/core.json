@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "0.15.1",
+  "version": "0.16.2",
   "description": "GatoJS core: auth, organizations, users, account, dashboard",
   "requires": [],
   "files": [
@@ -69,6 +69,7 @@
     "src/app/api/auth/**",
     "src/app/api/healthcheck/**",
     "src/app/emails/**",
+    "src/app/fonts/**",
     "src/app/messages/**",
     "src/app/[locale]/*",
     "src/app/[locale]/(app)/*",
@@ -118,7 +119,7 @@
     "next": "16.4.6",
     "next-intl": "^4.15.3",
     "next-themes": "^0.4.6",
-    "nodemailer": "^10.6.0",
+    "nodemailer": "^10.6.1",
     "pg": "^8.20.0",
     "prisma": "^7.4.2",
     "react": "19.3.1",
