@@ -30,6 +30,13 @@ wave 3 (parallel)                                                   ▼   ▼
 
 Several tasks bump `kit/modules/core.json` (Tasks 1, 3, 5, 6, 9), and Tasks 2 and 5 both bump `packages/create-gato-app`. The second PR to merge rebases and takes the next free version.
 
+**Order across the extensibility and self-hosting plans** (set 2026-11-24, at most two workers at once). Two lanes, so that two running tasks never both change `packages/gato-cli` (version, `.wa/bin/wa.mjs`, the generator):
+
+- Lane A, `gato-cli` and the generator, one task at a time: extensibility T2 → self-hosting T5 → extensibility T5 → extensibility T7, T9, T15 and the rest of the generator tasks.
+- Lane B, no `gato-cli` changes: self-hosting T8 → extensibility T3 → extensibility T4 → self-hosting T6 (as soon as self-hosting T5 has merged; it jumps the queue) → self-hosting T7 and T9 → extensibility T6 and T8 (after extensibility T5).
+
+When a slot frees up, the next task of its lane starts if its dependencies have merged; otherwise the first ready task of the other lane that does not touch `gato-cli`. Versions (`gato-cli`, `create-gato-app`, `core`, `kitFormat`) are always the next free ones at merge time, whatever the task text says.
+
 ## Global constraints
 
 - Rules in `CLAUDE.md`, `AGENTS.md` and `kit/CLAUDE.md` apply: no code comments except `// WHY:` (at most 3 lines) and tool directives; no `any`, nested ternaries or silent `catch {}`; Zod at external input; error class `name` as a string. Ragen files are references, not copies: their long doc comments do not come along.

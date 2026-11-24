@@ -29,6 +29,13 @@ Why this order differs from the spec's §10 outline: `kitFormat` does not exist 
 
 Parallel tasks that touch the generator (`packages/gato-cli/src/generate/registry.ts`, `index.ts`) or the bundle `.wa/bin/wa.mjs` will conflict textually: the second one to merge rebases, re-runs `npm run build --prefix packages/gato-cli` and `npm run wa -- generate`, and takes the next free `kitFormat`, `gato-cli` version and module version. Run at most two generator tasks at once (for example T9 and T15).
 
+**Order across the extensibility and self-hosting plans** (set 2026-11-24, at most two workers at once). Two lanes, so that two running tasks never both change `packages/gato-cli` (version, `.wa/bin/wa.mjs`, the generator):
+
+- Lane A, `gato-cli` and the generator, one task at a time: extensibility T2 → self-hosting T5 → extensibility T5 → extensibility T7, T9, T15 and the rest of the generator tasks.
+- Lane B, no `gato-cli` changes: self-hosting T8 → extensibility T3 → extensibility T4 → self-hosting T6 (as soon as self-hosting T5 has merged; it jumps the queue) → self-hosting T7 and T9 → extensibility T6 and T8 (after extensibility T5).
+
+When a slot frees up, the next task of its lane starts if its dependencies have merged; otherwise the first ready task of the other lane that does not touch `gato-cli`. Versions (`gato-cli`, `create-gato-app`, `core`, `kitFormat`) are always the next free ones at merge time, whatever the task text says.
+
 ## Global constraints
 
 - Rules in `CLAUDE.md`, `AGENTS.md` and `kit/CLAUDE.md` apply: no code comments except `// WHY:` (at most 3 lines) and tool directives; no `any`, nested ternaries or silent `catch {}`; Zod at external input; error class `name` as a string. `AGENTS.md` and `CLAUDE.md` must stay inside the `agent-instructions-fit-the-budget` architecture test; move detail to `docs/` or a skill rather than growing them.
