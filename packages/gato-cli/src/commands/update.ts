@@ -53,7 +53,6 @@ const UNDO_HINT =
   "Check git status; to undo everything: git restore . && git clean -fd";
 const PERMISSION_BITS = 0o777;
 const MANAGED = "managed";
-const SEED = "seed";
 
 export function checkVersions(
   current: string,
@@ -224,15 +223,12 @@ function nextState(
   const paths = [...target.files.keys()];
   const modules = Object.fromEntries(
     target.manifests.map((manifest) => {
-      const keptMarkers = Object.entries(
-        state.modules[manifest.name].files,
-      ).filter(
+      const managed = Object.entries(state.modules[manifest.name].files).filter(
         ([path, hash]) =>
-          (hash === MANAGED && target.config.managedFiles.includes(path)) ||
-          (hash === SEED && target.config.seedFiles.includes(path)),
+          hash === MANAGED && target.config.managedFiles.includes(path),
       );
       const files = Object.fromEntries([
-        ...keptMarkers,
+        ...managed,
         ...moduleFiles(manifest, paths)
           .filter((path) => !undecided.has(path))
           .map((path) => [

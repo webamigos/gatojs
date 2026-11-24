@@ -24068,7 +24068,6 @@ var execFileAsync = promisify3(execFile3);
 var UNDO_HINT = "Check git status; to undo everything: git restore . && git clean -fd";
 var PERMISSION_BITS2 = 511;
 var MANAGED2 = "managed";
-var SEED3 = "seed";
 function checkVersions(current, target) {
   const order = compareVersions(target, current);
   if (order < 0) {
@@ -24197,13 +24196,11 @@ function nextState(state, target, undecided2) {
   const paths = [...target.files.keys()];
   const modules = Object.fromEntries(
     target.manifests.map((manifest) => {
-      const keptMarkers = Object.entries(
-        state.modules[manifest.name].files
-      ).filter(
-        ([path2, hash2]) => hash2 === MANAGED2 && target.config.managedFiles.includes(path2) || hash2 === SEED3 && target.config.seedFiles.includes(path2)
+      const managed = Object.entries(state.modules[manifest.name].files).filter(
+        ([path2, hash2]) => hash2 === MANAGED2 && target.config.managedFiles.includes(path2)
       );
       const files = Object.fromEntries([
-        ...keptMarkers,
+        ...managed,
         ...moduleFiles(manifest, paths).filter((path2) => !undecided2.has(path2)).map((path2) => [
           path2,
           fileHash(
