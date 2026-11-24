@@ -1,6 +1,14 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { chmod, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  cp,
+  mkdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,8 +19,9 @@ import {
 } from "../../__tests__/helpers.js";
 import { readKitState, writeKitState } from "../../manifest/kit-state.js";
 import type { KitState, ModuleManifest } from "../../manifest/schema.js";
+import type { Runner } from "../../process/runner.js";
 import { create } from "../create.js";
-import { eject, undoEject } from "../eject.js";
+import { eject, undoEject, undoEjectFromSource } from "../eject.js";
 
 const FIXTURE_KIT = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -313,12 +322,15 @@ describe("eject", () => {
   });
 });
 
-async function createFixtureProject(modules: string[]): Promise<{
+async function createFixtureProject(
+  modules: string[],
+  name = "app",
+): Promise<{
   kitDir: string;
   dir: string;
 }> {
   const kitDir = await makeKitRepo("kit");
-  const dir = join(await makeTempDir(), "app");
+  const dir = join(await makeTempDir(), name);
   await create({
     target: dir,
     kitDir,
@@ -541,6 +553,215 @@ describe("undoEject", () => {
         undoEject({ projectDir: dir, file: "src/unknown.ts", kitDir, log }),
       ).rejects.toThrow("src/unknown.ts is a project file; it needs no eject");
       expect(existsSync(join(dir, "src/unknown.ts"))).toBe(false);
+    },
+    SLOW,
+  );
+});
+
+const MY_APP_ENV_EXAMPLE = `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/my_app
+BETTER_AUTH_SECRET=change-me-to-a-random-string-of-at-least-32-chars
+ADMIN_EMAIL=
+
+# wa:modules:start
+# wa:modules:end
+`;
+
+describe("undoEject with a hyphenated project slug", () => {
+  it(
+    "restores a placeholder file with the project's snake name",
+    async () => {
+      const { kitDir, dir } = await createFixtureProject([], "my-app");
+      await writeFile(join(dir, ".env.example"), "CUSTOM=1\n");
+      await undoEject({ projectDir: dir, file: ".env.example", kitDir, log });
+      const restored = await readFile(join(dir, ".env.example"), "utf8");
+      expect(restored).toBe(MY_APP_ENV_EXAMPLE);
+      expect(restored).not.toContain("wa_app");
+    },
+    SLOW,
+  );
+});
+
+async function setKitRepo(dir: string, kitRepo: string): Promise<void> {
+  const state = await readKitState(dir);
+  await writeKitState(dir, { ...state, kitRepo });
+}
+
+async function kitWithVersion(version: string): Promise<string> {
+  const kitDir = await makeKitRepo("kit");
+  const configPath = join(kitDir, "kit", "kit.json");
+  const config = await readFile(configPath, "utf8");
+  await writeFile(
+    configPath,
+    config.replace('"version": "0.1.0"', `"version": "${version}"`),
+  );
+  return kitDir;
+}
+
+describe("undoEjectFromSource", () => {
+  let runner: ReturnType<typeof vi.fn<Runner>>;
+
+  beforeEach(() => {
+    runner = vi.fn<Runner>(async () => {});
+  });
+
+  it(
+    "restores the file from the kit given by kitFlag",
+    async () => {
+      const { kitDir, dir } = await createFixtureProject([]);
+      await writeFile(join(dir, AUTH_MODULE), "export default {};\n");
+      await addEjected(dir, {
+        [AUTH_MODULE]: { reason: "custom auth", ejectedAt: "2026-11-23" },
+      });
+      await undoEjectFromSource({
+        projectDir: dir,
+        file: AUTH_MODULE,
+        kitFlag: kitDir,
+        envSource: undefined,
+        runner,
+        tmpDir: await makeTempDir(),
+        log,
+      });
+      expect(await readFile(join(dir, AUTH_MODULE), "utf8")).toBe(
+        AUTH_MODULE_CONTENT,
+      );
+      expect(await ejectedOf(dir)).toEqual({});
+      expect(log).toHaveBeenCalledWith(
+        `Restored ${AUTH_MODULE} from GatoJS 0.1.0`,
+      );
+      expect(runner).not.toHaveBeenCalled();
+    },
+    SLOW,
+  );
+
+  it(
+    "restores the file from the kit given by envSource when kitFlag is null",
+    async () => {
+      const { kitDir, dir } = await createFixtureProject([]);
+      await setKitRepo(dir, "/nonexistent/gato-kit");
+      await writeFile(join(dir, AUTH_MODULE), "export default {};\n");
+      await undoEjectFromSource({
+        projectDir: dir,
+        file: AUTH_MODULE,
+        kitFlag: null,
+        envSource: kitDir,
+        runner,
+        tmpDir: await makeTempDir(),
+        log,
+      });
+      expect(await readFile(join(dir, AUTH_MODULE), "utf8")).toBe(
+        AUTH_MODULE_CONTENT,
+      );
+    },
+    SLOW,
+  );
+
+  it(
+    "prefers kitFlag over envSource",
+    async () => {
+      const { kitDir, dir } = await createFixtureProject([]);
+      await writeFile(join(dir, AUTH_MODULE), "export default {};\n");
+      await undoEjectFromSource({
+        projectDir: dir,
+        file: AUTH_MODULE,
+        kitFlag: kitDir,
+        envSource: "/nonexistent/gato-kit",
+        runner,
+        tmpDir: await makeTempDir(),
+        log,
+      });
+      expect(await readFile(join(dir, AUTH_MODULE), "utf8")).toBe(
+        AUTH_MODULE_CONTENT,
+      );
+    },
+    SLOW,
+  );
+
+  it(
+    "restores the file from state.kitRepo when kitFlag and envSource are absent",
+    async () => {
+      const { kitDir, dir } = await createFixtureProject([]);
+      await setKitRepo(dir, kitDir);
+      await writeFile(join(dir, AUTH_MODULE), "export default {};\n");
+      await undoEjectFromSource({
+        projectDir: dir,
+        file: AUTH_MODULE,
+        kitFlag: null,
+        envSource: undefined,
+        runner,
+        tmpDir: await makeTempDir(),
+        log,
+      });
+      expect(await readFile(join(dir, AUTH_MODULE), "utf8")).toBe(
+        AUTH_MODULE_CONTENT,
+      );
+    },
+    SLOW,
+  );
+
+  it(
+    "clones a remote state.kitRepo at the tag of the project's kit version",
+    async () => {
+      const { kitDir, dir } = await createFixtureProject([]);
+      await setKitRepo(dir, "https://example.com/org/gato-kit.git");
+      await writeFile(join(dir, AUTH_MODULE), "export default {};\n");
+      const tmpDir = await makeTempDir();
+      runner.mockImplementation(async (_command, args) => {
+        const target = args[args.length - 1];
+        if (target !== undefined) {
+          await cp(kitDir, target, { recursive: true });
+        }
+      });
+      await undoEjectFromSource({
+        projectDir: dir,
+        file: AUTH_MODULE,
+        kitFlag: null,
+        envSource: undefined,
+        runner,
+        tmpDir,
+        log,
+      });
+      expect(runner).toHaveBeenCalledTimes(1);
+      const [command, args] = runner.mock.calls[0] ?? [];
+      expect(command).toBe("git");
+      expect(args).toContain("clone");
+      expect(args).toContain("https://example.com/org/gato-kit.git");
+      const branch = (args ?? []).indexOf("--branch");
+      expect(branch).toBeGreaterThanOrEqual(0);
+      expect(args?.[branch + 1]).toBe("v0.1.0");
+      expect(await readFile(join(dir, AUTH_MODULE), "utf8")).toBe(
+        AUTH_MODULE_CONTENT,
+      );
+    },
+    SLOW,
+  );
+
+  it(
+    "rejects a kitFlag kit at another version and leaves the project unchanged",
+    async () => {
+      const { dir } = await createFixtureProject([]);
+      const otherKit = await kitWithVersion("0.2.0");
+      await writeFile(join(dir, AUTH_MODULE), "export default {};\n");
+      await addEjected(dir, {
+        [AUTH_MODULE]: { reason: "custom auth", ejectedAt: "2026-11-23" },
+      });
+      const before = await rawState(dir);
+      await expect(
+        undoEjectFromSource({
+          projectDir: dir,
+          file: AUTH_MODULE,
+          kitFlag: otherKit,
+          envSource: undefined,
+          runner,
+          tmpDir: await makeTempDir(),
+          log,
+        }),
+      ).rejects.toThrow(
+        `Kit in ${otherKit} has version 0.2.0, the project uses 0.1.0`,
+      );
+      expect(await readFile(join(dir, AUTH_MODULE), "utf8")).toBe(
+        "export default {};\n",
+      );
+      expect(await rawState(dir)).toBe(before);
     },
     SLOW,
   );

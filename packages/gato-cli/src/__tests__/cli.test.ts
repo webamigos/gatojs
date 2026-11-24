@@ -454,7 +454,9 @@ describe("doctor and eject in usage", () => {
   it.each([
     ["gato", "  gato doctor --files"],
     ["gato", "  gato eject <file> --reason"],
+    ["gato", "  gato eject --undo <file>"],
     ["wa", "  wa doctor --files"],
+    ["wa", "  wa eject --undo <file>"],
     ["wa", "  wa eject <file> --reason"],
   ] as const)("%s usage lists a line starting with %s", (name, prefix) => {
     expect(linesOf(usage(name)).some((line) => line.startsWith(prefix))).toBe(

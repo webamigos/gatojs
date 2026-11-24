@@ -149,6 +149,105 @@ describe("doctorFilesReport", () => {
     expect(output).not.toContain("gato eject");
   });
 
+  it("marks an ejected file whose content differs as (changed)", () => {
+    const result = doctorFilesReport(
+      report({
+        ejected: [
+          { path: "src/a.ts", reason: "custom login", unchanged: false },
+        ],
+      }),
+      GATO,
+    );
+    const line = result.lines[firstLineWith(result.lines, "src/a.ts")];
+    expect(line).toContain("(changed)");
+    expect(line).not.toContain("(unchanged)");
+  });
+
+  it("marks an ejected file equal to the recorded hash as (unchanged)", () => {
+    const result = doctorFilesReport(
+      report({
+        ejected: [
+          { path: "src/a.ts", reason: "custom login", unchanged: true },
+        ],
+      }),
+      GATO,
+    );
+    const line = result.lines[firstLineWith(result.lines, "src/a.ts")];
+    expect(line).toContain("(unchanged)");
+    expect(line).not.toContain("(changed)");
+  });
+
+  it("marks each ejected file by its own content state", () => {
+    const result = doctorFilesReport(
+      report({
+        ejected: [
+          { path: "src/a.ts", reason: "custom a", unchanged: true },
+          { path: "src/b.ts", reason: "custom b", unchanged: false },
+        ],
+      }),
+      GATO,
+    );
+    expect(result.lines[firstLineWith(result.lines, "src/a.ts")]).toContain(
+      "(unchanged)",
+    );
+    expect(result.lines[firstLineWith(result.lines, "src/b.ts")]).toContain(
+      "(changed)",
+    );
+  });
+
+  it.each([
+    ["warn", GATO],
+    ["block", GATO_BLOCK],
+  ] as const)(
+    "prints no warning and no extension points line in %s mode when only ejected files are reported",
+    (_mode, options) => {
+      const result = doctorFilesReport(
+        report({
+          ejected: [
+            { path: "src/a.ts", reason: "custom login", unchanged: false },
+          ],
+        }),
+        options,
+      );
+      expect(
+        result.lines.some((line: string) => line.includes("warning")),
+      ).toBe(false);
+      expect(
+        result.lines.some((line: string) =>
+          line.includes("EXTENSION_POINTS.md"),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it.each([
+    ["modified", report({ modified: ["src/a.ts"] })],
+    ["deleted", report({ deleted: ["src/a.ts"] })],
+    ["stale", report({ staleEjected: ["src/a.ts"] })],
+  ])(
+    "prints the extension points line but no warning in block mode for a %s entry",
+    (_kind, input) => {
+      const result = doctorFilesReport(input, GATO_BLOCK);
+      expect(
+        result.lines.some((line: string) => line.includes("warning")),
+      ).toBe(false);
+      expect(
+        result.lines.some((line: string) =>
+          line.includes("EXTENSION_POINTS.md (when present)"),
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it("puts git checkout -- <path> in the output for a modified file", () => {
+    const result = doctorFilesReport(report({ modified: ["src/a.ts"] }), GATO);
+    expect(
+      result.lines.some((line: string) =>
+        line.includes("git checkout -- src/a.ts"),
+      ),
+    ).toBe(true);
+  });
+
   it("prints modified files in the order of the report", () => {
     const result = doctorFilesReport(
       report({ modified: ["src/a.ts", "src/b.ts"] }),
@@ -311,6 +410,49 @@ describe("doctorFiles", () => {
     await writeProjectFile(dir, "src/a.ts", "y");
     await doctorFiles({ projectDir: dir, cli: "npm run wa --", log });
     expect(logged()).toContain("npm run wa -- eject --undo src/a.ts");
+  });
+
+  it("rejects instead of reporting deleted when a Gato path cannot be read", async () => {
+    const dir = await makeTempDir();
+    await writeKitState(dir, stateWith());
+    await mkdir(join(dir, "src/a.ts"), { recursive: true });
+    await expect(
+      doctorFiles({ projectDir: dir, cli: "gato", log }),
+    ).rejects.toMatchObject({ code: "EISDIR" });
+    expect(logged()).not.toContain("src/a.ts");
+  });
+
+  it("logs (changed) for an ejected file whose content differs", async () => {
+    const dir = await makeTempDir();
+    await writeKitState(
+      dir,
+      stateWith({
+        "src/a.ts": { reason: "custom login", ejectedAt: "2026-11-23" },
+      }),
+    );
+    await writeProjectFile(dir, "src/a.ts", "y");
+    await doctorFiles({ projectDir: dir, cli: "gato", log });
+    const line = log.mock.calls
+      .map(([entry]) => entry)
+      .find((entry) => entry.includes("src/a.ts"));
+    expect(line).toContain("(changed)");
+    expect(line).not.toContain("(unchanged)");
+  });
+
+  it("logs (unchanged) for an ejected file equal to the recorded hash", async () => {
+    const dir = await makeTempDir();
+    await writeKitState(
+      dir,
+      stateWith({
+        "src/a.ts": { reason: "custom login", ejectedAt: "2026-11-23" },
+      }),
+    );
+    await writeProjectFile(dir, "src/a.ts", "x");
+    await doctorFiles({ projectDir: dir, cli: "gato", log });
+    const line = log.mock.calls
+      .map(([entry]) => entry)
+      .find((entry) => entry.includes("src/a.ts"));
+    expect(line).toContain("(unchanged)");
   });
 
   it("rejects a directory without .wa/kit.json", async () => {
