@@ -1,5 +1,5 @@
 import path from "node:path";
-import { httpUrl } from "@gatojs/env";
+import { blankAsUndefined, httpUrl } from "@gatojs/env";
 import { z } from "zod";
 import type { StorageEnv } from "../contracts/storage.types";
 import { isPathInside } from "./path-inside";
@@ -26,6 +26,7 @@ const s3EnvSchema = z.object({
   S3_REGION: z.string().min(1).default("auto"),
   S3_ACCESS_KEY_ID: z.string().min(1),
   S3_SECRET_ACCESS_KEY: z.string().min(1),
+  S3_SESSION_TOKEN: blankAsUndefined(z.string().optional()),
   S3_BUCKET: z.string().min(1),
   S3_FORCE_PATH_STYLE: pathStyleFlag,
 });
@@ -49,7 +50,15 @@ function resolveS3Env(source: EnvSource): StorageEnvResult {
       })),
     };
   }
-  return { ok: true, env: { STORAGE_PROVIDER: "s3", ...result.data } };
+  const { S3_SESSION_TOKEN, ...settings } = result.data;
+  return {
+    ok: true,
+    env: {
+      STORAGE_PROVIDER: "s3",
+      ...settings,
+      ...(S3_SESSION_TOKEN === undefined ? {} : { S3_SESSION_TOKEN }),
+    },
+  };
 }
 
 function resolveLocalEnv(source: EnvSource, cwd: string): StorageEnvResult {

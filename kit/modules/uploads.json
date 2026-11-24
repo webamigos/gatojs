@@ -1,6 +1,6 @@
 {
   "name": "uploads",
-  "version": "0.2.8",
+  "version": "0.3.0",
   "description": "Organization files on disk or in S3 storage",
   "requires": [],
   "files": [
@@ -45,6 +45,11 @@
     {
       "name": "S3_SECRET_ACCESS_KEY",
       "example": "minioadmin",
+      "required": false
+    },
+    {
+      "name": "S3_SESSION_TOKEN",
+      "example": "",
       "required": false
     },
     {
