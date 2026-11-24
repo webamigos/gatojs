@@ -949,3 +949,119 @@ describe("resolveStorageEnv: provider s3", () => {
     });
   });
 });
+
+describe("resolveStorageEnv: S3_SESSION_TOKEN", () => {
+  const S3_WITH_LOCAL_ENDPOINT = {
+    STORAGE_PROVIDER: "s3",
+    S3_ENDPOINT: "http://127.0.0.1:9000",
+    S3_ACCESS_KEY_ID: "k",
+    S3_SECRET_ACCESS_KEY: "s",
+    S3_BUCKET: "b",
+  };
+
+  it("passes a set session token through to the s3 env", () => {
+    expect(
+      resolveStorageEnv(
+        { ...S3_WITH_LOCAL_ENDPOINT, S3_SESSION_TOKEN: "tok" },
+        "/app",
+      ),
+    ).toStrictEqual({
+      ok: true,
+      env: {
+        STORAGE_PROVIDER: "s3",
+        S3_ENDPOINT: "http://127.0.0.1:9000",
+        S3_REGION: "auto",
+        S3_ACCESS_KEY_ID: "k",
+        S3_SECRET_ACCESS_KEY: "s",
+        S3_BUCKET: "b",
+        S3_FORCE_PATH_STYLE: false,
+        S3_SESSION_TOKEN: "tok",
+      },
+    });
+  });
+
+  it.each<[string, string | undefined]>([
+    ["a token of spaces", "   "],
+    ["an empty token", ""],
+    ["no token", undefined],
+  ])("with %s the s3 env has no session token value", (_case, token) => {
+    const result = resolveStorageEnv(
+      { ...S3_WITH_LOCAL_ENDPOINT, S3_SESSION_TOKEN: token },
+      "/app",
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      env: {
+        STORAGE_PROVIDER: "s3",
+        S3_ENDPOINT: "http://127.0.0.1:9000",
+        S3_REGION: "auto",
+        S3_ACCESS_KEY_ID: "k",
+        S3_SECRET_ACCESS_KEY: "s",
+        S3_BUCKET: "b",
+        S3_FORCE_PATH_STYLE: false,
+      },
+    });
+    expect(Object.entries(envOf(result))).not.toContainEqual([
+      "S3_SESSION_TOKEN",
+      token,
+    ]);
+  });
+
+  it("the s3 env with a session token has the session token among its keys", () => {
+    const result = resolveStorageEnv(
+      { STORAGE_PROVIDER: "s3", ...S3_OK, S3_SESSION_TOKEN: "tok" },
+      CWD,
+    );
+
+    expect(Object.keys(envOf(result)).sort()).toEqual([
+      "S3_ACCESS_KEY_ID",
+      "S3_BUCKET",
+      "S3_ENDPOINT",
+      "S3_FORCE_PATH_STYLE",
+      "S3_REGION",
+      "S3_SECRET_ACCESS_KEY",
+      "S3_SESSION_TOKEN",
+      "STORAGE_PROVIDER",
+    ]);
+  });
+
+  it("a session token does not make local storage pick up S3 settings", () => {
+    expect(
+      resolveStorageEnv(
+        { STORAGE_PROVIDER: "local", S3_SESSION_TOKEN: "tok" },
+        CWD,
+      ),
+    ).toStrictEqual({
+      ok: true,
+      env: {
+        STORAGE_PROVIDER: "local",
+        STORAGE_LOCAL_PATH: "/app/volumes/uploads",
+      },
+    });
+  });
+
+  test.prop([fc.stringMatching(/^[A-Za-z0-9+/=]{1,64}$/)])(
+    "any non-blank session token reaches the s3 env unchanged",
+    (token) => {
+      expect(
+        resolveStorageEnv(
+          { STORAGE_PROVIDER: "s3", ...S3_OK, S3_SESSION_TOKEN: token },
+          CWD,
+        ),
+      ).toEqual({ ok: true, env: { ...S3_OK_ENV, S3_SESSION_TOKEN: token } });
+    },
+  );
+
+  test.prop([whitespace])(
+    "any whitespace-only session token leaves the s3 env without a token",
+    (token) => {
+      expect(
+        resolveStorageEnv(
+          { STORAGE_PROVIDER: "s3", ...S3_OK, S3_SESSION_TOKEN: token },
+          CWD,
+        ),
+      ).toEqual({ ok: true, env: S3_OK_ENV });
+    },
+  );
+});
