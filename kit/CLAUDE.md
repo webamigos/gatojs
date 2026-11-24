@@ -97,6 +97,7 @@ Zasady dla plików tylko kitu (`kit/`, pakiety narzędzi `packages/gato-cli` i `
 ## Składanie i wydanie
 
 - Job `assemble` w `.github/workflows/kit.yml` składa projekt z kitu (`wa create`) dla każdej kombinacji modułów z macierzy `combo` i uruchamia w nim `verify`, testy integracyjne oraz `docker build`. Nowy moduł kitu dopisz do macierzy.
+- Workflow `.github/workflows/docker-platforms.yml` buduje obraz z `Dockerfile` natywnie na amd64 (`ubuntu-latest`) i arm64 (`ubuntu-24.04-arm`) i uruchamia w nim `prisma --version`, bo silniki Prismy są per architektura. Zmiana `Dockerfile`, `.dockerignore` albo zależności go uruchamia.
 - Fixture modułu projektu (`packages/gato-cli/src/__tests__/fixtures/project-module/`) jest używane przez `assemble`; zmiana kontraktu `projectModules` wymaga jego aktualizacji.
 - Wydanie robi semantic-release (`.github/workflows/release.yml`, paczka `kit/release/`, [ADR-54](../docs/adrs/54-kit-releases-are-cut-by-semantic-release.md)) z Conventional Commits przy każdym pushu na `main`: `feat` → minor, `fix`/`perf` → patch, breaking poniżej 1.0 → minor, `[no release]` w temacie → bez wydania. Zapisuje wersję w `kit/kit.json`, uruchamia `kit sync`, commituje `chore(release): <wersja> [skip ci]` i ustawia tag `v<wersja>` na tym commicie.
 - `version` w `kit/kit.json` (i `kitVersion` w `.wa/kit.json`) zmienia tylko wydanie; nie edytuj ich ręcznie. `version` zmienionych modułów w `kit/modules/*.json` podbijasz ręcznie, potem `npm run wa -- kit sync`.
