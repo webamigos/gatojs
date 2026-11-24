@@ -105,7 +105,7 @@ function readHeadLine(path) {
   if (!existsSync(path) || !statSync(path).isFile()) {
     return null;
   }
-  return readFileSync(path, "utf8").split("\n", 1)[0].replace(/\r$/, "");
+  return readFileSync(path, "utf8").split("\n", 1)[0];
 }
 
 function readInput() {
