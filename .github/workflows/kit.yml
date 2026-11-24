@@ -192,7 +192,7 @@ jobs:
 
       - name: Test gates are in the project
         working-directory: ${{ runner.temp }}/matrix-app
-        run: test -f stryker.config.json && test -f mutation-gate.json && test -f .claude/hooks/protect-tests.mjs && test -f .claude/agents/test-writer.md && test -f .claude/agents/test-reviewer.md
+        run: test -f stryker.config.json && test -f mutation-gate.json && test -f .claude/hooks/protect-tests.mjs && test -f .claude/hooks/protect-gato-files.mjs && test -f .claude/agents/test-writer.md && test -f .claude/agents/test-reviewer.md
 
       - name: No placeholders left in the project
         working-directory: ${{ runner.temp }}/matrix-app

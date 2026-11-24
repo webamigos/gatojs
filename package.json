@@ -18,7 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run -c vitest.integration.config.ts",
-    "test:hooks": "node --test .claude/hooks/block-comments.test.mjs .claude/hooks/protect-tests.test.mjs",
+    "test:hooks": "node --test .claude/hooks/block-comments.test.mjs .claude/hooks/protect-tests.test.mjs .claude/hooks/protect-gato-files.test.mjs",
     "test:mutation": "stryker run",
     "test:mutation:task": "stryker run --force --mutate",
     "test:mutation:integration": "stryker run stryker.integration.config.json",
