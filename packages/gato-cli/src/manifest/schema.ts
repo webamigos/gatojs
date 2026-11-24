@@ -43,6 +43,7 @@ const localesSchema = z
 export const kitStateSchema = z.object({
   kitVersion: z.string(),
   kitRepo: z.string().default(DEFAULT_KIT_REPO),
+  kitFormat: z.number().int().positive().default(1),
   project: z
     .object({ name: z.string(), slug: z.string() })
     .default({ name: "WA App", slug: "wa-app" }),
@@ -57,6 +58,12 @@ export const kitStateSchema = z.object({
   ),
   projectModules: z
     .record(z.string(), z.object({ manifest: moduleManifestSchema }))
+    .default({}),
+  ejected: z
+    .record(
+      z.string(),
+      z.object({ reason: z.string().trim().min(1), ejectedAt: z.string() }),
+    )
     .default({}),
 });
 

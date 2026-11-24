@@ -15,6 +15,7 @@ import { promisify } from "node:util";
 import type { UpdateArgs } from "../args.js";
 import { fileHash } from "../assemble/hash.js";
 import { readKitConfig } from "../kit/kit-config.js";
+import { assertSupportedKitFormat } from "../kit/kit-format.js";
 import { cloneKitVersion, kitSourceLocation } from "../kit/source.js";
 import { moduleFiles } from "../assemble/resolve-modules.js";
 import { compareCodePoint } from "../compare.js";
@@ -52,6 +53,7 @@ const UNDO_HINT =
   "Check git status; to undo everything: git restore . && git clean -fd";
 const PERMISSION_BITS = 0o777;
 const MANAGED = "managed";
+const SEED = "seed";
 
 export function checkVersions(
   current: string,
@@ -222,12 +224,15 @@ function nextState(
   const paths = [...target.files.keys()];
   const modules = Object.fromEntries(
     target.manifests.map((manifest) => {
-      const managed = Object.entries(state.modules[manifest.name].files).filter(
+      const keptMarkers = Object.entries(
+        state.modules[manifest.name].files,
+      ).filter(
         ([path, hash]) =>
-          hash === MANAGED && target.config.managedFiles.includes(path),
+          (hash === MANAGED && target.config.managedFiles.includes(path)) ||
+          (hash === SEED && target.config.seedFiles.includes(path)),
       );
       const files = Object.fromEntries([
-        ...managed,
+        ...keptMarkers,
         ...moduleFiles(manifest, paths)
           .filter((path) => !undecided.has(path))
           .map((path) => [
@@ -242,7 +247,12 @@ function nextState(
       return [manifest.name, { version: manifest.version, manifest, files }];
     }),
   );
-  return { ...state, kitVersion: target.version, modules };
+  return {
+    ...state,
+    kitVersion: target.version,
+    kitFormat: target.config.kitFormat,
+    modules,
+  };
 }
 
 async function writeUpdate(input: {
@@ -311,6 +321,7 @@ export async function update(
       `Target kit has version ${target.version}, expected ${version}`,
     );
   }
+  assertSupportedKitFormat(target.config.kitFormat);
   assertRequirementsInstalled(state, target);
   const recordedHashes = Object.assign(
     {},

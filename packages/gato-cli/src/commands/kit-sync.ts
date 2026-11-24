@@ -16,21 +16,25 @@ async function readExisting(kitDir: string): Promise<string | null> {
   }
 }
 
-async function readExistingProjectModules(
+function readExistingOwnState(
   raw: string | null,
-): Promise<KitState["projectModules"]> {
-  return raw === null
-    ? {}
-    : kitStateSchema.parse(JSON.parse(raw)).projectModules;
+): Pick<KitState, "projectModules" | "ejected"> {
+  if (raw === null) {
+    return { projectModules: {}, ejected: {} };
+  }
+  const { projectModules, ejected } = kitStateSchema.parse(JSON.parse(raw));
+  return { projectModules, ejected };
 }
 
 export async function kitSync(kitDir: string): Promise<{ changed: boolean }> {
   const config = await readKitConfig(kitDir);
   const manifests = await readKitManifests(kitDir);
   const before = await readExisting(kitDir);
+  const { projectModules, ejected } = readExistingOwnState(before);
   const state: KitState = {
     kitVersion: config.version,
     kitRepo: config.repo,
+    kitFormat: config.kitFormat,
     project: {
       name: config.placeholders.projectName,
       slug: config.placeholders.projectSlug,
@@ -42,7 +46,8 @@ export async function kitSync(kitDir: string): Promise<{ changed: boolean }> {
         { version: manifest.version, manifest, files: {} },
       ]),
     ),
-    projectModules: await readExistingProjectModules(before),
+    projectModules,
+    ejected,
   };
   await writeKitState(kitDir, state);
   return { changed: before !== (await readExisting(kitDir)) };
