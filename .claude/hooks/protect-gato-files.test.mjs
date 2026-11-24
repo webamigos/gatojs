@@ -134,9 +134,15 @@ const envWithout = (name) =>
     Object.entries(process.env).filter(([key]) => key !== name),
   );
 
-const runHook = ({ sessionDir, cwd, filePath, toolName = "Edit" }) =>
+const runHook = ({
+  sessionDir,
+  cwd,
+  filePath,
+  toolName = "Edit",
+  spawnCwd = cwd,
+}) =>
   spawnSync(process.execPath, [hookScript], {
-    cwd,
+    cwd: spawnCwd,
     input: JSON.stringify({
       tool_name: toolName,
       tool_input:
@@ -149,6 +155,14 @@ const runHook = ({ sessionDir, cwd, filePath, toolName = "Edit" }) =>
       sessionDir === undefined
         ? envWithout("CLAUDE_PROJECT_DIR")
         : { ...process.env, CLAUDE_PROJECT_DIR: sessionDir },
+    timeout: 10_000,
+  });
+
+const runHookWithStdin = (stdin, cwd) =>
+  spawnSync(process.execPath, [hookScript], {
+    cwd,
+    input: stdin,
+    env: { ...process.env, CLAUDE_PROJECT_DIR: cwd },
     timeout: 10_000,
   });
 
@@ -614,4 +628,85 @@ test("the CLI ignores the state of a fixture nested inside a working copy withou
         filePath: join(fixture, "src/shared/lib/audit.ts"),
       }),
     );
+  }));
+
+test("relativeToProject returns null for the project directory itself", () => {
+  assert.equal(relativeToProject("/p", "/p"), null);
+});
+
+test("relativeToProject returns null for a parent of the project directory", () => {
+  assert.equal(relativeToProject("/p/app", "/p"), null);
+});
+
+test("ownerOf skips a null module entry and finds the recording module", () => {
+  assert.equal(
+    ownerOf(
+      { modules: { stripe: null, core: { files: { "src/a.ts": HASH_A } } } },
+      "src/a.ts",
+    ),
+    "core",
+  );
+});
+
+for (const { label, stdin } of [
+  { label: "stdin that is not JSON", stdin: "not json" },
+  { label: "a null payload", stdin: "null" },
+  { label: "an empty object payload", stdin: "{}" },
+  {
+    label: "an Edit without a file path",
+    stdin: JSON.stringify({ tool_name: "Edit", tool_input: {} }),
+  },
+  {
+    label: "an Edit whose file path is not a string",
+    stdin: JSON.stringify({ tool_name: "Edit", tool_input: { file_path: 42 } }),
+  },
+]) {
+  test(`the CLI allows silently on ${label}`, () =>
+    withProject(state, ({ project }) => {
+      assertAllowedSilently(runHookWithStdin(stdin, project));
+    }));
+}
+
+test("the CLI prefers CLAUDE_PROJECT_DIR over cwd when the file is not in a git working copy", () =>
+  withRoot((root) => {
+    const project = join(root, "app");
+    const unrelated = join(root, "unrelated");
+    mkdirSync(unrelated, { recursive: true });
+    writeState(project, state);
+    writeFile(project, "src/shared/lib/audit.ts", "export {};\n");
+    assertAsked(
+      runHook({
+        sessionDir: project,
+        cwd: unrelated,
+        spawnCwd: unrelated,
+        filePath: join(project, "src/shared/lib/audit.ts"),
+      }),
+      AUDIT_MESSAGE,
+    );
+  }));
+
+test("the CLI falls back to the input cwd, not the process cwd, without CLAUDE_PROJECT_DIR", () =>
+  withRoot((root) => {
+    const project = join(root, "app");
+    const unrelated = join(root, "unrelated");
+    mkdirSync(unrelated, { recursive: true });
+    writeState(project, state);
+    writeFile(project, "src/shared/lib/audit.ts", "export {};\n");
+    assertAsked(
+      runHook({
+        sessionDir: undefined,
+        cwd: project,
+        spawnCwd: unrelated,
+        filePath: join(project, "src/shared/lib/audit.ts"),
+      }),
+      AUDIT_MESSAGE,
+    );
+  }));
+
+test("the CLI reports an unreadable .wa/kit.json as a hook error with exit 1", () =>
+  withProject(undefined, ({ project }) => {
+    mkdirSync(join(project, ".wa", "kit.json"), { recursive: true });
+    const result = runInProject(project, "src/shared/lib/audit.ts");
+    assert.equal(result.status, 1);
+    assert.notEqual(result.stderr.toString(), "");
   }));
