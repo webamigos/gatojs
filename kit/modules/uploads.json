@@ -1,6 +1,6 @@
 {
   "name": "uploads",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Organization files on disk or in S3 storage",
   "requires": [],
   "files": [
@@ -11,7 +11,7 @@
     "ci/uploads.integration-steps.yml"
   ],
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1173.0",
+    "@aws-sdk/client-s3": "^3.1174.0",
     "file-type": "^22.3.0",
     "sharp": "^0.35.5"
   },
