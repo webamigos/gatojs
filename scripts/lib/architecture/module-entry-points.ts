@@ -21,6 +21,8 @@ const HTTP_METHODS: readonly string[] = [
   "OPTIONS",
 ];
 
+const AWAITED_GUARDS: readonly string[] = ["requireModuleAccess"];
+
 const EXPORT_ALL = "*";
 const IS_MODULE_ENABLED = "isModuleEnabled";
 const PRISMA = "prisma";
@@ -43,6 +45,9 @@ const UNDISABLEABLE_FEATURES = [
 type OwnerOf = (file: string) => string | undefined;
 
 type EventKind = "guard" | "prisma";
+
+type LocalFunction =
+  ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression;
 
 interface KitEntry {
   manifest?: { files?: string[] };
@@ -69,7 +74,7 @@ interface FileFacts {
   prisma: Set<string>;
   errorHandlers: Set<string>;
   constants: Map<string, string>;
-  functions: Map<string, ts.Node>;
+  functions: Map<string, LocalFunction>;
 }
 
 interface Scope {
@@ -103,11 +108,10 @@ function ownerResolver(root: string): OwnerOf {
     patterns.find(([, globs]) => globs.some((glob) => glob.test(file)))?.[0];
 }
 
-function hasModifier(
-  statement: ts.FunctionDeclaration | ts.VariableStatement,
-  kind: ts.SyntaxKind,
-): boolean {
-  return (statement.modifiers ?? []).some((modifier) => modifier.kind === kind);
+function hasModifier(node: ts.HasModifiers, kind: ts.SyntaxKind): boolean {
+  return (ts.getModifiers(node) ?? []).some(
+    (modifier) => modifier.kind === kind,
+  );
 }
 
 function isUseServerDirective(statement: ts.Statement | undefined): boolean {
@@ -170,8 +174,8 @@ function stringConstants(sourceFile: ts.SourceFile): Map<string, string> {
   return constants;
 }
 
-function localFunctions(sourceFile: ts.SourceFile): Map<string, ts.Node> {
-  const functions = new Map<string, ts.Node>();
+function localFunctions(sourceFile: ts.SourceFile): Map<string, LocalFunction> {
+  const functions = new Map<string, LocalFunction>();
   for (const statement of sourceFile.statements) {
     if (ts.isFunctionDeclaration(statement) && statement.name !== undefined) {
       functions.set(statement.name.text, statement);
@@ -229,7 +233,7 @@ function boundNames(name: ts.BindingName): string[] {
 
 function defaultExportBody(
   expression: ts.Expression,
-  functions: Map<string, ts.Node>,
+  functions: Map<string, LocalFunction>,
 ): ts.Node | undefined {
   if (ts.isIdentifier(expression)) {
     return functions.get(expression.text);
@@ -239,7 +243,7 @@ function defaultExportBody(
 
 function exportDeclarationNames(
   statement: ts.ExportDeclaration,
-  functions: Map<string, ts.Node>,
+  functions: Map<string, LocalFunction>,
 ): ExportedName[] {
   const clause = statement.exportClause;
   if (clause === undefined) {
@@ -259,7 +263,7 @@ function exportDeclarationNames(
 
 function exportedNames(
   statement: ts.Statement,
-  functions: Map<string, ts.Node>,
+  functions: Map<string, LocalFunction>,
 ): ExportedName[] {
   if (ts.isExportDeclaration(statement)) {
     return exportDeclarationNames(statement, functions);
@@ -322,19 +326,20 @@ function exits(statement: ts.Statement, returnExits: boolean): boolean {
   );
 }
 
-function isEarlyExitCheck(call: ts.CallExpression, scope: Scope): boolean {
+function earlyExitBranch(call: ts.CallExpression): ts.Statement | undefined {
   const negation = call.parent;
   if (
     !ts.isPrefixUnaryExpression(negation) ||
     negation.operator !== ts.SyntaxKind.ExclamationToken
   ) {
-    return false;
+    return undefined;
   }
   const condition = negation.parent;
-  return (
-    ts.isIfStatement(condition) &&
-    exits(condition.thenStatement, scope.returnExits)
-  );
+  return ts.isIfStatement(condition) ? condition.thenStatement : undefined;
+}
+
+function isSettled(call: ts.CallExpression, returnsPromise: boolean): boolean {
+  return !returnsPromise || ts.isAwaitExpression(call.parent);
 }
 
 function returnsThroughErrorHandler(
@@ -370,8 +375,83 @@ function isSwallowed(node: ts.Node, scope: Scope): boolean {
   );
 }
 
-function guardEvent(node: ts.Node, scope: Scope): EventKind | undefined {
-  return isSwallowed(node, scope) ? undefined : "guard";
+function tryFailureBlocks(statement: ts.TryStatement, child: ts.Node) {
+  const handler =
+    child === statement.tryBlock ? statement.catchClause?.block : undefined;
+  return [handler, statement.finallyBlock].filter(
+    (block): block is ts.Block => block !== undefined && block !== child,
+  );
+}
+
+function enclosingFailureBlocks(node: ts.Node, scope: Scope): ts.Node[] {
+  const parent = node.parent;
+  if (parent === scope.body) {
+    return [];
+  }
+  const own = ts.isTryStatement(parent) ? tryFailureBlocks(parent, node) : [];
+  return [...own, ...enclosingFailureBlocks(parent, scope)];
+}
+
+function helperTouchesPrisma(name: string, scope: Scope): boolean {
+  const helper = scope.facts.functions.get(name);
+  if (helper === undefined || scope.visiting.has(helper)) {
+    return false;
+  }
+  const inner = { ...scope, visiting: new Set([...scope.visiting, helper]) };
+  return (
+    ts.forEachChild(helper, (child) => touchesPrisma(child, inner)) ?? false
+  );
+}
+
+function touchesPrisma(node: ts.Node, scope: Scope): boolean {
+  if (ts.isFunctionLike(node)) {
+    return false;
+  }
+  if (ts.isIdentifier(node) && scope.facts.prisma.has(node.text)) {
+    return true;
+  }
+  if (
+    ts.isCallExpression(node) &&
+    ts.isIdentifier(node.expression) &&
+    helperTouchesPrisma(node.expression.text, scope)
+  ) {
+    return true;
+  }
+  return ts.forEachChild(node, (child) => touchesPrisma(child, scope)) ?? false;
+}
+
+function guardEvent(
+  node: ts.Node,
+  scope: Scope,
+  branches: ts.Node[],
+): EventKind | undefined {
+  if (isSwallowed(node, scope)) {
+    return undefined;
+  }
+  const failurePath = [...branches, ...enclosingFailureBlocks(node, scope)];
+  return failurePath.some((block) => touchesPrisma(block, scope))
+    ? "prisma"
+    : "guard";
+}
+
+function guardCallEvent(
+  call: ts.CallExpression,
+  guard: string,
+  scope: Scope,
+): EventKind | undefined {
+  if (
+    !namesOwner(call, scope.facts) ||
+    !isSettled(call, AWAITED_GUARDS.includes(guard))
+  ) {
+    return undefined;
+  }
+  if (guard !== IS_MODULE_ENABLED) {
+    return guardEvent(call, scope, []);
+  }
+  const branch = earlyExitBranch(call);
+  return branch !== undefined && exits(branch, scope.returnExits)
+    ? guardEvent(call, scope, [branch])
+    : undefined;
 }
 
 function callEvent(
@@ -381,10 +461,7 @@ function callEvent(
 ): EventKind | undefined {
   const guard = scope.facts.guards.get(callee);
   if (guard !== undefined) {
-    const valid =
-      namesOwner(call, scope.facts) &&
-      (guard !== IS_MODULE_ENABLED || isEarlyExitCheck(call, scope));
-    return valid ? guardEvent(call, scope) : undefined;
+    return guardCallEvent(call, guard, scope);
   }
   const helper = scope.facts.functions.get(callee);
   if (helper === undefined || scope.visiting.has(helper)) {
@@ -396,7 +473,11 @@ function callEvent(
     returnExits: false,
     visiting: new Set([...scope.visiting, helper]),
   });
-  return first === "guard" ? guardEvent(call, scope) : first;
+  if (first !== "guard") {
+    return first;
+  }
+  const isAsync = hasModifier(helper, ts.SyntaxKind.AsyncKeyword);
+  return isSettled(call, isAsync) ? guardEvent(call, scope, []) : undefined;
 }
 
 function eventAt(node: ts.Node, scope: Scope): EventKind | undefined {
