@@ -27,6 +27,7 @@ const failures = vi.hoisted(() => ({
   writeKitState: null as Error | null,
   generate: null as Error | null,
   chmodPath: null as string | null,
+  writePath: null as string | null,
 }));
 
 vi.mock("node:fs/promises", async (importOriginal) => {
@@ -42,6 +43,16 @@ vi.mock("node:fs/promises", async (importOriginal) => {
         throw new Error("chmod denied");
       }
       return original.chmod(...args);
+    },
+    writeFile: async (
+      ...args: Parameters<typeof original.writeFile>
+    ): Promise<void> => {
+      const [path] = args;
+      if (typeof path === "string" && path === failures.writePath) {
+        failures.writePath = null;
+        throw new Error("write denied");
+      }
+      return original.writeFile(...args);
     },
   };
 });
@@ -94,12 +105,14 @@ beforeEach(() => {
   failures.writeKitState = null;
   failures.generate = null;
   failures.chmodPath = null;
+  failures.writePath = null;
 });
 
 afterEach(async () => {
   failures.writeKitState = null;
   failures.generate = null;
   failures.chmodPath = null;
+  failures.writePath = null;
   await removeTempDirs();
 });
 
@@ -905,6 +918,22 @@ describe("undoEject rollback", () => {
       await expect(
         undoEject({ projectDir: dir, file: AUTH_MODULE, kitDir, log }),
       ).rejects.toThrow("disk full");
+      expect(existsSync(join(dir, AUTH_MODULE))).toBe(false);
+      expect(await readFile(join(dir, ".wa/kit.json"))).toEqual(stateBefore);
+    },
+    SLOW,
+  );
+
+  it(
+    "rethrows a failed write of a deleted file and leaves it absent",
+    async () => {
+      const { kitDir, dir } = await projectWithModifiedAuthModule();
+      await rm(join(dir, AUTH_MODULE));
+      const stateBefore = await readFile(join(dir, ".wa/kit.json"));
+      failures.writePath = join(dir, AUTH_MODULE);
+      await expect(
+        undoEject({ projectDir: dir, file: AUTH_MODULE, kitDir, log }),
+      ).rejects.toThrow("write denied");
       expect(existsSync(join(dir, AUTH_MODULE))).toBe(false);
       expect(await readFile(join(dir, ".wa/kit.json"))).toEqual(stateBefore);
     },
