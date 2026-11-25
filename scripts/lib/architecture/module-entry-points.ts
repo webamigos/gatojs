@@ -29,7 +29,7 @@ const UNDISABLEABLE_FEATURES = [
 
 interface ExportedName {
   name: string;
-  local: string | undefined;
+  body: ts.Node | undefined;
 }
 
 interface EntryPoint {
@@ -46,12 +46,11 @@ function parse(file: string, source: string): ts.SourceFile {
   return ts.createSourceFile(file, source, ts.ScriptTarget.Latest);
 }
 
-function isExported(
+function hasModifier(
   statement: ts.FunctionDeclaration | ts.VariableStatement,
+  kind: ts.SyntaxKind,
 ): boolean {
-  return (statement.modifiers ?? []).some(
-    (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
-  );
+  return (statement.modifiers ?? []).some((modifier) => modifier.kind === kind);
 }
 
 function isUseServerDirective(statement: ts.Statement | undefined): boolean {
@@ -120,7 +119,20 @@ function boundNames(name: ts.BindingName): string[] {
   );
 }
 
-function exportedNames(statement: ts.Statement): ExportedName[] {
+function defaultExportBody(
+  expression: ts.Expression,
+  functions: Map<string, ts.Node>,
+): ts.Node | undefined {
+  if (ts.isIdentifier(expression)) {
+    return functions.get(expression.text);
+  }
+  return isFunctionValue(expression) ? expression : undefined;
+}
+
+function exportedNames(
+  statement: ts.Statement,
+  functions: Map<string, ts.Node>,
+): ExportedName[] {
   if (ts.isExportDeclaration(statement)) {
     const clause = statement.exportClause;
     if (clause === undefined || !ts.isNamedExports(clause)) {
@@ -128,23 +140,40 @@ function exportedNames(statement: ts.Statement): ExportedName[] {
     }
     return clause.elements.map((specifier) => ({
       name: specifier.name.text,
-      local:
+      body:
         statement.moduleSpecifier === undefined
-          ? (specifier.propertyName ?? specifier.name).text
+          ? functions.get((specifier.propertyName ?? specifier.name).text)
           : undefined,
     }));
+  }
+  if (ts.isExportAssignment(statement)) {
+    return [
+      {
+        name: "default",
+        body: defaultExportBody(statement.expression, functions),
+      },
+    ];
+  }
+  if (
+    ts.isFunctionDeclaration(statement) &&
+    hasModifier(statement, ts.SyntaxKind.DefaultKeyword)
+  ) {
+    return [{ name: "default", body: statement }];
   }
   if (
     ts.isFunctionDeclaration(statement) &&
     statement.name !== undefined &&
-    isExported(statement)
+    hasModifier(statement, ts.SyntaxKind.ExportKeyword)
   ) {
-    return [{ name: statement.name.text, local: statement.name.text }];
+    return [{ name: statement.name.text, body: statement }];
   }
-  if (ts.isVariableStatement(statement) && isExported(statement)) {
+  if (
+    ts.isVariableStatement(statement) &&
+    hasModifier(statement, ts.SyntaxKind.ExportKeyword)
+  ) {
     return statement.declarationList.declarations
       .flatMap((declaration) => boundNames(declaration.name))
-      .map((name) => ({ name, local: name }));
+      .map((name) => ({ name, body: functions.get(name) }));
   }
   return [];
 }
@@ -163,17 +192,17 @@ function calledIdentifiers(node: ts.Node): string[] {
 
 function reachesGuard(
   facts: FileFacts,
-  local: string,
-  visited: Set<string>,
+  body: ts.Node | undefined,
+  visited: Set<ts.Node>,
 ): boolean {
-  const body = facts.functions.get(local);
-  if (body === undefined || visited.has(local)) {
+  if (body === undefined || visited.has(body)) {
     return false;
   }
-  visited.add(local);
+  visited.add(body);
   return calledIdentifiers(body).some(
     (callee) =>
-      facts.guards.has(callee) || reachesGuard(facts, callee, visited),
+      facts.guards.has(callee) ||
+      reachesGuard(facts, facts.functions.get(callee), visited),
   );
 }
 
@@ -196,12 +225,11 @@ function fileEntryPoints(root: string, file: string): EntryPoint[] {
   };
   const isEntryPoint = entryPointFilter(file, sourceFile);
   return sourceFile.statements
-    .flatMap(exportedNames)
+    .flatMap((statement) => exportedNames(statement, facts.functions))
     .filter(({ name }) => isEntryPoint(name))
-    .map(({ name, local }) => ({
+    .map(({ name, body }) => ({
       id: `${file}#${name}`,
-      guarded:
-        local !== undefined && reachesGuard(facts, local, new Set<string>()),
+      guarded: reachesGuard(facts, body, new Set<ts.Node>()),
     }));
 }
 
