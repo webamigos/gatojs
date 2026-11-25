@@ -733,6 +733,104 @@ describe("renderRegistry: gato.config", () => {
     );
   });
 
+  it("a module with module.ts and auth.ts only imports both helpers on the server", () => {
+    expect(
+      renderRegistry(
+        [{ name: "alpha", ...base, hasModuleTs: true, hasAuth: true }],
+        ["pl"],
+        { hasGatoConfig: true },
+      ).server,
+    ).toBe(
+      [
+        HEADER,
+        CONFIG_IMPORT,
+        'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
+        'import { applyGatoConfig, enabledEntries } from "@/shared/lib/modules/gato-config";',
+        'import alphaModule from "@/features/alpha/module";',
+        'import { authPlugin as alphaAuthPlugin } from "@/features/alpha/auth";',
+        "",
+        "export const modules = applyGatoConfig([alphaModule], gatoConfig);",
+        "export const moduleEnvSchemas: never[] = [];",
+        'export const authPlugins = enabledEntries([{ module: "alpha", value: alphaAuthPlugin }], gatoConfig);',
+        "export const auditSinks: never[] = [];",
+        "export const env = createEnv(moduleEnvSchemas);",
+        "",
+        "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
+        "",
+        "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
+        "  pl: [],",
+        "};",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("a module with module.ts and audit-sink.ts only imports both helpers on the server", () => {
+    expect(
+      renderRegistry(
+        [{ name: "alpha", ...base, hasModuleTs: true, hasAuditSink: true }],
+        ["pl"],
+        { hasGatoConfig: true },
+      ).server,
+    ).toBe(
+      [
+        HEADER,
+        CONFIG_IMPORT,
+        'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
+        'import { applyGatoConfig, enabledEntries } from "@/shared/lib/modules/gato-config";',
+        'import alphaModule from "@/features/alpha/module";',
+        'import { auditSink as alphaAuditSink } from "@/features/alpha/audit-sink";',
+        "",
+        "export const modules = applyGatoConfig([alphaModule], gatoConfig);",
+        "export const moduleEnvSchemas: never[] = [];",
+        "export const authPlugins: never[] = [];",
+        'export const auditSinks = enabledEntries([{ module: "alpha", value: alphaAuditSink }], gatoConfig);',
+        "export const env = createEnv(moduleEnvSchemas);",
+        "",
+        "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
+        "",
+        "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
+        "  pl: [],",
+        "};",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("translations in only one of two locales still import enabledEntries on the server", () => {
+    expect(
+      renderRegistry([{ name: "gamma", ...base, locales: ["pl"] }], BOTH, {
+        hasGatoConfig: true,
+      }).server,
+    ).toBe(
+      [
+        HEADER,
+        CONFIG_IMPORT,
+        'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
+        'import { enabledEntries } from "@/shared/lib/modules/gato-config";',
+        "",
+        "export const modules: never[] = [];",
+        "export const moduleEnvSchemas: never[] = [];",
+        "export const authPlugins: never[] = [];",
+        "export const auditSinks: never[] = [];",
+        "export const env = createEnv(moduleEnvSchemas);",
+        "",
+        "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
+        "",
+        "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
+        "  pl: enabledEntries<MessageLoader>([",
+        '    { module: "gamma", value: { key: "gamma", load: () => import("@/features/gamma/i18n/pl.json").then((m) => m.default) } },',
+        "  ], gatoConfig),",
+        "  en: [],",
+        "};",
+        "",
+      ].join("\n"),
+    );
+  });
+
   it("a module with only env.ts imports only enabledEntries on the server", () => {
     const lines = renderRegistry(
       [{ name: "beta", ...base, hasEnv: true }],
