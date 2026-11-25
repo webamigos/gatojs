@@ -4,5 +4,6 @@
   "description": "Demo fixture",
   "files": ["src/shared/x.ts", "src/nie-ma/**", "src/{a,b}/**"],
   "dependencies": { "ghost": "1.0.0", "left-pad": "^1.3.0" },
-  "compose": "other/compose.yml"
+  "compose": "other/compose.yml",
+  "selfhostCompose": "poza/selfhost.yml"
 }

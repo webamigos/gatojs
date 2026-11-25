@@ -1,0 +1,8 @@
+{
+  "name": "demo",
+  "version": "0.1.0",
+  "description": "Demo fixture",
+  "files": ["src/demo/**"],
+  "compose": "docker/core.yml",
+  "selfhostCompose": "src/demo/selfhost.yml"
+}

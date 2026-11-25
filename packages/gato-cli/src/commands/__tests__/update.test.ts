@@ -375,6 +375,7 @@ describe("update: kit zmienił plik, projekt nie", () => {
         env: [],
         schemaRelations: [],
         compose: null,
+        selfhostCompose: null,
         ciSteps: null,
         workspaces: [],
       },

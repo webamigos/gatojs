@@ -1,0 +1,8 @@
+{
+  "name": "core",
+  "version": "0.0.0",
+  "description": "Core fixture",
+  "files": ["package.json", "docker/core.yml"],
+  "compose": "docker/core.yml",
+  "selfhostCompose": "docker/demo.selfhost.yml"
+}
