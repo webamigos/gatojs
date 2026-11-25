@@ -76,10 +76,12 @@ describe.skipIf(!hasKitModules || !hasOptionalModules)(
 
     it("moduleEnvSchemas holds only the encryption and uploads schemas", async () => {
       const { moduleEnvSchemas } = await import("@/modules.generated");
-      const { envSchema: encryptionEnvSchema } =
-        await import("@/features/encryption/env");
-      const { envSchema: uploadsEnvSchema } =
-        await import("@/features/uploads/env");
+      const { envSchema: encryptionEnvSchema } = await vi.importActual<{
+        envSchema: unknown;
+      }>("@/features/encryption/env");
+      const { envSchema: uploadsEnvSchema } = await vi.importActual<{
+        envSchema: unknown;
+      }>("@/features/uploads/env");
       expect(moduleEnvSchemas).toHaveLength(2);
       expect(moduleEnvSchemas[0]).toBe(encryptionEnvSchema);
       expect(moduleEnvSchemas[1]).toBe(uploadsEnvSchema);
