@@ -245,8 +245,8 @@ function exportDeclarationNames(
   if (clause === undefined) {
     return [{ name: EXPORT_ALL, body: undefined }];
   }
-  if (!ts.isNamedExports(clause)) {
-    return [];
+  if (ts.isNamespaceExport(clause)) {
+    return [{ name: clause.name.text, body: undefined }];
   }
   return clause.elements.map((specifier) => ({
     name: specifier.name.text,
