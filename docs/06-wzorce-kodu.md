@@ -614,6 +614,36 @@ Moduł wyłączony przez `enabled: false` w `src/gato.config.ts` znika z rejestr
 - `isModuleEnabled(key)` zwraca `true` dla `auth` i `organizations` zawsze, a dla innego klucza tylko wtedy, gdy moduł jest w rejestrze po `applyGatoConfig`. Klucz nieznany albo wyłączony daje `false`. Trasa API woła ją jako pierwszą instrukcję i przy `false` odpowiada 404 bez treści, przed sprawdzeniem klucza API albo sesji.
 - `requireModuleEnabled(key)` rzuca wtedy `ModuleDisabledError`. Komenda woła ją jako pierwszą instrukcję w `try`, a `handleCommandError` zamienia błąd na komunikat domyślny komendy i loguje go jako ostrzeżenie, nie błąd.
 
-`src/__tests__/architecture/module-entry-points-check-enabled.test.ts` (wykrywanie w `scripts/lib/architecture/module-entry-points.ts`) sprawdza, że każdy punkt wejścia modułu woła `requireModuleAccess`, `requireModuleEnabled`, `isModuleEnabled` albo `runCommand`, wprost albo przez funkcję z tego samego pliku. Punkty wejścia to eksportowane metody HTTP (`GET`, `POST` i pozostałe) każdego `route.ts` w `src/app/` oraz każdy eksport pliku z `"use server"` w `src/features/<x>/`, poza `auth` i `organizations`, których nie da się wyłączyć. Guard liczy się tylko pod nazwą, pod którą go zaimportowano (alias jest dozwolony). Naruszenie test wypisuje jako `<ścieżka>#<nazwa>`.
+`src/__tests__/architecture/module-entry-points-check-enabled.test.ts` (wykrywanie w `scripts/lib/architecture/module-entry-points.ts`) sprawdza, że każdy punkt wejścia modułu zaczyna od guardu własnego modułu. Punkty wejścia to:
 
-Wyjątki to mapa `ALLOWED` w teście, z uzasadnieniem przy każdym wpisie: `GET` w healthchecku, `GET` i `POST` handlera better-auth oraz dwie komendy logujące impersonację w `users`, bo impersonację wykonuje plugin `admin` better-auth niezależnie od modułu `users`, a pominięty wpis w dzienniku ukryłby ją. Wpis, który nie wskazuje już żadnego punktu wejścia, zatrzymuje test „every allowance names an existing entry point”. Analiza jest składniowa, tak jak w `server-entrypoints-guard.test.ts`: nie widzi guardu wołanego przez funkcję z innego pliku ani nie sprawdza, czy wynik `isModuleEnabled` jest użyty.
+- eksportowane metody HTTP (`GET`, `POST` i pozostałe) każdego `route.ts` w `src/app/`; `export * from "…"` liczy się jako punkt wejścia `*` i zawsze jest zgłaszany, bo nie widać, co eksportuje;
+- każdy eksport pliku z `"use server"` w `src/app/`, w `src/features/<x>/` (poza `auth` i `organizations`, których nie da się wyłączyć) i w `src/shared/`, jeśli plik należy tam do modułu innego niż `core`; `export * as nazwa` jest punktem wejścia `nazwa` bez ciała, więc też jest zgłaszany.
+
+Modułem pliku jest `<x>` dla `src/features/<x>/`, a dla innych ścieżek moduł, którego wzorzec z `files` w manifeście z `.wa/kit.json` (`modules` i `projectModules`) pasuje do ścieżki, z pominięciem `core`. Plik bez takiego modułu (na przykład trasa rdzenia albo trasa projektu bez wpisu w `projectModules`) nie ma klucza, którego guard mógłby użyć, więc trafia do mapy wyjątków albo do manifestu modułu.
+
+Punkt wejścia jest chroniony, gdy pierwszym zdarzeniem w jego ciele jest poprawne wywołanie guardu, przed pierwszym odwołaniem do Prismy (identyfikator `prisma` albo nazwa zaimportowana z `@/shared/lib/prisma`). Wywołanie funkcji z tego samego pliku liczy się w miejscu wywołania jako pierwsze zdarzenie jej ciała. Poprawne wywołanie guardu:
+
+- dotyczy `requireModuleAccess` zaimportowanego z `@/shared/lib/auth/require-module-access` albo `requireModuleEnabled` lub `isModuleEnabled` z `@/shared/lib/modules/require-module-enabled` (alias dozwolony); funkcja o tej samej nazwie z innej ścieżki się nie liczy;
+- ma jako pierwszy argument literał z kluczem modułu pliku albo stałą `const` na najwyższym poziomie pliku zainicjowaną takim literałem; `requireModuleEnabled("auth")` w pliku `billing` jest naruszeniem;
+- dla `isModuleEnabled` ma postać `if (!isModuleEnabled("<klucz>")) …`, gdzie gałąź kończy się `return` albo `throw`; w funkcji pomocniczej liczy się tylko `throw`, bo `return` kończy funkcję pomocniczą, a nie punkt wejścia; wynik zignorowany albo zapisany w zmiennej jest naruszeniem;
+- nie leży w funkcji zagnieżdżonej (callback, funkcja strzałkowa, metoda), bo jej wywołanie nie jest pewne; zdarzenia w takich funkcjach detektor pomija;
+- nie leży w `try`, którego `catch` połyka błąd: `catch` musi kończyć się `throw` albo `return handleCommandError(…)` z `@/shared/utils/error-handling`.
+
+Naruszenie test wypisuje jako `<ścieżka>#<nazwa>`.
+
+Wyjątki to mapa `ALLOWED` w teście, z uzasadnieniem przy każdym wpisie: `GET` w healthchecku, `GET` i `POST` handlera better-auth (moduł `auth` rdzenia, którego nie da się wyłączyć) oraz dwie komendy w `users`, które zapisują impersonację w logu aplikacji (`logger.info`, nie w dzienniku audytu). Impersonację wykonuje plugin `admin` better-auth pod `/api/auth/*`. Wyłączenie modułu `users` nie wyłącza tych endpointów (wołać je mogą tylko globalni administratorzy), więc pominięty wpis w logu ukryłby impersonację. Wpis, który nie wskazuje już żadnego punktu wejścia, zatrzymuje test „every allowance names an existing entry point”.
+
+<a id="ograniczenia-detektora-guardu"></a>
+
+Analiza jest składniowa, tak jak w `server-entrypoints-guard.test.ts`: łapie pomyłki, ale nie celowe obejście. Znane ograniczenia:
+
+- guard w funkcji z innego pliku (serwis, helper współdzielony) jest niewidoczny, a Prisma wołana przez taki serwis nie liczy się jako zdarzenie; kolejność sprawdzana jest tylko względem Prismy w tym samym pliku;
+- Prisma w funkcji zagnieżdżonej zdefiniowanej przed guardem (na przykład callback wołany później) nie liczy się jako zdarzenie; Prisma pod inną nazwą niż `prisma` albo import z `@/shared/lib/prisma` (na przykład klient transakcji przekazany parametrem) też nie;
+- guard w gałęzi warunkowej (`if`, `switch`, operator `?:`, `&&`) albo w bloku `catch` lub `finally` liczy się jak wywołany zawsze; kolejność jest składniowa, bez przepływu sterowania;
+- `catch` ocenia się tylko po ostatniej instrukcji: `catch (e) { if (e instanceof ModuleDisabledError) return ok; throw e; }` przechodzi, choć połyka błąd guardu; `handleCommandError` liczy się po nazwie i ścieżce importu, bez sprawdzenia, co robi;
+- `if (!isModuleEnabled(…)) return …` przechodzi bez względu na to, co zwraca (także `return;` zamiast odpowiedzi 404);
+- klucz modułu to literał albo stała `const` z literałem; klucz złożony inaczej (szablon, import, parametr) jest naruszeniem, nawet gdy w praktyce jest poprawny;
+- funkcja pomocnicza liczy się tylko jako funkcja najwyższego poziomu pliku (deklaracja albo `const` z funkcją); metoda obiektu, funkcja przypisana później albo przekazana parametrem jest niewidoczna;
+- podszycie: zmienna albo parametr wewnątrz funkcji, który przesłania zaimportowany guard, `handleCommandError` albo stałą z kluczem, liczy się jak oryginał, bo detektor nie śledzi zasięgów;
+- akcje `"use server"` zdefiniowane wewnątrz funkcji (inline) i pliki `"use server"` poza `src/app/`, `src/features/` i `src/shared/` nie są skanowane; plik rdzenia w `src/shared/` też nie;
+- strony (`page.tsx`) i layouty nie są punktami wejścia tego testu; chroni je `requireModuleAccess(key)` wołane w samej stronie.
