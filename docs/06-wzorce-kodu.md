@@ -627,7 +627,12 @@ Punkt wejścia jest chroniony, gdy pierwszym zdarzeniem w jego ciele jest popraw
 - ma jako pierwszy argument literał z kluczem modułu pliku albo stałą `const` na najwyższym poziomie pliku zainicjowaną takim literałem; `requireModuleEnabled("auth")` w pliku `billing` jest naruszeniem;
 - dla `isModuleEnabled` ma postać `if (!isModuleEnabled("<klucz>")) …`, gdzie gałąź kończy się `return` albo `throw`; w funkcji pomocniczej liczy się tylko `throw`, bo `return` kończy funkcję pomocniczą, a nie punkt wejścia; wynik zignorowany albo zapisany w zmiennej jest naruszeniem;
 - nie leży w funkcji zagnieżdżonej (callback, funkcja strzałkowa, metoda), bo jej wywołanie nie jest pewne; zdarzenia w takich funkcjach detektor pomija;
-- nie leży w `try`, którego `catch` połyka błąd: `catch` musi kończyć się `throw` albo `return handleCommandError(…)` z `@/shared/utils/error-handling`.
+- nie leży w `try`, którego `catch` połyka błąd: `catch` musi kończyć się `throw` albo `return handleCommandError(…)` z `@/shared/utils/error-handling`;
+- dla `requireModuleAccess`, która jest `async`, stoi bezpośrednio po `await` (`await requireModuleAccess(…)`, `const c = await …`, `return await …`); bez `await` odrzucenie obietnicy przepada, a kod po nim działa dalej, więc wywołanie bez `await`, z `void`, z `.catch(…)`, zapisane w zmiennej, w `Promise.all` albo zwrócone przez `return requireModuleAccess(…)` się nie liczy. `requireModuleEnabled` i `isModuleEnabled` są synchroniczne i `await` nie potrzebują.
+
+Wywołanie funkcji pomocniczej z tego pliku zadeklarowanej jako `async` (deklaracja, funkcja strzałkowa albo wyrażenie funkcyjne), której pierwszym zdarzeniem jest guard, liczy się tylko bezpośrednio po `await`, z tych samych powodów: wewnątrz funkcji `async` nawet synchroniczny `requireModuleEnabled` zamienia się w odrzuconą obietnicę. Funkcja synchroniczna z guardem liczy się bez `await`. Funkcja `async`, której pierwszym zdarzeniem jest Prisma, liczy się jako Prisma także bez `await`.
+
+Prisma na ścieżce, którą kod przechodzi, gdy guard zadziała, liczy się jak Prisma przed guardem: w gałęzi `if (!isModuleEnabled(…))`, w `catch` instrukcji `try`, w której bloku `try` leży guard, i w `finally` instrukcji `try`, w której bloku `try` albo `catch` leży guard. Dotyczy to też Prismy w funkcji pomocniczej wołanej w takim bloku; funkcje zagnieżdżone w tych blokach detektor pomija. Prisma w gałęzi `else` albo w `try`, która guardu nie obejmuje, się nie liczy.
 
 Naruszenie test wypisuje jako `<ścieżka>#<nazwa>`.
 
@@ -640,6 +645,10 @@ Analiza jest składniowa, tak jak w `server-entrypoints-guard.test.ts`: łapie p
 - guard w funkcji z innego pliku (serwis, helper współdzielony) jest niewidoczny, a Prisma wołana przez taki serwis nie liczy się jako zdarzenie; kolejność sprawdzana jest tylko względem Prismy w tym samym pliku;
 - Prisma w funkcji zagnieżdżonej zdefiniowanej przed guardem (na przykład callback wołany później) nie liczy się jako zdarzenie; Prisma pod inną nazwą niż `prisma` albo import z `@/shared/lib/prisma` (na przykład klient transakcji przekazany parametrem) też nie;
 - guard w gałęzi warunkowej (`if`, `switch`, operator `?:`, `&&`) albo w bloku `catch` lub `finally` liczy się jak wywołany zawsze; kolejność jest składniowa, bez przepływu sterowania;
+- `await` liczy się tylko jako bezpośredni rodzic wywołania: `await (requireModuleAccess(…))` w nawiasach i `return requireModuleAccess(…)` z funkcji `async` są naruszeniem, choć ten drugi zapis przekazuje odrzucenie dalej, jeśli wołający czeka na wynik; detektor nie sprawdza, czy wołający czeka, ani nie analizuje `finally`, więc wymaga `return await`;
+- funkcja pomocnicza bez `async`, która zwraca obietnicę z guardem (`function check() { return requireModuleAccess(…); }`), nigdy nie liczy się jako guard, nawet z `await check()`;
+- funkcja spoza pliku albo metoda, która zwraca obietnicę, nie jest znana detektorowi; guard schowany w takiej funkcji jest niewidoczny (punkt pierwszy);
+- ścieżka błędu guardu to tylko gałąź `if (!isModuleEnabled(…))` oraz `catch` i `finally` obejmującej go instrukcji `try` (także wokół wywołania funkcji pomocniczej z guardem); `catch (e) { if (e instanceof ModuleDisabledError) throw e; await prisma…; throw e; }` jest zgłaszany, choć Prisma działa tylko dla innych błędów;
 - `catch` ocenia się tylko po ostatniej instrukcji: `catch (e) { if (e instanceof ModuleDisabledError) return ok; throw e; }` przechodzi, choć połyka błąd guardu; `handleCommandError` liczy się po nazwie i ścieżce importu, bez sprawdzenia, co robi;
 - `if (!isModuleEnabled(…)) return …` przechodzi bez względu na to, co zwraca (także `return;` zamiast odpowiedzi 404);
 - klucz modułu to literał albo stała `const` z literałem; klucz złożony inaczej (szablon, import, parametr) jest naruszeniem, nawet gdy w praktyce jest poprawny;
