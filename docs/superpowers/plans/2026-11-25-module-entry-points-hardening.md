@@ -166,3 +166,28 @@ negative ones.
 - Import path check removed or a guard accepted from the other guard's path; `runCommand` still accepted.
 - `"use server"` files under `src/app` or owned `src/shared` not scanned; `core`-owned `src/shared` files scanned;
   test files under `src/app` scanned.
+
+## Behaviours added after the mutation review
+
+`F` = `findUnguardedModuleEntryPoints(root, NONE)` with the fixture `.wa/kit.json` unless noted.
+
+11. `prisma` counts as an identifier even when imported from another path (`"../../../shared/lib/prisma"`): Prisma
+    before the guard in `R` → `[R#GET]`.
+12. Only `src/features/<x>/` at the start of the path names the owner: `src/app/api/x/src/features/billing/route.ts`
+    guarded with `"billing"` → reported.
+13. Only a file named `route.ts(x)` gets the HTTP-method filter: `src/app/api/billing/route.ts.actions.ts` with
+    `"use server"` and an unguarded `doIt` → `[…route.ts.actions.ts#doIt]`.
+14. A file with no owner and a key that resolves to nothing (`requireModuleEnabled(moduleKey)` with a parameter, or no
+    argument) in `src/app/x/actions.ts` → `[src/app/x/actions.ts#doIt]`.
+15. `if (+isModuleEnabled("billing")) { return … }` (a prefix operator other than `!`) → `[R#GET]`.
+16. Only `handleCommandError` from `@/shared/utils/error-handling` counts: `return logCommandError(error)` with
+    `logCommandError` imported from that path → `[R#GET]`.
+17. An empty `"use server"`-less feature file (`""`) → `[]`, no throw.
+18. `declare const MODULE_KEY: string;` and `const MODULE_KEY = billing;` (an identifier, not a literal) as the key →
+    reported.
+19. `export * as tools from "./tools";` in a `"use server"` file is an entry point named `tools` with no body: reported
+    (`[C#tools]`); in a route file the name is filtered like any other non-method name.
+20. `catch { return; }` swallows → `[R#GET]`.
+21. A `.wa/kit.json` module entry without `manifest` (`legacy: {}`) is ignored: `R` guarded with `"billing"` → `[]`, no
+    throw.
+22. `export type Input = { id: string };` in a `"use server"` file is not an entry point.

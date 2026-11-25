@@ -1661,6 +1661,159 @@ describe("module entry point detector on fixtures", () => {
     });
   });
 
+  describe("edge cases from the mutation review", () => {
+    it("treats prisma imported from a relative path as a Prisma access before the guard", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          `${E}\nimport { prisma } from "../../../shared/lib/prisma";`,
+          '  await prisma.invoice.findMany();\n  requireModuleEnabled("billing");',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("takes the owner from src/features only at the start of the path", () => {
+      const file = "src/app/api/x/src/features/billing/route.ts";
+      write(file, routeGet(E, '  requireModuleEnabled("billing");'));
+
+      expect(unguarded()).toEqual([
+        "src/app/api/x/src/features/billing/route.ts#GET",
+      ]);
+    });
+
+    it("applies the HTTP method filter only to a file named exactly route.ts", () => {
+      const file = "src/app/api/billing/route.ts.actions.ts";
+      write(
+        file,
+        '"use server";\n\nexport async function doIt() {\n  return { success: true };\n}\n',
+      );
+
+      expect(unguarded()).toEqual([
+        "src/app/api/billing/route.ts.actions.ts#doIt",
+      ]);
+    });
+
+    it("reports an unowned file guarded with a parameter as the key", () => {
+      write(
+        "src/app/x/actions.ts",
+        `"use server";\n\n${E}\nexport async function doIt(moduleKey: string) {\n  requireModuleEnabled(moduleKey);\n  return { success: true };\n}\n`,
+      );
+
+      expect(unguarded()).toEqual(["src/app/x/actions.ts#doIt"]);
+    });
+
+    it("reports an unowned file guarded without an argument", () => {
+      write(
+        "src/app/x/actions.ts",
+        serverAction(E, "  requireModuleEnabled();"),
+      );
+
+      expect(unguarded()).toEqual(["src/app/x/actions.ts#doIt"]);
+    });
+
+    it("reports isModuleEnabled under a prefix operator other than the negation", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          I,
+          '  if (+isModuleEnabled("billing")) {\n    return new Response(null, { status: 404 });\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a guard in a try whose catch returns another function from the error-handling module", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          `${E}\nimport { handleCommandError, logCommandError } from "@/shared/utils/error-handling";`,
+          '  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    return logCommandError(error);\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("finds no entry point in an empty feature file and does not throw", () => {
+      write("src/features/billing/services/commands/empty.ts", "");
+
+      expect(findModuleEntryPoints(root)).toEqual([]);
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a guard keyed by a declared const without an initializer", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${E}\ndeclare const MODULE_KEY: string;\nexport async function doIt() {\n  requireModuleEnabled(MODULE_KEY);\n  return { success: true };\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a guard keyed by a const initialised with an identifier", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${E}\nimport { billing } from "./keys";\nconst MODULE_KEY = billing;\nexport async function doIt() {\n  requireModuleEnabled(MODULE_KEY);\n  return { success: true };\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it('treats export * as a namespace in a "use server" file as an entry point and reports it', () => {
+      write(
+        BILLING_COMMAND,
+        '"use server";\n\nexport * as tools from "./tools";\n',
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([`${BILLING_COMMAND}#tools`]);
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#tools`]);
+    });
+
+    it("passes namespace re-exports of a route file through the HTTP method filter", () => {
+      write(
+        BILLING_ROUTE,
+        'export * as GET from "./x";\nexport * as helpers from "./y";\n',
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a guard in a try whose catch returns nothing", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          E,
+          '  try {\n    requireModuleEnabled("billing");\n  } catch {\n    return;\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("ignores a kit module entry without a manifest", () => {
+      writeKit({
+        ...FIXTURE_KIT,
+        modules: { ...FIXTURE_KIT.modules, legacy: {} },
+      });
+      write(BILLING_ROUTE, routeGet(E, '  requireModuleEnabled("billing");'));
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it('does not treat an exported type of a "use server" file as an entry point', () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${E}\nexport type Input = { id: string };\nexport async function doIt() {\n  requireModuleEnabled("billing");\n  return { success: true };\n}\n`,
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([`${BILLING_COMMAND}#doIt`]);
+      expect(unguarded()).toEqual([]);
+    });
+  });
+
   describe("sorting", () => {
     it("returns entry points sorted whatever the creation order", () => {
       write(
