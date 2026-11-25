@@ -24,7 +24,7 @@
     "test:mutation:integration": "stryker run stryker.integration.config.json",
     "test:mutation:gate": "tsx scripts/mutation-gate.ts",
     "db:generate": "prisma generate",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run build && turbo run test typecheck lint && npm run test:hooks",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build && turbo run test typecheck lint && npm run test:hooks && npm run wa -- doctor --files",
     "wa": "node .wa/bin/wa.mjs",
     "postinstall": "prisma generate",
     "prepare": "husky",

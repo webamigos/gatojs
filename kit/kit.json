@@ -1,5 +1,5 @@
 {
-  "version": "0.17.0",
+  "version": "0.18.0",
   "repo": "https://github.com/webamigos/gatojs.git",
   "kitFormat": 2,
   "kitOnly": [
@@ -17,6 +17,7 @@
     ".github/workflows/packages.yml",
     ".github/workflows/publish-packages.yml",
     ".github/workflows/release.yml",
+    ".github/workflows/docker-platforms.yml",
     "prisma/migrations/.gitignore",
     "LICENSE",
     "NOTICE",

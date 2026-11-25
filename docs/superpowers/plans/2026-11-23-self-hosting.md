@@ -17,7 +17,7 @@ wave 1 (parallel, all from main)
                                                                     │   ▼
 wave 2                                       Task 6 (selfhost compose, .env.selfhost.example, runbook)
                                                                     │   │ after 1, 4, 5
-wave 3 (parallel)                                                   ▼   ▼
+wave 3 (parallel; Task 10, image publishing + Railway, after 6 and 8)                                                   ▼   ▼
                                      Task 7 (egress check + workflow)   Task 9 (Helm chart + helm.yml)
                                      after 6 (and 3 for a clean run)    after 6
 ```
@@ -29,6 +29,13 @@ wave 3 (parallel)                                                   ▼   ▼
 - Spec step 7 (wizard questions) is Task 2, moved into wave 1 by decision 9.3. Self-host settings (`.env.selfhost`) stay out of the wizard (decision 9.3).
 
 Several tasks bump `kit/modules/core.json` (Tasks 1, 3, 5, 6, 9), and Tasks 2 and 5 both bump `packages/create-gato-app`. The second PR to merge rebases and takes the next free version.
+
+**Order across the extensibility and self-hosting plans** (set 2026-11-24, at most two workers at once). Two lanes, so that two running tasks never both change `packages/gato-cli` (version, `.wa/bin/wa.mjs`, the generator):
+
+- Lane A, `gato-cli` and the generator, one task at a time: extensibility T2 → self-hosting T5 → extensibility T5 → extensibility T7, T9, T15 and the rest of the generator tasks.
+- Lane B, no `gato-cli` changes: self-hosting T8 → extensibility T3 → extensibility T4 → self-hosting T6 (as soon as self-hosting T5 has merged; it jumps the queue) → self-hosting T7, T9 and T10 → extensibility T6 and T8 (after extensibility T5).
+
+When a slot frees up, the next task of its lane starts if its dependencies have merged; otherwise the first ready task of the other lane that does not touch `gato-cli`. Versions (`gato-cli`, `create-gato-app`, `core`, `kitFormat`) are always the next free ones at merge time, whatever the task text says.
 
 ## Global constraints
 
@@ -411,6 +418,46 @@ Why: `docker-compose.selfhost.yml` and `.env.selfhost.example` are core files (d
 
 ---
 
+### Task 10: Image publishing to GHCR and Railway — ADR-67
+
+**Branch:** `feat/image-publishing` (after Task 6 and Task 8; lane B, no `gato-cli` changes). Added 2026-11-24 by Patryk's decision.
+
+Why: a project built with GatoJS should deploy one tested image to every environment (staging, production, a rollback to the previous tag) instead of rebuilding on each host. GatoJS itself is a framework, so its own image (`ghcr.io/webamigos/gatojs`) is a demo and the input of the egress check, not something a client project deploys. The same workflow file serves both: it names the image after `github.repository`.
+
+**Files:**
+- `.github/workflows/docker-publish.yml` (core, shipped to projects; `kit/modules/core.json` `files` += it):
+  - triggers: `push` to `main` (tags `edge` and `sha-<short>`), `push` of tags `v*` (semver tags `X.Y.Z`, `X.Y`, `latest`), `workflow_dispatch`, and `workflow_call` with an optional `version` input (see the release note below); never on `pull_request` (Task 8 already builds on PRs);
+  - image name `ghcr.io/<owner>/<repo>` lowercased in a step (`github.repository` keeps the owner's case and GHCR rejects upper case);
+  - native runners, no QEMU: matrix `ubuntu-latest` / `ubuntu-24.04-arm`, each `docker/build-push-action` pushes by digest (`outputs: type=image,push-by-digest=true,name-canonical=true,push=true`), uploads the digest as an artifact; a `merge` job creates the multi-arch manifest with `docker buildx imagetools create` and the tags from `docker/metadata-action`;
+  - `provenance: mode=max`, `sbom: true`; `actions/attest-build-provenance` on the merged digest;
+  - permissions per job: `contents: read`, `packages: write`, `id-token: write` and `attestations: write` only where needed; `GITHUB_TOKEN` only, no secrets;
+  - `concurrency` per ref; actions pinned the way the other workflows pin them.
+- GatoJS repo only: `.github/workflows/release.yml` (kit-only) calls `docker-publish.yml` through `workflow_call` with the released version after semantic-release, because a tag pushed with `GITHUB_TOKEN` does not trigger other workflows. Projects tag by hand or with their own release flow, so the `v*` trigger works for them.
+- `docker-compose.selfhost.yml` (Task 6): `migrate` and `app` use `image: ${APP_IMAGE:-wa-app:local}`, so `APP_IMAGE=ghcr.io/<owner>/<repo>:1.2.3` plus `up --wait --no-build` deploys a published image; `.env.selfhost.example` gets a commented `# APP_IMAGE=`.
+- `railway.json` (core, shipped, placeholder-free): `build.builder: DOCKERFILE`, `deploy.preDeployCommand: ["node_modules/.bin/prisma migrate deploy"]`, `deploy.healthcheckPath: /api/healthcheck`, `deploy.restartPolicyType: ON_FAILURE`. Verify the field names against the current Railway config-as-code schema (`https://railway.com/railway.schema.json`) and add `$schema`. Other hosts ignore this file.
+- Architecture test `src/__tests__/architecture/image-publishing.test.ts` + `scripts/lib/architecture/image-publishing.ts`:
+  - `checkPublishWorkflow(yamlText)`: no `pull_request` trigger; both runners in the matrix; the image name passes through a lowercase step; `provenance` and `sbom` set; `packages: write` not granted at workflow level;
+  - `checkRailwayConfig(jsonText)`: `preDeployCommand` runs `prisma migrate deploy`; `healthcheckPath` equals the path the Dockerfile `HEALTHCHECK` and the compose `app` healthcheck use (read from the repo, not a copy).
+- `docs/self-hosting.md` (English, kit-only), two sections:
+  - "Published images": what the workflow publishes and when, making the GHCR package public or giving the host a pull token, pinning a version in `APP_IMAGE`, rollback by tag, checking a signature/attestation with `gh attestation verify`;
+  - "Railway": (a) build from the repo with `railway.json` (the default), (b) deploy the GHCR image (private registry credentials in Railway), Postgres from Railway's database service (`DATABASE_URL` reference variable), `BETTER_AUTH_SECRET` and `APP_URL`, uploads on a Railway volume mounted at `/app/volumes/uploads` (one replica) or an S3 preset from Task 4 (more replicas), mail via SMTP or Resend, first admin with `railway run npm run admin:create -- --email …` from a checkout. "verified 2026-11-xx" only for what was actually deployed.
+- `docs/10-wdrozenie.md` links both sections; `docs/README.md` lists nothing new (same page).
+- ADR-67 `docs/adrs/67-projects-publish-their-own-multi-arch-image.md`: one workflow for GatoJS and projects, digest-merge on native runners instead of QEMU, GHCR with `GITHUB_TOKEN`, `railway.json` shipped to every project, GatoJS image as demo and egress-check input. (ADR-65 and 66 stay reserved for Tasks 6 and 7.)
+- `core` minor bump.
+
+**Behaviours:**
+- `checkPublishWorkflow` on the repository file → `[]`. Fixtures: a `pull_request` trigger → `["docker-publish.yml: must not run on pull_request (Task 8 covers PR builds)"]`; only `ubuntu-latest` → `["docker-publish.yml: both ubuntu-latest and ubuntu-24.04-arm are required"]`; image name `ghcr.io/${{ github.repository }}` used directly → `["docker-publish.yml: lowercase the image name before pushing"]`; `permissions: packages: write` at the top → `["docker-publish.yml: grant packages: write per job, not to the whole workflow"]`.
+- `checkRailwayConfig` on the repository file → `[]`; `healthcheckPath: /health` → `["railway.json: healthcheckPath /health differs from /api/healthcheck"]`; no `preDeployCommand` → `["railway.json: preDeployCommand must run prisma migrate deploy"]`.
+- `assemble` in `kit.yml`: every combo's project has `docker-publish.yml` and `railway.json`; actionlint passes on the project's workflows.
+- On GitHub, after merge (coordinator, reported in the PR): the push to `main` publishes `ghcr.io/webamigos/gatojs:edge`; `docker buildx imagetools inspect` lists `linux/amd64` and `linux/arm64`; `gh attestation verify oci://ghcr.io/webamigos/gatojs:edge --owner webamigos` passes. Making the package public is Patryk's click in the package settings.
+- Manual, optional (Patryk's Railway account; the worker does not create accounts): a project from `create-gato-app` deployed to Railway from its repo reaches a healthy deployment and the migrations ran. Recorded with a date in the runbook only if done.
+
+**Mutations to kill:** each workflow check accepting its negative fixture; the Railway check accepting a different health path or no migration step.
+
+**Lessons:** `a-new-file-needs-an-owner-only-the-cli-gate-checks`; workflow steps run with `bash -e`; a tag or release created with `GITHUB_TOKEN` starts no workflow (write a lesson if none exists).
+
+---
+
 ## Open questions (not settled by the spec; each task applies the default stated here unless Patryk overrides it)
 
 1. **`SMTP_URL` next to `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` or `SMTP_SECURE`.** Decision 9.1 covers `SMTP_HOST`. Default (Task 1): the same startup error for every split variable, one source of SMTP settings.
@@ -420,11 +467,12 @@ Why: `docker-compose.selfhost.yml` and `.env.selfhost.example` are core files (d
 5. **Module values in `.env.selfhost.example`.** Default (Tasks 5 and 6): new manifest fields `selfhostExample` and `selfhostCompose` with two new `wa:*` regions. The alternative, hard-coding uploads' variables and MinIO in the core files, breaks "a module does not edit core files".
 6. **`CHECKPOINT_DISABLE=1`** (Task 3) is beyond the spec's text: it follows Ragen's test and the spec's runtime rule (`prisma migrate deploy` calls Prisma's checkpoint server).
 7. **Multi-arch as its own workflow** (Task 8), not inside the egress-check workflow, so it can merge first and also runs on pushes to `main`.
+8. **`railway.json` in every project** (Task 10). Default: shipped, since other hosts ignore it. The alternative is a snippet in the runbook only.
 
 ## Definition of done (all tasks)
 
-- `main` has the mail providers with ADR-64, the wizard mail question in `create-gato-app` 0.3.x, self-hosted Inter with the two architecture tests, `S3_SESSION_TOKEN` and the preset table, `gato-cli` 0.4.0 regions, `docker-compose.selfhost.yml` + `.env.selfhost.example` + `docs/self-hosting.md` with ADR-65, the egress check with ADR-66, the multi-arch check, and the Helm chart with `helm.yml`.
-- `verify`, CLI gate, create-gato-app gate, integration, e2e, `assemble`, `storage-presets`, `egress-check` (both legs), `docker-platforms` (both legs) and `helm.yml` are green.
+- `main` has the mail providers with ADR-64, the wizard mail question in `create-gato-app` 0.3.x, self-hosted Inter with the two architecture tests, `S3_SESSION_TOKEN` and the preset table, `gato-cli` 0.4.0 regions, `docker-compose.selfhost.yml` + `.env.selfhost.example` + `docs/self-hosting.md` with ADR-65, the egress check with ADR-66, the multi-arch check, the Helm chart with `helm.yml`, and image publishing to GHCR with `railway.json` and ADR-67.
+- `verify`, CLI gate, create-gato-app gate, integration, e2e, `assemble`, `storage-presets`, `egress-check` (both legs), `docker-platforms` (both legs), `helm.yml` and `docker-publish.yml` (on `main`) are green.
 - `gato-cli` 0.4.0 and `create-gato-app` with the mail question are published (coordinator: tags in the order `kit/CLAUDE.md` gives, then Patryk's staged approval).
 - The docs.gatojs.com pages listed in the task reports have issues or PRs in the website repo.
 - Follow-ups outside this plan: the wizard writing `.env.selfhost` (the spec defers it), a fully offline install bundle (decision 8.4), native Azure Blob and GCS providers, HTTP mail providers beyond Resend, and Terraform.
