@@ -538,6 +538,20 @@ describe("applyGatoConfig: access overrides", () => {
     expect(users?.multiOrgRoles).toBeUndefined();
   });
 
+  it("multiOrgRoles alone is a valid override and clears roles and adminOnly", () => {
+    const [users] = applyGatoConfig([usersModule()], {
+      modules: { users: { access: { multiOrgRoles: ["owner"] } } },
+    });
+    expect(users?.multiOrgRoles).toEqual(["owner"]);
+    expect(users?.roles).toBeUndefined();
+    expect(users?.adminOnly).toBeUndefined();
+    expect(
+      gatoConfigProblems([usersModule()], {
+        modules: { users: { access: { multiOrgRoles: ["owner"] } } },
+      }),
+    ).toEqual([]);
+  });
+
   it("an empty roles list is a valid override", () => {
     const [apiKeys] = applyGatoConfig([apiKeysModule()], {
       modules: { "api-keys": { access: { roles: [] } } },

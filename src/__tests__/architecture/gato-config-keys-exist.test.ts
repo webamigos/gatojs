@@ -92,6 +92,17 @@ describe("findGatoConfigKeyProblems", () => {
     ]);
   });
 
+  it("without a src/features directory every config key is unknown", async () => {
+    fs.rmSync(path.join(root, "src/features"), {
+      recursive: true,
+      force: true,
+    });
+    write("src/gato.config.ts", "export default { modules: { x: {} } };\n");
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([
+      "modules.x: unknown module: x",
+    ]);
+  });
+
   it("a module from every feature directory is known", async () => {
     write(
       "src/features/zeta/module.ts",
