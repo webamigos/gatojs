@@ -93,6 +93,7 @@
     "src/proxy.ts",
     "src/shared/**",
     "src/test/**",
+    "src/theme.css",
     "src/types/**"
   ],
   "dependencies": {
