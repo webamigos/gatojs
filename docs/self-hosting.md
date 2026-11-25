@@ -23,9 +23,13 @@ committed `init` migration, each in a fresh clone with its own `COMPOSE_PROJECT_
   `minio-init` stays up and healthy after it makes the bucket (verified 2026-11-25; before that change `--wait` failed
   on the exited `minio-init` on both v2.19.1 and v2.33.0);
 - [Back up](#back-up) and [restore](#restore): a set of the local volume, taken and restored into a fresh clone with
-  new volumes, signs the administrator in and downloads the file with the same checksum (verified 2026-11-25, with the
-  commands before `set -eu`, the `dc` function, `dc stop app` and `pg_restore --exit-on-error` were added; the
-  current scripts and the MinIO backup and restore have not been run: not verified).
+  new volumes, signs the administrator in and downloads the file with the same checksum (verified 2026-11-25). The
+  current scripts (`set -eu`, the `dc` function, `dc stop app`, `pg_restore --exit-on-error`, the MinIO copy) ran as
+  written on 2026-11-26 with the `s3` profile up: after `down -v` and a fresh clone, the restore brought back a
+  database row, a file in the `uploads` volume (owned by UID 1001) and an object in the MinIO bucket, and `app` came
+  up healthy; a truncated dump stopped the restore at `pg_restore` with exit 1 and `app` stopped (verified
+  2026-11-26, without `sudo`, because Docker Desktop's bind mount belongs to the host user). The MinIO restore failed
+  on the fresh clone until `mkdir -p volumes` was added. The administrator sign-in was not repeated on 2026-11-26.
 
 The TLS examples and the upgrade path have not been run (not verified).
 
@@ -37,7 +41,7 @@ The TLS examples and the upgrade path have not been run (not verified).
 | [Mail](#mail) | written |
 | [Files (`uploads`)](#files-uploads) | written, local volume and `s3` profile verified 2026-11-25 |
 | [TLS](#tls) | written, examples not run |
-| [Back up](#back-up) and [restore](#restore) | written; an earlier version of the local-volume steps verified 2026-11-25, the current scripts and MinIO not verified |
+| [Back up](#back-up) and [restore](#restore) | written, verified 2026-11-26 (local volume and MinIO) |
 | [Upgrade](#upgrade) | written |
 | [Prove nothing leaves the machine](#prove-nothing-leaves-the-machine) | placeholder until the egress check (self-hosting Task 7) |
 
@@ -298,6 +302,7 @@ Then restore the files the way they were stored, and start the stack only after 
   ```bash
   dc --profile s3 stop minio minio-init
   sudo rm -rf volumes/minio
+  mkdir -p volumes
   sudo cp -a "$B/minio" volumes/minio
 
   dc --profile s3 up -d --build --wait
