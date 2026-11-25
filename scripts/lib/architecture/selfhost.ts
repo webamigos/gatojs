@@ -12,6 +12,9 @@ const KIT_STATE_FILE = ".wa/kit.json";
 const HEALTHCHECK_PATH = "/api/healthcheck";
 const MAIL_RELAY_IMAGE = "axllent/mailpit";
 const TOOLS_PROFILE = "tools";
+const PUBLIC_SERVICE = "app";
+const OPERATOR_ENV_FILE = ".env.selfhost";
+const DEVELOPMENT_CREDENTIALS = ["minioadmin"];
 
 type ComposeService = {
   image?: unknown;
@@ -80,19 +83,88 @@ function isMailRelayImage(image: unknown): boolean {
   );
 }
 
-function isOneShot(service: ComposeService | null | undefined): boolean {
+function effectiveProfiles(
+  service: ComposeService | null | undefined,
+): string[] {
   const profiles = service?.profiles;
-  const isTool = Array.isArray(profiles) && profiles.includes(TOOLS_PROFILE);
-  return service?.restart === "no" && !isTool;
+  if (!Array.isArray(profiles)) {
+    return [];
+  }
+  return profiles.filter(
+    (profile): profile is string => typeof profile === "string",
+  );
 }
 
-function isAwaitedToComplete(
+function runsAlways(service: ComposeService | null | undefined): boolean {
+  return effectiveProfiles(service).length === 0;
+}
+
+function runsUnderProfile(
+  service: ComposeService | null | undefined,
+  profile: string,
+): boolean {
+  return runsAlways(service) || effectiveProfiles(service).includes(profile);
+}
+
+function isOneShot(
+  name: string,
+  service: ComposeService | null | undefined,
+): boolean {
+  return (
+    name !== "migrate" &&
+    service?.restart === "no" &&
+    !effectiveProfiles(service).includes(TOOLS_PROFILE)
+  );
+}
+
+function waitersToComplete(
   services: Record<string, ComposeService | null>,
   name: string,
-): boolean {
-  return Object.values(services).some(
+): (ComposeService | null)[] {
+  return Object.values(services).filter(
     (service) =>
       dependencyCondition(service, name) === "service_completed_successfully",
+  );
+}
+
+function oneShotIssues(
+  services: Record<string, ComposeService | null>,
+  name: string,
+  service: ComposeService | null | undefined,
+): string[] {
+  const waiters = waitersToComplete(services, name);
+  if (runsAlways(service)) {
+    return waiters.some(runsAlways)
+      ? []
+      : [
+          `${COMPOSE_FILE}: ${name} runs once (restart: "no"), so another service must wait for it to complete (service_completed_successfully) or up --wait fails`,
+        ];
+  }
+  return effectiveProfiles(service)
+    .filter(
+      (profile) => !waiters.some((waiter) => runsUnderProfile(waiter, profile)),
+    )
+    .map(
+      (profile) =>
+        `${COMPOSE_FILE}: ${name} runs once (restart: "no"), so a service started with profile ${profile} must wait for it to complete (service_completed_successfully) or up --wait fails`,
+    );
+}
+
+function containsText(value: unknown, needle: string): boolean {
+  if (typeof value === "string") {
+    return value.toLowerCase().includes(needle);
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.values(value).some((item) => containsText(item, needle));
+  }
+  return false;
+}
+
+function developmentCredentialIn(
+  service: ComposeService | null | undefined,
+): string | undefined {
+  return DEVELOPMENT_CREDENTIALS.find((credential) =>
+    containsText(service, credential),
   );
 }
 
@@ -100,6 +172,7 @@ export function checkSelfhostCompose(root: string): string[] {
   const compose = (parse(readRepoFile(root, COMPOSE_FILE)) ??
     {}) as ComposeFile;
   const services = compose.services ?? {};
+  const entries = Object.entries(services);
   const issues: string[] = [];
   if (
     dependencyCondition(services.app, "migrate") !==
@@ -119,24 +192,28 @@ export function checkSelfhostCompose(root: string): string[] {
       `${COMPOSE_FILE}: app needs a healthcheck on ${HEALTHCHECK_PATH}`,
     );
   }
-  if (publishesPorts(services.db)) {
-    issues.push(`${COMPOSE_FILE}: db must not publish a port`);
+  for (const [name, service] of entries) {
+    if (name !== PUBLIC_SERVICE && publishesPorts(service)) {
+      issues.push(`${COMPOSE_FILE}: ${name} must not publish a port`);
+    }
   }
-  for (const [name, service] of Object.entries(services)) {
+  for (const [name, service] of entries) {
     if (isMailRelayImage(service?.image)) {
       issues.push(
         `${COMPOSE_FILE}: no mail relay in the self-hosted stack (${name})`,
       );
     }
   }
-  for (const [name, service] of Object.entries(services)) {
-    if (
-      name !== "migrate" &&
-      isOneShot(service) &&
-      !isAwaitedToComplete(services, name)
-    ) {
+  for (const [name, service] of entries) {
+    if (isOneShot(name, service)) {
+      issues.push(...oneShotIssues(services, name, service));
+    }
+  }
+  for (const [name, service] of entries) {
+    const credential = developmentCredentialIn(service);
+    if (credential !== undefined) {
       issues.push(
-        `${COMPOSE_FILE}: ${name} runs once (restart: "no"), so another service must wait for it to complete (service_completed_successfully) or up --wait fails`,
+        `${COMPOSE_FILE}: ${name} uses the development credential ${credential}; take the credentials from ${OPERATOR_ENV_FILE}`,
       );
     }
   }
