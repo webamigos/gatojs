@@ -1,9 +1,12 @@
 import { fc, test } from "@fast-check/vitest";
 import { describe, expect, it } from "vitest";
 import {
+  GateConfigError,
   checkMutationGate,
+  mergeGateConfigs,
   mergeReports,
   mutantOriginal,
+  parseGateConfig,
 } from "../mutation-gate";
 
 type Report = Parameters<typeof checkMutationGate>[0];
@@ -892,5 +895,318 @@ describe("mergeReports bez sklejania pól lokalizacji", () => {
       "A bc 2:8-2:13 Killed",
       "Ab c 2:8-2:13 Survived",
     ]);
+  });
+});
+
+const GATO_ALLOWED: Allowed = {
+  file: "src/shared/lib/auth/x.ts",
+  mutator: "ConditionalExpression",
+  original: "a > 0",
+  replacement: "true",
+  reason: "gato reason",
+};
+
+const PROJECT_ALLOWED: Allowed = {
+  file: "src/project/x.ts",
+  mutator: "StringLiteral",
+  original: '"b"',
+  replacement: '""',
+  reason: "project reason",
+};
+
+function frozenConfig(critical: string[], allowedList: Allowed[]): Config {
+  return Object.freeze({
+    critical: Object.freeze([...critical]) as string[],
+    allowed: Object.freeze(
+      allowedList.map((entry) => Object.freeze({ ...entry })),
+    ) as Allowed[],
+  });
+}
+
+const criticalPath = fc.constantFrom(
+  "a/",
+  "b/",
+  "c/",
+  "src/x.ts",
+  "src/y/",
+  "scripts/z.ts",
+);
+
+const allowedEntry = fc.record({
+  file: fc.string(),
+  mutator: fc.string(),
+  original: fc.string(),
+  replacement: fc.string(),
+  reason: fc.string(),
+});
+
+describe("mergeGateConfigs", () => {
+  it("appends project critical paths not already in Gato's list and Gato's allowed entries before the project's", () => {
+    expect(
+      mergeGateConfigs(
+        { critical: ["a/"], allowed: [GATO_ALLOWED] },
+        { critical: ["b/", "a/"], allowed: [PROJECT_ALLOWED] },
+      ),
+    ).toEqual({
+      critical: ["a/", "b/"],
+      allowed: [GATO_ALLOWED, PROJECT_ALLOWED],
+    });
+  });
+
+  it("returns a config equal to Gato's when there is no project config", () => {
+    expect(
+      mergeGateConfigs(
+        { critical: ["a/", "b/"], allowed: [GATO_ALLOWED] },
+        undefined,
+      ),
+    ).toEqual({ critical: ["a/", "b/"], allowed: [GATO_ALLOWED] });
+  });
+
+  it("drops duplicates inside the project's critical list", () => {
+    expect(
+      mergeGateConfigs(
+        { critical: ["a/"], allowed: [] },
+        { critical: ["b/", "b/"], allowed: [] },
+      ),
+    ).toEqual({ critical: ["a/", "b/"], allowed: [] });
+  });
+
+  it("keeps the project's critical paths in their order after Gato's", () => {
+    expect(
+      mergeGateConfigs(
+        { critical: ["b/", "a/"], allowed: [] },
+        { critical: ["d/", "a/", "c/", "d/"], allowed: [] },
+      ),
+    ).toEqual({ critical: ["b/", "a/", "d/", "c/"], allowed: [] });
+  });
+
+  it("keeps a project-only critical path when Gato's list is empty", () => {
+    expect(
+      mergeGateConfigs(
+        { critical: [], allowed: [] },
+        { critical: ["src/project/"], allowed: [] },
+      ),
+    ).toEqual({ critical: ["src/project/"], allowed: [] });
+  });
+
+  it("keeps Gato's allowed entries when the project has none and the project's when Gato has none", () => {
+    expect(
+      mergeGateConfigs(
+        { critical: [], allowed: [GATO_ALLOWED] },
+        { critical: [], allowed: [] },
+      ),
+    ).toEqual({ critical: [], allowed: [GATO_ALLOWED] });
+    expect(
+      mergeGateConfigs(
+        { critical: [], allowed: [] },
+        { critical: [], allowed: [PROJECT_ALLOWED] },
+      ),
+    ).toEqual({ critical: [], allowed: [PROJECT_ALLOWED] });
+  });
+
+  it("does not mutate its inputs", () => {
+    const gato = frozenConfig(["a/"], [GATO_ALLOWED]);
+    const project = frozenConfig(["b/", "a/"], [PROJECT_ALLOWED]);
+
+    mergeGateConfigs(gato, project);
+    mergeGateConfigs(gato, undefined);
+
+    expect(gato).toEqual({ critical: ["a/"], allowed: [GATO_ALLOWED] });
+    expect(project).toEqual({
+      critical: ["b/", "a/"],
+      allowed: [PROJECT_ALLOWED],
+    });
+  });
+
+  it("a Gato-allowed mutant stays allowed when the project has its own allowed list", () => {
+    const merged = mergeGateConfigs(
+      { critical: ["src/shared/lib/auth/"], allowed: [GATO_ALLOWED] },
+      { critical: ["src/project/"], allowed: [PROJECT_ALLOWED] },
+    );
+
+    expect(
+      checkMutationGate(
+        report({
+          "src/shared/lib/auth/x.ts": {
+            source: SOURCE,
+            mutants: [conditionAtLine2()],
+          },
+        }),
+        merged,
+      ),
+    ).toEqual({ violations: [], stale: [] });
+  });
+
+  it("checks a surviving mutant in a project-only critical path", () => {
+    const merged = mergeGateConfigs(
+      { critical: ["src/shared/lib/auth/"], allowed: [] },
+      { critical: ["src/project/"], allowed: [] },
+    );
+
+    const result = checkMutationGate(
+      report({
+        "src/project/x.ts": { source: SOURCE, mutants: [conditionAtLine2()] },
+      }),
+      merged,
+    );
+
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0]).toContain("src/project/x.ts:2");
+  });
+
+  test.prop([
+    fc.uniqueArray(criticalPath),
+    fc.array(criticalPath),
+    fc.array(allowedEntry, { maxLength: 3 }),
+    fc.array(allowedEntry, { maxLength: 3 }),
+  ])(
+    "starts with Gato's critical paths, contains every project path exactly once and keeps both allowed lists in order",
+    (gatoCritical, projectCritical, gatoAllowed, projectAllowed) => {
+      const merged = mergeGateConfigs(
+        frozenConfig(gatoCritical, gatoAllowed),
+        frozenConfig(projectCritical, projectAllowed),
+      );
+
+      expect(merged.critical.slice(0, gatoCritical.length)).toEqual(
+        gatoCritical,
+      );
+      expect(new Set(merged.critical).size).toBe(merged.critical.length);
+      for (const path of projectCritical) {
+        expect(merged.critical).toContain(path);
+      }
+      for (const path of merged.critical) {
+        expect([...gatoCritical, ...projectCritical]).toContain(path);
+      }
+      expect(merged.allowed).toHaveLength(
+        gatoAllowed.length + projectAllowed.length,
+      );
+      expect(merged.allowed.slice(0, gatoAllowed.length)).toEqual(gatoAllowed);
+      expect(merged.allowed.slice(gatoAllowed.length)).toEqual(projectAllowed);
+    },
+  );
+
+  test.prop([fc.array(criticalPath), fc.array(allowedEntry, { maxLength: 3 })])(
+    "without a project config returns Gato's lists unchanged",
+    (gatoCritical, gatoAllowed) => {
+      expect(
+        mergeGateConfigs(frozenConfig(gatoCritical, gatoAllowed), undefined),
+      ).toEqual({ critical: gatoCritical, allowed: gatoAllowed });
+    },
+  );
+});
+
+function parseError(text: string, path: string): unknown {
+  try {
+    parseGateConfig(text, path);
+  } catch (error) {
+    return error;
+  }
+  return undefined;
+}
+
+describe("parseGateConfig", () => {
+  it("defaults both lists to empty for an empty object", () => {
+    expect(parseGateConfig("{}", "x.json")).toEqual({
+      critical: [],
+      allowed: [],
+    });
+  });
+
+  it("defaults allowed to an empty list when only critical is given", () => {
+    expect(parseGateConfig('{"critical":["src/"]}', "x.json")).toEqual({
+      critical: ["src/"],
+      allowed: [],
+    });
+  });
+
+  it("defaults critical to an empty list when only allowed is given", () => {
+    expect(
+      parseGateConfig(
+        '{"allowed":[{"file":"src/project/x.ts","mutator":"StringLiteral","original":"\\"b\\"","replacement":"\\"\\"","reason":"project reason"}]}',
+        "x.json",
+      ),
+    ).toEqual({ critical: [], allowed: [PROJECT_ALLOWED] });
+  });
+
+  it("returns a full valid file unchanged", () => {
+    const text = JSON.stringify({
+      critical: ["src/shared/lib/auth/", "src/project/"],
+      allowed: [GATO_ALLOWED, PROJECT_ALLOWED],
+    });
+
+    expect(parseGateConfig(text, "mutation-gate.json")).toEqual({
+      critical: ["src/shared/lib/auth/", "src/project/"],
+      allowed: [GATO_ALLOWED, PROJECT_ALLOWED],
+    });
+  });
+
+  test.prop([fc.array(fc.string()), fc.array(allowedEntry, { maxLength: 3 })])(
+    "round-trips any valid config",
+    (critical, allowedList) => {
+      expect(
+        parseGateConfig(
+          JSON.stringify({ critical, allowed: allowedList }),
+          "x.json",
+        ),
+      ).toEqual({ critical, allowed: allowedList });
+    },
+  );
+
+  it.each([
+    ["critical as a string", '{"critical":"src/"}'],
+    ["text that is not JSON", "{"],
+    ["a critical entry that is not a string", '{"critical":[1]}'],
+    ["allowed that is not a list", '{"allowed":{}}'],
+    [
+      "an allowed entry without reason",
+      '{"allowed":[{"file":"a.ts","mutator":"M","original":"o","replacement":"r"}]}',
+    ],
+    [
+      "an allowed entry without file",
+      '{"allowed":[{"mutator":"M","original":"o","replacement":"r","reason":"x"}]}',
+    ],
+    [
+      "an allowed entry without mutator",
+      '{"allowed":[{"file":"a.ts","original":"o","replacement":"r","reason":"x"}]}',
+    ],
+    [
+      "an allowed entry without original",
+      '{"allowed":[{"file":"a.ts","mutator":"M","replacement":"r","reason":"x"}]}',
+    ],
+    [
+      "an allowed entry without replacement",
+      '{"allowed":[{"file":"a.ts","mutator":"M","original":"o","reason":"x"}]}',
+    ],
+    [
+      "an allowed entry with a numeric reason",
+      '{"allowed":[{"file":"a.ts","mutator":"M","original":"o","replacement":"r","reason":1}]}',
+    ],
+  ])("rejects %s with a GateConfigError naming the file", (_label, text) => {
+    const error = parseError(text, "mutation-gate.project.json");
+
+    expect(error).toBeInstanceOf(GateConfigError);
+    expect((error as Error).name).toBe("GateConfigError");
+    expect(
+      (error as Error).message.startsWith(
+        "Invalid mutation-gate.project.json: ",
+      ),
+    ).toBe(true);
+  });
+
+  it("puts the given path, not a fixed name, at the start of the message", () => {
+    const error = parseError('{"critical":"src/"}', "mutation-gate.json");
+
+    expect(error).toBeInstanceOf(GateConfigError);
+    expect(
+      (error as Error).message.startsWith("Invalid mutation-gate.json: "),
+    ).toBe(true);
+  });
+
+  it("GateConfigError is an Error named GateConfigError", () => {
+    const error = new GateConfigError("Invalid x.json: bad");
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error.name).toBe("GateConfigError");
+    expect(error.message).toBe("Invalid x.json: bad");
   });
 });

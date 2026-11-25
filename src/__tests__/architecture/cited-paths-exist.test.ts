@@ -200,6 +200,35 @@ describe("checkCitedPaths", () => {
     ]);
   });
 
+  it("does not report the optional companion files cited in AGENTS.md when they are absent", () => {
+    write(
+      "AGENTS.md",
+      "read `AGENTS.project.md` first; extend `mutation-gate.project.json`",
+    );
+    expect(checkCitedPaths(root)).toEqual([]);
+  });
+
+  it("does not report the optional companion files cited in CLAUDE.md, also as link targets", () => {
+    write(
+      "CLAUDE.md",
+      "[p](AGENTS.project.md), `AGENTS.project.md` and [g](mutation-gate.project.json)",
+    );
+    expect(checkCitedPaths(root)).toEqual([]);
+  });
+
+  it("still reports another absent root file cited next to the companion files", () => {
+    write(
+      "AGENTS.md",
+      "`AGENTS.project.md`, `mutation-gate.project.json` and `nope.md`",
+    );
+    expect(checkCitedPaths(root)).toEqual(["AGENTS.md: nope.md"]);
+  });
+
+  it("still reports an absent mutation-gate.json next to the companion files", () => {
+    write("AGENTS.md", "`mutation-gate.project.json` and `mutation-gate.json`");
+    expect(checkCitedPaths(root)).toEqual(["AGENTS.md: mutation-gate.json"]);
+  });
+
   it("nie czyta README.md", () => {
     write("README.md", "`src/nope.ts`");
     expect(checkCitedPaths(root)).toEqual([]);
