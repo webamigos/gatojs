@@ -57,9 +57,7 @@ function configImports(
     config: [
       options.hasGatoConfig ? PROJECT_CONFIG_IMPORT : EMPTY_CONFIG_IMPORT,
     ],
-    helpers: [
-      `import { ${[...helpers].sort().join(", ")} } from "${GATO_CONFIG_MODULE}";`,
-    ],
+    helpers: [`import { ${helpers.join(", ")} } from "${GATO_CONFIG_MODULE}";`],
   };
 }
 
