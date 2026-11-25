@@ -10,7 +10,7 @@ export type DoctorFilesSettings = { mode: FileProtectionMode; cli: string };
 
 function nextSteps(path: string, cli: string): string[] {
   return [
-    `    revert: ${cli} eject --undo ${path} (or git checkout -- ${path})`,
+    `    revert: ${cli} eject --undo ${path} (or git checkout HEAD -- ${path})`,
     `    keep the change: ${cli} eject ${path} --reason "<why>"`,
   ];
 }

@@ -205,7 +205,9 @@ export function parseDoctorArgs(argv: string[]): DoctorArgs {
   });
   assertMaxPositionals(positionals, 0);
   if (!values.files) {
-    throw new Error("Only --files is implemented; see the gato-cli spec §8");
+    throw new Error(
+      "Only wa doctor --files is implemented; run it with --files",
+    );
   }
   return { files: true };
 }

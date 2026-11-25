@@ -78,8 +78,11 @@ function httpErrorMessage(
   if (status === 401) {
     return `${prefix} GitHub rejected the token: check GITHUB_TOKEN / GH_TOKEN or "gh auth status".`;
   }
+  if ((status === 403 || status === 429) && token === null) {
+    return `${prefix} This is a rate limit or missing access: set GITHUB_TOKEN (or GH_TOKEN) or log in with "gh auth login", wait for the limit to reset, or pass --kit <path> to use a local GatoJS checkout.`;
+  }
   if (status === 403 || status === 429) {
-    return `${prefix} This is a rate limit or missing access: set GITHUB_TOKEN, or pass --kit-version <x.y.z>.`;
+    return `${prefix} This is a rate limit or missing access: wait for the limit to reset, check that your token can read ${KIT_REPO}, or pass --kit <path> to use a local GatoJS checkout.`;
   }
   return prefix;
 }
