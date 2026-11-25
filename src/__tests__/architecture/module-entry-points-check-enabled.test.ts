@@ -342,6 +342,23 @@ describe("module entry point detector on fixtures", () => {
       expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
     });
 
+    it("does not treat a default export of a route file as an entry point", () => {
+      write(
+        BILLING_ROUTE,
+        "export default function Page() {}\nexport async function GET() {\n  return new Response(null);\n}\n",
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([`${BILLING_ROUTE}#GET`]);
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("finds no entry point in a route file with only a default export", () => {
+      write(BILLING_ROUTE, "export default function Page() {}\n");
+
+      expect(findModuleEntryPoints(root)).toEqual([]);
+      expect(unguarded()).toEqual([]);
+    });
+
     it('ignores a "use server" route.ts outside src/app and src/features', () => {
       write(
         "src/shared/route.ts",
@@ -471,6 +488,150 @@ describe("module entry point detector on fixtures", () => {
 
       expect(findModuleEntryPoints(root)).toEqual([`${file}#run`]);
       expect(unguarded()).toEqual([`${file}#run`]);
+    });
+
+    it("treats an anonymous default export of a use server file as the default entry point and reports it", () => {
+      write(
+        BILLING_COMMAND,
+        '"use server";\n\nexport default async function () {\n  return 1;\n}\n',
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_COMMAND}#default`,
+      ]);
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#default`]);
+    });
+
+    it("accepts a guarded named default function export under the default id", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${GUARD_IMPORTS.requireModuleEnabled}\nexport default async function archive() {\n  requireModuleEnabled("billing");\n}\n`,
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_COMMAND}#default`,
+      ]);
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports an unguarded named default function export as default, not by its function name", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${GUARD_IMPORTS.requireModuleEnabled}\nexport default async function archive() {\n  return 1;\n}\n`,
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_COMMAND}#default`,
+      ]);
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#default`]);
+    });
+
+    it("accepts a guarded local function exported as default by identifier", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${GUARD_IMPORTS.requireModuleEnabled}\nasync function archive() {\n  requireModuleEnabled("billing");\n}\nexport default archive;\n`,
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_COMMAND}#default`,
+      ]);
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports an unguarded local function exported as default by identifier", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${GUARD_IMPORTS.requireModuleEnabled}\nasync function archive() {\n  return 1;\n}\nexport default archive;\n`,
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_COMMAND}#default`,
+      ]);
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#default`]);
+    });
+
+    it("accepts a guarded arrow function default export", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${GUARD_IMPORTS.requireModuleEnabled}\nexport default async () => {\n  requireModuleEnabled("billing");\n};\n`,
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_COMMAND}#default`,
+      ]);
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports an unguarded arrow function default export", () => {
+      write(
+        BILLING_COMMAND,
+        '"use server";\n\nexport default async () => 1;\n',
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_COMMAND}#default`,
+      ]);
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#default`]);
+    });
+
+    it("reports a default export built by a call that invokes the guard once at module load", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${GUARD_IMPORTS.requireModuleEnabled}\nimport { createAction } from "./create-action";\nexport default createAction(requireModuleEnabled("billing"));\n`,
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_COMMAND}#default`,
+      ]);
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#default`]);
+    });
+
+    it("lists a default export next to named exports, sorted", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${COMMAND_BODY}export default async function () {\n  return 1;\n}\n`,
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_COMMAND}#default`,
+        `${BILLING_COMMAND}#doIt`,
+      ]);
+      expect(unguarded()).toEqual([
+        `${BILLING_COMMAND}#default`,
+        `${BILLING_COMMAND}#doIt`,
+      ]);
+    });
+
+    it("an allowance for the default id hides an unguarded default export", () => {
+      write(
+        BILLING_COMMAND,
+        '"use server";\n\nexport default async function archive() {\n  return 1;\n}\n',
+      );
+
+      expect(
+        findUnguardedModuleEntryPoints(
+          root,
+          new Map([[`${BILLING_COMMAND}#archive`, "reason"]]),
+        ),
+      ).toEqual([`${BILLING_COMMAND}#default`]);
+      expect(
+        findUnguardedModuleEntryPoints(
+          root,
+          new Map([[`${BILLING_COMMAND}#default`, "reason"]]),
+        ),
+      ).toEqual([]);
+    });
+
+    it("still reports a named export of a use server file under its own name", () => {
+      write(
+        BILLING_COMMAND,
+        '"use server";\n\nexport async function archive() {\n  return 1;\n}\n',
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_COMMAND}#archive`,
+      ]);
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
     });
 
     it("ignores use server files outside src/features", () => {
