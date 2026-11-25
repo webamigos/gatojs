@@ -104,6 +104,8 @@ npx prisma migrate dev --name <name>     # new migration
   - `prisma/schema/auth.prisma`, `prisma/schema/organizations.prisma`: `// wa:relations:start/end`
   - `.env.example`: `# wa:modules:start/end`
   - `docker-compose.yml`: `# wa:services:start/end`
+  - `docker-compose.selfhost.yml`: `# wa:services:start/end`
+  - `.env.selfhost.example`: `# wa:modules:start/end`
 - Gato files (a content hash in `modules.*.files` of `.wa/kit.json`) are protected: use an extension point from
   `EXTENSION_POINTS.md`, or `npm run wa -- eject <file> --reason "<why>"`. The `.claude/hooks/protect-gato-files.mjs`
   hook asks before an edit of one (warning mode) and blocks edits of generated files.

@@ -310,6 +310,8 @@ Według dokumentacji Railway usługa ma najwyżej jeden wolumen, usługa z wolum
 
 ### Własny serwer
 
+Cały stos na własnym serwerze (aplikacja, PostgreSQL, migracje, pliki, opcjonalnie MinIO) uruchamia `docker-compose.selfhost.yml` z `.env.selfhost.example`; instalację, pierwsze konto, TLS, kopie zapasowe, odtworzenie i aktualizację opisuje [self-hosting.md](self-hosting.md). Ta sekcja opisuje sam obraz uruchomiony bez tego pliku.
+
 Obraz ustawia `NODE_ENV=production`, więc provider `local` poza Railway wymaga `STORAGE_LOCAL_PATH` ze ścieżką bezwzględną. Podepnij trwały wolumen w katalogu, który obraz przygotowuje, i wskaż go w zmiennej, na przykład (pozostałe zmienne z [tabeli](#zmienne) pominięte):
 
 ```bash

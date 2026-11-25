@@ -1,6 +1,6 @@
 {
   "name": "encryption",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Per-organization envelope encryption (AES-256-GCM) with data keys wrapped by a master key",
   "requires": [],
   "files": [
@@ -20,7 +20,8 @@
       "name": "ENCRYPTION_MASTER_KEY",
       "example": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
       "required": true,
-      "generate": "hex-32"
+      "generate": "hex-32",
+      "selfhostExample": ""
     }
   ],
   "schemaRelations": [
