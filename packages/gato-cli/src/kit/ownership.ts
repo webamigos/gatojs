@@ -21,6 +21,7 @@ export type OwnershipReport = {
     packageJson: string;
   }[];
   composeOutsideModule: string[];
+  selfhostComposeOutsideModule: string[];
 };
 
 const MISSING_IN_PACKAGE_JSON = "<missing>";
@@ -33,6 +34,7 @@ export async function checkOwnership(kitDir: string): Promise<OwnershipReport> {
   const ownersByFile = new Map<string, string[]>();
   const globErrors: OwnershipReport["globErrors"] = [];
   const composeOutsideModule: string[] = [];
+  const selfhostComposeOutsideModule: string[] = [];
 
   for (const manifest of manifests) {
     const ownFiles = new Set<string>();
@@ -57,6 +59,12 @@ export async function checkOwnership(kitDir: string): Promise<OwnershipReport> {
     }
     if (manifest.compose !== null && !ownFiles.has(manifest.compose)) {
       composeOutsideModule.push(manifest.name);
+    }
+    if (
+      manifest.selfhostCompose !== null &&
+      !ownFiles.has(manifest.selfhostCompose)
+    ) {
+      selfhostComposeOutsideModule.push(manifest.name);
     }
   }
 
@@ -109,6 +117,7 @@ export async function checkOwnership(kitDir: string): Promise<OwnershipReport> {
       compareCodePoint(a.module, b.module) || compareCodePoint(a.glob, b.glob),
   );
   composeOutsideModule.sort(compareCodePoint);
+  selfhostComposeOutsideModule.sort(compareCodePoint);
 
   return {
     unowned,
@@ -117,5 +126,6 @@ export async function checkOwnership(kitDir: string): Promise<OwnershipReport> {
     unownedDependencies,
     dependencyMismatch,
     composeOutsideModule,
+    selfhostComposeOutsideModule,
   };
 }

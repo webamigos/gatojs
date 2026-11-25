@@ -13,6 +13,7 @@ export const moduleManifestSchema = z.object({
       z.object({
         name: z.string().min(1),
         example: z.string(),
+        selfhostExample: z.string().optional(),
         required: z.boolean().optional(),
         generate: z.enum(["secret-32", "secret-64", "hex-32"]).optional(),
       }),
@@ -22,6 +23,7 @@ export const moduleManifestSchema = z.object({
     .array(z.object({ model: z.string().min(1), field: z.string().min(1) }))
     .default([]),
   compose: z.string().nullable().default(null),
+  selfhostCompose: z.string().nullable().default(null),
   ciSteps: z.string().nullable().default(null),
   workspaces: z.array(z.string()).default([]),
 });
