@@ -22,10 +22,55 @@ function array(items: string[]): string {
   return `[${items.join(", ")}]`;
 }
 
-function typedArray(name: string, items: string[]): string {
+export type RenderRegistryOptions = { hasGatoConfig: boolean };
+
+const GATO_CONFIG_MODULE = "@/shared/lib/modules/gato-config";
+const PROJECT_CONFIG_IMPORT = 'import gatoConfig from "@/gato.config";';
+const EMPTY_CONFIG_IMPORT = `import { emptyGatoConfig as gatoConfig } from "${GATO_CONFIG_MODULE}";`;
+
+type ConfigHelper = "applyGatoConfig" | "enabledEntries";
+
+function entry(module: RegistryModule, value: string): string {
+  return `{ module: "${module.name}", value: ${value} }`;
+}
+
+function configuredModules(name: string, items: string[]): string {
   return items.length === 0
     ? `export const ${name}: never[] = [];`
-    : `export const ${name} = ${array(items)};`;
+    : `export const ${name} = applyGatoConfig(${array(items)}, gatoConfig);`;
+}
+
+function enabledList(name: string, entries: string[]): string {
+  return entries.length === 0
+    ? `export const ${name}: never[] = [];`
+    : `export const ${name} = enabledEntries(${array(entries)}, gatoConfig);`;
+}
+
+function configImports(
+  options: RenderRegistryOptions,
+  helpers: ConfigHelper[],
+): { config: string[]; helpers: string[] } {
+  if (helpers.length === 0) {
+    return { config: [], helpers: [] };
+  }
+  return {
+    config: [
+      options.hasGatoConfig ? PROJECT_CONFIG_IMPORT : EMPTY_CONFIG_IMPORT,
+    ],
+    helpers: [
+      `import { ${[...helpers].sort().join(", ")} } from "${GATO_CONFIG_MODULE}";`,
+    ],
+  };
+}
+
+function usedHelpers(
+  usesApply: boolean,
+  usesEnabledEntries: boolean,
+): ConfigHelper[] {
+  return [
+    ...(usesApply ? (["applyGatoConfig"] as const) : []),
+    ...(usesEnabledEntries ? (["enabledEntries"] as const) : []),
+  ];
 }
 
 export function renderLocales(locales: ("pl" | "en")[]): string {
@@ -35,6 +80,7 @@ export function renderLocales(locales: ("pl" | "en")[]): string {
 export function renderRegistry(
   modules: RegistryModule[],
   locales: ("pl" | "en")[],
+  options: RenderRegistryOptions = { hasGatoConfig: false },
 ): {
   server: string;
   client: string;
@@ -44,11 +90,35 @@ export function renderRegistry(
   const withAuth = modules.filter((m) => m.hasAuth);
   const withAuthClient = modules.filter((m) => m.hasAuthClient);
   const withAuditSink = modules.filter((m) => m.hasAuditSink);
+  const loadersByLocale = locales.map((locale) => ({
+    locale,
+    loaders: modules
+      .filter((m) => m.locales.includes(locale))
+      .map((m) =>
+        entry(
+          m,
+          `{ key: "${m.name}", load: () => import("@/features/${m.name}/i18n/${locale}.json").then((m) => m.default) }`,
+        ),
+      ),
+  }));
+
+  const serverImports = configImports(
+    options,
+    usedHelpers(
+      withModule.length > 0,
+      withEnv.length > 0 ||
+        withAuth.length > 0 ||
+        withAuditSink.length > 0 ||
+        loadersByLocale.some(({ loaders }) => loaders.length > 0),
+    ),
+  );
 
   const server = [
     GENERATED_HEADER,
+    ...serverImports.config,
     'import type { Locale } from "@/i18n/config";',
     'import { createEnv } from "@gatojs/env";',
+    ...serverImports.helpers,
     ...withModule.map(
       (m) =>
         `import ${identifier(m.name, "Module")} from "@/features/${m.name}/module";`,
@@ -66,44 +136,49 @@ export function renderRegistry(
         `import { auditSink as ${identifier(m.name, "AuditSink")} } from "@/features/${m.name}/audit-sink";`,
     ),
     "",
-    typedArray(
+    configuredModules(
       "modules",
       withModule.map((m) => identifier(m.name, "Module")),
     ),
-    typedArray(
+    enabledList(
       "moduleEnvSchemas",
-      withEnv.map((m) => identifier(m.name, "EnvSchema")),
+      withEnv.map((m) => entry(m, identifier(m.name, "EnvSchema"))),
     ),
-    typedArray(
+    enabledList(
       "authPlugins",
-      withAuth.map((m) => identifier(m.name, "AuthPlugin")),
+      withAuth.map((m) => entry(m, identifier(m.name, "AuthPlugin"))),
     ),
-    typedArray(
+    enabledList(
       "auditSinks",
-      withAuditSink.map((m) => identifier(m.name, "AuditSink")),
+      withAuditSink.map((m) => entry(m, identifier(m.name, "AuditSink"))),
     ),
     "export const env = createEnv(moduleEnvSchemas);",
     "",
     "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
     "",
     "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
-    ...locales.flatMap((locale) => {
-      const loaders = modules
-        .filter((m) => m.locales.includes(locale))
-        .map(
-          (m) =>
-            `{ key: "${m.name}", load: () => import("@/features/${m.name}/i18n/${locale}.json").then((m) => m.default) }`,
-        );
-      return loaders.length === 0
+    ...loadersByLocale.flatMap(({ locale, loaders }) =>
+      loaders.length === 0
         ? [`  ${locale}: [],`]
-        : [`  ${locale}: [`, ...loaders.map((l) => `    ${l},`), "  ],"];
-    }),
+        : [
+            `  ${locale}: enabledEntries<MessageLoader>([`,
+            ...loaders.map((l) => `    ${l},`),
+            "  ], gatoConfig),",
+          ],
+    ),
     "};",
     "",
   ].join("\n");
 
+  const clientImports = configImports(
+    options,
+    usedHelpers(withModule.length > 0, withAuthClient.length > 0),
+  );
+
   const client = [
     GENERATED_HEADER,
+    ...clientImports.config,
+    ...clientImports.helpers,
     ...withAuthClient.map(
       (m) =>
         `import { authClientPlugin as ${identifier(m.name, "AuthClientPlugin")} } from "@/features/${m.name}/auth-client";`,
@@ -113,11 +188,13 @@ export function renderRegistry(
         `import ${identifier(m.name, "Module")} from "@/features/${m.name}/module";`,
     ),
     "",
-    typedArray(
+    enabledList(
       "authClientPlugins",
-      withAuthClient.map((m) => identifier(m.name, "AuthClientPlugin")),
+      withAuthClient.map((m) =>
+        entry(m, identifier(m.name, "AuthClientPlugin")),
+      ),
     ),
-    typedArray(
+    configuredModules(
       "clientModules",
       withModule.map((m) => identifier(m.name, "Module")),
     ),
