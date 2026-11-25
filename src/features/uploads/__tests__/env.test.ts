@@ -230,6 +230,39 @@ describe("envSchema uploads: provider s3", () => {
   );
 });
 
+describe("envSchema uploads: S3_SESSION_TOKEN", () => {
+  it("passes a set session token through to the parsed s3 config", () => {
+    expect(
+      envSchema.parse({ ...S3_MINIO, S3_SESSION_TOKEN: "tok" }),
+    ).toStrictEqual({ ...S3_MINIO_ENV, S3_SESSION_TOKEN: "tok" });
+  });
+
+  it.each(["", "   "])(
+    "treats a blank session token (%j) as unset",
+    (token) => {
+      expect(envSchema.parse({ ...S3_MINIO, S3_SESSION_TOKEN: token })).toEqual(
+        S3_MINIO_ENV,
+      );
+    },
+  );
+
+  it("rejects a session token that is not a string as an issue of that variable", () => {
+    const result = envSchema.safeParse({ ...S3_MINIO, S3_SESSION_TOKEN: 3 });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toMatchObject([
+      { code: "invalid_type", path: ["S3_SESSION_TOKEN"] },
+    ]);
+  });
+
+  it("ignores a session token when the provider is local", () => {
+    expect(envSchema.parse({ S3_SESSION_TOKEN: "tok" })).toStrictEqual({
+      STORAGE_PROVIDER: "local",
+      STORAGE_LOCAL_PATH: `${process.cwd()}/volumes/uploads`,
+    });
+  });
+});
+
 describe("envSchema uploads: reguły produkcyjne", () => {
   it("produkcja na Railway bez wolumenu daje jeden problem STORAGE_PROVIDER z komunikatem o redeployu", () => {
     const result = envSchema.safeParse({

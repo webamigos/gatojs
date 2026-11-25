@@ -4,8 +4,9 @@ const mockEnv = vi.hoisted(() => ({
   STORAGE_PROVIDER: "s3",
   S3_ENDPOINT: process.env.INTEGRATION_S3_ENDPOINT ?? "http://localhost:9000",
   S3_REGION: "auto",
-  S3_ACCESS_KEY_ID: "minioadmin",
-  S3_SECRET_ACCESS_KEY: "minioadmin",
+  S3_ACCESS_KEY_ID: process.env.INTEGRATION_S3_ACCESS_KEY_ID ?? "minioadmin",
+  S3_SECRET_ACCESS_KEY:
+    process.env.INTEGRATION_S3_SECRET_ACCESS_KEY ?? "minioadmin",
   S3_BUCKET: "",
   S3_FORCE_PATH_STYLE: true,
 }));
@@ -31,7 +32,7 @@ afterAll(async () => {
   await Promise.all(writtenKeys.map((key) => deleteObject(key)));
 });
 
-describe("storage S3 (MinIO)", () => {
+describe("storage S3", () => {
   it("zwraca zapisane bajty i contentType po putObject", async () => {
     const key = unique();
     await putObject(key, bytes("hello"), "text/plain");

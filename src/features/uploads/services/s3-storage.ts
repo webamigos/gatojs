@@ -17,6 +17,9 @@ export function createS3Storage(config: S3StorageEnv): ObjectStorage {
       credentials: {
         accessKeyId: config.S3_ACCESS_KEY_ID,
         secretAccessKey: config.S3_SECRET_ACCESS_KEY,
+        ...(config.S3_SESSION_TOKEN
+          ? { sessionToken: config.S3_SESSION_TOKEN }
+          : {}),
       },
       forcePathStyle: config.S3_FORCE_PATH_STYLE,
       requestChecksumCalculation: "WHEN_REQUIRED",

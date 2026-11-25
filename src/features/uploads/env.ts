@@ -15,6 +15,7 @@ export const envSchema = z
     S3_REGION: optionalText,
     S3_ACCESS_KEY_ID: optionalText,
     S3_SECRET_ACCESS_KEY: optionalText,
+    S3_SESSION_TOKEN: optionalText,
     S3_BUCKET: optionalText,
     S3_FORCE_PATH_STYLE: optionalText,
   })

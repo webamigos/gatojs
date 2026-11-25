@@ -40,7 +40,9 @@ import {
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import type { S3StorageEnv } from "../../contracts/storage.types";
+import { createS3Storage } from "../s3-storage";
 import { createObjectStorage } from "../storage";
+import { resolveStorageEnv } from "../storage-env";
 
 const S3_CONFIG: S3StorageEnv = {
   STORAGE_PROVIDER: "s3",
@@ -238,6 +240,144 @@ describe("createObjectStorage: wybór providera z konfiguracji", () => {
     expect(sentCommand().input).toMatchObject({
       Bucket: "test-bucket",
       Key: "orgs/o1/test/b.txt",
+    });
+  });
+});
+
+describe("S3 client credentials and S3_SESSION_TOKEN", () => {
+  const S3_KEYS: S3StorageEnv = {
+    STORAGE_PROVIDER: "s3",
+    S3_ENDPOINT: "http://127.0.0.1:9000",
+    S3_REGION: "auto",
+    S3_ACCESS_KEY_ID: "k",
+    S3_SECRET_ACCESS_KEY: "s",
+    S3_BUCKET: "b",
+    S3_FORCE_PATH_STYLE: false,
+  };
+
+  function clientCredentials() {
+    expect(mockS3ClientConfig).toHaveBeenCalledTimes(1);
+    return mockS3ClientConfig.mock.calls[0]?.[0].credentials;
+  }
+
+  it("createS3Storage with a session token gives the client the keys and the token", async () => {
+    await createS3Storage({ ...S3_KEYS, S3_SESSION_TOKEN: "tok" }).put(
+      "orgs/o1/test/a.txt",
+      bytes("hi"),
+      "text/plain",
+    );
+
+    expect(clientCredentials()).toStrictEqual({
+      accessKeyId: "k",
+      secretAccessKey: "s",
+      sessionToken: "tok",
+    });
+  });
+
+  it("createS3Storage without a session token gives the client exactly the two keys", async () => {
+    await createS3Storage(S3_KEYS).put(
+      "orgs/o1/test/a.txt",
+      bytes("hi"),
+      "text/plain",
+    );
+
+    const credentials = clientCredentials();
+    expect(credentials).toStrictEqual({
+      accessKeyId: "k",
+      secretAccessKey: "s",
+    });
+    expect(Object.keys(credentials).sort()).toEqual([
+      "accessKeyId",
+      "secretAccessKey",
+    ]);
+  });
+
+  it("createS3Storage with an empty session token does not pass it to the client", async () => {
+    await createS3Storage({ ...S3_KEYS, S3_SESSION_TOKEN: "" }).put(
+      "orgs/o1/test/a.txt",
+      bytes("hi"),
+      "text/plain",
+    );
+
+    expect(clientCredentials()).toStrictEqual({
+      accessKeyId: "k",
+      secretAccessKey: "s",
+    });
+  });
+
+  it("createObjectStorage passes the session token from its config to the client", async () => {
+    await createObjectStorage({
+      ...S3_CONFIG,
+      S3_SESSION_TOKEN: "config-token",
+    }).put("orgs/o1/test/a.txt", bytes("hi"), "text/plain");
+
+    expect(clientCredentials()).toStrictEqual({
+      accessKeyId: "minio-key",
+      secretAccessKey: "minio-secret",
+      sessionToken: "config-token",
+    });
+  });
+
+  it.each([
+    ["a token of spaces", "   "],
+    ["an empty token", ""],
+  ])(
+    "storage built from a resolved env with %s gives the client no session token",
+    async (_case, token) => {
+      const resolved = resolveStorageEnv(
+        {
+          STORAGE_PROVIDER: "s3",
+          S3_ENDPOINT: "http://127.0.0.1:9000",
+          S3_ACCESS_KEY_ID: "k",
+          S3_SECRET_ACCESS_KEY: "s",
+          S3_BUCKET: "b",
+          S3_SESSION_TOKEN: token,
+        },
+        "/app",
+      );
+      if (!resolved.ok) {
+        throw new Error(JSON.stringify(resolved.issues));
+      }
+
+      await createObjectStorage(resolved.env).put(
+        "orgs/o1/test/a.txt",
+        bytes("hi"),
+        "text/plain",
+      );
+
+      expect(clientCredentials()).toStrictEqual({
+        accessKeyId: "k",
+        secretAccessKey: "s",
+      });
+    },
+  );
+
+  it("storage built from a resolved env with a session token gives the client that token", async () => {
+    const resolved = resolveStorageEnv(
+      {
+        STORAGE_PROVIDER: "s3",
+        S3_ENDPOINT: "http://127.0.0.1:9000",
+        S3_ACCESS_KEY_ID: "k",
+        S3_SECRET_ACCESS_KEY: "s",
+        S3_BUCKET: "b",
+        S3_SESSION_TOKEN: "tok",
+      },
+      "/app",
+    );
+    if (!resolved.ok) {
+      throw new Error(JSON.stringify(resolved.issues));
+    }
+
+    await createObjectStorage(resolved.env).put(
+      "orgs/o1/test/a.txt",
+      bytes("hi"),
+      "text/plain",
+    );
+
+    expect(clientCredentials()).toStrictEqual({
+      accessKeyId: "k",
+      secretAccessKey: "s",
+      sessionToken: "tok",
     });
   });
 });

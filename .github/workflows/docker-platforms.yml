@@ -1,0 +1,55 @@
+name: Docker platforms
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - package.json
+      - package-lock.json
+      - "packages/*/package.json"
+      - .github/workflows/docker-platforms.yml
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - package.json
+      - package-lock.json
+      - "packages/*/package.json"
+      - .github/workflows/docker-platforms.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-platforms-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build image (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: x64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Build the image
+        run: docker build -t gato-platform-check .
+
+      - name: Image runs on the runner's architecture
+        run: test "$(docker run --rm gato-platform-check node -p process.arch)" = "${{ matrix.arch }}"
+
+      - name: Prisma engines load
+        run: docker run --rm gato-platform-check node node_modules/prisma/build/index.js --version
