@@ -536,30 +536,36 @@ function relationsBody(model) {
 function fillPlaceholders(text, project) {
   return text.replaceAll("{{projectSlug}}", project.slug).replaceAll("{{projectName}}", project.name);
 }
-async function envBody({ modules, project }) {
-  return modules.filter((m) => m.name !== "core" && m.env.length > 0).map(
+function envBodyWith(pickValue) {
+  return async ({ modules, project }) => modules.filter((m) => m.name !== "core" && m.env.length > 0).map(
     (m) => [
       `# ${m.name}`,
       ...m.env.map(
-        (v) => `${v.name}=${fillPlaceholders(v.example, project)}`
+        (v) => `${v.name}=${fillPlaceholders(pickValue(v), project)}`
       )
     ].join("\n")
   ).join("\n\n");
 }
-async function composeBody({
-  modules,
-  projectDir
-}) {
-  const parts = [];
-  for (const m of modules) {
-    if (m.compose === null) {
-      continue;
+var envBody = envBodyWith((v) => v.example);
+var selfhostEnvBody = envBodyWith(
+  (v) => v.selfhostExample ?? v.example
+);
+function composeBodyWith(pickFile) {
+  return async ({ modules, projectDir }) => {
+    const parts = [];
+    for (const m of modules) {
+      const file2 = pickFile(m);
+      if (file2 === null) {
+        continue;
+      }
+      const content = await readFile(join(projectDir, file2), "utf8");
+      parts.push(indent(content.replace(/\n+$/, "")));
     }
-    const content = await readFile(join(projectDir, m.compose), "utf8");
-    parts.push(indent(content.replace(/\n+$/, "")));
-  }
-  return parts.join("\n");
+    return parts.join("\n");
+  };
 }
+var composeBody = composeBodyWith((m) => m.compose);
+var selfhostComposeBody = composeBodyWith((m) => m.selfhostCompose);
 async function ciStepsBody({
   modules,
   projectDir
@@ -623,6 +629,12 @@ var regionTargets = [
   },
   { file: ".env.example", marker: "modules", body: envBody },
   { file: "docker-compose.yml", marker: "services", body: composeBody },
+  {
+    file: "docker-compose.selfhost.yml",
+    marker: "services",
+    body: selfhostComposeBody
+  },
+  { file: ".env.selfhost.example", marker: "modules", body: selfhostEnvBody },
   {
     file: ".github/workflows/ci.yml",
     marker: "ci-integration",
@@ -921,7 +933,7 @@ import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile2 } from 
 import { dirname as dirname2, join as join3 } from "node:path";
 
 // src/kit/kit-format.ts
-var SUPPORTED_KIT_FORMATS = [1, 2];
+var SUPPORTED_KIT_FORMATS = [1, 2, 3];
 function assertSupportedKitFormat(format) {
   if (!SUPPORTED_KIT_FORMATS.includes(format)) {
     throw new Error(
@@ -20660,12 +20672,14 @@ var moduleManifestSchema = external_exports.object({
     external_exports.object({
       name: external_exports.string().min(1),
       example: external_exports.string(),
+      selfhostExample: external_exports.string().optional(),
       required: external_exports.boolean().optional(),
       generate: external_exports.enum(["secret-32", "secret-64", "hex-32"]).optional()
     })
   ).default([]),
   schemaRelations: external_exports.array(external_exports.object({ model: external_exports.string().min(1), field: external_exports.string().min(1) })).default([]),
   compose: external_exports.string().nullable().default(null),
+  selfhostCompose: external_exports.string().nullable().default(null),
   ciSteps: external_exports.string().nullable().default(null),
   workspaces: external_exports.array(external_exports.string()).default([])
 });
@@ -24792,7 +24806,7 @@ function cliDependency(input2) {
 }
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.5.0" };
+var identity = { name: "wa", version: "0.6.0" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);

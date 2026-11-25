@@ -57,6 +57,7 @@ function manifest(name: string, files: string[]): ModuleManifest {
     env: [],
     schemaRelations: [],
     compose: null,
+    selfhostCompose: null,
     ciSteps: null,
     workspaces: [],
   };

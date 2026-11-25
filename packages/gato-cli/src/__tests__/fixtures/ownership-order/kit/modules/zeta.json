@@ -4,5 +4,6 @@
   "description": "Zeta fixture",
   "files": ["src/z/**", "w-zeta-pusty/**", "k-zeta-pusty/**"],
   "dependencies": { "yarn-x": "1.0.0", "ant": "1.0.0" },
-  "compose": "poza/zeta.yml"
+  "compose": "poza/zeta.yml",
+  "selfhostCompose": "poza/zeta.selfhost.yml"
 }

@@ -1,7 +1,7 @@
 {
   "version": "0.18.0",
   "repo": "https://github.com/webamigos/gatojs.git",
-  "kitFormat": 2,
+  "kitFormat": 3,
   "kitOnly": [
     "kit/**",
     "packages/gato-cli/**",

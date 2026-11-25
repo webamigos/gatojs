@@ -130,6 +130,7 @@ describe("kitSync", () => {
         env: [{ name: "NOTES_LIMIT", example: "10" }],
         schemaRelations: [{ model: "Organization", field: "notes Note[]" }],
         compose: null,
+        selfhostCompose: null,
         ciSteps: null,
         workspaces: [],
       },

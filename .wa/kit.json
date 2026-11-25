@@ -1,7 +1,7 @@
 {
   "kitVersion": "0.18.0",
   "kitRepo": "https://github.com/webamigos/gatojs.git",
-  "kitFormat": 2,
+  "kitFormat": 3,
   "project": {
     "name": "WA App",
     "slug": "wa-app"
@@ -45,6 +45,7 @@
           }
         ],
         "compose": null,
+        "selfhostCompose": null,
         "ciSteps": null,
         "workspaces": []
       },
@@ -78,16 +79,17 @@
           }
         ],
         "compose": null,
+        "selfhostCompose": null,
         "ciSteps": null,
         "workspaces": []
       },
       "files": {}
     },
     "core": {
-      "version": "0.17.0",
+      "version": "0.17.1",
       "manifest": {
         "name": "core",
-        "version": "0.17.0",
+        "version": "0.17.1",
         "description": "GatoJS core: auth, organizations, users, account, dashboard",
         "requires": [],
         "files": [
@@ -255,6 +257,7 @@
         "env": [],
         "schemaRelations": [],
         "compose": null,
+        "selfhostCompose": null,
         "ciSteps": null,
         "workspaces": []
       },
@@ -294,6 +297,7 @@
           }
         ],
         "compose": null,
+        "selfhostCompose": null,
         "ciSteps": null,
         "workspaces": []
       },
@@ -377,6 +381,7 @@
           }
         ],
         "compose": "docker/uploads.compose.yml",
+        "selfhostCompose": null,
         "ciSteps": "ci/uploads.integration-steps.yml",
         "workspaces": []
       },

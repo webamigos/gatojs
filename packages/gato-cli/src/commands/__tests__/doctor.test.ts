@@ -362,6 +362,7 @@ function coreManifest(): ModuleManifest {
     env: [],
     schemaRelations: [],
     compose: null,
+    selfhostCompose: null,
     ciSteps: null,
     workspaces: [],
   };

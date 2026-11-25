@@ -273,16 +273,46 @@ describe("fileHash", () => {
     ).toBe("6a6e6599d88a9a8c7831b7de8a5451e9a2ccab385dafe8dfcf0a2db44894128c");
   });
 
-  it("REGION_FILES to dokladnie siedem plikow z regionami generatora", () => {
+  it("REGION_FILES is exactly the nine generator region files in code point order", () => {
     expect(REGION_FILES).toEqual([
       ".env.example",
+      ".env.selfhost.example",
       ".github/workflows/ci.yml",
       ".github/workflows/mutation.yml",
       "Dockerfile",
+      "docker-compose.selfhost.yml",
       "docker-compose.yml",
       "prisma/schema/auth.prisma",
       "prisma/schema/organizations.prisma",
     ]);
+  });
+
+  it("docker-compose.selfhost.yml: the hash ignores the services region content", () => {
+    const wrap = (inner: string): Buffer =>
+      Buffer.from(
+        `services:\n  app:\n    image: x\n  # wa:services:start\n${inner}  # wa:services:end\n`,
+      );
+    expect(
+      fileHash(
+        "docker-compose.selfhost.yml",
+        wrap("  minio:\n    image: y\n"),
+        testConfig,
+      ),
+    ).toBe(fileHash("docker-compose.selfhost.yml", wrap(""), testConfig));
+  });
+
+  it(".env.selfhost.example: the hash ignores the modules region content", () => {
+    const wrap = (inner: string): Buffer =>
+      Buffer.from(
+        `NODE_ENV=production\n# wa:modules:start\n${inner}# wa:modules:end\n`,
+      );
+    expect(
+      fileHash(
+        ".env.selfhost.example",
+        wrap("# uploads\nS3_BUCKET=x\n"),
+        testConfig,
+      ),
+    ).toBe(fileHash(".env.selfhost.example", wrap(""), testConfig));
   });
 
   it("ci.yml: hash nie zalezy od tresci regionu ci-integration", () => {

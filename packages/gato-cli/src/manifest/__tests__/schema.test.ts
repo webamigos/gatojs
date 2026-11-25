@@ -25,6 +25,7 @@ describe("moduleManifestSchema", () => {
       env: [],
       schemaRelations: [],
       compose: null,
+      selfhostCompose: null,
       ciSteps: null,
       workspaces: [],
     });
@@ -87,6 +88,69 @@ describe("moduleManifestSchema: generate w env", () => {
       ).toBe(false);
     },
   );
+});
+
+describe("moduleManifestSchema: self-host fields", () => {
+  const base = { name: "x", version: "0.1.0", description: "" };
+
+  it("defaults selfhostCompose to null", () => {
+    expect(moduleManifestSchema.parse(base).selfhostCompose).toBeNull();
+  });
+
+  it("keeps selfhostCompose as a file path", () => {
+    expect(
+      moduleManifestSchema.parse({ ...base, selfhostCompose: "docker/x.yml" })
+        .selfhostCompose,
+    ).toBe("docker/x.yml");
+  });
+
+  it("keeps an explicit selfhostCompose null", () => {
+    expect(
+      moduleManifestSchema.parse({ ...base, selfhostCompose: null })
+        .selfhostCompose,
+    ).toBeNull();
+  });
+
+  it("rejects a selfhostCompose that is not a string", () => {
+    expect(
+      moduleManifestSchema.safeParse({ ...base, selfhostCompose: 5 }).success,
+    ).toBe(false);
+  });
+
+  it("an env item without selfhostExample parses unchanged, without the key", () => {
+    const parsed = moduleManifestSchema.parse({
+      ...base,
+      env: [{ name: "A", example: "1" }],
+    });
+    expect(parsed.env).toEqual([{ name: "A", example: "1" }]);
+    expect(Object.keys(parsed.env[0] ?? {})).toEqual(["name", "example"]);
+  });
+
+  it("keeps a non-empty selfhostExample", () => {
+    expect(
+      moduleManifestSchema.parse({
+        ...base,
+        env: [{ name: "A", example: "1", selfhostExample: "2" }],
+      }).env,
+    ).toEqual([{ name: "A", example: "1", selfhostExample: "2" }]);
+  });
+
+  it("keeps an empty selfhostExample", () => {
+    const parsed = moduleManifestSchema.parse({
+      ...base,
+      env: [{ name: "A", example: "1", selfhostExample: "" }],
+    });
+    expect(parsed.env[0]).toHaveProperty("selfhostExample", "");
+  });
+
+  it("rejects a selfhostExample that is not a string", () => {
+    expect(
+      moduleManifestSchema.safeParse({
+        ...base,
+        env: [{ name: "A", example: "1", selfhostExample: 5 }],
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe("kitStateSchema", () => {

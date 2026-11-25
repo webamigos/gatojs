@@ -123,9 +123,10 @@ Pola manifestu czytają różne części CLI:
 | `requires` | `create`, `add` (`resolveModules`), `remove`, `list`, `readKitState` | Moduły dodawane razem z modułem; odmowa usunięcia modułu, którego ktoś wymaga; dopisek `(wymaga: …)` w `wa list`; sprawdzenie, że moduły wymagane przez moduł projektu są zainstalowane. |
 | `files` | `create`, `add`, test własności, `generate`, `readKitState` | Które pliki kopiować; własność plików; wykrywanie feature po wzorcach `src/features/<x>/…` ([02b](02b-rejestr-i-generator.md#wykrywanie-feature)). `wa remove` nie czyta wzorców, tylko listę plików z hashami w stanie projektu. |
 | `dependencies`, `devDependencies` | `create`, `add`, `remove`, test własności | Zależności dopisywane do `package.json` projektu i usuwane z niego ([D30](decyzje.md#d30)). |
-| `env` | `generate` | Region `wa:modules` w `.env.example`: `name` i `example`. Pola `required` nie czyta żaden kod CLI; wymagalność zmiennej ustala schemat `env.ts` feature. |
+| `env` | `generate` | Region `wa:modules` w `.env.example`: `name` i `example`; region `wa:modules` w `.env.selfhost.example`: `name` i `selfhostExample`, a bez niego `example` (pusty napis też wygrywa). Pola `required` nie czyta żaden kod CLI; wymagalność zmiennej ustala schemat `env.ts` feature. |
 | `schemaRelations` | `generate` | Regiony `wa:relations` w `auth.prisma` (`User`) i `organizations.prisma` (`Organization`). |
 | `compose` | `generate`, test własności | Region `wa:services` w `docker-compose.yml`. |
+| `selfhostCompose` | `generate`, test własności | Region `wa:services` w `docker-compose.selfhost.yml` (instalacja na własnym serwerze, `gato-cli` 0.6.0). |
 | `ciSteps` | `generate` | Region `wa:ci-integration` w `.github/workflows/ci.yml` i `.github/workflows/mutation.yml` ([D45](decyzje.md#d45)). |
 | `workspaces` | nikt | Pole istnieje w schemacie; żadna komenda go nie czyta ([D29](decyzje.md#d29)). |
 
@@ -146,7 +147,7 @@ Job `assemble` w CI składa projekt z checkoutu commita, więc tam obie listy si
 
 ### Pliki `docker/` i `ci/` modułu
 
-Pola `compose` i `ciSteps` wskazują pliki, które generator czyta z katalogu projektu (`composeBody` i `ciStepsBody` w `packages/gato-cli/src/generate/targets.ts`). Plik musi więc trafić do projektu razem z modułem, czyli należeć do `files` tego samego modułu. Moduł `uploads` trzyma je w katalogach `docker/` i `ci/` z nazwą modułu w nazwie pliku:
+Pola `compose`, `selfhostCompose` i `ciSteps` wskazują pliki, które generator czyta z katalogu projektu (`composeBody`, `selfhostComposeBody` i `ciStepsBody` w `packages/gato-cli/src/generate/targets.ts`). Plik musi więc trafić do projektu razem z modułem, czyli należeć do `files` tego samego modułu. Moduł `uploads` trzyma je w katalogach `docker/` i `ci/` z nazwą modułu w nazwie pliku:
 
 - `docker/uploads.compose.yml`: definicje usług (`minio`, `minio-init`) bez klucza `services:`, bo generator wcina treść o dwie spacje i wstawia ją pod `services:` w regionie `wa:services` w `docker-compose.yml`. Obie usługi mają `profiles: ["s3"]` zaraz pod `image:`, więc `docker compose up -d` ich nie uruchamia, a `docker compose --profile s3 up -d` je uruchamia ([15](15-modul-uploads.md#minio)). Profil trafia do `docker-compose.yml` razem z resztą fragmentu:
 
@@ -166,7 +167,7 @@ Pola `compose` i `ciSteps` wskazują pliki, które generator czyta z katalogu pr
 
 - `ci/uploads.integration-steps.yml`: lista kroków joba (`- name: …`), którą generator wcina o sześć spacji i wstawia w regionie `wa:ci-integration` joba `integration` w `.github/workflows/ci.yml` i joba `stryker` w `.github/workflows/mutation.yml`; fragmenty kilku modułów oddziela pusta linia.
 
-Test własności sprawdza tylko plik z `compose` (`composeOutsideModule`); pliku z `ciSteps` nie sprawdza (R6 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Na kopii kitu `ciSteps` modułu `uploads` przestawione na plik dopisany do `kitOnly` przeszło test własności, a `create --modules uploads` skończyło się błędem `ENOENT: no such file or directory, open '<projekt>/ci/other.yml'` i usunięciem katalogu projektu (sprawdzone). Plik kroków CI zawsze dopisuj do `files` modułu, którego dotyczy.
+Test własności sprawdza tylko pliki z `compose` (`composeOutsideModule`) i `selfhostCompose` (`selfhostComposeOutsideModule`); pliku z `ciSteps` nie sprawdza (R6 w [notatce rozbieżności części 2](superpowers/notes/2026-10-30-docs-part-2-discrepancies.md)). Na kopii kitu `ciSteps` modułu `uploads` przestawione na plik dopisany do `kitOnly` przeszło test własności, a `create --modules uploads` skończyło się błędem `ENOENT: no such file or directory, open '<projekt>/ci/other.yml'` i usunięciem katalogu projektu (sprawdzone). Plik kroków CI zawsze dopisuj do `files` modułu, którego dotyczy.
 
 Oba pliki `uploads` zawierają nazwę bucketu `wa-app-uploads`, dlatego są na liście `placeholderFiles` ([Placeholdery](#placeholdery)).
 
@@ -227,6 +228,7 @@ Na `758b557` przechodzi 16 testów (sprawdzone).
 | `unownedDependencies` | Zależność z `package.json`, której żaden manifest nie deklaruje w tej sekcji. | Dopisz ją do manifestu właściciela. |
 | `dependencyMismatch` | Zależność manifestu w innej wersji niż w `package.json` albo nieobecna w nim (`<brak>`). | Ustaw w obu miejscach tę samą wersję. |
 | `composeOutsideModule` | Plik z pola `compose` nie należy do plików tego modułu. | Dopisz plik do `files` modułu. |
+| `selfhostComposeOutsideModule` | Plik z pola `selfhostCompose` nie należy do plików tego modułu. | Dopisz plik do `files` modułu. |
 
 Granice testu:
 
@@ -246,7 +248,7 @@ Praktyczna konsekwencja: aktualizacja zależności w kicie to dwie zmiany, w `pa
 | Rodzaj pliku | Wartość w `files` |
 | --- | --- |
 | plik z `managedFiles` w `kit/kit.json` (`package.json`, `package-lock.json`) | napis `managed` |
-| plik z `REGION_FILES`: `.env.example`, `.github/workflows/ci.yml`, `docker-compose.yml`, `prisma/schema/auth.prisma`, `prisma/schema/organizations.prisma` | SHA-256 treści bez linii między markerami `wa:<nazwa>:start` i `wa:<nazwa>:end` (`stripRegions`) |
+| plik z `REGION_FILES`: `.env.example`, `.env.selfhost.example`, `.github/workflows/ci.yml`, `.github/workflows/mutation.yml`, `Dockerfile`, `docker-compose.selfhost.yml`, `docker-compose.yml`, `prisma/schema/auth.prisma`, `prisma/schema/organizations.prisma` | SHA-256 treści bez linii między markerami `wa:<nazwa>:start` i `wa:<nazwa>:end` (`stripRegions`) |
 | każdy inny plik | SHA-256 bajtów pliku |
 
 W projekcie `acme-app` ze wszystkimi modułami hash `docker/uploads.compose.yml` w `.wa/kit.json` jest równy SHA-256 pliku z `acme-app-uploads`, a hash `.env.example` jest równy SHA-256 treści bez linii regionu `wa:modules` (sprawdzone).

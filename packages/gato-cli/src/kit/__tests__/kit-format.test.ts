@@ -7,8 +7,8 @@ import {
 } from "../kit-format.js";
 
 describe("SUPPORTED_KIT_FORMATS", () => {
-  it("lists formats 1 and 2", () => {
-    expect(SUPPORTED_KIT_FORMATS).toEqual([1, 2]);
+  it("lists formats 1, 2 and 3", () => {
+    expect(SUPPORTED_KIT_FORMATS).toEqual([1, 2, 3]);
   });
 });
 
@@ -21,6 +21,10 @@ describe("assertSupportedKitFormat", () => {
     expect(() => assertSupportedKitFormat(2)).not.toThrow();
   });
 
+  it("accepts format 3 with the self-host regions", () => {
+    expect(() => assertSupportedKitFormat(3)).not.toThrow();
+  });
+
   it("rejects format 99 with the message naming gato-cli@latest and the npx fallback", () => {
     expect(() => assertSupportedKitFormat(99)).toThrow(
       new Error(
@@ -29,10 +33,10 @@ describe("assertSupportedKitFormat", () => {
     );
   });
 
-  it("rejects format 3, the first one after the supported range", () => {
-    expect(() => assertSupportedKitFormat(3)).toThrow(
+  it("rejects format 4, the first one after the supported range", () => {
+    expect(() => assertSupportedKitFormat(4)).toThrow(
       new Error(
-        "This project uses kit format 3; update gato-cli (npm i -D gato-cli@latest) or run: npx gato-cli@latest update <version>",
+        "This project uses kit format 4; update gato-cli (npm i -D gato-cli@latest) or run: npx gato-cli@latest update <version>",
       ),
     );
   });
@@ -46,8 +50,10 @@ describe("assertSupportedKitFormat", () => {
   });
 
   test.prop([
-    fc.integer({ min: -1000, max: 1000 }).filter((n) => n !== 1 && n !== 2),
-  ])("rejects every format other than 1 and 2 and names it", (format) => {
+    fc
+      .integer({ min: -1000, max: 1000 })
+      .filter((n) => n !== 1 && n !== 2 && n !== 3),
+  ])("rejects every format other than 1, 2 and 3 and names it", (format) => {
     expect(() => assertSupportedKitFormat(format)).toThrow(
       `This project uses kit format ${format}; update gato-cli`,
     );
