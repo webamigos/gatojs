@@ -356,12 +356,28 @@ describe.each(calls)("HTTP errors in $label", ({ what, invoke }) => {
     },
   );
 
-  it.each([403, 429])("%i suggests --kit-version", async (status) => {
-    const message = await messageOf(invoke(failingFetch(status), SECRET));
-    expect(message).toContain(String(status));
-    expect(message).toContain("--kit-version");
-    expect(message).not.toContain(SECRET);
-  });
+  it.each([403, 429])(
+    "%i without a token tells how to authenticate or use a local checkout",
+    async (status) => {
+      const message = await messageOf(invoke(failingFetch(status), null));
+      expect(message).toBe(
+        `GitHub returned ${status} for ${what}. This is a rate limit or missing access: set GITHUB_TOKEN (or GH_TOKEN) or log in with "gh auth login", wait for the limit to reset, or pass --kit <path> to use a local GatoJS checkout.`,
+      );
+      expect(message).not.toContain("--kit-version");
+    },
+  );
+
+  it.each([403, 429])(
+    "%i with a token tells to wait or check the token's access, without the token",
+    async (status) => {
+      const message = await messageOf(invoke(failingFetch(status), SECRET));
+      expect(message).toBe(
+        `GitHub returned ${status} for ${what}. This is a rate limit or missing access: wait for the limit to reset, check that your token can read webamigos/gatojs, or pass --kit <path> to use a local GatoJS checkout.`,
+      );
+      expect(message).not.toContain("--kit-version");
+      expect(message).not.toContain(SECRET);
+    },
+  );
 
   it("500 mentions the status", async () => {
     const message = await messageOf(invoke(failingFetch(500), SECRET));
@@ -493,14 +509,25 @@ describe("fetchKitPackageJson", () => {
     ["null", null],
     ["tablica", []],
     ["inne kodowanie", { encoding: "utf-8", content: "{}" }],
-    ["kodowanie utf-8 z poprawną treścią base64", { encoding: "utf-8", content: base64Wrapped(JSON.stringify({ name: "gatojs" })) }],
+    [
+      "kodowanie utf-8 z poprawną treścią base64",
+      {
+        encoding: "utf-8",
+        content: base64Wrapped(JSON.stringify({ name: "gatojs" })),
+      },
+    ],
     ["treść nie jest napisem", { encoding: "base64", content: 5 }],
-    ["base64 z treścią, która nie jest JSON", { encoding: "base64", content: base64Wrapped("not json") }],
+    [
+      "base64 z treścią, która nie jest JSON",
+      { encoding: "base64", content: base64Wrapped("not json") },
+    ],
   ])("%s to nieoczekiwany package.json", async (_label, body) => {
     const { fetch } = fakeFetch({ [CONTENTS_090]: jsonResponse(body) });
     await expect(
       fetchKitPackageJson({ fetch, token: null, version: "0.9.0" }),
-    ).rejects.toThrow("GitHub returned an unexpected package.json for kit v0.9.0");
+    ).rejects.toThrow(
+      "GitHub returned an unexpected package.json for kit v0.9.0",
+    );
   });
 
   it("401 z tokenem to GitHubTokenRejectedError", async () => {
@@ -512,7 +539,11 @@ describe("fetchKitPackageJson", () => {
 
   it("401 bez tokenu to zwykły błąd, nie GitHubTokenRejectedError", async () => {
     const { fetch } = fakeFetch({ [CONTENTS_090]: statusResponse(401) });
-    const error = await fetchKitPackageJson({ fetch, token: null, version: "0.9.0" }).then(
+    const error = await fetchKitPackageJson({
+      fetch,
+      token: null,
+      version: "0.9.0",
+    }).then(
       () => null,
       (rejection: unknown) => rejection,
     );

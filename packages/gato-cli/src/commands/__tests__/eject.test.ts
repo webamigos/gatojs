@@ -23,6 +23,62 @@ import type { Runner } from "../../process/runner.js";
 import { create } from "../create.js";
 import { eject, undoEject, undoEjectFromSource } from "../eject.js";
 
+const failures = vi.hoisted(() => ({
+  writeKitState: null as Error | null,
+  generate: null as Error | null,
+  chmodPath: null as string | null,
+}));
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const original = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...original,
+    chmod: async (
+      ...args: Parameters<typeof original.chmod>
+    ): Promise<void> => {
+      const [path] = args;
+      if (typeof path === "string" && path === failures.chmodPath) {
+        failures.chmodPath = null;
+        throw new Error("chmod denied");
+      }
+      return original.chmod(...args);
+    },
+  };
+});
+
+vi.mock("../../manifest/kit-state.js", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("../../manifest/kit-state.js")>();
+  return {
+    ...original,
+    writeKitState: async (
+      ...args: Parameters<typeof original.writeKitState>
+    ): Promise<void> => {
+      const error = failures.writeKitState;
+      if (error === null) return original.writeKitState(...args);
+      failures.writeKitState = null;
+      await original.writeKitState(...args);
+      throw error;
+    },
+  };
+});
+
+vi.mock("../../generate/index.js", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("../../generate/index.js")>();
+  return {
+    ...original,
+    generate: async (
+      ...args: Parameters<typeof original.generate>
+    ): Promise<{ changed: string[] }> => {
+      const error = failures.generate;
+      if (error === null) return original.generate(...args);
+      failures.generate = null;
+      throw error;
+    },
+  };
+});
+
 const FIXTURE_KIT = join(
   dirname(fileURLToPath(import.meta.url)),
   "../../__tests__/fixtures/kit",
@@ -35,9 +91,15 @@ let log: ReturnType<typeof vi.fn<(line: string) => void>>;
 
 beforeEach(() => {
   log = vi.fn<(line: string) => void>();
+  failures.writeKitState = null;
+  failures.generate = null;
+  failures.chmodPath = null;
 });
 
 afterEach(async () => {
+  failures.writeKitState = null;
+  failures.generate = null;
+  failures.chmodPath = null;
   await removeTempDirs();
 });
 
@@ -786,6 +848,143 @@ describe("undoEjectFromSource", () => {
         "export default {};\n",
       );
       expect(await rawState(dir)).toBe(before);
+    },
+    SLOW,
+  );
+});
+
+async function modeOf(path: string): Promise<number> {
+  return (await stat(path)).mode & 0o777;
+}
+
+describe("undoEject rollback", () => {
+  const ENV_EXAMPLE = ".env.example";
+
+  async function projectWithModifiedAuthModule(): Promise<{
+    kitDir: string;
+    dir: string;
+  }> {
+    const { kitDir, dir } = await createFixtureProject([]);
+    await chmod(join(kitDir, AUTH_MODULE), 0o755);
+    await writeFile(join(dir, AUTH_MODULE), "project\n");
+    await chmod(join(dir, AUTH_MODULE), 0o644);
+    await addEjected(dir, {
+      [AUTH_MODULE]: { reason: "custom auth", ejectedAt: "2026-11-23" },
+    });
+    return { kitDir, dir };
+  }
+
+  it(
+    "rethrows a failed state write and restores the file content, mode and .wa/kit.json",
+    async () => {
+      const { kitDir, dir } = await projectWithModifiedAuthModule();
+      const stateBefore = await readFile(join(dir, ".wa/kit.json"));
+      failures.writeKitState = new Error("disk full");
+      await expect(
+        undoEject({ projectDir: dir, file: AUTH_MODULE, kitDir, log }),
+      ).rejects.toThrow("disk full");
+      expect(await readFile(join(dir, AUTH_MODULE))).toEqual(
+        Buffer.from("project\n"),
+      );
+      expect(await modeOf(join(dir, AUTH_MODULE))).toBe(0o644);
+      expect(await readFile(join(dir, ".wa/kit.json"))).toEqual(stateBefore);
+      expect(log).not.toHaveBeenCalledWith(
+        `Restored ${AUTH_MODULE} from GatoJS 0.1.0`,
+      );
+    },
+    SLOW,
+  );
+
+  it(
+    "removes the restored file again when the state write fails and the file did not exist",
+    async () => {
+      const { kitDir, dir } = await projectWithModifiedAuthModule();
+      await rm(join(dir, AUTH_MODULE));
+      const stateBefore = await readFile(join(dir, ".wa/kit.json"));
+      failures.writeKitState = new Error("disk full");
+      await expect(
+        undoEject({ projectDir: dir, file: AUTH_MODULE, kitDir, log }),
+      ).rejects.toThrow("disk full");
+      expect(existsSync(join(dir, AUTH_MODULE))).toBe(false);
+      expect(await readFile(join(dir, ".wa/kit.json"))).toEqual(stateBefore);
+    },
+    SLOW,
+  );
+
+  it(
+    "rethrows a failed mode write and restores the file content and mode",
+    async () => {
+      const { kitDir, dir } = await projectWithModifiedAuthModule();
+      const stateBefore = await readFile(join(dir, ".wa/kit.json"));
+      failures.chmodPath = join(dir, AUTH_MODULE);
+      await expect(
+        undoEject({ projectDir: dir, file: AUTH_MODULE, kitDir, log }),
+      ).rejects.toThrow("chmod denied");
+      expect(await readFile(join(dir, AUTH_MODULE))).toEqual(
+        Buffer.from("project\n"),
+      );
+      expect(await modeOf(join(dir, AUTH_MODULE))).toBe(0o644);
+      expect(await readFile(join(dir, ".wa/kit.json"))).toEqual(stateBefore);
+    },
+    SLOW,
+  );
+
+  it(
+    "rethrows a failed generate for a region file and restores the file and the ejected entry",
+    async () => {
+      const { kitDir, dir } = await createFixtureProject(["demo"]);
+      await chmod(join(kitDir, ENV_EXAMPLE), 0o644);
+      await writeFile(join(dir, ENV_EXAMPLE), "CUSTOM=1\n");
+      await chmod(join(dir, ENV_EXAMPLE), 0o600);
+      await addEjected(dir, {
+        [ENV_EXAMPLE]: { reason: "custom env", ejectedAt: "2026-11-23" },
+      });
+      const stateBefore = await readFile(join(dir, ".wa/kit.json"));
+      failures.generate = new Error("generate broke");
+      await expect(
+        undoEject({ projectDir: dir, file: ENV_EXAMPLE, kitDir, log }),
+      ).rejects.toThrow("generate broke");
+      expect(await readFile(join(dir, ENV_EXAMPLE))).toEqual(
+        Buffer.from("CUSTOM=1\n"),
+      );
+      expect(await modeOf(join(dir, ENV_EXAMPLE))).toBe(0o600);
+      expect(await readFile(join(dir, ".wa/kit.json"))).toEqual(stateBefore);
+      expect(await ejectedOf(dir)).toEqual({
+        [ENV_EXAMPLE]: { reason: "custom env", ejectedAt: "2026-11-23" },
+      });
+    },
+    SLOW,
+  );
+
+  it(
+    "removes a deleted region file again when generate fails",
+    async () => {
+      const { kitDir, dir } = await createFixtureProject(["demo"]);
+      await rm(join(dir, ENV_EXAMPLE));
+      const stateBefore = await readFile(join(dir, ".wa/kit.json"));
+      failures.generate = new Error("generate broke");
+      await expect(
+        undoEject({ projectDir: dir, file: ENV_EXAMPLE, kitDir, log }),
+      ).rejects.toThrow("generate broke");
+      expect(existsSync(join(dir, ENV_EXAMPLE))).toBe(false);
+      expect(await readFile(join(dir, ".wa/kit.json"))).toEqual(stateBefore);
+    },
+    SLOW,
+  );
+
+  it(
+    "on success restores the kit content and mode, removes the entry and logs the restore",
+    async () => {
+      const { kitDir, dir } = await projectWithModifiedAuthModule();
+      await undoEject({ projectDir: dir, file: AUTH_MODULE, kitDir, log });
+      expect(await readFile(join(dir, AUTH_MODULE), "utf8")).toBe(
+        AUTH_MODULE_CONTENT,
+      );
+      expect(await modeOf(join(dir, AUTH_MODULE))).toBe(0o755);
+      expect(await ejectedOf(dir)).toEqual({});
+      expect(log).toHaveBeenCalledWith(
+        `Restored ${AUTH_MODULE} from GatoJS 0.1.0`,
+      );
     },
     SLOW,
   );

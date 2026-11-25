@@ -16,6 +16,7 @@ function kitFile(spec: FileSpec): KitFile {
 function snapshot(
   version: string,
   files: Record<string, FileSpec>,
+  seedFiles: string[] = [],
 ): KitSnapshot {
   return {
     version,
@@ -28,7 +29,7 @@ function snapshot(
       placeholderFiles: [],
       generatedFiles: [],
       managedFiles: ["package.json", "package-lock.json"],
-      seedFiles: [],
+      seedFiles,
     },
     manifests: [],
     files: new Map(
@@ -49,10 +50,12 @@ function plan(input: {
   target: Record<string, FileSpec>;
   project: Record<string, string | Buffer>;
   recordedHashes?: Record<string, string>;
+  baseSeedFiles?: string[];
+  targetSeedFiles?: string[];
 }) {
   return planUpdate({
-    base: snapshot("0.1.0", input.base),
-    target: snapshot("0.2.0", input.target),
+    base: snapshot("0.1.0", input.base, input.baseSeedFiles),
+    target: snapshot("0.2.0", input.target, input.targetSeedFiles),
     recordedHashes: input.recordedHashes ?? {},
     readProject: async (path) =>
       path in input.project ? Buffer.from(input.project[path] as string) : null,
@@ -745,5 +748,176 @@ describe("planUpdate: files recorded as seed", () => {
         })
       ).mismatchedBase,
     ).toEqual([]);
+  });
+});
+
+describe("planUpdate: files listed in the target seedFiles", () => {
+  const recordedV1 = {
+    "README.md": recorded("README.md", "v1\n"),
+  };
+
+  it("does not update a file equal to the base recorded with a content hash when the target lists it as seed", async () => {
+    expect(
+      await plan({
+        base: { "README.md": "v1\n" },
+        target: { "README.md": "v2\n" },
+        project: { "README.md": "v1\n" },
+        recordedHashes: recordedV1,
+        targetSeedFiles: ["README.md"],
+      }),
+    ).toEqual({ files: [], mismatchedBase: [] });
+  });
+
+  it("does not merge or conflict a project-changed file recorded with a content hash when the target lists it as seed", async () => {
+    expect(
+      await plan({
+        base: { "README.md": "v1\n" },
+        target: { "README.md": "v2\n" },
+        project: { "README.md": "mine\n" },
+        recordedHashes: recordedV1,
+        targetSeedFiles: ["README.md"],
+      }),
+    ).toEqual({ files: [], mismatchedBase: [] });
+  });
+
+  it("does not report a target seed file recorded with a hash other than the base as mismatched", async () => {
+    expect(
+      await plan({
+        base: { "README.md": "v1\n" },
+        target: { "README.md": "v2\n" },
+        project: { "README.md": "mine\n" },
+        recordedHashes: { "README.md": recorded("README.md", "mine\n") },
+        targetSeedFiles: ["README.md"],
+      }),
+    ).toEqual({ files: [], mismatchedBase: [] });
+  });
+
+  it("updates the file when the target seedFiles list is empty", async () => {
+    expect(
+      await plan({
+        base: { "README.md": "v1\n" },
+        target: { "README.md": "v2\n" },
+        project: { "README.md": "v1\n" },
+        recordedHashes: recordedV1,
+        targetSeedFiles: [],
+      }),
+    ).toEqual({
+      files: [
+        {
+          path: "README.md",
+          action: "updated",
+          reason: null,
+          content: Buffer.from("v2\n"),
+          mode: 0o644,
+        },
+      ],
+      mismatchedBase: [],
+    });
+  });
+
+  it("updates the file when only the base lists it as seed", async () => {
+    expect(
+      await plan({
+        base: { "README.md": "v1\n" },
+        target: { "README.md": "v2\n" },
+        project: { "README.md": "v1\n" },
+        recordedHashes: recordedV1,
+        baseSeedFiles: ["README.md"],
+        targetSeedFiles: [],
+      }),
+    ).toEqual({
+      files: [
+        {
+          path: "README.md",
+          action: "updated",
+          reason: null,
+          content: Buffer.from("v2\n"),
+          mode: 0o644,
+        },
+      ],
+      mismatchedBase: [],
+    });
+  });
+
+  it("still updates other files while leaving the target seed file alone", async () => {
+    expect(
+      await plan({
+        base: { "README.md": "v1\n", "src/a.ts": BASE },
+        target: { "README.md": "v2\n", "src/a.ts": KIT },
+        project: { "README.md": "v1\n", "src/a.ts": BASE },
+        recordedHashes: {
+          ...recordedV1,
+          "src/a.ts": recorded("src/a.ts", BASE),
+        },
+        targetSeedFiles: ["README.md"],
+      }),
+    ).toEqual({
+      files: [
+        {
+          path: "src/a.ts",
+          action: "updated",
+          reason: null,
+          content: Buffer.from("a\nb\nc\nd\ne\nKIT\n"),
+          mode: 0o644,
+        },
+      ],
+      mismatchedBase: [],
+    });
+  });
+
+  it("does not report a conflict for a new target seed file the project already has with other content", async () => {
+    expect(
+      await plan({
+        base: {},
+        target: { "docs/notes.md": "kit\n" },
+        project: { "docs/notes.md": "mine\n" },
+        targetSeedFiles: ["docs/notes.md"],
+      }),
+    ).toEqual({ files: [], mismatchedBase: [] });
+  });
+
+  it("adds a new target seed file the project lacks", async () => {
+    expect(
+      await plan({
+        base: {},
+        target: { "docs/notes.md": { content: "kit\n", mode: 0o644 } },
+        project: {},
+        targetSeedFiles: ["docs/notes.md"],
+      }),
+    ).toEqual({
+      files: [
+        {
+          path: "docs/notes.md",
+          action: "added",
+          reason: null,
+          content: Buffer.from("kit\n"),
+          mode: 0o644,
+        },
+      ],
+      mismatchedBase: [],
+    });
+  });
+
+  it("reports a conflict for a new file the project already has when only the base lists it as seed", async () => {
+    expect(
+      await plan({
+        base: {},
+        target: { "docs/notes.md": "kit\n" },
+        project: { "docs/notes.md": "mine\n" },
+        baseSeedFiles: ["docs/notes.md"],
+        targetSeedFiles: [],
+      }),
+    ).toEqual({
+      files: [
+        {
+          path: "docs/notes.md",
+          action: "conflict",
+          reason: "project file at the path of a new kit file",
+          content: null,
+          mode: null,
+        },
+      ],
+      mismatchedBase: [],
+    });
   });
 });
