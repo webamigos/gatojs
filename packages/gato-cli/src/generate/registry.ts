@@ -28,7 +28,7 @@ const GATO_CONFIG_MODULE = "@/shared/lib/modules/gato-config";
 const PROJECT_CONFIG_IMPORT = 'import gatoConfig from "@/gato.config";';
 const EMPTY_CONFIG_IMPORT = `import { emptyGatoConfig as gatoConfig } from "${GATO_CONFIG_MODULE}";`;
 
-type ConfigHelper = "applyGatoConfig" | "enabledEntries";
+type ConfigHelper = "applyGatoConfig" | "enabledEntries" | "gatoBrandingOf";
 
 function entry(module: RegistryModule, value: string): string {
   return `{ module: "${module.name}", value: ${value} }`;
@@ -64,10 +64,12 @@ function configImports(
 function usedHelpers(
   usesApply: boolean,
   usesEnabledEntries: boolean,
+  usesBranding: boolean,
 ): ConfigHelper[] {
   return [
     ...(usesApply ? (["applyGatoConfig"] as const) : []),
     ...(usesEnabledEntries ? (["enabledEntries"] as const) : []),
+    ...(usesBranding ? (["gatoBrandingOf"] as const) : []),
   ];
 }
 
@@ -108,6 +110,7 @@ export function renderRegistry(
         withAuth.length > 0 ||
         withAuditSink.length > 0 ||
         loadersByLocale.some(({ loaders }) => loaders.length > 0),
+      false,
     ),
   );
 
@@ -170,7 +173,7 @@ export function renderRegistry(
 
   const clientImports = configImports(
     options,
-    usedHelpers(withModule.length > 0, withAuthClient.length > 0),
+    usedHelpers(withModule.length > 0, withAuthClient.length > 0, true),
   );
 
   const client = [
@@ -196,6 +199,7 @@ export function renderRegistry(
       "clientModules",
       withModule.map((m) => identifier(m.name, "Module")),
     ),
+    "export const gatoBranding = gatoBrandingOf(gatoConfig);",
     "",
   ].join("\n");
 
