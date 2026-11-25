@@ -107,8 +107,10 @@ GITHUB_TOKEN=$(gh auth token) npx create-gato-app my-app
 ```
 
 The token is only sent to `api.github.com`; it is never printed. When GitHub rejects the token (401),
-`create-gato-app` says so and retries once without it. On a 403 or 429 (rate limit), set a token or pass
-`--kit-version`.
+`create-gato-app` says so and retries once without it. On a 403 or 429 (rate limit or missing access) without a
+token, set `GITHUB_TOKEN` (or `GH_TOKEN`) or log in with `gh auth login`; with a token, check that it can read
+`webamigos/gatojs`. Either way you can wait for the limit to reset, or pass `--kit <path>` to use a local GatoJS
+checkout. `--kit-version` does not help here: it still calls the GitHub API.
 
 ## Not yet
 

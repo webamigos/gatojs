@@ -207,9 +207,9 @@ var require_lib = __commonJS({
 });
 
 // src/bin.ts
-import { dirname as dirname8, join as join13, resolve as resolve7 } from "node:path";
+import { dirname as dirname8, join as join14, resolve as resolve7 } from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdtemp as mkdtemp4, rm as rm6 } from "node:fs/promises";
+import { mkdtemp as mkdtemp4, rm as rm7 } from "node:fs/promises";
 import { tmpdir as tmpdir2 } from "node:os";
 
 // src/args.ts
@@ -410,7 +410,9 @@ function parseDoctorArgs(argv) {
   });
   assertMaxPositionals(positionals, 0);
   if (!values.files) {
-    throw new Error("Only --files is implemented; see the gato-cli spec \xA78");
+    throw new Error(
+      "Only wa doctor --files is implemented; run it with --files"
+    );
   }
   return { files: true };
 }
@@ -21960,7 +21962,7 @@ ${changed.map((file2) => `  ${file2}`).join("\n")}`
 // src/commands/doctor.ts
 function nextSteps2(path2, cli) {
   return [
-    `    revert: ${cli} eject --undo ${path2} (or git checkout -- ${path2})`,
+    `    revert: ${cli} eject --undo ${path2} (or git checkout HEAD -- ${path2})`,
     `    keep the change: ${cli} eject ${path2} --reason "<why>"`
   ];
 }
@@ -22024,8 +22026,8 @@ async function doctorFiles(options) {
 }
 
 // src/commands/eject.ts
-import { chmod as chmod3, mkdir as mkdir5, writeFile as writeFile7 } from "node:fs/promises";
-import { dirname as dirname6, relative as relative2, resolve as resolve4, sep as sep2 } from "node:path";
+import { chmod as chmod4, mkdir as mkdir6, rm as rm6, writeFile as writeFile9 } from "node:fs/promises";
+import { dirname as dirname7, join as join12, relative as relative3, resolve as resolve5, sep as sep3 } from "node:path";
 
 // src/update/snapshot.ts
 var PACKAGE_JSON2 = "package.json";
@@ -22077,11 +22079,672 @@ async function readKitSnapshot(kitDir, modules, names) {
   return { version: config2.version, config: config2, manifests, files };
 }
 
+// src/commands/update.ts
+import { execFile as execFile3 } from "node:child_process";
+import { existsSync as existsSync3 } from "node:fs";
+import {
+  chmod as chmod3,
+  mkdir as mkdir5,
+  mkdtemp as mkdtemp3,
+  readFile as readFile10,
+  rm as rm5,
+  rmdir as rmdir3,
+  stat as stat4,
+  writeFile as writeFile8
+} from "node:fs/promises";
+import { dirname as dirname6, join as join11, relative as relative2, resolve as resolve4, sep as sep2 } from "node:path";
+import { promisify as promisify3 } from "node:util";
+
+// src/update/merge.ts
+import { execFile as execFile2 } from "node:child_process";
+import { mkdtemp as mkdtemp2, rm as rm4, writeFile as writeFile7 } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join as join10 } from "node:path";
+import { promisify as promisify2 } from "node:util";
+var run2 = promisify2(execFile2);
+var MAX_CONFLICT_EXIT_CODE = 127;
+function prepareSides(path2, sides) {
+  if (!REGION_FILES.includes(path2)) {
+    return sides;
+  }
+  const strip = (content) => Buffer.from(stripRegions(content.toString("utf8")));
+  return {
+    base: strip(sides.base),
+    ours: strip(sides.ours),
+    theirs: strip(sides.theirs)
+  };
+}
+async function mergeFile(input2) {
+  if ([input2.base, input2.ours, input2.theirs].some((side) => side.includes(0))) {
+    return { binary: true };
+  }
+  const sides = prepareSides(input2.path, input2);
+  const dir = await mkdtemp2(join10(tmpdir(), "wa-merge-"));
+  try {
+    const oursFile = join10(dir, "ours");
+    const baseFile = join10(dir, "base");
+    const theirsFile = join10(dir, "theirs");
+    await Promise.all([
+      writeFile7(oursFile, sides.ours),
+      writeFile7(baseFile, sides.base),
+      writeFile7(theirsFile, sides.theirs)
+    ]);
+    const args = [
+      "merge-file",
+      "-p",
+      "--diff3",
+      "-L",
+      input2.labels.ours,
+      "-L",
+      input2.labels.base,
+      "-L",
+      input2.labels.theirs,
+      oursFile,
+      baseFile,
+      theirsFile
+    ];
+    try {
+      const { stdout } = await run2("git", args, {
+        encoding: "buffer",
+        maxBuffer: 64 * 1024 * 1024
+      });
+      return { content: stdout, conflicts: 0 };
+    } catch (error62) {
+      const failure2 = error62;
+      if (typeof failure2.code === "number" && failure2.code <= MAX_CONFLICT_EXIT_CODE && Buffer.isBuffer(failure2.stdout)) {
+        return { content: failure2.stdout, conflicts: failure2.code };
+      }
+      const stderr = failure2.stderr.toString("utf8").trim();
+      throw new Error(`git merge-file: ${stderr || String(error62)}`, {
+        cause: error62
+      });
+    }
+  } finally {
+    await rm4(dir, { recursive: true });
+  }
+}
+
+// src/update/plan.ts
+var MANAGED = "managed";
+var SEED2 = "seed";
+var UNCHANGED = { file: null, mismatchedBase: false };
+function planned(path2, action, fields = {}) {
+  return { path: path2, action, reason: null, content: null, mode: null, ...fields };
+}
+function isSeed(path2, input2) {
+  return input2.recordedHashes[path2] === SEED2 || input2.target.config.seedFiles.includes(path2);
+}
+function undecided(path2, reason) {
+  return planned(path2, "needs decision", { reason });
+}
+async function decideAdded(path2, kit, input2) {
+  const project = await input2.readProject(path2);
+  if (!project) {
+    return {
+      file: planned(path2, "added", { content: kit.content, mode: kit.mode }),
+      mismatchedBase: false
+    };
+  }
+  if (input2.target.config.seedFiles.includes(path2) || contentHash(path2, project) === contentHash(path2, kit.content)) {
+    return UNCHANGED;
+  }
+  return {
+    file: planned(path2, "conflict", {
+      reason: "project file at the path of a new kit file"
+    }),
+    mismatchedBase: false
+  };
+}
+async function mergeChanged(path2, base, project, kit, input2) {
+  const merged = await mergeFile({
+    path: path2,
+    base,
+    ours: project,
+    theirs: kit.content,
+    labels: {
+      ours: "project",
+      base: `v${input2.base.version}`,
+      theirs: `v${input2.target.version}`
+    }
+  });
+  if ("binary" in merged) {
+    return planned(path2, "conflict", {
+      reason: "binary file changed in both the project and the kit"
+    });
+  }
+  if (merged.conflicts > 0) {
+    return planned(path2, "conflict", {
+      content: merged.content,
+      mode: kit.mode
+    });
+  }
+  if (contentHash(path2, merged.content) === contentHash(path2, project)) {
+    return null;
+  }
+  return planned(path2, "merged", { content: merged.content, mode: kit.mode });
+}
+async function decideExisting(path2, base, kit, input2) {
+  if (isSeed(path2, input2)) {
+    return UNCHANGED;
+  }
+  const baseHash = contentHash(path2, base.content);
+  const kitContentUnchanged = kit !== void 0 && contentHash(path2, kit.content) === baseHash;
+  if (kitContentUnchanged && kit.mode === base.mode) {
+    return UNCHANGED;
+  }
+  const project = await input2.readProject(path2);
+  if (!project) {
+    if (!kit || kitContentUnchanged) {
+      return UNCHANGED;
+    }
+    return {
+      file: undecided(path2, "deleted in the project, changed in the kit"),
+      mismatchedBase: false
+    };
+  }
+  const projectHash = contentHash(path2, project);
+  const recordedHash = input2.recordedHashes[path2];
+  const recordedMatchesBase = recordedHash === void 0 || recordedHash === MANAGED || recordedHash === baseHash;
+  const projectEqualsBase = projectHash === baseHash && recordedMatchesBase;
+  const mismatchedBase = projectHash === recordedHash && recordedHash !== baseHash;
+  if (!kit) {
+    const file3 = projectEqualsBase ? planned(path2, "removed") : undecided(path2, "changed in the project, deleted in the kit");
+    return { file: file3, mismatchedBase };
+  }
+  if (projectEqualsBase) {
+    return {
+      file: planned(path2, "updated", {
+        content: kit.content,
+        mode: kit.mode
+      }),
+      mismatchedBase
+    };
+  }
+  if (projectHash === contentHash(path2, kit.content)) {
+    return UNCHANGED;
+  }
+  const file2 = await mergeChanged(path2, base.content, project, kit, input2);
+  if (!file2) {
+    return UNCHANGED;
+  }
+  return { file: file2, mismatchedBase };
+}
+async function planUpdate(input2) {
+  const decisions = [];
+  for (const [path2, base] of input2.base.files) {
+    decisions.push([
+      path2,
+      await decideExisting(path2, base, input2.target.files.get(path2), input2)
+    ]);
+  }
+  for (const [path2, kit] of input2.target.files) {
+    if (!input2.base.files.has(path2)) {
+      decisions.push([path2, await decideAdded(path2, kit, input2)]);
+    }
+  }
+  decisions.sort(([a], [b]) => compareCodePoint(a, b));
+  const files = [];
+  const mismatchedBase = [];
+  for (const [path2, decision] of decisions) {
+    if (decision.file) {
+      files.push(decision.file);
+    }
+    if (decision.mismatchedBase) {
+      mismatchedBase.push(path2);
+    }
+  }
+  return { files, mismatchedBase };
+}
+
+// src/update/report.ts
+var ACTION_ORDER = [
+  "updated",
+  "merged",
+  "added",
+  "removed",
+  "conflict",
+  "needs decision"
+];
+var ACTION_WIDTH = "needs decision".length;
+var SCHEMA_PREFIX = "prisma/schema/";
+function fileLine(file2) {
+  const reason = file2.reason === null ? "" : ` (${file2.reason})`;
+  return `  ${file2.action.padEnd(ACTION_WIDTH)} ${file2.path}${reason}`;
+}
+function mismatchedBaseWarning(count, from) {
+  const source = `from the v${from} tag`;
+  if (count === 1) {
+    return `Warning: 1 file differs ${source}; treated it as changed in the project`;
+  }
+  return `Warning: ${count} files differ ${source}; treated them as changed in the project`;
+}
+function planReport(input2) {
+  const { plan, from, to } = input2;
+  const header = input2.dryRun ? `Update plan for GatoJS ${from} \u2192 ${to} (project not changed)` : `Updating GatoJS ${from} \u2192 ${to}`;
+  const items = ACTION_ORDER.flatMap(
+    (action) => plan.files.filter((file2) => file2.action === action).sort((a, b) => compareCodePoint(a.path, b.path)).map(fileLine)
+  );
+  const warning = plan.mismatchedBase.length > 0 ? [mismatchedBaseWarning(plan.mismatchedBase.length, from)] : [];
+  return [
+    header,
+    ...items.length > 0 ? items : ["  no file changes"],
+    ...warning
+  ];
+}
+function schemaChanged(base, target) {
+  const paths = /* @__PURE__ */ new Set([...base.files.keys(), ...target.files.keys()]);
+  return [...paths].filter((path2) => path2.startsWith(SCHEMA_PREFIX)).some((path2) => {
+    const before = base.files.get(path2)?.content;
+    const after = target.files.get(path2)?.content;
+    return !before || !after || !before.equals(after);
+  });
+}
+function newEnvNames(base, target) {
+  const known = new Set(
+    base.manifests.flatMap((manifest) => manifest.env.map(({ name }) => name))
+  );
+  const added = target.manifests.flatMap((manifest) => manifest.env.map(({ name }) => name)).filter((name) => !known.has(name));
+  return [...new Set(added)].sort(compareCodePoint);
+}
+function successHints(base, target) {
+  const hints = [];
+  if (schemaChanged(base, target)) {
+    hints.push(`npx prisma migrate dev --name kit-${target.version}`);
+  }
+  const envNames = newEnvNames(base, target);
+  if (envNames.length > 0) {
+    hints.push(
+      `New variables in .env.example: ${envNames.join(", ")}; add them to .env`
+    );
+  }
+  return hints;
+}
+
+// src/commands/update.ts
+var execFileAsync = promisify3(execFile3);
+var UNDO_HINT = "Check git status; to undo everything: git restore . && git clean -fd";
+var PERMISSION_BITS2 = 511;
+var MANAGED2 = "managed";
+function checkVersions(current, target) {
+  const order = compareVersions(target, current);
+  if (order < 0) {
+    throw new Error(
+      `Project has GatoJS ${current}, newer than ${target}; update does not downgrade`
+    );
+  }
+  return order === 0 ? "same" : "newer";
+}
+async function assertCleanTree(projectDir) {
+  let status;
+  try {
+    ({ stdout: status } = await execFileAsync(
+      "git",
+      ["status", "--porcelain"],
+      {
+        cwd: projectDir
+      }
+    ));
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      throw new Error("git command not found; install git to run update", {
+        cause: error62
+      });
+    }
+    throw new Error(
+      `${projectDir} is not a git repository; update needs git so changes can be undone`,
+      { cause: error62 }
+    );
+  }
+  if (status !== "") {
+    throw new Error(
+      "Uncommitted changes in the project; commit or stash them before updating"
+    );
+  }
+}
+function assertRequirementsInstalled(state, target) {
+  for (const manifest of target.manifests) {
+    const missing = manifest.requires.filter((name) => !(name in state.modules)).sort(compareCodePoint);
+    if (missing.length > 0) {
+      throw new Error(
+        `Module ${manifest.name} in GatoJS ${target.version} requires modules that are not installed: ${missing.join(", ")}`
+      );
+    }
+  }
+}
+async function readIfExists3(path2) {
+  try {
+    return await readFile10(path2);
+  } catch (error62) {
+    if (error62.code === "ENOENT") {
+      return null;
+    }
+    throw error62;
+  }
+}
+async function writableInsideProject(projectDir, file2) {
+  const absolute = await insideProject(projectDir, file2);
+  let current = projectDir;
+  for (const segment of relative2(projectDir, absolute).split(sep2)) {
+    current = join11(current, segment);
+    if ((await lstatIfExists(current))?.isSymbolicLink()) {
+      throw new Error(`Symbolic link on a write path: ${file2}`);
+    }
+  }
+  return absolute;
+}
+async function rememberOriginal(absolute) {
+  const content = await readIfExists3(absolute);
+  if (!content) {
+    return null;
+  }
+  const mode = (await stat4(absolute)).mode & PERMISSION_BITS2;
+  return { path: absolute, content, mode };
+}
+async function applyWrite(projectDir, { file: file2, absolute }) {
+  if (file2.action === "removed") {
+    await rm5(absolute);
+    await removeEmptyParents(projectDir, absolute);
+    return;
+  }
+  await mkdir5(dirname6(absolute), { recursive: true });
+  await writeFile8(absolute, file2.content);
+  await chmod3(absolute, file2.mode);
+}
+async function restoreOriginal(original) {
+  const current = await readIfExists3(original.path);
+  if (!current?.equals(original.content)) {
+    await rm5(original.path, { force: true });
+    await mkdir5(dirname6(original.path), { recursive: true });
+    await writeFile8(original.path, original.content);
+  }
+  await chmod3(original.path, original.mode);
+}
+async function rollbackUpdate(input2) {
+  const { projectDir, originals } = input2;
+  const steps = [
+    ...input2.writes.map(({ file: file2, absolute }) => {
+      const original = originals.get(absolute);
+      return {
+        path: file2.path,
+        run: () => original ? restoreOriginal(original) : rm5(absolute, { force: true })
+      };
+    }),
+    ...input2.createdDirectories.filter((directory) => existsSync3(join11(projectDir, directory))).map((directory) => ({
+      path: directory,
+      run: () => rmdir3(join11(projectDir, directory))
+    })),
+    {
+      path: KIT_STATE_PATH,
+      run: () => restoreOriginal(
+        originals.get(join11(projectDir, KIT_STATE_PATH))
+      )
+    }
+  ];
+  for (const step of steps) {
+    try {
+      await step.run();
+    } catch (error62) {
+      const { code, message } = error62;
+      input2.log(`Could not clean up: ${step.path} (${code ?? message})`);
+    }
+  }
+}
+function nextState(state, target, undecided2) {
+  const paths = [...target.files.keys()];
+  const modules = Object.fromEntries(
+    target.manifests.map((manifest) => {
+      const managed = Object.entries(state.modules[manifest.name].files).filter(
+        ([path2, hash2]) => hash2 === MANAGED2 && target.config.managedFiles.includes(path2)
+      );
+      const files = Object.fromEntries([
+        ...managed,
+        ...moduleFiles(manifest, paths).filter((path2) => !undecided2.has(path2)).map((path2) => [
+          path2,
+          fileHash(
+            path2,
+            target.files.get(path2).content,
+            target.config
+          )
+        ])
+      ]);
+      return [manifest.name, { version: manifest.version, manifest, files }];
+    })
+  );
+  return {
+    ...state,
+    kitVersion: target.version,
+    kitFormat: target.config.kitFormat,
+    modules
+  };
+}
+async function writeUpdate(input2) {
+  const { projectDir, writes } = input2;
+  const kitStatePath = join11(projectDir, KIT_STATE_PATH);
+  const originals = /* @__PURE__ */ new Map();
+  for (const absolute of [
+    ...writes.map((write) => write.absolute),
+    kitStatePath
+  ]) {
+    const original = await rememberOriginal(absolute);
+    if (original) {
+      originals.set(absolute, original);
+    }
+  }
+  const createdDirectories = missingDirectories(
+    projectDir,
+    writes.map(({ file: file2 }) => file2.path)
+  );
+  try {
+    for (const write of writes) {
+      await applyWrite(projectDir, write);
+    }
+    await writeKitState(projectDir, input2.state);
+  } catch (error62) {
+    await rollbackUpdate({
+      projectDir,
+      writes,
+      originals,
+      createdDirectories,
+      log: input2.log
+    });
+    throw new Error(`${error62.message}
+${UNDO_HINT}`, {
+      cause: error62
+    });
+  }
+}
+async function update(options) {
+  const { projectDir, version: version2, runner, log } = options;
+  const state = await readKitState(projectDir);
+  if (checkVersions(state.kitVersion, version2) === "same") {
+    log(`Project is already on GatoJS ${version2}`);
+    return { exitCode: 0 };
+  }
+  if (!options.dryRun) {
+    await assertCleanTree(projectDir);
+  }
+  const names = {
+    name: state.project.name,
+    slug: state.project.slug,
+    snake: state.project.slug.replaceAll("-", "_")
+  };
+  const modules = Object.keys(state.modules);
+  const base = await readKitSnapshot(options.baseKitDir, modules, names);
+  const target = await readKitSnapshot(options.targetKitDir, modules, names);
+  if (target.version !== version2) {
+    throw new Error(
+      `Target kit has version ${target.version}, expected ${version2}`
+    );
+  }
+  assertSupportedKitFormat(target.config.kitFormat);
+  assertRequirementsInstalled(state, target);
+  const recordedHashes2 = Object.assign(
+    {},
+    ...Object.values(state.modules).map((entry2) => entry2.files)
+  );
+  const plan = await planUpdate({
+    base,
+    target,
+    recordedHashes: recordedHashes2,
+    readProject: async (path2) => readIfExists3(await insideProject(projectDir, path2))
+  });
+  const report = planReport({
+    plan,
+    from: state.kitVersion,
+    to: version2,
+    dryRun: options.dryRun
+  });
+  if (options.dryRun) {
+    report.forEach((line) => log(line));
+    return { exitCode: 0 };
+  }
+  for (const path2 of [
+    KIT_STATE_PATH,
+    ...target.config.generatedFiles,
+    ...REGION_FILES
+  ]) {
+    await writableInsideProject(projectDir, path2);
+  }
+  const writes = [];
+  for (const file2 of plan.files) {
+    if (file2.content || file2.action === "removed") {
+      writes.push({
+        file: file2,
+        absolute: await writableInsideProject(projectDir, file2.path)
+      });
+    }
+  }
+  const undecided2 = new Set(
+    plan.files.filter((file2) => file2.action === "needs decision").map((file2) => file2.path)
+  );
+  await writeUpdate({
+    projectDir,
+    writes,
+    state: nextState(state, target, undecided2),
+    log
+  });
+  report.forEach((line) => log(line));
+  if (plan.files.some((file2) => file2.action === "conflict")) {
+    log(
+      "Resolve the conflicts, then run: npm run wa -- generate && npm install"
+    );
+    log("To undo the whole update: git restore . && git clean -fd");
+    return { exitCode: 1 };
+  }
+  try {
+    await generate(projectDir);
+  } catch (error62) {
+    throw new Error(
+      `Updated to GatoJS ${version2}, but generate failed. Run: npm run wa -- generate`,
+      { cause: error62 }
+    );
+  }
+  successHints(base, target).forEach((line) => log(line));
+  if (options.install) {
+    try {
+      await runner("npm", ["install"], projectDir);
+    } catch (error62) {
+      throw new Error(
+        `Updated to GatoJS ${version2}, but npm install failed. Run: npm install`,
+        { cause: error62 }
+      );
+    }
+  }
+  return { exitCode: undecided2.size > 0 ? 1 : 0 };
+}
+async function bundleKitVersion(bundleKitDir2) {
+  if (!existsSync3(join11(bundleKitDir2, "kit", "kit.json"))) {
+    return null;
+  }
+  return (await readKitConfig(bundleKitDir2)).version;
+}
+async function delegateToTarget(input2) {
+  const { args, targetKitDir } = input2;
+  const flags = [
+    ...args.dryRun ? ["--dry-run"] : [],
+    ...args.install ? [] : ["--no-install"]
+  ];
+  try {
+    await input2.runner(
+      "node",
+      [
+        join11(targetKitDir, ".wa/bin/wa.mjs"),
+        "update",
+        args.version,
+        "--from-kit",
+        targetKitDir,
+        "--kit",
+        input2.source,
+        ...flags
+      ],
+      input2.projectDir
+    );
+  } catch (error62) {
+    const { code, message } = error62;
+    if (typeof code === "string") {
+      throw new Error(
+        `Could not run the bundle of GatoJS ${args.version}: ${message}`,
+        { cause: error62 }
+      );
+    }
+    return { exitCode: 1 };
+  }
+  return { exitCode: 0 };
+}
+async function updateFromSource(options) {
+  const { projectDir, args, runner } = options;
+  const state = await readKitState(projectDir);
+  if (checkVersions(state.kitVersion, args.version) === "same") {
+    options.log(`Project is already on GatoJS ${args.version}`);
+    return { exitCode: 0 };
+  }
+  if (!args.dryRun) {
+    await assertCleanTree(projectDir);
+  }
+  const source = kitSourceLocation({
+    kitFlag: args.kit,
+    envSource: options.envSource,
+    state
+  });
+  const bundleVersion = args.fromKit === null ? await bundleKitVersion(options.bundleKitDir) : null;
+  if (bundleVersion !== null && bundleVersion !== args.version) {
+    throw new Error(
+      `The bundle comes from GatoJS ${bundleVersion}, but the update targets ${args.version}`
+    );
+  }
+  const tmpDir = await mkdtemp3(join11(options.tmpRoot, "wa-update-"));
+  try {
+    const clone2 = (version2, name) => cloneKitVersion({ source, version: version2, runner, tmpDir, name });
+    if (args.fromKit === null && bundleVersion === null) {
+      return await delegateToTarget({
+        projectDir,
+        args,
+        source,
+        targetKitDir: await clone2(args.version, "target"),
+        runner
+      });
+    }
+    const targetKitDir = args.fromKit === null ? await clone2(args.version, "target") : resolve4(args.fromKit);
+    return await update({
+      projectDir,
+      version: args.version,
+      baseKitDir: await clone2(state.kitVersion, "base"),
+      targetKitDir,
+      dryRun: args.dryRun,
+      install: args.install,
+      runner,
+      log: options.log
+    });
+  } finally {
+    await rm5(tmpDir, { recursive: true });
+  }
+}
+
 // src/commands/eject.ts
 var REASON_REQUIRED = 'Specify why the file is ejected: --reason "<why>"';
 async function gatoFilePath(projectDir, file2, state) {
   const absolute = await insideProject(projectDir, file2);
-  const path2 = relative2(resolve4(projectDir), absolute).split(sep2).join("/");
+  const path2 = relative3(resolve5(projectDir), absolute).split(sep3).join("/");
   if (GENERATED_FILES.includes(path2)) {
     throw new Error(
       `${path2} is generated; change the manifest or module files and run npm run wa -- generate`
@@ -22146,15 +22809,27 @@ async function undoEject(options) {
     throw new Error(`${path2} is not in GatoJS ${state.kitVersion}`);
   }
   const absolute = await insideProject(projectDir, path2);
-  await mkdir5(dirname6(absolute), { recursive: true });
-  await writeFile7(absolute, kitFile.content);
-  await chmod3(absolute, kitFile.mode);
+  const originalFile = await rememberOriginal(absolute);
+  const originalState = await rememberOriginal(
+    join12(projectDir, KIT_STATE_PATH)
+  );
   const ejected = Object.fromEntries(
     Object.entries(state.ejected).filter(([entry2]) => entry2 !== path2)
   );
-  await writeKitState(projectDir, { ...state, ejected });
-  if (REGION_FILES.includes(path2)) {
-    await generate(projectDir);
+  try {
+    await mkdir6(dirname7(absolute), { recursive: true });
+    await writeFile9(absolute, kitFile.content);
+    await chmod4(absolute, kitFile.mode);
+    await writeKitState(projectDir, { ...state, ejected });
+    if (REGION_FILES.includes(path2)) {
+      await generate(projectDir);
+    }
+  } catch (error62) {
+    await (originalFile ? restoreOriginal(originalFile) : rm6(absolute, { force: true }));
+    if (originalState) {
+      await restoreOriginal(originalState);
+    }
+    throw error62;
   }
   options.log(`Restored ${path2} from GatoJS ${state.kitVersion}`);
 }
@@ -24028,11 +24703,11 @@ var spawnRunner = (command, args, cwd) => new Promise((resolve8, reject) => {
 });
 
 // src/commands/kit-sync.ts
-import { readFile as readFile10 } from "node:fs/promises";
-import { join as join10 } from "node:path";
+import { readFile as readFile11 } from "node:fs/promises";
+import { join as join13 } from "node:path";
 async function readExisting(kitDir) {
   try {
-    return await readFile10(join10(kitDir, ".wa/kit.json"), "utf8");
+    return await readFile11(join13(kitDir, ".wa/kit.json"), "utf8");
   } catch (error62) {
     if (error62.code === "ENOENT") {
       return null;
@@ -24110,664 +24785,6 @@ function list(options) {
     for (const [name, { manifest }] of projectEntries) {
       log(`  ${name} \u2014 ${manifest.description}`);
     }
-  }
-}
-
-// src/commands/update.ts
-import { execFile as execFile3 } from "node:child_process";
-import { existsSync as existsSync3 } from "node:fs";
-import {
-  chmod as chmod4,
-  mkdir as mkdir6,
-  mkdtemp as mkdtemp3,
-  readFile as readFile11,
-  rm as rm5,
-  rmdir as rmdir3,
-  stat as stat4,
-  writeFile as writeFile9
-} from "node:fs/promises";
-import { dirname as dirname7, join as join12, relative as relative3, resolve as resolve5, sep as sep3 } from "node:path";
-import { promisify as promisify3 } from "node:util";
-
-// src/update/merge.ts
-import { execFile as execFile2 } from "node:child_process";
-import { mkdtemp as mkdtemp2, rm as rm4, writeFile as writeFile8 } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join as join11 } from "node:path";
-import { promisify as promisify2 } from "node:util";
-var run2 = promisify2(execFile2);
-var MAX_CONFLICT_EXIT_CODE = 127;
-function prepareSides(path2, sides) {
-  if (!REGION_FILES.includes(path2)) {
-    return sides;
-  }
-  const strip = (content) => Buffer.from(stripRegions(content.toString("utf8")));
-  return {
-    base: strip(sides.base),
-    ours: strip(sides.ours),
-    theirs: strip(sides.theirs)
-  };
-}
-async function mergeFile(input2) {
-  if ([input2.base, input2.ours, input2.theirs].some((side) => side.includes(0))) {
-    return { binary: true };
-  }
-  const sides = prepareSides(input2.path, input2);
-  const dir = await mkdtemp2(join11(tmpdir(), "wa-merge-"));
-  try {
-    const oursFile = join11(dir, "ours");
-    const baseFile = join11(dir, "base");
-    const theirsFile = join11(dir, "theirs");
-    await Promise.all([
-      writeFile8(oursFile, sides.ours),
-      writeFile8(baseFile, sides.base),
-      writeFile8(theirsFile, sides.theirs)
-    ]);
-    const args = [
-      "merge-file",
-      "-p",
-      "--diff3",
-      "-L",
-      input2.labels.ours,
-      "-L",
-      input2.labels.base,
-      "-L",
-      input2.labels.theirs,
-      oursFile,
-      baseFile,
-      theirsFile
-    ];
-    try {
-      const { stdout } = await run2("git", args, {
-        encoding: "buffer",
-        maxBuffer: 64 * 1024 * 1024
-      });
-      return { content: stdout, conflicts: 0 };
-    } catch (error62) {
-      const failure2 = error62;
-      if (typeof failure2.code === "number" && failure2.code <= MAX_CONFLICT_EXIT_CODE && Buffer.isBuffer(failure2.stdout)) {
-        return { content: failure2.stdout, conflicts: failure2.code };
-      }
-      const stderr = failure2.stderr.toString("utf8").trim();
-      throw new Error(`git merge-file: ${stderr || String(error62)}`, {
-        cause: error62
-      });
-    }
-  } finally {
-    await rm4(dir, { recursive: true });
-  }
-}
-
-// src/update/plan.ts
-var MANAGED = "managed";
-var SEED2 = "seed";
-var UNCHANGED = { file: null, mismatchedBase: false };
-function planned(path2, action, fields = {}) {
-  return { path: path2, action, reason: null, content: null, mode: null, ...fields };
-}
-function undecided(path2, reason) {
-  return planned(path2, "needs decision", { reason });
-}
-async function decideAdded(path2, kit, input2) {
-  const project = await input2.readProject(path2);
-  if (!project) {
-    return {
-      file: planned(path2, "added", { content: kit.content, mode: kit.mode }),
-      mismatchedBase: false
-    };
-  }
-  if (contentHash(path2, project) === contentHash(path2, kit.content)) {
-    return UNCHANGED;
-  }
-  return {
-    file: planned(path2, "conflict", {
-      reason: "project file at the path of a new kit file"
-    }),
-    mismatchedBase: false
-  };
-}
-async function mergeChanged(path2, base, project, kit, input2) {
-  const merged = await mergeFile({
-    path: path2,
-    base,
-    ours: project,
-    theirs: kit.content,
-    labels: {
-      ours: "project",
-      base: `v${input2.base.version}`,
-      theirs: `v${input2.target.version}`
-    }
-  });
-  if ("binary" in merged) {
-    return planned(path2, "conflict", {
-      reason: "binary file changed in both the project and the kit"
-    });
-  }
-  if (merged.conflicts > 0) {
-    return planned(path2, "conflict", {
-      content: merged.content,
-      mode: kit.mode
-    });
-  }
-  if (contentHash(path2, merged.content) === contentHash(path2, project)) {
-    return null;
-  }
-  return planned(path2, "merged", { content: merged.content, mode: kit.mode });
-}
-async function decideExisting(path2, base, kit, input2) {
-  if (input2.recordedHashes[path2] === SEED2) {
-    return UNCHANGED;
-  }
-  const baseHash = contentHash(path2, base.content);
-  const kitContentUnchanged = kit !== void 0 && contentHash(path2, kit.content) === baseHash;
-  if (kitContentUnchanged && kit.mode === base.mode) {
-    return UNCHANGED;
-  }
-  const project = await input2.readProject(path2);
-  if (!project) {
-    if (!kit || kitContentUnchanged) {
-      return UNCHANGED;
-    }
-    return {
-      file: undecided(path2, "deleted in the project, changed in the kit"),
-      mismatchedBase: false
-    };
-  }
-  const projectHash = contentHash(path2, project);
-  const recordedHash = input2.recordedHashes[path2];
-  const recordedMatchesBase = recordedHash === void 0 || recordedHash === MANAGED || recordedHash === baseHash;
-  const projectEqualsBase = projectHash === baseHash && recordedMatchesBase;
-  const mismatchedBase = projectHash === recordedHash && recordedHash !== baseHash;
-  if (!kit) {
-    const file3 = projectEqualsBase ? planned(path2, "removed") : undecided(path2, "changed in the project, deleted in the kit");
-    return { file: file3, mismatchedBase };
-  }
-  if (projectEqualsBase) {
-    return {
-      file: planned(path2, "updated", {
-        content: kit.content,
-        mode: kit.mode
-      }),
-      mismatchedBase
-    };
-  }
-  if (projectHash === contentHash(path2, kit.content)) {
-    return UNCHANGED;
-  }
-  const file2 = await mergeChanged(path2, base.content, project, kit, input2);
-  if (!file2) {
-    return UNCHANGED;
-  }
-  return { file: file2, mismatchedBase };
-}
-async function planUpdate(input2) {
-  const decisions = [];
-  for (const [path2, base] of input2.base.files) {
-    decisions.push([
-      path2,
-      await decideExisting(path2, base, input2.target.files.get(path2), input2)
-    ]);
-  }
-  for (const [path2, kit] of input2.target.files) {
-    if (!input2.base.files.has(path2)) {
-      decisions.push([path2, await decideAdded(path2, kit, input2)]);
-    }
-  }
-  decisions.sort(([a], [b]) => compareCodePoint(a, b));
-  const files = [];
-  const mismatchedBase = [];
-  for (const [path2, decision] of decisions) {
-    if (decision.file) {
-      files.push(decision.file);
-    }
-    if (decision.mismatchedBase) {
-      mismatchedBase.push(path2);
-    }
-  }
-  return { files, mismatchedBase };
-}
-
-// src/update/report.ts
-var ACTION_ORDER = [
-  "updated",
-  "merged",
-  "added",
-  "removed",
-  "conflict",
-  "needs decision"
-];
-var ACTION_WIDTH = "needs decision".length;
-var SCHEMA_PREFIX = "prisma/schema/";
-function fileLine(file2) {
-  const reason = file2.reason === null ? "" : ` (${file2.reason})`;
-  return `  ${file2.action.padEnd(ACTION_WIDTH)} ${file2.path}${reason}`;
-}
-function mismatchedBaseWarning(count, from) {
-  const source = `from the v${from} tag`;
-  if (count === 1) {
-    return `Warning: 1 file differs ${source}; treated it as changed in the project`;
-  }
-  return `Warning: ${count} files differ ${source}; treated them as changed in the project`;
-}
-function planReport(input2) {
-  const { plan, from, to } = input2;
-  const header = input2.dryRun ? `Update plan for GatoJS ${from} \u2192 ${to} (project not changed)` : `Updating GatoJS ${from} \u2192 ${to}`;
-  const items = ACTION_ORDER.flatMap(
-    (action) => plan.files.filter((file2) => file2.action === action).sort((a, b) => compareCodePoint(a.path, b.path)).map(fileLine)
-  );
-  const warning = plan.mismatchedBase.length > 0 ? [mismatchedBaseWarning(plan.mismatchedBase.length, from)] : [];
-  return [
-    header,
-    ...items.length > 0 ? items : ["  no file changes"],
-    ...warning
-  ];
-}
-function schemaChanged(base, target) {
-  const paths = /* @__PURE__ */ new Set([...base.files.keys(), ...target.files.keys()]);
-  return [...paths].filter((path2) => path2.startsWith(SCHEMA_PREFIX)).some((path2) => {
-    const before = base.files.get(path2)?.content;
-    const after = target.files.get(path2)?.content;
-    return !before || !after || !before.equals(after);
-  });
-}
-function newEnvNames(base, target) {
-  const known = new Set(
-    base.manifests.flatMap((manifest) => manifest.env.map(({ name }) => name))
-  );
-  const added = target.manifests.flatMap((manifest) => manifest.env.map(({ name }) => name)).filter((name) => !known.has(name));
-  return [...new Set(added)].sort(compareCodePoint);
-}
-function successHints(base, target) {
-  const hints = [];
-  if (schemaChanged(base, target)) {
-    hints.push(`npx prisma migrate dev --name kit-${target.version}`);
-  }
-  const envNames = newEnvNames(base, target);
-  if (envNames.length > 0) {
-    hints.push(
-      `New variables in .env.example: ${envNames.join(", ")}; add them to .env`
-    );
-  }
-  return hints;
-}
-
-// src/commands/update.ts
-var execFileAsync = promisify3(execFile3);
-var UNDO_HINT = "Check git status; to undo everything: git restore . && git clean -fd";
-var PERMISSION_BITS2 = 511;
-var MANAGED2 = "managed";
-function checkVersions(current, target) {
-  const order = compareVersions(target, current);
-  if (order < 0) {
-    throw new Error(
-      `Project has GatoJS ${current}, newer than ${target}; update does not downgrade`
-    );
-  }
-  return order === 0 ? "same" : "newer";
-}
-async function assertCleanTree(projectDir) {
-  let status;
-  try {
-    ({ stdout: status } = await execFileAsync(
-      "git",
-      ["status", "--porcelain"],
-      {
-        cwd: projectDir
-      }
-    ));
-  } catch (error62) {
-    if (error62.code === "ENOENT") {
-      throw new Error("git command not found; install git to run update", {
-        cause: error62
-      });
-    }
-    throw new Error(
-      `${projectDir} is not a git repository; update needs git so changes can be undone`,
-      { cause: error62 }
-    );
-  }
-  if (status !== "") {
-    throw new Error(
-      "Uncommitted changes in the project; commit or stash them before updating"
-    );
-  }
-}
-function assertRequirementsInstalled(state, target) {
-  for (const manifest of target.manifests) {
-    const missing = manifest.requires.filter((name) => !(name in state.modules)).sort(compareCodePoint);
-    if (missing.length > 0) {
-      throw new Error(
-        `Module ${manifest.name} in GatoJS ${target.version} requires modules that are not installed: ${missing.join(", ")}`
-      );
-    }
-  }
-}
-async function readIfExists3(path2) {
-  try {
-    return await readFile11(path2);
-  } catch (error62) {
-    if (error62.code === "ENOENT") {
-      return null;
-    }
-    throw error62;
-  }
-}
-async function writableInsideProject(projectDir, file2) {
-  const absolute = await insideProject(projectDir, file2);
-  let current = projectDir;
-  for (const segment of relative3(projectDir, absolute).split(sep3)) {
-    current = join12(current, segment);
-    if ((await lstatIfExists(current))?.isSymbolicLink()) {
-      throw new Error(`Symbolic link on a write path: ${file2}`);
-    }
-  }
-  return absolute;
-}
-async function rememberOriginal(absolute) {
-  const content = await readIfExists3(absolute);
-  if (!content) {
-    return null;
-  }
-  const mode = (await stat4(absolute)).mode & PERMISSION_BITS2;
-  return { path: absolute, content, mode };
-}
-async function applyWrite(projectDir, { file: file2, absolute }) {
-  if (file2.action === "removed") {
-    await rm5(absolute);
-    await removeEmptyParents(projectDir, absolute);
-    return;
-  }
-  await mkdir6(dirname7(absolute), { recursive: true });
-  await writeFile9(absolute, file2.content);
-  await chmod4(absolute, file2.mode);
-}
-async function restoreOriginal(original) {
-  const current = await readIfExists3(original.path);
-  if (!current?.equals(original.content)) {
-    await rm5(original.path, { force: true });
-    await mkdir6(dirname7(original.path), { recursive: true });
-    await writeFile9(original.path, original.content);
-  }
-  await chmod4(original.path, original.mode);
-}
-async function rollbackUpdate(input2) {
-  const { projectDir, originals } = input2;
-  const steps = [
-    ...input2.writes.map(({ file: file2, absolute }) => {
-      const original = originals.get(absolute);
-      return {
-        path: file2.path,
-        run: () => original ? restoreOriginal(original) : rm5(absolute, { force: true })
-      };
-    }),
-    ...input2.createdDirectories.filter((directory) => existsSync3(join12(projectDir, directory))).map((directory) => ({
-      path: directory,
-      run: () => rmdir3(join12(projectDir, directory))
-    })),
-    {
-      path: KIT_STATE_PATH,
-      run: () => restoreOriginal(
-        originals.get(join12(projectDir, KIT_STATE_PATH))
-      )
-    }
-  ];
-  for (const step of steps) {
-    try {
-      await step.run();
-    } catch (error62) {
-      const { code, message } = error62;
-      input2.log(`Could not clean up: ${step.path} (${code ?? message})`);
-    }
-  }
-}
-function nextState(state, target, undecided2) {
-  const paths = [...target.files.keys()];
-  const modules = Object.fromEntries(
-    target.manifests.map((manifest) => {
-      const managed = Object.entries(state.modules[manifest.name].files).filter(
-        ([path2, hash2]) => hash2 === MANAGED2 && target.config.managedFiles.includes(path2)
-      );
-      const files = Object.fromEntries([
-        ...managed,
-        ...moduleFiles(manifest, paths).filter((path2) => !undecided2.has(path2)).map((path2) => [
-          path2,
-          fileHash(
-            path2,
-            target.files.get(path2).content,
-            target.config
-          )
-        ])
-      ]);
-      return [manifest.name, { version: manifest.version, manifest, files }];
-    })
-  );
-  return {
-    ...state,
-    kitVersion: target.version,
-    kitFormat: target.config.kitFormat,
-    modules
-  };
-}
-async function writeUpdate(input2) {
-  const { projectDir, writes } = input2;
-  const kitStatePath = join12(projectDir, KIT_STATE_PATH);
-  const originals = /* @__PURE__ */ new Map();
-  for (const absolute of [
-    ...writes.map((write) => write.absolute),
-    kitStatePath
-  ]) {
-    const original = await rememberOriginal(absolute);
-    if (original) {
-      originals.set(absolute, original);
-    }
-  }
-  const createdDirectories = missingDirectories(
-    projectDir,
-    writes.map(({ file: file2 }) => file2.path)
-  );
-  try {
-    for (const write of writes) {
-      await applyWrite(projectDir, write);
-    }
-    await writeKitState(projectDir, input2.state);
-  } catch (error62) {
-    await rollbackUpdate({
-      projectDir,
-      writes,
-      originals,
-      createdDirectories,
-      log: input2.log
-    });
-    throw new Error(`${error62.message}
-${UNDO_HINT}`, {
-      cause: error62
-    });
-  }
-}
-async function update(options) {
-  const { projectDir, version: version2, runner, log } = options;
-  const state = await readKitState(projectDir);
-  if (checkVersions(state.kitVersion, version2) === "same") {
-    log(`Project is already on GatoJS ${version2}`);
-    return { exitCode: 0 };
-  }
-  if (!options.dryRun) {
-    await assertCleanTree(projectDir);
-  }
-  const names = {
-    name: state.project.name,
-    slug: state.project.slug,
-    snake: state.project.slug.replaceAll("-", "_")
-  };
-  const modules = Object.keys(state.modules);
-  const base = await readKitSnapshot(options.baseKitDir, modules, names);
-  const target = await readKitSnapshot(options.targetKitDir, modules, names);
-  if (target.version !== version2) {
-    throw new Error(
-      `Target kit has version ${target.version}, expected ${version2}`
-    );
-  }
-  assertSupportedKitFormat(target.config.kitFormat);
-  assertRequirementsInstalled(state, target);
-  const recordedHashes2 = Object.assign(
-    {},
-    ...Object.values(state.modules).map((entry2) => entry2.files)
-  );
-  const plan = await planUpdate({
-    base,
-    target,
-    recordedHashes: recordedHashes2,
-    readProject: async (path2) => readIfExists3(await insideProject(projectDir, path2))
-  });
-  const report = planReport({
-    plan,
-    from: state.kitVersion,
-    to: version2,
-    dryRun: options.dryRun
-  });
-  if (options.dryRun) {
-    report.forEach((line) => log(line));
-    return { exitCode: 0 };
-  }
-  for (const path2 of [
-    KIT_STATE_PATH,
-    ...target.config.generatedFiles,
-    ...REGION_FILES
-  ]) {
-    await writableInsideProject(projectDir, path2);
-  }
-  const writes = [];
-  for (const file2 of plan.files) {
-    if (file2.content || file2.action === "removed") {
-      writes.push({
-        file: file2,
-        absolute: await writableInsideProject(projectDir, file2.path)
-      });
-    }
-  }
-  const undecided2 = new Set(
-    plan.files.filter((file2) => file2.action === "needs decision").map((file2) => file2.path)
-  );
-  await writeUpdate({
-    projectDir,
-    writes,
-    state: nextState(state, target, undecided2),
-    log
-  });
-  report.forEach((line) => log(line));
-  if (plan.files.some((file2) => file2.action === "conflict")) {
-    log(
-      "Resolve the conflicts, then run: npm run wa -- generate && npm install"
-    );
-    log("To undo the whole update: git restore . && git clean -fd");
-    return { exitCode: 1 };
-  }
-  try {
-    await generate(projectDir);
-  } catch (error62) {
-    throw new Error(
-      `Updated to GatoJS ${version2}, but generate failed. Run: npm run wa -- generate`,
-      { cause: error62 }
-    );
-  }
-  successHints(base, target).forEach((line) => log(line));
-  if (options.install) {
-    try {
-      await runner("npm", ["install"], projectDir);
-    } catch (error62) {
-      throw new Error(
-        `Updated to GatoJS ${version2}, but npm install failed. Run: npm install`,
-        { cause: error62 }
-      );
-    }
-  }
-  return { exitCode: undecided2.size > 0 ? 1 : 0 };
-}
-async function bundleKitVersion(bundleKitDir2) {
-  if (!existsSync3(join12(bundleKitDir2, "kit", "kit.json"))) {
-    return null;
-  }
-  return (await readKitConfig(bundleKitDir2)).version;
-}
-async function delegateToTarget(input2) {
-  const { args, targetKitDir } = input2;
-  const flags = [
-    ...args.dryRun ? ["--dry-run"] : [],
-    ...args.install ? [] : ["--no-install"]
-  ];
-  try {
-    await input2.runner(
-      "node",
-      [
-        join12(targetKitDir, ".wa/bin/wa.mjs"),
-        "update",
-        args.version,
-        "--from-kit",
-        targetKitDir,
-        "--kit",
-        input2.source,
-        ...flags
-      ],
-      input2.projectDir
-    );
-  } catch (error62) {
-    const { code, message } = error62;
-    if (typeof code === "string") {
-      throw new Error(
-        `Could not run the bundle of GatoJS ${args.version}: ${message}`,
-        { cause: error62 }
-      );
-    }
-    return { exitCode: 1 };
-  }
-  return { exitCode: 0 };
-}
-async function updateFromSource(options) {
-  const { projectDir, args, runner } = options;
-  const state = await readKitState(projectDir);
-  if (checkVersions(state.kitVersion, args.version) === "same") {
-    options.log(`Project is already on GatoJS ${args.version}`);
-    return { exitCode: 0 };
-  }
-  if (!args.dryRun) {
-    await assertCleanTree(projectDir);
-  }
-  const source = kitSourceLocation({
-    kitFlag: args.kit,
-    envSource: options.envSource,
-    state
-  });
-  const bundleVersion = args.fromKit === null ? await bundleKitVersion(options.bundleKitDir) : null;
-  if (bundleVersion !== null && bundleVersion !== args.version) {
-    throw new Error(
-      `The bundle comes from GatoJS ${bundleVersion}, but the update targets ${args.version}`
-    );
-  }
-  const tmpDir = await mkdtemp3(join12(options.tmpRoot, "wa-update-"));
-  try {
-    const clone2 = (version2, name) => cloneKitVersion({ source, version: version2, runner, tmpDir, name });
-    if (args.fromKit === null && bundleVersion === null) {
-      return await delegateToTarget({
-        projectDir,
-        args,
-        source,
-        targetKitDir: await clone2(args.version, "target"),
-        runner
-      });
-    }
-    const targetKitDir = args.fromKit === null ? await clone2(args.version, "target") : resolve5(args.fromKit);
-    return await update({
-      projectDir,
-      version: args.version,
-      baseKitDir: await clone2(state.kitVersion, "base"),
-      targetKitDir,
-      dryRun: args.dryRun,
-      install: args.install,
-      runner,
-      log: options.log
-    });
-  } finally {
-    await rm5(tmpDir, { recursive: true });
   }
 }
 
@@ -24862,11 +24879,11 @@ function cliDependency(input2) {
 }
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.7.0" };
+var identity = { name: "wa", version: "0.7.1" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);
-  const tmpDir = await mkdtemp4(join13(tmpdir2(), "wa-list-"));
+  const tmpDir = await mkdtemp4(join14(tmpdir2(), "wa-list-"));
   try {
     let available = null;
     let availableError = null;
@@ -24884,7 +24901,7 @@ async function listCommand(kit) {
     }
     list({ state, available, availableError, log: console.log });
   } finally {
-    await rm6(tmpDir, { recursive: true });
+    await rm7(tmpDir, { recursive: true });
   }
 }
 async function ejectCommand(argv) {
@@ -24899,7 +24916,7 @@ async function ejectCommand(argv) {
     });
     return;
   }
-  const tmpDir = await mkdtemp4(join13(tmpdir2(), "wa-eject-"));
+  const tmpDir = await mkdtemp4(join14(tmpdir2(), "wa-eject-"));
   try {
     await undoEjectFromSource({
       projectDir: process.cwd(),
@@ -24911,7 +24928,7 @@ async function ejectCommand(argv) {
       log: console.log
     });
   } finally {
-    await rm6(tmpDir, { recursive: true });
+    await rm7(tmpDir, { recursive: true });
   }
 }
 function bundleKitDir() {

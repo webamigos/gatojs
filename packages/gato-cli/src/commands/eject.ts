@@ -1,14 +1,19 @@
-import { chmod, mkdir, writeFile } from "node:fs/promises";
-import { dirname, relative, resolve, sep } from "node:path";
+import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { GENERATED_FILES, generate } from "../generate/index.js";
 import { REGION_FILES } from "../generate/targets.js";
 import { resolveKitSource } from "../kit/source.js";
-import { readKitState, writeKitState } from "../manifest/kit-state.js";
+import {
+  KIT_STATE_PATH,
+  readKitState,
+  writeKitState,
+} from "../manifest/kit-state.js";
 import type { KitState } from "../manifest/schema.js";
 import type { Runner } from "../process/runner.js";
 import { readKitSnapshot } from "../update/snapshot.js";
 import { recordedHashes } from "../doctor/files.js";
 import { insideProject } from "./remove.js";
+import { rememberOriginal, restoreOriginal } from "./update.js";
 
 const REASON_REQUIRED = 'Specify why the file is ejected: --reason "<why>"';
 
@@ -96,15 +101,29 @@ export async function undoEject(options: {
     throw new Error(`${path} is not in GatoJS ${state.kitVersion}`);
   }
   const absolute = await insideProject(projectDir, path);
-  await mkdir(dirname(absolute), { recursive: true });
-  await writeFile(absolute, kitFile.content);
-  await chmod(absolute, kitFile.mode);
+  const originalFile = await rememberOriginal(absolute);
+  const originalState = await rememberOriginal(
+    join(projectDir, KIT_STATE_PATH),
+  );
   const ejected = Object.fromEntries(
     Object.entries(state.ejected).filter(([entry]) => entry !== path),
   );
-  await writeKitState(projectDir, { ...state, ejected });
-  if (REGION_FILES.includes(path)) {
-    await generate(projectDir);
+  try {
+    await mkdir(dirname(absolute), { recursive: true });
+    await writeFile(absolute, kitFile.content);
+    await chmod(absolute, kitFile.mode);
+    await writeKitState(projectDir, { ...state, ejected });
+    if (REGION_FILES.includes(path)) {
+      await generate(projectDir);
+    }
+  } catch (error) {
+    await (originalFile
+      ? restoreOriginal(originalFile)
+      : rm(absolute, { force: true }));
+    if (originalState) {
+      await restoreOriginal(originalState);
+    }
+    throw error;
   }
   options.log(`Restored ${path} from GatoJS ${state.kitVersion}`);
 }

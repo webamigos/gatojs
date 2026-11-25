@@ -137,10 +137,12 @@ async function writableInsideProject(
   return absolute;
 }
 
-type Original = { path: string; content: Buffer; mode: number };
+export type Original = { path: string; content: Buffer; mode: number };
 type Write = { file: PlannedFile; absolute: string };
 
-async function rememberOriginal(absolute: string): Promise<Original | null> {
+export async function rememberOriginal(
+  absolute: string,
+): Promise<Original | null> {
   const content = await readIfExists(absolute);
   if (!content) {
     return null;
@@ -163,7 +165,7 @@ async function applyWrite(
   await chmod(absolute, file.mode as number);
 }
 
-async function restoreOriginal(original: Original): Promise<void> {
+export async function restoreOriginal(original: Original): Promise<void> {
   const current = await readIfExists(original.path);
   if (!current?.equals(original.content)) {
     // WHY: aktualizacja mogła zostawić plik tylko do odczytu; po usunięciu writeFile tworzy go od nowa

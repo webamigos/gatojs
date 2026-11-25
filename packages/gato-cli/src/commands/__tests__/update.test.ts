@@ -1644,4 +1644,53 @@ describe("update: kitFormat, ejected and seed files", () => {
       "seed",
     );
   });
+
+  it("leaves a file the target lists in seedFiles untouched although the project recorded it with a content hash, and records it as seed", async () => {
+    const setup = await prepare({
+      kit: async (kitDir) => {
+        await changeAuthModule(kitDir);
+        await changeLocaleConfigAsSeed(kitDir);
+      },
+    });
+    expect(
+      (await rawState(setup.dir)).modules.core?.files[LOCALE_CONFIG],
+    ).toMatch(/^[0-9a-f]{64}$/);
+    const before = await readFile(join(setup.dir, LOCALE_CONFIG));
+
+    expect(await run(setup)).toEqual({ exitCode: 0 });
+
+    expect(await readFile(join(setup.dir, LOCALE_CONFIG))).toEqual(before);
+    expect(await read(setup.dir, LOCALE_CONFIG)).toBe(LOCALE_BASE);
+    expect((await rawState(setup.dir)).modules.core?.files[LOCALE_CONFIG]).toBe(
+      "seed",
+    );
+    expect(lines()).toEqual([
+      "Updating GatoJS 0.1.0 → 0.2.0",
+      "  updated        src/features/auth/module.ts",
+    ]);
+  });
+
+  it("does not merge a target seed file changed in the project and recorded with a content hash", async () => {
+    const setup = await prepare({
+      kit: changeLocaleConfigAsSeed,
+      project: async (dir) => {
+        await writeFile(
+          join(dir, LOCALE_CONFIG),
+          'export type Locale = "pl";\n',
+        );
+      },
+    });
+    expect(
+      (await rawState(setup.dir)).modules.core?.files[LOCALE_CONFIG],
+    ).toMatch(/^[0-9a-f]{64}$/);
+
+    expect(await run(setup)).toEqual({ exitCode: 0 });
+
+    expect(await read(setup.dir, LOCALE_CONFIG)).toBe(
+      'export type Locale = "pl";\n',
+    );
+    expect((await rawState(setup.dir)).modules.core?.files[LOCALE_CONFIG]).toBe(
+      "seed",
+    );
+  });
 });
