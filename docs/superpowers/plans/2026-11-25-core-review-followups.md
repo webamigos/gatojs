@@ -43,6 +43,8 @@ Issue literals (prefix `docker-compose.selfhost.yml: `):
 13. Contract order: app→migrate, migrate→db, app healthcheck, published ports (file order), mail relay (file order),
     one-shot (file order), development credentials (file order).
 14. The repository's `docker-compose.selfhost.yml` still passes (existing test).
+15. Non-string profile entries are ignored: one-shot `seed` with `profiles: [null]` and no waiter → `[I1("seed")]`;
+    one-shot `seed` with `profiles: [null, "s3"]` and no waiter → `[I2("seed", "s3")]`.
 
 ### Mutations to kill
 
