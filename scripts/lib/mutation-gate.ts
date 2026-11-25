@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export interface Position {
   line: number;
   column: number;
@@ -31,6 +33,60 @@ export interface AllowedMutant {
 export interface GateConfig {
   critical: string[];
   allowed: AllowedMutant[];
+}
+
+const allowedMutantSchema = z.object({
+  file: z.string(),
+  mutator: z.string(),
+  original: z.string(),
+  replacement: z.string(),
+  reason: z.string(),
+});
+
+const gateConfigSchema = z.object({
+  critical: z.array(z.string()).default([]),
+  allowed: z.array(allowedMutantSchema).default([]),
+});
+
+export class GateConfigError extends Error {
+  name = "GateConfigError";
+}
+
+function parseJson(text: string, path: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new GateConfigError(
+      `Invalid ${path}: ${(error as SyntaxError).message}`,
+    );
+  }
+}
+
+export function parseGateConfig(text: string, path: string): GateConfig {
+  const result = gateConfigSchema.safeParse(parseJson(text, path));
+  if (!result.success) {
+    throw new GateConfigError(
+      `Invalid ${path}: ${z.prettifyError(result.error)}`,
+    );
+  }
+  return result.data;
+}
+
+const EMPTY_CONFIG: GateConfig = { critical: [], allowed: [] };
+
+export function mergeGateConfigs(
+  gato: GateConfig,
+  project: GateConfig | undefined,
+): GateConfig {
+  const { critical, allowed } = project ?? EMPTY_CONFIG;
+  const added = critical.filter(
+    (path, index) =>
+      !gato.critical.includes(path) && critical.indexOf(path) === index,
+  );
+  return {
+    critical: [...gato.critical, ...added],
+    allowed: [...gato.allowed, ...allowed],
+  };
 }
 
 export interface GateResult {

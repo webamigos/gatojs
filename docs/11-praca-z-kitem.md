@@ -20,6 +20,7 @@ Zweryfikowano z kodem: 8c9f5eb, 2026-11-21 (Task Router, uprawnienia, skille); p
 - `.claude/settings.json`
 - `.claude/hooks/block-comments.mjs`
 - `.claude/hooks/protect-tests.mjs`
+- `.claude/hooks/protect-gato-files.mjs`
 - `.claude/agents/test-writer.md`
 - `.claude/agents/test-reviewer.md`
 - `.claude/skills/wa-code-review/SKILL.md`, `.claude/skills/wa-upgrade-dependency/SKILL.md`, `.claude/skills/wa-new-module/SKILL.md`
@@ -76,7 +77,7 @@ flowchart LR
 
 | Punkt | Co działa | Co zatrzymuje | Czego nie widzi | Opis |
 | --- | --- | --- | --- | --- |
-| Edycja pliku przez agenta w Claude Code | Hooki `block-comments.mjs` i `protect-tests.mjs`. | Nowy komentarz w kodzie; zmianę testu w fazie implementacji. | Zapisu przez powłokę, zmian w innych narzędziach i w edytorze. | [Hooki Claude Code](#hooki) |
+| Edycja pliku przez agenta w Claude Code | Hooki `block-comments.mjs`, `protect-tests.mjs` i `protect-gato-files.mjs`. | Nowy komentarz w kodzie; zmianę testu w fazie implementacji; edycję pliku generowanego (edycję pliku GatoJS na razie tylko zgłasza). | Zapisu przez powłokę, zmian w innych narzędziach i w edytorze. | [Hooki Claude Code](#hooki) |
 | `git commit` | husky: lint-staged i commitlint. | Błąd ESLint, którego `--fix` nie naprawi; wiadomość niezgodną z Conventional Commits. | Plików spoza commitu. `git commit --no-verify` pomija oba hooki. | [Commity](#commity) |
 | Przed oddaniem pracy | `npm run verify`. | Błędy ESLint, typów, testów jednostkowych, buildu, testów pakietów workspace i hooków. | Testów integracyjnych, e2e i mutacyjnych; nieaktualnych plików generowanych. | [Bramka](#verify) |
 | Pull request i push do `main` | Workflowy z `.github/workflows/`, CodeRabbit. | To samo co `verify`, a do tego nieaktualne pliki generowane, testy integracyjne i e2e, sekrety w commitach (testy mutacyjne tylko lokalnie albo ręcznie); przy zmianie zależności także podatności, a przy zmianie workflowów ich błędy. | Wiadomości commitów i formatowania Prettierem. | [10-wdrozenie.md](10-wdrozenie.md#ci) |
@@ -290,12 +291,29 @@ Czasy przebiegów są w [08-testy.md](08-testy.md#czas). Pierwszy `verify` po do
 
 Okres ostrzeżeń: `npm run verify` kończy się krokiem `npm run wa -- doctor --files`, który wypisuje zmienione i usunięte pliki GatoJS bez wpisu w `ejected`, ale kończy się kodem 0. Wydanie, które to przełączy, zapowie w notach, że `verify` zacznie wtedy padać.
 
+Agent w Claude Code dostaje to samo ostrzeżenie wcześniej, przy edycji: hook `protect-gato-files.mjs` przed `Edit` albo `Write` pliku GatoJS bez wpisu w `ejected` pyta człowieka o zgodę i przekazuje agentowi komunikat z komendą `eject`, a edycję pliku generowanego blokuje ([Hooki Claude Code](#hooki)).
+
 Jak wyczyścić zgłoszony plik:
 
 1. Sprawdź, czy zmianę da się zrobić przez punkt rozszerzenia (`EXTENSION_POINTS.md`, gdy istnieje). Jeśli tak, przenieś ją do pliku projektu i przywróć plik GatoJS: `npm run wa -- eject --undo <plik>` (wersja z kitu w wersji projektu) albo `git checkout -- <plik>`, gdy ostatni commit ma jeszcze wersję z kitu.
 2. Jeśli nie, zostaw zmianę i zapisz powód: `npm run wa -- eject <plik> --reason "<powód>"`, a brakujący punkt rozszerzenia zgłoś w `webamigos/gatojs`.
 
 Szczegóły komend: [16-cli-wa.md](16-cli-wa.md#wa-doctor).
+
+<a id="pliki-towarzyszace"></a>
+
+### Pliki towarzyszące i pliki `seed`
+
+Rzeczy, które zmienia prawie każdy projekt, mają własne pliki projektu, więc nie trzeba w tym celu zmieniać plików GatoJS:
+
+| Plik | Rodzaj | Kto go czyta | `wa update` |
+| --- | --- | --- | --- |
+| `AGENTS.project.md` | towarzyszący, nie ma go w kicie | agent: `AGENTS.md` i `CLAUDE.md` każą przeczytać go najpierw; wygrywa z ogólnymi radami, nigdy z twardymi regułami | nie czyta go |
+| `mutation-gate.project.json` | towarzyszący, nie ma go w kicie | `npm run test:mutation:gate` dokleja go do `mutation-gate.json` ([08-testy.md](08-testy.md#bramka-mutacji-projektu)) | nie czyta go |
+| `src/theme.css` | `seed` | `src/app/globals.css` importuje go po tokenach GatoJS, więc nadpisuje np. `--primary` w `:root` i `.dark`, a `--font-sans` w `@theme inline` | pomija go |
+| `README.md` | `seed` | ludzie | pomija go |
+
+Plik `seed` (`seedFiles` w `kit/kit.json`) `wa create` kopiuje raz, z wypełnionymi placeholderami, i zapisuje w `.wa/kit.json` z hashem `"seed"` zamiast hasha treści. Od tej chwili należy do projektu: `wa update` go nie zmienia, nawet gdy nowa wersja kitu ma inną treść, `doctor --files` go nie zgłasza, a hook `protect-gato-files.mjs` go przepuszcza.
 
 <a id="gato-config"></a>
 
@@ -394,7 +412,7 @@ Projekt sprzed tej zmiany (rdzeń w wersji niższej niż ta, która dodała `age
 
 ### Hooki Claude Code
 
-`.claude/settings.json` rejestruje dwa hooki i listę komend, na które agent nie pyta o zgodę ([Uprawnienia](#uprawnienia)). Plik jest w repozytorium, więc hooki działają u każdego, kto otworzy repozytorium kitu albo projekt w Claude Code. Poniżej plik bez sekcji `permissions`.
+`.claude/settings.json` rejestruje trzy hooki i listę komend, na które agent nie pyta o zgodę ([Uprawnienia](#uprawnienia)). Plik jest w repozytorium, więc hooki działają u każdego, kto otworzy repozytorium kitu albo projekt w Claude Code. Poniżej plik bez sekcji `permissions`.
 
 `.claude/settings.json`
 
@@ -412,6 +430,10 @@ Projekt sprzed tej zmiany (rdzeń w wersji niższej niż ta, która dodała `age
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/protect-tests.mjs\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/protect-gato-files.mjs\""
           }
         ]
       }
@@ -423,24 +445,25 @@ Projekt sprzed tej zmiany (rdzeń w wersji niższej niż ta, która dodała `age
 Jak to działa:
 
 - `PreToolUse` oznacza: przed użyciem narzędzia. `matcher` o wartości `Edit|Write` to lista dokładnych nazw, więc hooki działają przy narzędziach `Edit` (zamiana fragmentu pliku) i `Write` (zapis całego pliku), a na przykład przy `NotebookEdit` już nie.
-- Przed każdym takim użyciem Claude Code uruchamia oba polecenia i przekazuje im na standardowym wejściu JSON z nazwą narzędzia i jego parametrami: ścieżką pliku (`file_path`), zastępowanym fragmentem i nowym tekstem (`old_string`, `new_string`) albo nową treścią pliku (`content`), a także bieżący katalog sesji (`cwd`).
+- Przed każdym takim użyciem Claude Code uruchamia wszystkie trzy polecenia i przekazuje im na standardowym wejściu JSON z nazwą narzędzia i jego parametrami: ścieżką pliku (`file_path`), zastępowanym fragmentem i nowym tekstem (`old_string`, `new_string`) albo nową treścią pliku (`content`), a także bieżący katalog sesji (`cwd`).
 - `$CLAUDE_PROJECT_DIR` to katalog, w którym wystartowała sesja Claude Code. Zostaje taki sam, gdy agent przejdzie w trakcie sesji do worktree albo innego katalogu; za agentem podąża tylko pole `cwd` (dokumentacja hooków, „Worktrees are different”). Dzięki temu skrypt hooka znajdzie się niezależnie od bieżącego katalogu, ale zawsze jest to wersja z katalogu startu sesji. W sesji, którą aplikacja Claude uruchamia we własnym worktree w `.claude/worktrees/`, zmienna od początku wskazuje główną kopię, a ustawienia i hooki pochodzą z głównej kopii (dokumentacja worktree, „What worktrees share with the main checkout”). Taka sesja uruchamia więc hooki w wersji z głównej kopii, a nie z gałęzi swojego worktree (sprawdzone 2026-11-05). Cudzysłów przekazuje ścieżkę ze spacją jako jeden argument, a sam skrypt działa z takiej ścieżki (test „the CLI exits 2 on a comment and 0 without one, from a path with a space” w `.claude/hooks/block-comments.test.mjs`).
 - Kod wyjścia 2 blokuje użycie narzędzia: Claude Code nie wykonuje edycji i pokazuje agentowi tekst, który hook wypisał na wyjście błędów. Kod 0 przepuszcza edycję. Każdy inny wynik, na przykład wyjątek w samym hooku, to błąd nieblokujący: edycja przechodzi, a w transkrypcie sesji pojawia się tylko notka `<nazwa hooka> hook error` z pierwszą linią wyjścia błędów. Uszkodzony hook przestaje więc chronić, a jedynym śladem jest ta notka. Dlatego hooki mają testy w `npm run verify`.
+- Kod 0 z obiektem JSON na wyjściu standardowym przekazuje decyzję. `protect-gato-files.mjs` wypisuje `hookSpecificOutput.permissionDecision: "ask"`: Claude Code pyta człowieka o zgodę i pokazuje mu powód (`permissionDecisionReason`), `systemMessage` wyświetla ostrzeżenie człowiekowi, a `additionalContext` trafia do agenta obok wyniku narzędzia. Ostrzeżenie zostaje więc widoczne także wtedy, gdy tryb bez pytań o zgodę (bypass permissions, na przykład u workerów Orca) pomija pytanie (dokumentacja hooków, „PreToolUse decision control”, sprawdzone 2026-11-24).
 
-| | `block-comments.mjs` | `protect-tests.mjs` |
-| --- | --- | --- |
-| Kiedy blokuje | Edycja dodaje linię komentarza w pliku `.ts/.tsx/.js/.jsx/.mjs/.cjs/.mts/.cts`. | Plik `.gato/phase` (albo dawny `.superpowers/phase`) w kopii roboczej edytowanego pliku albo w katalogu projektu sesji (`$CLAUDE_PROJECT_DIR`) ma treść `implement` (po obcięciu białych znaków), a ścieżka edytowanego pliku wskazuje test. |
-| Co przepuszcza | `// WHY:` do 3 linii, dyrektywy narzędzi i kilka innych form ([Komentarze](06-wzorce-kodu.md#komentarze)); komentarze, które tylko się przesunęły; ścieżki z katalogami `node_modules`, `generated` i `components/ui`. | Każdą edycję, gdy pliku fazy nie ma albo ma inną treść; pliki poza wzorcem testów. |
-| Co porównuje | Przy `Edit` zastępowany fragment z nowym tekstem, przy `Write` istniejący plik z nową treścią. | Tylko ścieżkę pliku. |
-| Wzorzec ścieżki | Stałe `CODE_FILE` (rozszerzenia) i `EXEMPT_PATH` (wyjątki). | Stała `TEST_PATH`: katalogi `__tests__` i `e2e`, pliki `*.test.*` i `*.spec.*` z rozszerzeniem JS albo TS. |
-| Komunikat | `Blocked: this edit adds code comments. The code must explain itself.` i znalezione linie. | `Blocked: implementation phase (.gato/phase = implement), tests are read-only.` |
-| Testy | `.claude/hooks/block-comments.test.mjs` | `.claude/hooks/protect-tests.test.mjs` |
-| Decyzja i opis | [D23](decyzje.md#d23), [Komentarze](06-wzorce-kodu.md#komentarze) | [D25](decyzje.md#d25), [Faza implementacji](08b-testy-adwersarialne.md#faza) |
+| | `block-comments.mjs` | `protect-tests.mjs` | `protect-gato-files.mjs` |
+| --- | --- | --- | --- |
+| Kiedy blokuje | Edycja dodaje linię komentarza w pliku `.ts/.tsx/.js/.jsx/.mjs/.cjs/.mts/.cts`. | Plik `.gato/phase` (albo dawny `.superpowers/phase`) w kopii roboczej edytowanego pliku albo w katalogu projektu sesji (`$CLAUDE_PROJECT_DIR`) ma treść `implement` (po obcięciu białych znaków), a ścieżka edytowanego pliku wskazuje test. | Edycja pliku generowanego: pierwsza linia pliku zaczyna się od `// generated by GatoJS` (albo `<!-- generated by GatoJS`). Plik GatoJS (ścieżka z hashem treści w `modules.*.files` w `.wa/kit.json`, bez wpisu w `ejected`) w trybie ostrzegawczym (`PROTECTION_MODE = "warn"`) nie jest blokowany: hook pyta o zgodę i ostrzega. Tryb blokujący przyjdzie w późniejszym wydaniu. |
+| Co przepuszcza | `// WHY:` do 3 linii, dyrektywy narzędzi i kilka innych form ([Komentarze](06-wzorce-kodu.md#komentarze)); komentarze, które tylko się przesunęły; ścieżki z katalogami `node_modules`, `generated` i `components/ui`. | Każdą edycję, gdy pliku fazy nie ma albo ma inną treść; pliki poza wzorcem testów. | Pliki projektu: bez hasha, z hashem `"managed"` albo `"seed"`, nowe pliki w katalogach GatoJS; pliki z `ejected`; pliki spoza kopii roboczej; każdą edycję, gdy kopia robocza nie ma `.wa/kit.json` (albo ma w nim niepoprawny JSON). W repozytorium GatoJS `modules.*.files` jest puste, więc hook zatrzymuje tam tylko pliki generowane. |
+| Co porównuje | Przy `Edit` zastępowany fragment z nowym tekstem, przy `Write` istniejący plik z nową treścią. | Tylko ścieżkę pliku. | Ścieżkę pliku względem kopii roboczej edytowanego pliku (jak `protect-tests.mjs`) z `.wa/kit.json` tej kopii i pierwszą linię istniejącego pliku. |
+| Wzorzec ścieżki | Stałe `CODE_FILE` (rozszerzenia) i `EXEMPT_PATH` (wyjątki). | Stała `TEST_PATH`: katalogi `__tests__` i `e2e`, pliki `*.test.*` i `*.spec.*` z rozszerzeniem JS albo TS. | Brak: decydują hashe w `.wa/kit.json`, nie globy manifestu. |
+| Komunikat | `Blocked: this edit adds code comments. The code must explain itself.` i znalezione linie. | `Blocked: implementation phase (.gato/phase = implement), tests are read-only.` | `<ścieżka> is a Gato file (owned by <moduł>). Use an extension point from EXTENSION_POINTS.md, or run: npm run wa -- eject <ścieżka> --reason "<why>"`; dla pliku generowanego `<ścieżka> is generated; change the manifest or module files and run npm run wa -- generate`. |
+| Testy | `.claude/hooks/block-comments.test.mjs` | `.claude/hooks/protect-tests.test.mjs` | `.claude/hooks/protect-gato-files.test.mjs` |
+| Decyzja i opis | [D23](decyzje.md#d23), [Komentarze](06-wzorce-kodu.md#komentarze) | [D25](decyzje.md#d25), [Faza implementacji](08b-testy-adwersarialne.md#faza) | [Spec rozszerzalności](superpowers/specs/2026-11-22-extensibility-design.md) §4.2, [ADR-59](adrs/59-gato-files-are-protected-and-ejected-with-a-reason.md) |
 
 Czego hooki nie widzą:
 
 - Zapis przez powłokę (`sed -i`, heredoc w `Bash`), inne narzędzia AI i edytor człowieka omijają hooki. Nowy komentarz złapie wtedy tylko recenzja, bo ESLint nie ma takiej reguły. Zmianę testów złapie punkt checklisty `test-reviewer` i przegląd diffu ([Czego hook nie blokuje](08b-testy-adwersarialne.md#czego-hook-nie-blokuje)).
-- Żaden hook nie chroni plików generowanych ani konfiguracji testów. Ręczną zmianę pliku generowanego zatrzyma dopiero CI ([Pliki generowane](#pliki-generowane)).
+- Żaden hook nie chroni konfiguracji testów. Zmianę pliku generowanego poza narzędziami `Edit` i `Write` zatrzyma dopiero CI ([Pliki generowane](#pliki-generowane)).
 
 Hooki są kodem kitu, więc ich zmiana idzie przez pull request do kitu, razem z testem w pliku `*.test.mjs` obok hooka. ESLint pomija katalog `.claude/`, więc o poprawności hooka mówią tylko jego testy.
 

@@ -1,5 +1,5 @@
 {
-  "version": "0.19.0",
+  "version": "0.21.0",
   "repo": "https://github.com/webamigos/gatojs.git",
   "kitFormat": 4,
   "kitOnly": [
@@ -55,5 +55,5 @@
     "src/i18n/locales.generated.ts"
   ],
   "managedFiles": ["package.json", "package-lock.json"],
-  "seedFiles": []
+  "seedFiles": ["README.md", "src/theme.css"]
 }

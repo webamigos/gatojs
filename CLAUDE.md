@@ -2,6 +2,8 @@
 
 Hard rules for this repository. Full instructions: @AGENTS.md
 
+Read `AGENTS.project.md` first when it exists: project rules there win over generic advice, never over these hard rules.
+
 ## Where the code comes from
 
 Core and module code comes from the GatoJS kit (`.wa/kit.json`); send general fixes to the `webamigos/gatojs` repo.
