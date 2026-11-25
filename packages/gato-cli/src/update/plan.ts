@@ -37,6 +37,13 @@ function planned(
   return { path, action, reason: null, content: null, mode: null, ...fields };
 }
 
+function isSeed(path: string, input: PlanInput): boolean {
+  return (
+    input.recordedHashes[path] === SEED ||
+    input.target.config.seedFiles.includes(path)
+  );
+}
+
 function undecided(path: string, reason: string): PlannedFile {
   return planned(path, "needs decision", { reason });
 }
@@ -53,7 +60,10 @@ async function decideAdded(
       mismatchedBase: false,
     };
   }
-  if (contentHash(path, project) === contentHash(path, kit.content)) {
+  if (
+    input.target.config.seedFiles.includes(path) ||
+    contentHash(path, project) === contentHash(path, kit.content)
+  ) {
     return UNCHANGED;
   }
   return {
@@ -105,7 +115,7 @@ async function decideExisting(
   kit: KitFile | undefined,
   input: PlanInput,
 ): Promise<Decision> {
-  if (input.recordedHashes[path] === SEED) {
+  if (isSeed(path, input)) {
     return UNCHANGED;
   }
   const baseHash = contentHash(path, base.content);
