@@ -461,6 +461,29 @@ Oczekiwane wartości wpisuj jako literały (adresy e-mail, nazwy, liczby), a nie
 
 Izolację w interfejsie sprawdza też e2e `e2e/multi-org.spec.ts`: dwie rejestracje tworzą dwie organizacje, a druga osoba nie widzi członków pierwszej.
 
+<a id="bramka-mutacji-projektu"></a>
+
+## Bramka mutacji projektu
+
+`npm run test:mutation:gate` czyta listę plików krytycznych i zaakceptowanych mutantów z `mutation-gate.json`, który należy do GatoJS (`wa update` go zastępuje). Własne pliki krytyczne i zaakceptowane mutanty projekt wpisuje do `mutation-gate.project.json` w korzeniu, w tym samym kształcie:
+
+```json
+{
+  "critical": ["src/features/invoices/services/"],
+  "allowed": [
+    {
+      "file": "src/features/invoices/services/totals.ts",
+      "mutator": "StringLiteral",
+      "original": "\"Invoice total\"",
+      "replacement": "\"\"",
+      "reason": "message only: the label is not asserted"
+    }
+  ]
+}
+```
+
+Oba pola są opcjonalne. Bramka dokleja `critical` projektu do listy GatoJS bez duplikatów, a `allowed` projektu za wpisami GatoJS; wpis projektu nie usuwa wpisu GatoJS. Bez pliku bramka działa jak dotąd. Plik o złym kształcie (np. `"critical": "src/"` zamiast tablicy) albo niepoprawny JSON zatrzymuje bramkę kodem 1 z komunikatem `Invalid mutation-gate.project.json: …`. Wpisy `allowed` dodaje człowiek, tak jak w `mutation-gate.json` ([08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#referencja)).
+
 <a id="czas"></a>
 
 ## Czas przebiegów
@@ -548,6 +571,7 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 | `packages/gato-cli/eslint.config.mjs`, `packages/gato-cli/stryker.config.json`, `packages/gato-cli/mutation-gate.json` | Lint, Stryker i bramka mutacji CLI ([16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli)). |
 | `turbo.json` | Zadania `build`, `lint`, `test` i `typecheck` w workspace `packages/*`, który jest pusty; każde po `^build`. |
 | `stryker.config.json`, `stryker.integration.config.json`, `mutation-gate.json` | Mutation testing i bramka mutacji: [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#referencja). |
+| `mutation-gate.project.json` (opcjonalny, plik projektu) | Pliki krytyczne i zaakceptowane mutanty projektu, doklejane do `mutation-gate.json`: [Bramka mutacji projektu](#bramka-mutacji-projektu). |
 
 <a id="referencja-zmienne"></a>
 
