@@ -111,7 +111,7 @@ Pracę zacznij na osobnej gałęzi, na przykład `git switch -c feat/notes`.
 
 ## Krok 2. Katalog feature, definicja modułu i tłumaczenia
 
-Feature to katalog `src/features/notes/`. Nazwa katalogu jest jednocześnie namespace tłumaczeń, a menu szuka etykiety pod `key` z definicji modułu, więc **`key` musi być równy nazwie katalogu** ([D27](decyzje.md#d27)). Nic tego nie sprawdza: przy `key: "note"` w katalogu `notes` menu pokaże zamiast etykiety ścieżkę klucza.
+Feature to katalog `src/features/notes/`. Nazwa katalogu jest jednocześnie namespace tłumaczeń, a menu szuka etykiety pod `key` z definicji modułu, więc **`key` musi być równy nazwie katalogu** ([D27](decyzje.md#d27)). Pilnuje tego `findModuleKeyMismatches` w `src/__tests__/architecture/gato-config-keys-exist.test.ts` (część `npm run verify`): przy `key: "note"` w katalogu `notes` test zgłasza `src/features/notes/module.ts: key "note" differs from the directory name "notes"`. Bez tej kontroli menu pokazałoby zamiast etykiety ścieżkę klucza, a `enabled: false` w `src/gato.config.ts` usunęłoby moduł z `modules`, ale zostawiłoby jego plugin auth, ujście audytu, schemat env i tłumaczenia, bo te listy wskazują właściciela nazwą katalogu.
 
 Definicja modułu (wzorzec: `src/features/account/module.ts` i `src/features/dashboard/module.ts`):
 

@@ -17,7 +17,9 @@ async function importDefault<T>(file: string): Promise<T> {
   return imported.default;
 }
 
-function moduleFiles(root: string): string[] {
+type ModuleFile = { directory: string; file: string };
+
+function moduleFiles(root: string): ModuleFile[] {
   const features = path.join(root, FEATURES_DIRECTORY);
   if (!fs.existsSync(features)) {
     return [];
@@ -27,8 +29,11 @@ function moduleFiles(root: string): string[] {
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort()
-    .map((name) => path.join(features, name, "module.ts"))
-    .filter((file) => fs.existsSync(file));
+    .map((directory) => ({
+      directory,
+      file: path.join(features, directory, "module.ts"),
+    }))
+    .filter(({ file }) => fs.existsSync(file));
 }
 
 export async function findGatoConfigKeyProblems(
@@ -40,7 +45,22 @@ export async function findGatoConfigKeyProblems(
   }
   const config = await importDefault<GatoConfig>(configFile);
   const modules = await Promise.all(
-    moduleFiles(root).map((file) => importDefault<ModuleDef>(file)),
+    moduleFiles(root).map(({ file }) => importDefault<ModuleDef>(file)),
   );
   return gatoConfigProblems(modules, config);
+}
+
+export async function findModuleKeyMismatches(root: string): Promise<string[]> {
+  const modules = await Promise.all(
+    moduleFiles(root).map(async ({ directory, file }) => ({
+      directory,
+      key: (await importDefault<ModuleDef>(file)).key,
+    })),
+  );
+  return modules
+    .filter(({ directory, key }) => key !== directory)
+    .map(
+      ({ directory, key }) =>
+        `${FEATURES_DIRECTORY}/${directory}/module.ts: key "${key}" differs from the directory name "${directory}"`,
+    );
 }

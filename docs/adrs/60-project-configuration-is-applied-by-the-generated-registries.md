@@ -43,7 +43,7 @@ The generated layout changed, so this is `kitFormat` 4 (`gato-cli` 0.7.0).
 ## Enforcement
 
 - `src/shared/lib/modules/__tests__/gato-config.test.ts`, `gato-config-nav.test.ts`, `generated-registries-apply-config.test.ts` and `src/shared/lib/auth/__tests__/require-module-access-gato-config.test.ts`: application, validation and the real registries.
-- `src/__tests__/architecture/gato-config-keys-exist.test.ts` (`scripts/lib/architecture/gato-config-keys.ts`): the project's config names only existing modules and nav ids.
+- `src/__tests__/architecture/gato-config-keys-exist.test.ts` (`scripts/lib/architecture/gato-config-keys.ts`): the project's config names only existing modules and nav ids (`findGatoConfigKeyProblems`), and every `src/features/<dir>/module.ts` has `key` equal to `<dir>` (`findModuleKeyMismatches`), because the generated `enabledEntries` lists name the owner by directory while `applyGatoConfig` matches `key`.
 - `src/__tests__/architecture/client-bundles-stay-server-free.test.ts` (`CLIENT_ENTRY_FILES` in `scripts/lib/architecture/client-imports.ts`): the config and its helper have no server imports.
 - `src/__tests__/architecture/gato-nav-items-have-ids.test.ts`: every Gato nav item has a prefixed, unique id.
 - `packages/gato-cli/src/generate/__tests__/{registry,generate,generate-rendering}.test.ts` in the CLI gate: the exact generated output with and without the config file.
