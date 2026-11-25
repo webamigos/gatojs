@@ -21673,7 +21673,9 @@ import { readFile as readFile9 } from "node:fs/promises";
 var UNHASHED = /* @__PURE__ */ new Set(["managed", "seed"]);
 function recordedHashes(state) {
   return new Map(
-    Object.values(state.modules).flatMap((entry) => Object.entries(entry.files))
+    Object.values(state.modules).flatMap(
+      (entry) => Object.entries(entry.files)
+    )
   );
 }
 function gatoFileHashes(state) {
