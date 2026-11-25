@@ -93,13 +93,15 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
     expect(await read(dir, "src/modules.generated.ts")).toBe(
       [
         HEADER,
+        'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
         'import type { Locale } from "@/i18n/config";',
         'import { createEnv } from "@gatojs/env";',
+        'import { applyGatoConfig, enabledEntries } from "@/shared/lib/modules/gato-config";',
         'import alphaModule from "@/features/alpha/module";',
         'import { envSchema as betaEnvSchema } from "@/features/beta/env";',
         "",
-        "export const modules = [alphaModule];",
-        "export const moduleEnvSchemas = [betaEnvSchema];",
+        "export const modules = applyGatoConfig([alphaModule], gatoConfig);",
+        'export const moduleEnvSchemas = enabledEntries([{ module: "beta", value: betaEnvSchema }], gatoConfig);',
         "export const authPlugins: never[] = [];",
         "export const auditSinks: never[] = [];",
         "export const env = createEnv(moduleEnvSchemas);",
@@ -107,9 +109,9 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
         "",
         "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
-        "  pl: [",
-        '    { key: "gamma", load: () => import("@/features/gamma/i18n/pl.json").then((m) => m.default) },',
-        "  ],",
+        "  pl: enabledEntries<MessageLoader>([",
+        '    { module: "gamma", value: { key: "gamma", load: () => import("@/features/gamma/i18n/pl.json").then((m) => m.default) } },',
+        "  ], gatoConfig),",
         "};",
         "",
       ].join("\n"),
@@ -117,10 +119,12 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
     expect(await read(dir, "src/modules.client.generated.ts")).toBe(
       [
         HEADER,
+        'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
+        'import { applyGatoConfig } from "@/shared/lib/modules/gato-config";',
         'import alphaModule from "@/features/alpha/module";',
         "",
         "export const authClientPlugins: never[] = [];",
-        "export const clientModules = [alphaModule];",
+        "export const clientModules = applyGatoConfig([alphaModule], gatoConfig);",
         "",
       ].join("\n"),
     );
@@ -166,7 +170,9 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
     expect(server).toContain(
       'import { auditSink as alphaAuditSink } from "@/features/alpha/audit-sink";\n',
     );
-    expect(server).toContain("export const auditSinks = [alphaAuditSink];\n");
+    expect(server).toContain(
+      'export const auditSinks = enabledEntries([{ module: "alpha", value: alphaAuditSink }], gatoConfig);\n',
+    );
     expect(server).not.toContain("@/features/beta/audit-sink");
     expect(await read(dir, "src/modules.client.generated.ts")).not.toContain(
       "audit-sink",
@@ -213,12 +219,14 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
     expect(await read(dir, "src/modules.client.generated.ts")).toBe(
       [
         HEADER,
+        'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
+        'import { applyGatoConfig } from "@/shared/lib/modules/gato-config";',
         'import alphaModule from "@/features/alpha/module";',
         'import zetaModule from "@/features/zeta/module";',
         'import midModule from "@/features/mid/module";',
         "",
         "export const authClientPlugins: never[] = [];",
-        "export const clientModules = [alphaModule, zetaModule, midModule];",
+        "export const clientModules = applyGatoConfig([alphaModule, zetaModule, midModule], gatoConfig);",
         "",
       ].join("\n"),
     );
