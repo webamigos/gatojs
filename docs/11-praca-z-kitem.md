@@ -289,6 +289,8 @@ Czasy przebiegów są w [08-testy.md](08-testy.md#czas). Pierwszy `verify` po do
 
 Okres ostrzeżeń: `npm run verify` kończy się krokiem `npm run wa -- doctor --files`, który wypisuje zmienione i usunięte pliki GatoJS bez wpisu w `ejected`, ale kończy się kodem 0. Wydanie, które to przełączy, zapowie w notach, że `verify` zacznie wtedy padać.
 
+Agent w Claude Code dostaje to samo ostrzeżenie wcześniej, przy edycji: hook `protect-gato-files.mjs` przed `Edit` albo `Write` pliku GatoJS bez wpisu w `ejected` pyta człowieka o zgodę i przekazuje agentowi komunikat z komendą `eject`, a edycję pliku generowanego blokuje ([Hooki Claude Code](#hooki)).
+
 Jak wyczyścić zgłoszony plik:
 
 1. Sprawdź, czy zmianę da się zrobić przez punkt rozszerzenia (`EXTENSION_POINTS.md`, gdy istnieje). Jeśli tak, przenieś ją do pliku projektu i przywróć plik GatoJS: `npm run wa -- eject --undo <plik>` (wersja z kitu w wersji projektu) albo `git checkout -- <plik>`, gdy ostatni commit ma jeszcze wersję z kitu.
