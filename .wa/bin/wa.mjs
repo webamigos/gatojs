@@ -933,7 +933,7 @@ import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile2 } from 
 import { dirname as dirname2, join as join3 } from "node:path";
 
 // src/kit/kit-format.ts
-var SUPPORTED_KIT_FORMATS = [1, 2, 3, 4];
+var SUPPORTED_KIT_FORMATS = [1, 2, 3, 4, 5];
 function assertSupportedKitFormat(format) {
   if (!SUPPORTED_KIT_FORMATS.includes(format)) {
     throw new Error(
@@ -20833,10 +20833,11 @@ function configImports(options, helpers) {
     helpers: [`import { ${helpers.join(", ")} } from "${GATO_CONFIG_MODULE}";`]
   };
 }
-function usedHelpers(usesApply, usesEnabledEntries) {
+function usedHelpers(usesApply, usesEnabledEntries, usesBranding) {
   return [
     ...usesApply ? ["applyGatoConfig"] : [],
-    ...usesEnabledEntries ? ["enabledEntries"] : []
+    ...usesEnabledEntries ? ["enabledEntries"] : [],
+    ...usesBranding ? ["gatoBrandingOf"] : []
   ];
 }
 function renderLocales(locales) {
@@ -20863,7 +20864,8 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
     options,
     usedHelpers(
       withModule.length > 0,
-      withEnv.length > 0 || withAuth.length > 0 || withAuditSink.length > 0 || loadersByLocale.some(({ loaders }) => loaders.length > 0)
+      withEnv.length > 0 || withAuth.length > 0 || withAuditSink.length > 0 || loadersByLocale.some(({ loaders }) => loaders.length > 0),
+      false
     )
   );
   const server = [
@@ -20918,7 +20920,7 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
   ].join("\n");
   const clientImports = configImports(
     options,
-    usedHelpers(withModule.length > 0, withAuthClient.length > 0)
+    usedHelpers(withModule.length > 0, withAuthClient.length > 0, true)
   );
   const client = [
     GENERATED_HEADER,
@@ -20941,6 +20943,7 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
       "clientModules",
       withModule.map((m) => identifier(m.name, "Module"))
     ),
+    "export const gatoBranding = gatoBrandingOf(gatoConfig);",
     ""
   ].join("\n");
   return { server, client };
