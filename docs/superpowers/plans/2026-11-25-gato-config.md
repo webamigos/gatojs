@@ -146,3 +146,12 @@ Same rules for line 2, empty lists and the helper import.
 - `access` merged instead of replacing (users stays visible to `admin`), or applied to the wrong module.
 - Config applied to `clientModules` but not `modules`, or the reverse; generator emitting `emptyGatoConfig` when `src/gato.config.ts` exists, or the reverse.
 - Input modules mutated.
+
+## Follow-up from review: module key equals the feature directory
+
+The generated `enabledEntries` lists name the owner by feature directory (`{ module: "<dir>", … }`), while `applyGatoConfig` matches `module.key`. D27 already requires `key` to equal the directory name, but nothing checked it; with `enabled: false` a mismatch would remove the module from `modules` and keep its auth plugin, audit sink, env schema and messages.
+
+- `scripts/lib/architecture/gato-config-keys.ts`: `findModuleKeyMismatches(root: string): Promise<string[]>`; for every `<root>/src/features/<dir>/module.ts` (sorted by directory name) whose default export's `key` differs from `<dir>`, the message `src/features/<dir>/module.ts: key "<key>" differs from the directory name "<dir>"`; `[]` when `src/features` is absent.
+- `src/__tests__/architecture/gato-config-keys-exist.test.ts`: fixtures (one matching, one mismatching module; no features directory) and the repo itself returns `[]`.
+
+Behaviour 15: fixture `src/features/notes/module.ts` with `export default { key: "note", nav: [], routePrefixes: [] }` and `src/features/crm/module.ts` with key `crm` → `['src/features/notes/module.ts: key "note" differs from the directory name "notes"']`.
