@@ -1900,6 +1900,451 @@ describe("module entry point detector on fixtures", () => {
       ).toEqual([]);
     });
   });
+
+  describe("awaiting async guards", () => {
+    it("reports a server action that calls requireModuleAccess without await before Prisma", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${P}\n${M}\nexport async function wipe() {\n  requireModuleAccess("billing");\n  await prisma.invoice.deleteMany({});\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#wipe`]);
+    });
+
+    it("reports a GET that calls requireModuleAccess without await", () => {
+      write(BILLING_ROUTE, routeGet(M, '  requireModuleAccess("billing");'));
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET that discards requireModuleAccess with void", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(M, '  void requireModuleAccess("billing");'),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET that awaits requireModuleAccess only through a swallowing catch", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          M,
+          '  await requireModuleAccess("billing").catch(() => null);',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET that stores the requireModuleAccess promise and awaits it later", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          M,
+          '  const pending = requireModuleAccess("billing");\n  await pending;',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET that runs requireModuleAccess in parallel with Prisma", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          `${P}\n${M}`,
+          '  await Promise.all([requireModuleAccess("billing"), prisma.invoice.findMany()]);',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET that returns requireModuleAccess without await", () => {
+      write(
+        BILLING_ROUTE,
+        `${M}\nexport async function GET() {\n  return requireModuleAccess("billing");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("accepts a GET that assigns the awaited requireModuleAccess before Prisma", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          `${P}\n${M}`,
+          '  const context = await requireModuleAccess("billing");\n  await prisma.invoice.findMany();',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a GET that returns the awaited requireModuleAccess", () => {
+      write(
+        BILLING_ROUTE,
+        `${M}\nexport async function GET() {\n  return await requireModuleAccess("billing");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a GET that awaits the synchronous requireModuleEnabled before Prisma", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          `${P}\n${E}`,
+          '  await requireModuleEnabled("billing");\n  await prisma.invoice.findMany();',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a GET that skips an unawaited requireModuleAccess and then awaits it", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          `${P}\n${M}`,
+          '  requireModuleAccess("billing");\n  await requireModuleAccess("billing");\n  await prisma.invoice.findMany();',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a server action that calls an async guarding helper without await before Prisma", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${P}\n${E}\nasync function check() {\n  requireModuleEnabled("billing");\n}\nexport async function wipe() {\n  check();\n  await prisma.invoice.deleteMany({});\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#wipe`]);
+    });
+
+    it("accepts a server action that awaits an async guarding helper before Prisma", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${P}\n${E}\nasync function check() {\n  requireModuleEnabled("billing");\n}\nexport async function wipe() {\n  await check();\n  await prisma.invoice.deleteMany({});\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a GET that calls an async arrow guarding helper without await", () => {
+      write(
+        BILLING_ROUTE,
+        `${E}\nconst check = async () => {\n  requireModuleEnabled("billing");\n};\nexport async function GET() {\n  check();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("accepts a GET that awaits an async arrow guarding helper", () => {
+      write(
+        BILLING_ROUTE,
+        `${E}\nconst check = async () => {\n  requireModuleEnabled("billing");\n};\nexport async function GET() {\n  await check();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a GET that calls an async function expression guarding helper without await", () => {
+      write(
+        BILLING_ROUTE,
+        `${E}\nconst check = async function () {\n  requireModuleEnabled("billing");\n};\nexport async function GET() {\n  check();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("accepts a GET that awaits an async function expression guarding helper", () => {
+      write(
+        BILLING_ROUTE,
+        `${E}\nconst check = async function () {\n  requireModuleEnabled("billing");\n};\nexport async function GET() {\n  await check();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a GET that calls without await an async helper awaiting requireModuleAccess", () => {
+      write(
+        BILLING_ROUTE,
+        `${M}\nasync function check() {\n  await requireModuleAccess("billing");\n}\nexport async function GET() {\n  check();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("accepts a GET that awaits an async helper awaiting requireModuleAccess", () => {
+      write(
+        BILLING_ROUTE,
+        `${M}\nasync function check() {\n  await requireModuleAccess("billing");\n}\nexport async function GET() {\n  await check();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a GET that awaits an async helper calling requireModuleAccess without await", () => {
+      write(
+        BILLING_ROUTE,
+        `${M}\nasync function check() {\n  requireModuleAccess("billing");\n}\nexport async function GET() {\n  await check();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET that awaits a sync helper returning requireModuleAccess without await", () => {
+      write(
+        BILLING_ROUTE,
+        `${M}\nfunction check() {\n  return requireModuleAccess("billing");\n}\nexport async function GET() {\n  await check();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET that calls without await an async helper wrapping a sync guarding helper", () => {
+      write(
+        BILLING_ROUTE,
+        `${E}\nfunction inner() {\n  requireModuleEnabled("billing");\n}\nasync function outer() {\n  inner();\n}\nexport async function GET() {\n  outer();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("accepts a GET that awaits an async helper wrapping a sync guarding helper", () => {
+      write(
+        BILLING_ROUTE,
+        `${E}\nfunction inner() {\n  requireModuleEnabled("billing");\n}\nasync function outer() {\n  inner();\n}\nexport async function GET() {\n  await outer();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a GET whose sync helper calls an async guarding helper without await", () => {
+      write(
+        BILLING_ROUTE,
+        `${E}\nasync function inner() {\n  requireModuleEnabled("billing");\n}\nfunction outer() {\n  inner();\n}\nexport async function GET() {\n  outer();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET that returns an async guarding helper without await", () => {
+      write(
+        BILLING_ROUTE,
+        `${E}\nasync function check() {\n  requireModuleEnabled("billing");\n}\nexport async function GET() {\n  return check();\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET that discards an async guarding helper with void", () => {
+      write(
+        BILLING_ROUTE,
+        `${E}\nasync function check() {\n  requireModuleEnabled("billing");\n}\nexport async function GET() {\n  void check();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a server action that awaits an async guarding helper inside a swallowing try", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${E}\nasync function check() {\n  requireModuleEnabled("billing");\n}\nexport async function doIt() {\n  try {\n    await check();\n  } catch {}\n  return { success: true };\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a GET that calls an async Prisma helper without await before the guard", () => {
+      write(
+        BILLING_ROUTE,
+        `${P}\n${E}\nasync function load() {\n  return prisma.invoice.findMany();\n}\nexport async function GET() {\n  load();\n  requireModuleEnabled("billing");\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("accepts a GET that calls a sync guarding helper without await before Prisma", () => {
+      write(
+        BILLING_ROUTE,
+        `${P}\n${E}\nfunction check() {\n  requireModuleEnabled("billing");\n}\nexport async function GET() {\n  check();\n  await prisma.invoice.findMany();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a GET that skips an unawaited async guarding helper and then awaits it", () => {
+      write(
+        BILLING_ROUTE,
+        `${P}\n${E}\nasync function check() {\n  requireModuleEnabled("billing");\n}\nexport async function GET() {\n  check();\n  await check();\n  await prisma.invoice.findMany();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+  });
+
+  describe("Prisma on the guard's failure path", () => {
+    it("reports a GET that touches Prisma in the block run when isModuleEnabled is false", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          `${P}\n${I}`,
+          '  if (!isModuleEnabled("billing")) {\n    await prisma.invoice.deleteMany({});\n    return new Response(null, { status: 404 });\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET that calls a Prisma helper in the block run when isModuleEnabled is false", () => {
+      write(
+        BILLING_ROUTE,
+        `${P}\n${I}\nasync function wipe() {\n  await prisma.invoice.deleteMany({});\n}\nexport async function GET() {\n  if (!isModuleEnabled("billing")) {\n    await wipe();\n    return new Response(null, { status: 404 });\n  }\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("accepts a GET that touches Prisma only in the else branch of the isModuleEnabled check", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          `${P}\n${I}`,
+          '  if (!isModuleEnabled("billing")) {\n    return new Response(null, { status: 404 });\n  } else {\n    await prisma.invoice.findMany();\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a server action that touches Prisma in the catch of the guard's try before rethrowing", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${P}\n${E}`,
+          '  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    await prisma.invoice.deleteMany({});\n    throw error;\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a server action that touches Prisma in the catch of the guard's try before handleCommandError", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${P}\n${E}\n${H}`,
+          '  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    await prisma.invoice.deleteMany({});\n    return handleCommandError(error, "x");\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a server action that calls a Prisma helper in the catch of the guard's try", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${P}\n${E}\nasync function wipe() {\n  await prisma.invoice.deleteMany({});\n}\nexport async function doIt() {\n  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    await wipe();\n    throw error;\n  }\n  return { success: true };\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a server action that touches Prisma in the finally of the guard's try", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${P}\n${E}`,
+          '  try {\n    requireModuleEnabled("billing");\n  } finally {\n    await prisma.invoice.deleteMany({});\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a server action that touches Prisma in the finally of a try whose catch holds the guard", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${P}\n${E}`,
+          '  try {\n    JSON.parse("{}");\n  } catch (error) {\n    requireModuleEnabled("billing");\n    throw error;\n  } finally {\n    await prisma.invoice.deleteMany({});\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a server action that touches Prisma in the catch of an outer try enclosing the guard's try", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${P}\n${E}`,
+          '  try {\n    try {\n      requireModuleEnabled("billing");\n    } catch (error) {\n      throw error;\n    }\n  } catch (error) {\n    await prisma.invoice.deleteMany({});\n    throw error;\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("accepts a server action whose Prisma catch belongs to a try that does not enclose the guard", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${P}\n${E}`,
+          '  requireModuleEnabled("billing");\n  try {\n    await prisma.invoice.findMany();\n  } catch (error) {\n    await prisma.invoice.deleteMany({});\n    throw error;\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a server action whose catch only declares a function touching Prisma before rethrowing", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${P}\n${E}`,
+          '  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    const later = () => prisma.invoice.deleteMany({});\n    throw error;\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a server action whose guarding helper touches Prisma in the catch of the guard's try", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${P}\n${E}\nfunction check() {\n  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    prisma.invoice.deleteMany({});\n    throw error;\n  }\n}\nexport async function doIt() {\n  check();\n  return { success: true };\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("accepts a server action whose catch calls helpers that call each other without Prisma, and terminates", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${E}\nfunction a(): void {\n  b();\n}\nfunction b(): void {\n  a();\n}\nexport async function doIt() {\n  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    a();\n    throw error;\n  }\n  return { success: true };\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a server action that touches Prisma after a guard's try whose catch rethrows", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${P}\n${E}`,
+          '  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    throw error;\n  }\n  await prisma.invoice.findMany();',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+  });
 });
 
 describe("module entry points of this repository", () => {
