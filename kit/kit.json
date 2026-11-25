@@ -39,7 +39,9 @@
     "src/shared/config/project.ts",
     "package.json",
     "docker-compose.yml",
+    "docker-compose.selfhost.yml",
     ".env.example",
+    ".env.selfhost.example",
     "e2e/env.ts",
     ".github/workflows/e2e.yml",
     ".github/workflows/ci.yml",
@@ -47,6 +49,7 @@
     "src/test/integration/database-url.ts",
     "README.md",
     "docker/uploads.compose.yml",
+    "docker/uploads.selfhost.compose.yml",
     "ci/uploads.integration-steps.yml"
   ],
   "generatedFiles": [

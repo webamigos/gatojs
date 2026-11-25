@@ -1,6 +1,6 @@
 {
   "name": "uploads",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Organization files on disk or in S3 storage",
   "requires": [],
   "files": [
@@ -8,6 +8,7 @@
     "src/features/uploads/**",
     "src/app/api/uploads/**",
     "docker/uploads.compose.yml",
+    "docker/uploads.selfhost.compose.yml",
     "ci/uploads.integration-steps.yml"
   ],
   "dependencies": {
@@ -25,27 +26,32 @@
     {
       "name": "STORAGE_LOCAL_PATH",
       "example": "./volumes/uploads",
-      "required": false
+      "required": false,
+      "selfhostExample": "/app/volumes/uploads"
     },
     {
       "name": "S3_ENDPOINT",
       "example": "http://localhost:9000",
-      "required": false
+      "required": false,
+      "selfhostExample": "http://minio:9000"
     },
     {
       "name": "S3_REGION",
       "example": "auto",
-      "required": false
+      "required": false,
+      "selfhostExample": "us-east-1"
     },
     {
       "name": "S3_ACCESS_KEY_ID",
       "example": "minioadmin",
-      "required": false
+      "required": false,
+      "selfhostExample": ""
     },
     {
       "name": "S3_SECRET_ACCESS_KEY",
       "example": "minioadmin",
-      "required": false
+      "required": false,
+      "selfhostExample": ""
     },
     {
       "name": "S3_SESSION_TOKEN",
@@ -74,6 +80,7 @@
     }
   ],
   "compose": "docker/uploads.compose.yml",
+  "selfhostCompose": "docker/uploads.selfhost.compose.yml",
   "ciSteps": "ci/uploads.integration-steps.yml",
   "workspaces": []
 }

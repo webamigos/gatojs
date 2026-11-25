@@ -16,7 +16,8 @@
       "name": "API_KEY_PEPPER",
       "example": "dev-only-api-key-pepper-change-me-0123456789",
       "required": true,
-      "generate": "secret-32"
+      "generate": "secret-32",
+      "selfhostExample": ""
     }
   ],
   "schemaRelations": [

@@ -210,6 +210,15 @@ jobs:
             exit "$status"
           fi
 
+      - name: Self-hosted stack is in the project
+        working-directory: ${{ runner.temp }}/matrix-app
+        env:
+          POSTGRES_PASSWORD: assemble
+        run: |
+          cp .env.selfhost.example .env.selfhost
+          docker compose -f docker-compose.selfhost.yml --env-file .env.selfhost --profile tools --profile s3 config --quiet
+          rm .env.selfhost
+
       - name: Validate schema
         working-directory: ${{ runner.temp }}/matrix-app
         run: npx prisma validate

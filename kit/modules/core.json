@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "description": "GatoJS core: auth, organizations, users, account, dashboard",
   "requires": [],
   "files": [
@@ -13,6 +13,7 @@
     ".dockerignore",
     ".editorconfig",
     ".env.example",
+    ".env.selfhost.example",
     ".github/workflows/ci.yml",
     ".github/workflows/e2e.yml",
     ".github/workflows/mutation.yml",
@@ -33,6 +34,7 @@
     "commitlint.config.mjs",
     "components.json",
     "docker-compose.yml",
+    "docker-compose.selfhost.yml",
     "e2e/**",
     "eslint.config.mjs",
     "mutation-gate.json",
@@ -165,7 +167,8 @@
     "turbo": "^2.11.13",
     "typescript": "^5",
     "vite": "^8.3.8",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.2",
+    "yaml": "2.9.1"
   },
   "env": [],
   "schemaRelations": [],
