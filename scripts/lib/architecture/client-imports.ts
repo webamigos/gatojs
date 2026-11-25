@@ -7,6 +7,11 @@ export const CLIENT_SAFE_AUTH_MODULES = [
   "@/shared/lib/auth/permissions",
 ] as const;
 
+export const CLIENT_ENTRY_FILES = [
+  "src/gato.config.ts",
+  "src/shared/lib/modules/gato-config.ts",
+] as const;
+
 const SERVER_MODULES = [
   "@/shared/lib/prisma",
   "@/env",
@@ -86,12 +91,27 @@ function importedSpecifiers(sourceFile: ts.SourceFile): string[] {
   return specifiers;
 }
 
+function serverImports(sourceFile: ts.SourceFile): string[] {
+  return importedSpecifiers(sourceFile).filter(isServerModule);
+}
+
 export function findServerImportsInClient(source: string): string[] {
   const sourceFile = parse(source);
   if (!isUseClientDirective(sourceFile.statements[0])) {
     return [];
   }
-  return importedSpecifiers(sourceFile).filter(isServerModule);
+  return serverImports(sourceFile);
+}
+
+function isClientEntryFile(file: string): boolean {
+  return (CLIENT_ENTRY_FILES as readonly string[]).includes(file);
+}
+
+function serverImportsOf(root: string, file: string): string[] {
+  const source = readRepoFile(root, file);
+  return isClientEntryFile(file)
+    ? serverImports(parse(source))
+    : findServerImportsInClient(source);
 }
 
 export function checkClientBundles(root: string): string[] {
@@ -101,8 +121,6 @@ export function checkClientBundles(root: string): string[] {
     (file) => SOURCE_FILE.test(file) && !file.startsWith(GENERATED_DIRECTORY),
   );
   return files.flatMap((file) =>
-    findServerImportsInClient(readRepoFile(root, file)).map(
-      (specifier) => `${file}: ${specifier}`,
-    ),
+    serverImportsOf(root, file).map((specifier) => `${file}: ${specifier}`),
   );
 }

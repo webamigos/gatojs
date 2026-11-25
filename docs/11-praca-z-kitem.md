@@ -7,6 +7,7 @@ Po przeczytaniu będziesz wiedzieć:
 - po co są dwa pliki instrukcji dla agentów AI, `CLAUDE.md` i `AGENTS.md`, i co zrobić, gdy `next dev` dopisze blok do `AGENTS.md`;
 - co blokują hooki Claude Code z `.claude/settings.json`, na które komendy agent nie pyta o zgodę, do czego służą agenci z `.claude/agents/` i skille z `.claude/skills/`;
 - czym jest Task Router w `AGENTS.md`;
+- jak plik `src/gato.config.ts` wyłącza moduł GatoJS, zmienia menu i dostęp oraz kiedy zamiast niego użyć `wa remove`;
 - jak przebiega praca według procesu superpowers i gdzie leżą jej dokumenty;
 - których plików nie edytuje się ręcznie i co uruchomić po zmianie, od której zależą.
 
@@ -40,6 +41,7 @@ Zweryfikowano z kodem: 8c9f5eb, 2026-11-21 (Task Router, uprawnienia, skille); p
 - `next.config.ts`
 - `src/shared/config/project.ts`
 - `src/modules.generated.ts`
+- `src/shared/lib/modules/gato-config.ts`
 - `prisma/schema/organizations.prisma`
 - `packages/gato-cli/src/bin.ts`
 - `packages/gato-cli/src/generate/index.ts`
@@ -312,6 +314,40 @@ Rzeczy, które zmienia prawie każdy projekt, mają własne pliki projektu, wię
 | `README.md` | `seed` | ludzie | pomija go |
 
 Plik `seed` (`seedFiles` w `kit/kit.json`) `wa create` kopiuje raz, z wypełnionymi placeholderami, i zapisuje w `.wa/kit.json` z hashem `"seed"` zamiast hasha treści. Od tej chwili należy do projektu: `wa update` go nie zmienia, nawet gdy nowa wersja kitu ma inną treść, `doctor --files` go nie zgłasza, a hook `protect-gato-files.mjs` go przepuszcza.
+
+<a id="gato-config"></a>
+
+### Konfiguracja projektu: `src/gato.config.ts`
+
+Decyzje „wyłącz, przestaw, zmień dostęp” dla modułów GatoJS projekt zapisuje w jednym pliku `src/gato.config.ts`, zamiast edytować `module.ts` modułu ([ADR-60](adrs/60-project-configuration-is-applied-by-the-generated-registries.md)). To plik projektu: nie należy do żadnego modułu, `wa update` go nie czyta, a projekt bez niego działa jak dotąd.
+
+```ts
+import { defineGatoConfig } from "@/shared/lib/modules/gato-config";
+
+export default defineGatoConfig({
+  modules: {
+    dashboard: { nav: { "dashboard.home": { order: 5 } } },
+    users: { access: { roles: ["owner"] } },
+    "api-keys": { enabled: false },
+  },
+});
+```
+
+| Pole | Działanie |
+| --- | --- |
+| `modules.<klucz>.enabled: false` | Usuwa moduł z obu rejestrów: z `modules` i `clientModules` (menu i `requireModuleAccess`, które odpowiada wtedy 404), a także z `moduleEnvSchemas`, `authPlugins`, `auditSinks`, `authClientPlugins` i `moduleMessages`. `auth` i `organizations` nie da się wyłączyć. |
+| `modules.<klucz>.nav.<id>.order` | Zmienia `order` pozycji menu o tym `id`; pozostałe pola pozycji zostają. Identyfikatory modułów GatoJS: `dashboard.home`, `users.list`, `account.home`, `api-keys.list`, `audit-logs.list`. |
+| `modules.<klucz>.nav.<id>.hidden: true` | Usuwa pozycję z menu; strony modułu nadal działają. |
+| `modules.<klucz>.access` | Zastępuje całą politykę dostępu modułu polami `roles`, `adminOnly` i `multiOrgRoles`; pole, którego nie podasz, znika. Zastępuje, a nie scala, bo `adminOnly` wygrywa z `roles`: `{ roles: ["owner"] }` dopisane do `users` (`adminOnly: true`) niczego by nie zmieniło. Musi ustawić co najmniej jedno z trzech pól. |
+
+Kiedy zmiana działa:
+
+- Plik importują oba wygenerowane rejestry, więc konfiguracja działa raz, przy pierwszym imporcie, i od razu w menu, guardzie stron i na serwerze ([Rejestr modułów](02b-rejestr-i-generator.md#rejestr-modulow)).
+- Po utworzeniu albo usunięciu pliku uruchom `npm run wa -- generate`: od istnienia pliku zależy import w rejestrach. Zmiana treści pliku nie wymaga generatora.
+- Nieznany klucz modułu albo `id` pozycji menu, puste `access` i wyłączenie `auth` lub `organizations` kończą import błędem `GatoConfigError` z listą wszystkich problemów naraz, więc padają `next build`, `npm run dev` i testy. Test `src/__tests__/architecture/gato-config-keys-exist.test.ts` wypisuje te same problemy w `npm run verify`.
+- Rejestry trafiają też do paczki przeglądarki, więc plik musi być czystymi danymi: bez importów serwerowych (`@/shared/lib/prisma`, `@/env`, `server-only`). Pilnuje tego `src/__tests__/architecture/client-bundles-stay-server-free.test.ts`.
+
+`enabled: false` czy `wa remove`: `wa remove <moduł>` usuwa pliki modułu (także jego schemat Prisma, więc następna migracja usuwa tabele), jego zależności npm i wpis w `.wa/kit.json` ([16-cli-wa.md](16-cli-wa.md#wa-remove)). To lepsza droga dla opcjonalnego modułu GatoJS, którego projekt nie chce wcale. `enabled: false` zostawia pliki, tabele i dane: służy do czasowego wyłączenia modułu z zachowaniem danych i do modułów rdzenia (`dashboard`, `users`, `account`), bo `wa remove` odmawia usunięcia rdzenia. Trasy API i komendy, które nie przechodzą przez `requireModuleAccess` (na przykład `src/app/api/v1/organization/route.ts` w `api-keys`), wyłączenie obejmie dopiero osobny guard `requireModuleEnabled` w kolejnym wydaniu, więc do tego czasu wyłączony `api-keys` nadal przyjmuje żądania z ważnym kluczem.
 
 <a id="agenci-ai"></a>
 

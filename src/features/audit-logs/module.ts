@@ -3,7 +3,13 @@ import { defineModule } from "@/shared/lib/modules/define-module";
 export default defineModule({
   key: "audit-logs",
   nav: [
-    { href: "/audit-log", labelKey: "nav", icon: "scroll-text", order: 90 },
+    {
+      id: "audit-logs.list",
+      href: "/audit-log",
+      labelKey: "nav",
+      icon: "scroll-text",
+      order: 90,
+    },
   ],
   routePrefixes: ["/audit-log"],
   roles: ["owner", "admin"],

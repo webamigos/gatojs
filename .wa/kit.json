@@ -1,7 +1,7 @@
 {
-  "kitVersion": "0.21.0",
+  "kitVersion": "0.22.0",
   "kitRepo": "https://github.com/webamigos/gatojs.git",
-  "kitFormat": 3,
+  "kitFormat": 4,
   "project": {
     "name": "WA App",
     "slug": "wa-app"
@@ -53,10 +53,10 @@
       "files": {}
     },
     "audit-logs": {
-      "version": "0.1.2",
+      "version": "0.1.3",
       "manifest": {
         "name": "audit-logs",
-        "version": "0.1.2",
+        "version": "0.1.3",
         "description": "Organization audit log: AuditLog model, sink and redaction of sensitive data",
         "requires": [],
         "files": [

@@ -9,6 +9,7 @@ import { regionTargets, renderRegionTarget } from "./targets.js";
 const SERVER_REGISTRY = "src/modules.generated.ts";
 const CLIENT_REGISTRY = "src/modules.client.generated.ts";
 const LOCALES_FILE = "src/i18n/locales.generated.ts";
+const GATO_CONFIG_FILE = "src/gato.config.ts";
 export const GENERATED_FILES: readonly string[] = [
   SERVER_REGISTRY,
   CLIENT_REGISTRY,
@@ -85,7 +86,9 @@ export async function generate(
     manifests.map((m) => m.files),
     state.locales,
   );
-  const registry = renderRegistry(features, state.locales);
+  const registry = renderRegistry(features, state.locales, {
+    hasGatoConfig: await exists(join(projectDir, GATO_CONFIG_FILE)),
+  });
 
   const pending: { file: string; current: string | null; next: string }[] = [];
   for (const [file, next] of [
