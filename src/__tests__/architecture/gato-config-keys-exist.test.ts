@@ -3,7 +3,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { findGatoConfigKeyProblems } from "../../../scripts/lib/architecture/gato-config-keys";
+import {
+  findGatoConfigKeyProblems,
+  findModuleKeyMismatches,
+} from "../../../scripts/lib/architecture/gato-config-keys";
 
 const repoRoot = path.resolve(import.meta.dirname, "../../..");
 
@@ -119,5 +122,64 @@ describe("findGatoConfigKeyProblems", () => {
 describe("gato.config.ts in the repo", () => {
   it("names only existing modules and nav ids", async () => {
     await expect(findGatoConfigKeyProblems(repoRoot)).resolves.toEqual([]);
+  });
+});
+
+describe("findModuleKeyMismatches", () => {
+  let root: string;
+
+  const write = (relative: string, content: string) => {
+    const file = path.join(root, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, content);
+  };
+
+  const moduleWithKey = (key: string) =>
+    `export default { key: "${key}", nav: [], routePrefixes: [] };\n`;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "module-key-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("reports a module whose key differs from its directory and not the matching one", async () => {
+    write("src/features/notes/module.ts", moduleWithKey("note"));
+    write("src/features/crm/module.ts", moduleWithKey("crm"));
+    await expect(findModuleKeyMismatches(root)).resolves.toEqual([
+      'src/features/notes/module.ts: key "note" differs from the directory name "notes"',
+    ]);
+  });
+
+  it("returns an empty list when every key equals its directory", async () => {
+    write("src/features/crm/module.ts", moduleWithKey("crm"));
+    write("src/features/api-keys/module.ts", moduleWithKey("api-keys"));
+    await expect(findModuleKeyMismatches(root)).resolves.toEqual([]);
+  });
+
+  it("sorts two mismatches by directory name", async () => {
+    write("src/features/zeta/module.ts", moduleWithKey("z"));
+    write("src/features/alpha/module.ts", moduleWithKey("a"));
+    write("src/features/mid/module.ts", moduleWithKey("mid"));
+    await expect(findModuleKeyMismatches(root)).resolves.toEqual([
+      'src/features/alpha/module.ts: key "a" differs from the directory name "alpha"',
+      'src/features/zeta/module.ts: key "z" differs from the directory name "zeta"',
+    ]);
+  });
+
+  it("ignores a feature directory without module.ts", async () => {
+    write("src/features/notes/i18n/pl.json", "{}");
+    await expect(findModuleKeyMismatches(root)).resolves.toEqual([]);
+  });
+
+  it("returns an empty list when src/features is absent", async () => {
+    write("src/a.ts", "export const a = 1;\n");
+    await expect(findModuleKeyMismatches(root)).resolves.toEqual([]);
+  });
+
+  it("every module in the repo has a key equal to its directory", async () => {
+    await expect(findModuleKeyMismatches(repoRoot)).resolves.toEqual([]);
   });
 });
