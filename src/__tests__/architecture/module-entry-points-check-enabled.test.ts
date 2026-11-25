@@ -5,12 +5,16 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   MODULE_GUARDS,
+  MODULE_GUARD_SOURCES,
   findModuleEntryPoints,
   findStaleAllowances,
   findUnguardedModuleEntryPoints,
 } from "../../../scripts/lib/architecture/module-entry-points";
 
 const repoRoot = path.resolve(import.meta.dirname, "../../..");
+
+const IMPERSONATION_LOG_REASON =
+  "logs with logger.info an impersonation performed by the better-auth admin plugin under /api/auth/*; disabling the users module does not disable those endpoints (only global admins can call them), so dropping the log when users is disabled would hide an impersonation";
 
 const ALLOWED: ReadonlyMap<string, string> = new Map([
   [
@@ -19,19 +23,19 @@ const ALLOWED: ReadonlyMap<string, string> = new Map([
   ],
   [
     "src/app/api/auth/[...all]/route.ts#GET",
-    "better-auth handler of the auth module, which cannot be disabled",
+    "better-auth handler of the core auth module, which cannot be disabled",
   ],
   [
     "src/app/api/auth/[...all]/route.ts#POST",
-    "better-auth handler of the auth module, which cannot be disabled",
+    "better-auth handler of the core auth module, which cannot be disabled",
   ],
   [
     "src/features/users/services/commands/impersonation-commands.ts#logImpersonationStartCommand",
-    "audits impersonation that the better-auth admin plugin performs whatever the users module's state; dropping the record when users is disabled would hide an impersonation",
+    IMPERSONATION_LOG_REASON,
   ],
   [
     "src/features/users/services/commands/impersonation-commands.ts#logImpersonationStopCommand",
-    "audits impersonation that the better-auth admin plugin performs whatever the users module's state; dropping the record when users is disabled would hide an impersonation",
+    IMPERSONATION_LOG_REASON,
   ],
 ]);
 
@@ -39,6 +43,37 @@ const NONE: ReadonlyMap<string, string> = new Map();
 
 const BILLING_ROUTE = "src/app/api/billing/route.ts";
 const BILLING_COMMAND = "src/features/billing/services/commands/a.ts";
+const BILLING_PAGE_ACTIONS = "src/app/[locale]/(app)/billing/actions.ts";
+
+const FIXTURE_KIT = {
+  modules: {
+    core: {
+      manifest: {
+        name: "core",
+        files: ["src/app/*", "src/app/api/auth/**", "src/shared/**"],
+      },
+    },
+    billing: {
+      manifest: {
+        name: "billing",
+        files: [
+          "src/features/billing/**",
+          "src/app/api/billing/**",
+          "src/app/[locale]/(app)/billing/**",
+          "src/shared/lib/billing/**",
+        ],
+      },
+    },
+  },
+  projectModules: {
+    reports: {
+      manifest: {
+        name: "reports",
+        files: ["src/features/reports/**", "src/app/api/reports/**"],
+      },
+    },
+  },
+};
 
 const GUARD_IMPORTS: Record<string, string> = {
   requireModuleEnabled:
@@ -50,14 +85,33 @@ const GUARD_IMPORTS: Record<string, string> = {
   runCommand: 'import { runCommand } from "@/shared/lib/run-command";',
 };
 
+const E = GUARD_IMPORTS.requireModuleEnabled;
+const I = GUARD_IMPORTS.isModuleEnabled;
+const M = GUARD_IMPORTS.requireModuleAccess;
+const H = 'import { handleCommandError } from "@/shared/utils/error-handling";';
+const P = 'import { prisma } from "@/shared/lib/prisma";';
+
+const routeGet = (imports: string, body: string) =>
+  `${imports}\nexport async function GET() {\n${body}\n  return new Response("ok");\n}\n`;
+
+const serverAction = (imports: string, body: string) =>
+  `"use server";\n\n${imports}\nexport async function doIt() {\n${body}\n  return { success: true };\n}\n`;
+
 describe("MODULE_GUARDS", () => {
-  it("lists exactly the four module guards", () => {
+  it("lists exactly the three module guards", () => {
     expect([...MODULE_GUARDS]).toEqual([
       "requireModuleAccess",
       "requireModuleEnabled",
       "isModuleEnabled",
-      "runCommand",
     ]);
+  });
+
+  it("maps every module guard to the only path it may be imported from", () => {
+    expect(MODULE_GUARD_SOURCES).toEqual({
+      requireModuleAccess: "@/shared/lib/auth/require-module-access",
+      requireModuleEnabled: "@/shared/lib/modules/require-module-enabled",
+      isModuleEnabled: "@/shared/lib/modules/require-module-enabled",
+    });
   });
 });
 
@@ -70,10 +124,19 @@ describe("module entry point detector on fixtures", () => {
     fs.writeFileSync(file, content);
   };
 
+  const writeKit = (kit: unknown) => {
+    write(".wa/kit.json", JSON.stringify(kit, null, 2));
+  };
+
+  const removeKit = () => {
+    fs.rmSync(path.join(root, ".wa"), { recursive: true, force: true });
+  };
+
   const unguarded = () => findUnguardedModuleEntryPoints(root, NONE);
 
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "module-entry-points-"));
+    writeKit(FIXTURE_KIT);
   });
 
   afterEach(() => {
@@ -109,17 +172,32 @@ describe("module entry point detector on fixtures", () => {
       expect(unguarded()).toEqual([]);
     });
 
-    it.each(["isModuleEnabled", "requireModuleAccess", "runCommand"])(
-      "accepts a GET handler that calls an imported %s",
-      (guard) => {
-        write(
-          BILLING_ROUTE,
-          `${GUARD_IMPORTS[guard]}\nexport async function GET() {\n  await ${guard}("billing");\n  return new Response("ok");\n}\n`,
-        );
+    it("accepts a GET handler that awaits an imported requireModuleAccess", () => {
+      write(
+        BILLING_ROUTE,
+        `${GUARD_IMPORTS.requireModuleAccess}\nexport async function GET() {\n  await requireModuleAccess("billing");\n  return new Response("ok");\n}\n`,
+      );
 
-        expect(unguarded()).toEqual([]);
-      },
-    );
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a GET handler that returns 404 when an imported isModuleEnabled is false", () => {
+      write(
+        BILLING_ROUTE,
+        `${GUARD_IMPORTS.isModuleEnabled}\nexport async function GET() {\n  if (!isModuleEnabled("billing")) {\n    return new Response(null, { status: 404 });\n  }\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a GET handler that only calls runCommand", () => {
+      write(
+        BILLING_ROUTE,
+        `${GUARD_IMPORTS.runCommand}\nexport async function GET() {\n  await runCommand("billing");\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
 
     it("reports a handler that imports a guard but never calls it", () => {
       write(
@@ -239,7 +317,7 @@ describe("module entry point detector on fixtures", () => {
     it("accepts a guarded const arrow handler", () => {
       write(
         BILLING_ROUTE,
-        `${GUARD_IMPORTS.requireModuleEnabled}\nexport const POST = async () => {\n  requireModuleEnabled("x");\n  return new Response("ok");\n};\n`,
+        `${GUARD_IMPORTS.requireModuleEnabled}\nexport const POST = async () => {\n  requireModuleEnabled("billing");\n  return new Response("ok");\n};\n`,
       );
 
       expect(findModuleEntryPoints(root)).toEqual([`${BILLING_ROUTE}#POST`]);
@@ -249,7 +327,7 @@ describe("module entry point detector on fixtures", () => {
     it("accepts a guarded const function expression handler", () => {
       write(
         BILLING_ROUTE,
-        `${GUARD_IMPORTS.requireModuleEnabled}\nexport const DELETE = async function () {\n  requireModuleEnabled("x");\n  return new Response(null);\n};\n`,
+        `${GUARD_IMPORTS.requireModuleEnabled}\nexport const DELETE = async function () {\n  requireModuleEnabled("billing");\n  return new Response(null);\n};\n`,
       );
 
       expect(unguarded()).toEqual([]);
@@ -258,7 +336,7 @@ describe("module entry point detector on fixtures", () => {
     it("accepts a guarded local function exported under a method name", () => {
       write(
         BILLING_ROUTE,
-        `${GUARD_IMPORTS.requireModuleEnabled}\nfunction handler() {\n  requireModuleEnabled("x");\n  return new Response("ok");\n}\nexport { handler as PUT };\n`,
+        `${GUARD_IMPORTS.requireModuleEnabled}\nfunction handler() {\n  requireModuleEnabled("billing");\n  return new Response("ok");\n}\nexport { handler as PUT };\n`,
       );
 
       expect(findModuleEntryPoints(root)).toEqual([`${BILLING_ROUTE}#PUT`]);
@@ -367,6 +445,867 @@ describe("module entry point detector on fixtures", () => {
 
       expect(findModuleEntryPoints(root)).toEqual([]);
       expect(unguarded()).toEqual([]);
+    });
+
+    it('keeps the HTTP method filter in a route file that starts with "use server"', () => {
+      write(
+        BILLING_ROUTE,
+        '"use server";\n\nexport async function helper() {\n  return 1;\n}\nexport async function GET() {\n  return new Response(null);\n}\n',
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([`${BILLING_ROUTE}#GET`]);
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+  });
+
+  describe("export star", () => {
+    it("treats export * in a route file as the entry point * and reports it", () => {
+      write(BILLING_ROUTE, 'export * from "./handlers";\n');
+
+      expect(findModuleEntryPoints(root)).toEqual([`${BILLING_ROUTE}#*`]);
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#*`]);
+    });
+
+    it("reports export * in a route file next to a guarded GET, sorted before it", () => {
+      write(
+        BILLING_ROUTE,
+        `${E}\nexport * from "./handlers";\nexport async function GET() {\n  requireModuleEnabled("billing");\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_ROUTE}#*`,
+        `${BILLING_ROUTE}#GET`,
+      ]);
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#*`]);
+    });
+
+    it('treats export * in a "use server" feature file as the entry point * and reports it', () => {
+      write(BILLING_COMMAND, '"use server";\n\nexport * from "./handlers";\n');
+
+      expect(findModuleEntryPoints(root)).toEqual([`${BILLING_COMMAND}#*`]);
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#*`]);
+    });
+
+    it('treats export * in a module-owned "use server" file under src/app as the entry point *', () => {
+      write(
+        BILLING_PAGE_ACTIONS,
+        '"use server";\n\nexport * from "./handlers";\n',
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_PAGE_ACTIONS}#*`,
+      ]);
+      expect(unguarded()).toEqual([`${BILLING_PAGE_ACTIONS}#*`]);
+    });
+  });
+
+  describe("guard before the first Prisma access", () => {
+    it("reports a GET that queries Prisma before calling the guard", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          `${P}\n${E}`,
+          '  await prisma.invoice.findMany();\n  requireModuleEnabled("billing");',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a server action that queries Prisma before calling requireModuleAccess", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${P}\n${M}`,
+          '  await prisma.invoice.findMany();\n  await requireModuleAccess("billing");',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a GET that only reads the prisma identifier before the guard", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          `${P}\n${E}`,
+          '  const client = prisma;\n  requireModuleEnabled("billing");\n  await client.invoice.findMany();',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET that uses Prisma imported under an alias before the guard", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          `import { prisma as db } from "@/shared/lib/prisma";\n${E}`,
+          '  await db.invoice.findMany();\n  requireModuleEnabled("billing");',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET that calls a local helper touching Prisma before the guard", () => {
+      write(
+        BILLING_ROUTE,
+        `${P}\n${E}\nasync function load() {\n  return prisma.invoice.findMany();\n}\nexport async function GET() {\n  await load();\n  requireModuleEnabled("billing");\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET whose local helper touches Prisma first and calls the guard after", () => {
+      write(
+        BILLING_ROUTE,
+        `${P}\n${E}\nasync function load() {\n  const rows = await prisma.invoice.findMany();\n  requireModuleEnabled("billing");\n  return rows;\n}\nexport async function GET() {\n  await load();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET that reaches Prisma through two local helpers before the guard", () => {
+      write(
+        BILLING_ROUTE,
+        `${P}\n${E}\nfunction rows() {\n  return prisma.invoice.findMany();\n}\nfunction load() {\n  return rows();\n}\nexport async function GET() {\n  await load();\n  requireModuleEnabled("billing");\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("accepts a GET that calls the guard before Prisma", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          `${P}\n${E}`,
+          '  requireModuleEnabled("billing");\n  await prisma.invoice.findMany();',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a GET that calls a guarding local helper before Prisma", () => {
+      write(
+        BILLING_ROUTE,
+        `${P}\n${E}\nfunction guard() {\n  requireModuleEnabled("billing");\n}\nexport async function GET() {\n  guard();\n  await prisma.invoice.findMany();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a GET whose local helper calls the guard first and Prisma after", () => {
+      write(
+        BILLING_ROUTE,
+        `${P}\n${E}\nasync function load() {\n  requireModuleEnabled("billing");\n  return prisma.invoice.findMany();\n}\nexport async function GET() {\n  await load();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a GET that calls a local helper without Prisma or guard before the guard", () => {
+      write(
+        BILLING_ROUTE,
+        `${P}\n${E}\nfunction label() {\n  return "invoices";\n}\nexport async function GET() {\n  label();\n  requireModuleEnabled("billing");\n  await prisma.invoice.findMany();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+  });
+
+  describe("module argument of the guard", () => {
+    it("reports a feature server action guarded with another module's key", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(E, '  requireModuleEnabled("auth");'),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("accepts a feature server action guarded with its own module's key", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(E, '  requireModuleEnabled("billing");'),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a feature outside .wa/kit.json guarded with the key from its path", () => {
+      const file = "src/features/zeta/services/commands/z.ts";
+      write(file, serverAction(E, '  requireModuleEnabled("zeta");'));
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a route guarded by requireModuleAccess with another module's key", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(M, '  await requireModuleAccess("users");'),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("accepts a route guarded by requireModuleAccess with its owner's key", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(M, '  await requireModuleAccess("billing");'),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a guard called with a parameter instead of a literal", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${E}\nexport async function doIt(key: string) {\n  requireModuleEnabled(key);\n  return { success: true };\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("accepts a guard called with a top-level const holding the owner's key", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${E}\nconst MODULE_KEY = "billing";\nexport async function doIt() {\n  requireModuleEnabled(MODULE_KEY);\n  return { success: true };\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a guard called with a top-level let holding the owner's key", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${E}\nlet MODULE_KEY = "billing";\nexport async function doIt() {\n  requireModuleEnabled(MODULE_KEY);\n  return { success: true };\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a guard called with a top-level const holding another module's key", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${E}\nconst MODULE_KEY = "auth";\nexport async function doIt() {\n  requireModuleEnabled(MODULE_KEY);\n  return { success: true };\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a guard called without an argument", () => {
+      write(BILLING_COMMAND, serverAction(E, "  requireModuleEnabled();"));
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a guard called with a template literal", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(E, "  requireModuleEnabled(`billing`);"),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a guard called with the file path instead of the module key", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          E,
+          '  requireModuleEnabled("src/features/billing/services/commands/a.ts");',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("accepts a route owned by a project module guarded with that module's key", () => {
+      write(
+        "src/app/api/reports/route.ts",
+        routeGet(E, '  requireModuleEnabled("reports");'),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a route owned by a project module guarded with another module's key", () => {
+      write(
+        "src/app/api/reports/route.ts",
+        routeGet(E, '  requireModuleEnabled("billing");'),
+      );
+
+      expect(unguarded()).toEqual(["src/app/api/reports/route.ts#GET"]);
+    });
+
+    it("reports a route that no module owns whatever key it passes", () => {
+      write(
+        "src/app/api/other/route.ts",
+        routeGet(E, '  requireModuleEnabled("other");'),
+      );
+
+      expect(unguarded()).toEqual(["src/app/api/other/route.ts#GET"]);
+    });
+
+    it("reports a guarded route when .wa/kit.json is missing", () => {
+      removeKit();
+      write(BILLING_ROUTE, routeGet(E, '  requireModuleEnabled("billing");'));
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it.each(["auth", "core", "billing"])(
+      'reports a core-owned route under src/app/api/auth guarded with "%s"',
+      (key) => {
+        write(
+          "src/app/api/auth/session/route.ts",
+          routeGet(E, `  requireModuleEnabled("${key}");`),
+        );
+
+        expect(unguarded()).toEqual(["src/app/api/auth/session/route.ts#GET"]);
+      },
+    );
+
+    it("accepts a route deep under a module's ** glob guarded with that module's key", () => {
+      write(
+        "src/app/api/billing/invoices/[id]/route.ts",
+        routeGet(E, '  requireModuleEnabled("billing");'),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("matches [locale] and (app) in a glob literally", () => {
+      write(
+        BILLING_PAGE_ACTIONS,
+        serverAction(E, '  requireModuleEnabled("billing");'),
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_PAGE_ACTIONS}#doIt`,
+      ]);
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("does not read [locale] as a character class or (app) as a group", () => {
+      const file = "src/app/l/app/billing/actions.ts";
+      write(file, serverAction(E, '  requireModuleEnabled("billing");'));
+
+      expect(findModuleEntryPoints(root)).toEqual([`${file}#doIt`]);
+      expect(unguarded()).toEqual([`${file}#doIt`]);
+    });
+
+    it("does not let a single * in a glob cross a path separator", () => {
+      writeKit({
+        modules: {
+          flags: {
+            manifest: { name: "flags", files: ["src/app/api/*/route.ts"] },
+          },
+        },
+      });
+      write(
+        "src/app/api/flags/route.ts",
+        routeGet(E, '  requireModuleEnabled("flags");'),
+      );
+      write(
+        "src/app/api/v2/flags/route.ts",
+        routeGet(E, '  requireModuleEnabled("flags");'),
+      );
+
+      expect(unguarded()).toEqual(["src/app/api/v2/flags/route.ts#GET"]);
+    });
+  });
+
+  describe("isModuleEnabled form", () => {
+    it("reports isModuleEnabled called as an ignored statement", () => {
+      write(BILLING_ROUTE, routeGet(I, '  isModuleEnabled("billing");'));
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports an awaited isModuleEnabled whose result is ignored", () => {
+      write(BILLING_ROUTE, routeGet(I, '  await isModuleEnabled("billing");'));
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports isModuleEnabled stored in a variable and checked later", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          I,
+          '  const on = isModuleEnabled("billing");\n  if (!on) {\n    return new Response(null, { status: 404 });\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("accepts a negated isModuleEnabled whose block returns 404", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          I,
+          '  if (!isModuleEnabled("billing")) {\n    return new Response(null, { status: 404 });\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a negated isModuleEnabled followed by a return without a block", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          I,
+          '  if (!isModuleEnabled("billing")) return new Response(null);',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a negated isModuleEnabled whose block throws", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          I,
+          '  if (!isModuleEnabled("billing")) {\n    throw new Error("off");\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a negated isModuleEnabled in a server action that returns an error result", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          I,
+          '  if (!isModuleEnabled("billing")) {\n    return { success: false, error: "off" };\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports isModuleEnabled in an if without the negation", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          I,
+          '  if (isModuleEnabled("billing")) {\n    return new Response(null, { status: 404 });\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a negated isModuleEnabled whose block does not exit", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          I,
+          '  if (!isModuleEnabled("billing")) {\n    console.log("off");\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a negated isModuleEnabled whose block returns only before its last statement", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          I,
+          '  if (!isModuleEnabled("billing")) {\n    if (Date.now() > 0) {\n      return new Response(null);\n    }\n    console.log("off");\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a negated isModuleEnabled combined with another condition", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          I,
+          '  if (!isModuleEnabled("billing") || Date.now() < 0) return new Response(null);',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a negated isModuleEnabled with an empty block", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(I, '  if (!isModuleEnabled("billing")) {\n  }'),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a negated isModuleEnabled with another module's key", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          I,
+          '  if (!isModuleEnabled("auth")) {\n    return new Response(null, { status: 404 });\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET whose local helper only returns when isModuleEnabled is false", () => {
+      write(
+        BILLING_ROUTE,
+        `${I}\nfunction check() {\n  if (!isModuleEnabled("billing")) {\n    return new Response(null);\n  }\n}\nexport async function GET() {\n  check();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("accepts a GET whose local helper throws when isModuleEnabled is false", () => {
+      write(
+        BILLING_ROUTE,
+        `${I}\nfunction check() {\n  if (!isModuleEnabled("billing")) {\n    throw new Error("off");\n  }\n}\nexport async function GET() {\n  check();\n  return new Response("ok");\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+  });
+
+  describe("nested functions", () => {
+    it("reports a guard inside an arrow function stored but never run by the handler body", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(E, '  const later = () => requireModuleEnabled("billing");'),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a guard inside a function declared in the handler body", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          E,
+          '  function inner() {\n    requireModuleEnabled("billing");\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a guard inside a function declared and called in the handler body", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          E,
+          '  function inner() {\n    requireModuleEnabled("billing");\n  }\n  inner();',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a guard inside a forEach callback", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          E,
+          '  [1].forEach(() => {\n    requireModuleEnabled("billing");\n  });',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a guard inside a class method declared in the handler body", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          E,
+          '  class Gate {\n    check() {\n      requireModuleEnabled("billing");\n    }\n  }\n  new Gate().check();',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a guard inside an object method declared in the handler body", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          E,
+          '  const gate = {\n    check() {\n      requireModuleEnabled("billing");\n    },\n  };\n  gate.check();',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("accepts a guard after a nested callback that touches Prisma", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          `${P}\n${E}`,
+          '  const load = () => prisma.invoice.findMany();\n  requireModuleEnabled("billing");\n  await load();',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+  });
+
+  describe("guard inside try and catch", () => {
+    it("reports a guard in a try whose catch is empty", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          E,
+          '  try {\n    requireModuleEnabled("billing");\n  } catch {}',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a guard in a try whose catch returns a plain result", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          E,
+          '  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    return { success: false };\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("accepts a guard in a try whose catch rethrows", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          E,
+          '  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    throw error;\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a guard in a try whose catch logs and then rethrows", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          E,
+          '  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    console.error(error);\n    throw error;\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a guard in a try whose catch returns handleCommandError", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${E}\n${H}`,
+          '  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    return handleCommandError(error, "x");\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a guard in a try whose catch returns an aliased handleCommandError", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${E}\nimport { handleCommandError as handle } from "@/shared/utils/error-handling";`,
+          '  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    return handle(error, "x");\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a guard in a try whose catch returns handleCommandError imported from another path", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${E}\nimport { handleCommandError } from "@/shared/utils/other";`,
+          '  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    return handleCommandError(error, "x");\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a guard in a try whose catch returns a local function named handleCommandError", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${E}\nfunction handleCommandError(_error: unknown, _message: string) {\n  return { success: false };\n}\nexport async function doIt() {\n  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    return handleCommandError(error, "x");\n  }\n  return { success: true };\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a guard in a try whose catch calls handleCommandError without returning it", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${E}\n${H}`,
+          '  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    handleCommandError(error, "x");\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a guard in a try whose catch throws only before its last statement", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          E,
+          '  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    if (Date.now() > 0) {\n      throw error;\n    }\n    return { success: false };\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("accepts a guard in a try with only a finally block", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          E,
+          '  try {\n    requireModuleEnabled("billing");\n  } finally {\n    console.log("done");\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a guard called before a try whose catch swallows", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${P}\n${E}`,
+          '  requireModuleEnabled("billing");\n  try {\n    await prisma.invoice.findMany();\n  } catch {}',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a guard in an inner try that rethrows inside an outer try that swallows", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          E,
+          '  try {\n    try {\n      requireModuleEnabled("billing");\n    } catch (error) {\n      throw error;\n    }\n  } catch {}',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a guard in an inner try that swallows inside an outer try that rethrows", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          E,
+          '  try {\n    try {\n      requireModuleEnabled("billing");\n    } catch {}\n  } catch (error) {\n    throw error;\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a guarding local helper called inside a try that swallows", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${E}\nfunction guard() {\n  requireModuleEnabled("billing");\n}\nexport async function doIt() {\n  try {\n    guard();\n  } catch {}\n  return { success: true };\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+
+    it("reports a local helper whose guard sits in a try that swallows", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${E}\nfunction guard() {\n  try {\n    requireModuleEnabled("billing");\n  } catch {}\n}\nexport async function doIt() {\n  guard();\n  return { success: true };\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+  });
+
+  describe("guard import path", () => {
+    it("reports requireModuleEnabled imported from another path", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          'import { requireModuleEnabled } from "@/shared/lib/other";',
+          '  requireModuleEnabled("billing");',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports requireModuleAccess imported from the requireModuleEnabled path", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          'import { requireModuleAccess } from "@/shared/lib/modules/require-module-enabled";',
+          '  await requireModuleAccess("billing");',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports requireModuleEnabled imported from the requireModuleAccess path", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          'import { requireModuleEnabled } from "@/shared/lib/auth/require-module-access";',
+          '  requireModuleEnabled("billing");',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports isModuleEnabled imported from the requireModuleAccess path", () => {
+      write(
+        BILLING_ROUTE,
+        routeGet(
+          'import { isModuleEnabled } from "@/shared/lib/auth/require-module-access";',
+          '  if (!isModuleEnabled("billing")) {\n    return new Response(null, { status: 404 });\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a server action that only calls runCommand with its module's key", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          GUARD_IMPORTS.runCommand,
+          '  await runCommand("billing");',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
     });
   });
 
@@ -634,10 +1573,91 @@ describe("module entry point detector on fixtures", () => {
       expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
     });
 
-    it("ignores use server files outside src/features", () => {
+    it("ignores a use server file in src/shared owned by core", () => {
       write("src/shared/lib/actions.ts", `"use server";\n\n${COMMAND_BODY}`);
 
       expect(findModuleEntryPoints(root)).toEqual([]);
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("ignores a use server file in src/shared when .wa/kit.json is missing", () => {
+      removeKit();
+      write("src/shared/lib/actions.ts", `"use server";\n\n${COMMAND_BODY}`);
+
+      expect(findModuleEntryPoints(root)).toEqual([]);
+    });
+  });
+
+  describe("server action files outside src/features", () => {
+    const COMMAND_BODY =
+      "export async function doIt() {\n  return { success: true };\n}\n";
+
+    it('reports an unguarded export of a module-owned "use server" file under src/app', () => {
+      write(BILLING_PAGE_ACTIONS, `"use server";\n\n${COMMAND_BODY}`);
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_PAGE_ACTIONS}#doIt`,
+      ]);
+      expect(unguarded()).toEqual([`${BILLING_PAGE_ACTIONS}#doIt`]);
+    });
+
+    it("ignores a module-owned file under src/app without the directive", () => {
+      write(BILLING_PAGE_ACTIONS, COMMAND_BODY);
+
+      expect(findModuleEntryPoints(root)).toEqual([]);
+      expect(unguarded()).toEqual([]);
+    });
+
+    it('reports a "use server" file under src/app that no module owns', () => {
+      write("src/app/x/actions.ts", `"use server";\n\n${COMMAND_BODY}`);
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        "src/app/x/actions.ts#doIt",
+      ]);
+      expect(unguarded()).toEqual(["src/app/x/actions.ts#doIt"]);
+    });
+
+    it('reports a guarded "use server" file under src/app that no module owns', () => {
+      write(
+        "src/app/x/actions.ts",
+        serverAction(E, '  requireModuleEnabled("x");'),
+      );
+
+      expect(unguarded()).toEqual(["src/app/x/actions.ts#doIt"]);
+    });
+
+    it.each(["src/app/x/__tests__/a.ts", "src/app/x/a.test.ts"])(
+      "skips test file %s under src/app",
+      (file) => {
+        write(file, `"use server";\n\n${COMMAND_BODY}`);
+
+        expect(findModuleEntryPoints(root)).toEqual([]);
+        expect(unguarded()).toEqual([]);
+      },
+    );
+
+    it('reports an unguarded export of a "use server" file in src/shared owned by a module', () => {
+      write(
+        "src/shared/lib/billing/actions.ts",
+        `"use server";\n\n${COMMAND_BODY}`,
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        "src/shared/lib/billing/actions.ts#doIt",
+      ]);
+      expect(unguarded()).toEqual(["src/shared/lib/billing/actions.ts#doIt"]);
+    });
+
+    it('accepts a guarded export of a "use server" file in src/shared owned by a module', () => {
+      write(
+        "src/shared/lib/billing/actions.ts",
+        serverAction(E, '  requireModuleEnabled("billing");'),
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        "src/shared/lib/billing/actions.ts#doIt",
+      ]);
+      expect(unguarded()).toEqual([]);
     });
   });
 
@@ -715,14 +1735,14 @@ describe("module entry point detector on fixtures", () => {
 
     it("an allowance for a guarded entry point still names an entry point and is not stale", () => {
       write(
-        "src/app/api/safe/route.ts",
-        `${GUARD_IMPORTS.requireModuleEnabled}\nexport async function GET() {\n  requireModuleEnabled("x");\n  return new Response(null);\n}\n`,
+        "src/app/api/billing/invoices/route.ts",
+        `${GUARD_IMPORTS.requireModuleEnabled}\nexport async function GET() {\n  requireModuleEnabled("billing");\n  return new Response(null);\n}\n`,
       );
 
       expect(
         findStaleAllowances(
           root,
-          new Map([["src/app/api/safe/route.ts#GET", "reason"]]),
+          new Map([["src/app/api/billing/invoices/route.ts#GET", "reason"]]),
         ),
       ).toEqual([]);
     });
@@ -745,6 +1765,16 @@ describe("module entry points of this repository", () => {
     }
 
     expect(findModuleEntryPoints(repoRoot)).toContain(`${route}#GET`);
+  });
+
+  it("finds the public API route, the upload delete command and the invite command as entry points", () => {
+    expect(findModuleEntryPoints(repoRoot)).toEqual(
+      expect.arrayContaining([
+        "src/app/api/v1/organization/route.ts#GET",
+        "src/features/uploads/services/commands/upload-commands.ts#deleteUploadCommand",
+        "src/features/users/services/commands/invite-user-command.ts#inviteUserCommand",
+      ]),
+    );
   });
 
   it("finds no entry point in the auth and organizations features", () => {
