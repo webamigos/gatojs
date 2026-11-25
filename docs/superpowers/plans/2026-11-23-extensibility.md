@@ -265,6 +265,15 @@ When a slot frees up, the next task of its lane starts if its dependencies have 
 
 **Done when:** `verify` green; component tests cover both sidebar placements.
 
+**Contract fixed before the tests (2026-11-25):**
+- Branch `feat/gato-branding`. The auth layout renders no `project.name` today, so without a logo it stays unchanged and with one it shows the logo above the form.
+- `src/shared/lib/modules/gato-config.ts`: `interface GatoLogo { src: string; alt: string; width: number; height: number }`, `interface GatoBranding { logo?: GatoLogo }`, `GatoConfig.branding?: GatoBranding`. `brandingProblems(config: GatoConfig): string[]` returns, in this order: `branding.logo.src: must start with a single "/" (a file in public/): <src>` when `src` does not start with `/` or starts with `//`; `branding.logo.alt: must not be blank` when `alt.trim()` is empty; `branding.logo.width: must be a positive integer: <width>` and the same for `height` when the value is not an integer above 0. `gatoConfigProblems(modules, config)` returns the module problems followed by `brandingProblems(config)`, so `applyGatoConfig` and `gato-config-keys-exist.test.ts` report them too. `gatoBrandingOf(config: GatoConfig): GatoBranding` throws `GatoConfigError(brandingProblems(config))` when there is any problem and otherwise returns `config.branding ?? {}`.
+- Generated client registry (`packages/gato-cli/src/generate/registry.ts`): always imports the config (project or `emptyGatoConfig`), adds `gatoBrandingOf` as the last name of the helpers import from `@/shared/lib/modules/gato-config`, and ends with `export const gatoBranding = gatoBrandingOf(gatoConfig);` after `clientModules`, also when there are no modules. The server registry is unchanged. `kitFormat` 5, `SUPPORTED_KIT_FORMATS` += 5.
+- `src/shared/lib/modules/branding.ts`: `getBranding(): GatoBranding` returns `gatoBranding` from `@/modules.client.generated`.
+- `src/shared/components/brand-logo.tsx`: `BrandLogo({ logo }: { logo: GatoLogo })` renders `next/image` with `src`, `alt`, `width`, `height` and `unoptimized`.
+- `src/shared/components/app-sidebar.tsx`: the `MobileHeader` heading and the expanded `AppSidebar` heading render `BrandLogo` when `getBranding().logo` is set, `project.name` otherwise. `src/app/[locale]/(auth)/layout.tsx` renders `BrandLogo` above `children` when the logo is set.
+- Behaviours added: `gatoBrandingOf({})` → `{}`; `src: "//cdn.example.com/logo.svg"` → error naming `branding.logo.src`; `width: 0`, `height: -1`, `width: 1.5` → errors naming each field; `alt: "  "` → `branding.logo.alt: must not be blank`; several bad fields → one error listing all; generated client registry ends with the `gatoBranding` line, with and without `src/gato.config.ts`; `MobileHeader` with a logo → `img` with `alt="Acme"` and no `WA App` text; auth layout with a logo → `img` with `alt="Acme"` and the children; without → no `img`.
+
 ---
 
 ### Task 8: Permissions and `can`
