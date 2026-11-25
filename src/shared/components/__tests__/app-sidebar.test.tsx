@@ -54,6 +54,10 @@ vi.mock("lucide-react/dynamic", () => ({
   DynamicIcon: ({ name }: { name: string }) => <span data-icon={name} />,
 }));
 
+vi.mock("@/shared/config/project", () => ({
+  project: { name: "Sidebar Test Project", slug: "sidebar-test-project" },
+}));
+
 import { AppSidebar, MobileHeader, SidebarProvider } from "../app-sidebar";
 
 const messages = {
@@ -176,7 +180,7 @@ describe("branding logo", () => {
     renderSidebar();
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "WA App" }),
+      screen.getByRole("heading", { level: 1, name: "Sidebar Test Project" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("img")).toBeNull();
   });
@@ -190,7 +194,7 @@ describe("branding logo", () => {
     expect(logo.getAttribute("src")).toContain("/logo.svg");
     expect(logo).toHaveAttribute("width", "120");
     expect(logo).toHaveAttribute("height", "32");
-    expect(screen.queryByText("WA App")).toBeNull();
+    expect(screen.queryByText("Sidebar Test Project")).toBeNull();
   });
 
   it("with a logo the collapsed sidebar shows neither the logo nor the project name", async () => {
@@ -201,14 +205,14 @@ describe("branding logo", () => {
     await user.click(screen.getByRole("button", { name: "Zwiń menu" }));
 
     expect(screen.queryByRole("img", { name: "Acme" })).toBeNull();
-    expect(screen.queryByText("WA App")).toBeNull();
+    expect(screen.queryByText("Sidebar Test Project")).toBeNull();
   });
 
   it("without a logo the mobile header heading shows the project name and no image", () => {
     renderMobileHeader();
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "WA App" }),
+      screen.getByRole("heading", { level: 1, name: "Sidebar Test Project" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("img")).toBeNull();
   });
@@ -222,7 +226,7 @@ describe("branding logo", () => {
     expect(logo.getAttribute("src")).toContain("/logo.svg");
     expect(logo).toHaveAttribute("width", "120");
     expect(logo).toHaveAttribute("height", "32");
-    expect(screen.queryByText("WA App")).toBeNull();
+    expect(screen.queryByText("Sidebar Test Project")).toBeNull();
   });
 
   it("the logo alt comes from the config, not from the project name", () => {
@@ -232,6 +236,8 @@ describe("branding logo", () => {
     expect(
       screen.getByRole("img", { name: "Globex Corporation" }),
     ).toHaveAttribute("alt", "Globex Corporation");
-    expect(screen.queryByRole("img", { name: "WA App" })).toBeNull();
+    expect(
+      screen.queryByRole("img", { name: "Sidebar Test Project" }),
+    ).toBeNull();
   });
 });
