@@ -337,7 +337,7 @@ describe("generate", () => {
       [
         HEADER,
         EMPTY_CONFIG_IMPORT,
-        'import { applyGatoConfig, enabledEntries } from "@/shared/lib/modules/gato-config";',
+        'import { applyGatoConfig, enabledEntries, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import { authClientPlugin as authAuthClientPlugin } from "@/features/auth/auth-client";',
         'import authModule from "@/features/auth/module";',
         'import demoModule from "@/features/demo/module";',
@@ -345,6 +345,7 @@ describe("generate", () => {
         "",
         'export const authClientPlugins = enabledEntries([{ module: "auth", value: authAuthClientPlugin }], gatoConfig);',
         "export const clientModules = applyGatoConfig([authModule, demoModule, notesModule], gatoConfig);",
+        "export const gatoBranding = gatoBrandingOf(gatoConfig);",
         "",
       ].join("\n"),
     );
@@ -464,13 +465,14 @@ describe("generate: src/gato.config.ts", () => {
       [
         HEADER,
         'import gatoConfig from "@/gato.config";',
-        'import { applyGatoConfig, enabledEntries } from "@/shared/lib/modules/gato-config";',
+        'import { applyGatoConfig, enabledEntries, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import { authClientPlugin as authAuthClientPlugin } from "@/features/auth/auth-client";',
         'import authModule from "@/features/auth/module";',
         'import demoModule from "@/features/demo/module";',
         "",
         'export const authClientPlugins = enabledEntries([{ module: "auth", value: authAuthClientPlugin }], gatoConfig);',
         "export const clientModules = applyGatoConfig([authModule, demoModule], gatoConfig);",
+        "export const gatoBranding = gatoBrandingOf(gatoConfig);",
         "",
       ].join("\n"),
     );

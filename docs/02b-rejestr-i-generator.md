@@ -63,7 +63,7 @@ Rejestr to dwa pliki, które zapisuje `wa generate`. Plik kliencki w kicie w ca�
 ```ts
 // …
 import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";
-import { applyGatoConfig } from "@/shared/lib/modules/gato-config";
+import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";
 import accountModule from "@/features/account/module";
 import authModule from "@/features/auth/module";
 import dashboardModule from "@/features/dashboard/module";
@@ -76,6 +76,7 @@ import uploadsModule from "@/features/uploads/module";
 
 export const authClientPlugins: never[] = [];
 export const clientModules = applyGatoConfig([accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, encryptionModule, uploadsModule], gatoConfig);
+export const gatoBranding = gatoBrandingOf(gatoConfig);
 ```
 
 Od `gato-cli` 0.7.0 (`kitFormat` 4) oba pliki rejestru przepuszczają listy przez konfigurację projektu ([ADR-60](adrs/60-project-configuration-is-applied-by-the-generated-registries.md)). Druga linia importuje `gatoConfig`: z `src/gato.config.ts`, gdy projekt ma ten plik (`import gatoConfig from "@/gato.config";`), a w przeciwnym razie pustą konfigurację `emptyGatoConfig` z `src/shared/lib/modules/gato-config.ts`. Listy modułów (`modules`, `clientModules`) owija `applyGatoConfig([...], gatoConfig)`, a listy przypisane do modułu (`moduleEnvSchemas`, `authPlugins`, `auditSinks`, `authClientPlugins`, `moduleMessages.<język>`) dostają pary `{ module: "<nazwa feature>", value: … }` i `enabledEntries([...], gatoConfig)`, które odrzuca wpisy modułów z `enabled: false`. Fragment pliku serwerowego:
@@ -85,6 +86,8 @@ export const modules = applyGatoConfig([accountModule, /* … */ uploadsModule],
 export const moduleEnvSchemas = enabledEntries([{ module: "api-keys", value: apiKeysEnvSchema }, /* … */], gatoConfig);
 export const authPlugins = enabledEntries([{ module: "audit-logs", value: auditLogsAuthPlugin }], gatoConfig);
 ```
+
+Od `gato-cli` 0.8.0 (`kitFormat` 5) plik klienta zawsze importuje konfigurację i kończy się eksportem `gatoBranding = gatoBrandingOf(gatoConfig)`: sprawdzoną sekcję `branding` (logo), którą czyta `getBranding()` z `src/shared/lib/modules/branding.ts`.
 
 Konfiguracja działa raz, przy pierwszym imporcie rejestru, przed obsługą jakiegokolwiek żądania. Nieznany klucz modułu albo `id` pozycji menu, `access` bez żadnego pola i `enabled: false` dla `auth` albo `organizations` kończą import błędem `GatoConfigError` z listą wszystkich problemów, więc `next build`, `npm run dev` i każdy test importujący rejestr padają od razu. Jak pisać sam plik konfiguracji, opisuje [Konfiguracja projektu](11-praca-z-kitem.md#gato-config) w 11.
 

@@ -8,11 +8,16 @@ import dashboardPl from "@/features/dashboard/i18n/pl.json";
 import usersPl from "@/features/users/i18n/pl.json";
 import type { AccessContext } from "@/shared/lib/auth/permissions";
 
-const { mockSignOut, mockPush, mockRefresh } = vi.hoisted(() => ({
-  mockSignOut: vi.fn(),
-  mockPush: vi.fn(),
-  mockRefresh: vi.fn(),
-}));
+const { mockSignOut, mockPush, mockRefresh, generatedBranding } = vi.hoisted(
+  () => ({
+    mockSignOut: vi.fn(),
+    mockPush: vi.fn(),
+    mockRefresh: vi.fn(),
+    generatedBranding: {} as {
+      logo?: { src: string; alt: string; width: number; height: number };
+    },
+  }),
+);
 
 vi.mock("@/i18n/routing", () => ({
   Link: ({
@@ -42,13 +47,18 @@ vi.mock("@/modules.client.generated", async (importOriginal) => {
     clientModules: original.clientModules.filter((moduleDef) =>
       coreKeys.includes(moduleDef.key),
     ),
+    gatoBranding: generatedBranding,
   };
 });
 vi.mock("lucide-react/dynamic", () => ({
   DynamicIcon: ({ name }: { name: string }) => <span data-icon={name} />,
 }));
 
-import { AppSidebar, SidebarProvider } from "../app-sidebar";
+vi.mock("@/shared/config/project", () => ({
+  project: { name: "Sidebar Test Project", slug: "sidebar-test-project" },
+}));
+
+import { AppSidebar, MobileHeader, SidebarProvider } from "../app-sidebar";
 
 const messages = {
   ...coreMessages,
@@ -77,9 +87,22 @@ function renderSidebar(accessContext: AccessContext = member) {
   );
 }
 
+const ACME_LOGO = { src: "/logo.svg", alt: "Acme", width: 120, height: 32 };
+
+function renderMobileHeader() {
+  return render(
+    <NextIntlClientProvider locale="pl" messages={messages}>
+      <SidebarProvider>
+        <MobileHeader />
+      </SidebarProvider>
+    </NextIntlClientProvider>,
+  );
+}
+
 describe("AppSidebar", () => {
   beforeEach(() => {
     mockSignOut.mockResolvedValue({});
+    delete generatedBranding.logo;
   });
 
   it("member widzi pozycje z rejestru z etykietami z namespace modułu", () => {
@@ -144,5 +167,77 @@ describe("AppSidebar", () => {
     expect(mockSignOut).toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith("/sign-in");
     expect(mockRefresh).toHaveBeenCalled();
+  });
+});
+
+describe("branding logo", () => {
+  beforeEach(() => {
+    mockSignOut.mockResolvedValue({});
+    delete generatedBranding.logo;
+  });
+
+  it("without a logo the expanded sidebar heading shows the project name and no image", () => {
+    renderSidebar();
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Sidebar Test Project" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("img")).toBeNull();
+  });
+
+  it("with a logo the expanded sidebar shows the logo image with its alt instead of the project name", () => {
+    generatedBranding.logo = { ...ACME_LOGO };
+    renderSidebar();
+
+    const logo = screen.getByRole("img", { name: "Acme" });
+    expect(logo).toHaveAttribute("alt", "Acme");
+    expect(logo.getAttribute("src")).toContain("/logo.svg");
+    expect(logo).toHaveAttribute("width", "120");
+    expect(logo).toHaveAttribute("height", "32");
+    expect(screen.queryByText("Sidebar Test Project")).toBeNull();
+  });
+
+  it("with a logo the collapsed sidebar shows neither the logo nor the project name", async () => {
+    generatedBranding.logo = { ...ACME_LOGO };
+    const user = userEvent.setup();
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "Zwiń menu" }));
+
+    expect(screen.queryByRole("img", { name: "Acme" })).toBeNull();
+    expect(screen.queryByText("Sidebar Test Project")).toBeNull();
+  });
+
+  it("without a logo the mobile header heading shows the project name and no image", () => {
+    renderMobileHeader();
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Sidebar Test Project" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("img")).toBeNull();
+  });
+
+  it("with a logo the mobile header shows the logo image with its alt instead of the project name", () => {
+    generatedBranding.logo = { ...ACME_LOGO };
+    renderMobileHeader();
+
+    const logo = screen.getByRole("img", { name: "Acme" });
+    expect(logo).toHaveAttribute("alt", "Acme");
+    expect(logo.getAttribute("src")).toContain("/logo.svg");
+    expect(logo).toHaveAttribute("width", "120");
+    expect(logo).toHaveAttribute("height", "32");
+    expect(screen.queryByText("Sidebar Test Project")).toBeNull();
+  });
+
+  it("the logo alt comes from the config, not from the project name", () => {
+    generatedBranding.logo = { ...ACME_LOGO, alt: "Globex Corporation" };
+    renderMobileHeader();
+
+    expect(
+      screen.getByRole("img", { name: "Globex Corporation" }),
+    ).toHaveAttribute("alt", "Globex Corporation");
+    expect(
+      screen.queryByRole("img", { name: "Sidebar Test Project" }),
+    ).toBeNull();
   });
 });
