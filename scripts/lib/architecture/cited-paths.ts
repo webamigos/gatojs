@@ -27,6 +27,11 @@ const ROOT_FILE =
 
 const PATTERN_MARKERS = /[<*{]/;
 
+const OPTIONAL_COMPANION_FILES = new Set([
+  "AGENTS.project.md",
+  "mutation-gate.project.json",
+]);
+
 const CITING_FILES = ["AGENTS.md", "CLAUDE.md"];
 
 function withoutAnchor(candidate: string): string {
@@ -47,7 +52,9 @@ function isCheckable(citedPath: string): boolean {
   return (
     !KIT_ONLY_DIRECTORIES.some((directory) =>
       citedPath.startsWith(directory),
-    ) && !PATTERN_MARKERS.test(citedPath)
+    ) &&
+    !PATTERN_MARKERS.test(citedPath) &&
+    !OPTIONAL_COMPANION_FILES.has(citedPath)
   );
 }
 
