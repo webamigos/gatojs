@@ -330,6 +330,9 @@ export default defineGatoConfig({
     users: { access: { roles: ["owner"] } },
     "api-keys": { enabled: false },
   },
+  branding: {
+    logo: { src: "/logo.svg", alt: "Acme", width: 120, height: 32 },
+  },
 });
 ```
 
@@ -339,13 +342,16 @@ export default defineGatoConfig({
 | `modules.<klucz>.nav.<id>.order` | Zmienia `order` pozycji menu o tym `id`; pozostałe pola pozycji zostają. Identyfikatory modułów GatoJS: `dashboard.home`, `users.list`, `account.home`, `api-keys.list`, `audit-logs.list`. |
 | `modules.<klucz>.nav.<id>.hidden: true` | Usuwa pozycję z menu; strony modułu nadal działają. |
 | `modules.<klucz>.access` | Zastępuje całą politykę dostępu modułu polami `roles`, `adminOnly` i `multiOrgRoles`; pole, którego nie podasz, znika. Zastępuje, a nie scala, bo `adminOnly` wygrywa z `roles`: `{ roles: ["owner"] }` dopisane do `users` (`adminOnly: true`) niczego by nie zmieniło. Musi ustawić co najmniej jedno z trzech pól. |
+| `branding.logo` | Logo zamiast nazwy projektu (`project.name`) w nagłówku menu bocznego i w nagłówku mobilnym; na stronach logowania i rejestracji logo stoi nad formularzem. `src` to ścieżka pliku z `public/` zaczynająca się od jednego `/` (`/logo.svg`), `alt` nie może być pusty, `width` i `height` to dodatnie liczby całkowite w pikselach. Bez `branding` wszystko wygląda jak dotąd. |
 
 Kiedy zmiana działa:
 
 - Plik importują oba wygenerowane rejestry, więc konfiguracja działa raz, przy pierwszym imporcie, i od razu w menu, guardzie stron i na serwerze ([Rejestr modułów](02b-rejestr-i-generator.md#rejestr-modulow)).
 - Po utworzeniu albo usunięciu pliku uruchom `npm run wa -- generate`: od istnienia pliku zależy import w rejestrach. Zmiana treści pliku nie wymaga generatora.
-- Nieznany klucz modułu albo `id` pozycji menu, puste `access` i wyłączenie `auth` lub `organizations` kończą import błędem `GatoConfigError` z listą wszystkich problemów naraz, więc padają `next build`, `npm run dev` i testy. Test `src/__tests__/architecture/gato-config-keys-exist.test.ts` wypisuje te same problemy w `npm run verify`.
+- Nieznany klucz modułu albo `id` pozycji menu, puste `access`, wyłączenie `auth` lub `organizations` i błędne pole `branding.logo` kończą import błędem `GatoConfigError` z listą wszystkich problemów naraz, więc padają `next build`, `npm run dev` i testy. Test `src/__tests__/architecture/gato-config-keys-exist.test.ts` wypisuje te same problemy w `npm run verify`.
 - Rejestry trafiają też do paczki przeglądarki, więc plik musi być czystymi danymi: bez importów serwerowych (`@/shared/lib/prisma`, `@/env`, `server-only`). Pilnuje tego `src/__tests__/architecture/client-bundles-stay-server-free.test.ts`.
+
+Branding: logo ustawiasz w `branding.logo`, a kolory i fonty w `src/theme.css` (plik `seed`, [Pliki towarzyszące](#pliki-towarzyszace)). Fonty nie trafiają do konfiguracji, bo `next/font` trzeba wywołać w czasie budowania w zasięgu modułu, czego zwykłe dane konfiguracji nie potrafią.
 
 `enabled: false` czy `wa remove`: `wa remove <moduł>` usuwa pliki modułu (także jego schemat Prisma, więc następna migracja usuwa tabele), jego zależności npm i wpis w `.wa/kit.json` ([16-cli-wa.md](16-cli-wa.md#wa-remove)). To lepsza droga dla opcjonalnego modułu GatoJS, którego projekt nie chce wcale. `enabled: false` zostawia pliki, tabele i dane: służy do czasowego wyłączenia modułu z zachowaniem danych i do modułów rdzenia (`dashboard`, `users`, `account`), bo `wa remove` odmawia usunięcia rdzenia. Trasy API i komendy, które nie przechodzą przez `requireModuleAccess` (na przykład `src/app/api/v1/organization/route.ts` w `api-keys`), wyłączenie obejmie dopiero osobny guard `requireModuleEnabled` w kolejnym wydaniu, więc do tego czasu wyłączony `api-keys` nadal przyjmuje żądania z ważnym kluczem.
 

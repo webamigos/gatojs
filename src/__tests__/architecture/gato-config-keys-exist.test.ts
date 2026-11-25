@@ -84,6 +84,35 @@ describe("findGatoConfigKeyProblems", () => {
     ]);
   });
 
+  it("reports a relative branding logo src", async () => {
+    write(
+      "src/gato.config.ts",
+      'export default { branding: { logo: { src: "logo.svg", alt: "Acme", width: 120, height: 32 } } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([
+      'branding.logo.src: must start with a single "/" (a file in public/): logo.svg',
+    ]);
+  });
+
+  it("reports module problems before branding problems", async () => {
+    write(
+      "src/gato.config.ts",
+      'export default { branding: { logo: { src: "/logo.svg", alt: " ", width: 120, height: 32 } }, modules: { billing: {} } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([
+      "modules.billing: unknown module: billing",
+      "branding.logo.alt: must not be blank",
+    ]);
+  });
+
+  it("accepts a valid branding logo", async () => {
+    write(
+      "src/gato.config.ts",
+      'export default { branding: { logo: { src: "/logo.svg", alt: "Acme", width: 120, height: 32 } } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([]);
+  });
+
   it("a feature directory without module.ts is not a known module", async () => {
     write("src/features/notes/i18n/pl.json", "{}");
     write(

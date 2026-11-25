@@ -91,5 +91,10 @@ describe.skipIf(!hasKitModules || !hasOptionalModules)(
       const { authClientPlugins } = await import("@/modules.client.generated");
       expect(authClientPlugins).toEqual([]);
     });
+
+    it("gatoBranding is an empty object for a config without branding", async () => {
+      const { gatoBranding } = await import("@/modules.client.generated");
+      expect(gatoBranding).toEqual({});
+    });
   },
 );

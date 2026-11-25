@@ -120,11 +120,12 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
       [
         HEADER,
         'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
-        'import { applyGatoConfig } from "@/shared/lib/modules/gato-config";',
+        'import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import alphaModule from "@/features/alpha/module";',
         "",
         "export const authClientPlugins: never[] = [];",
         "export const clientModules = applyGatoConfig([alphaModule], gatoConfig);",
+        "export const gatoBranding = gatoBrandingOf(gatoConfig);",
         "",
       ].join("\n"),
     );
@@ -220,13 +221,14 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
       [
         HEADER,
         'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
-        'import { applyGatoConfig } from "@/shared/lib/modules/gato-config";',
+        'import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import alphaModule from "@/features/alpha/module";',
         'import zetaModule from "@/features/zeta/module";',
         'import midModule from "@/features/mid/module";',
         "",
         "export const authClientPlugins: never[] = [];",
         "export const clientModules = applyGatoConfig([alphaModule, zetaModule, midModule], gatoConfig);",
+        "export const gatoBranding = gatoBrandingOf(gatoConfig);",
         "",
       ].join("\n"),
     );

@@ -15,7 +15,9 @@ import { Link, usePathname, useRouter } from "@/i18n/routing";
 import { project } from "@/shared/config/project";
 import { authClient } from "@/shared/lib/auth/client";
 import type { AccessContext } from "@/shared/lib/auth/permissions";
+import { getBranding } from "@/shared/lib/modules/branding";
 import { getNavEntries, isActiveEntry } from "@/shared/lib/modules/nav";
+import { BrandLogo } from "@/shared/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -54,6 +56,11 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+function BrandHeading() {
+  const { logo } = getBranding();
+  return logo === undefined ? project.name : <BrandLogo logo={logo} />;
+}
+
 export function MobileHeader() {
   const { setMobileOpen } = useSidebar();
   const t = useTranslations("sidebar");
@@ -67,7 +74,9 @@ export function MobileHeader() {
       >
         <Menu className="h-5 w-5" />
       </Button>
-      <h1 className="text-lg font-bold">{project.name}</h1>
+      <h1 className="text-lg font-bold">
+        <BrandHeading />
+      </h1>
     </header>
   );
 }
@@ -139,7 +148,7 @@ export function AppSidebar({
       >
         {!collapsed && (
           <h1 className="text-[19px] leading-tight font-bold tracking-tight text-sidebar-primary-foreground">
-            {project.name}
+            <BrandHeading />
           </h1>
         )}
         <Button
