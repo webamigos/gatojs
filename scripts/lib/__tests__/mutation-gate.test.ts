@@ -1193,6 +1193,13 @@ describe("parseGateConfig", () => {
     ).toBe(true);
   });
 
+  it("names the JSON problem for text that is not JSON", () => {
+    const error = parseError("{", "mutation-gate.project.json");
+
+    expect(error).toBeInstanceOf(GateConfigError);
+    expect((error as Error).message).toContain("JSON");
+  });
+
   it("puts the given path, not a fixed name, at the start of the message", () => {
     const error = parseError('{"critical":"src/"}', "mutation-gate.json");
 
