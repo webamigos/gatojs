@@ -104,6 +104,8 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         'export const moduleEnvSchemas = enabledEntries([{ module: "beta", value: betaEnvSchema }], gatoConfig);',
         "export const authPlugins: never[] = [];",
         "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -180,6 +182,71 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
     );
   });
 
+  it("a feature with events.ts and a feature with subscribers.ts enter moduleEvents and moduleSubscribers of the server file only", async () => {
+    const dir = await makeProject({
+      alpha: { files: ["src/features/alpha/**"] },
+      beta: { files: ["src/features/beta/**"] },
+    });
+    await put(dir, "src/features/alpha/events.ts", "export const events = {};");
+    await put(
+      dir,
+      "src/features/beta/subscribers.ts",
+      "export const subscribers = {};",
+    );
+    await generate(dir);
+    expect(await read(dir, "src/modules.generated.ts")).toBe(
+      [
+        HEADER,
+        'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
+        'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
+        'import { enabledModuleEntries } from "@/shared/lib/modules/gato-config";',
+        'import { events as alphaEvents } from "@/features/alpha/events";',
+        'import { subscribers as betaSubscribers } from "@/features/beta/subscribers";',
+        "",
+        "export const modules: never[] = [];",
+        "export const moduleEnvSchemas: never[] = [];",
+        "export const authPlugins: never[] = [];",
+        "export const auditSinks: never[] = [];",
+        'export const moduleEvents = [{ module: "alpha", value: alphaEvents }];',
+        'export const moduleSubscribers = enabledModuleEntries([{ module: "beta", value: betaSubscribers }], gatoConfig);',
+        "export const env = createEnv(moduleEnvSchemas);",
+        "",
+        "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
+        "",
+        "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
+        "  pl: [],",
+        "};",
+        "",
+      ].join("\n"),
+    );
+    const client = await read(dir, "src/modules.client.generated.ts");
+    expect(client).not.toContain("events");
+    expect(client).not.toContain("subscribers");
+  });
+
+  it("files merely named like events or subscribers do not register a feature", async () => {
+    const dir = await makeProject({
+      alpha: { files: ["src/features/alpha/**"] },
+    });
+    await put(dir, "src/features/alpha/events-list.ts", "export const x = 1;");
+    await put(
+      dir,
+      "src/features/alpha/components/events.ts",
+      "export const x = 1;",
+    );
+    await put(dir, "src/features/alpha/subscribers.tsx", "export const x = 1;");
+    await generate(dir);
+    const server = await read(dir, "src/modules.generated.ts");
+    expect(server.split("\n")).toContain(
+      "export const moduleEvents: never[] = [];",
+    );
+    expect(server.split("\n")).toContain(
+      "export const moduleSubscribers: never[] = [];",
+    );
+    expect(server).not.toContain("@/features/alpha/");
+  });
+
   it("katalog bez żadnego rozpoznanego pliku nie trafia do rejestru", async () => {
     const dir = await makeProject({
       alpha: { files: ["src/features/alpha/**"] },
@@ -197,6 +264,8 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const moduleEnvSchemas: never[] = [];",
         "export const authPlugins: never[] = [];",
         "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",

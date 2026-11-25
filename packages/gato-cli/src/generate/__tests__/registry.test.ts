@@ -24,6 +24,8 @@ const base = {
   hasAuth: false,
   hasAuthClient: false,
   hasAuditSink: false,
+  hasEvents: false,
+  hasSubscribers: false,
   locales: [],
 };
 
@@ -38,6 +40,8 @@ describe("renderRegistry", () => {
           hasAuth: true,
           hasAuthClient: true,
           hasAuditSink: false,
+          hasEvents: false,
+          hasSubscribers: false,
           locales: ["pl", "en"],
         },
       ],
@@ -143,6 +147,8 @@ describe("renderRegistry", () => {
     hasAuth: true,
     hasAuthClient: true,
     hasAuditSink: false,
+    hasEvents: false,
+    hasSubscribers: false,
     locales: ["pl", "en"],
   };
 
@@ -162,6 +168,8 @@ describe("renderRegistry", () => {
         'export const moduleEnvSchemas = enabledEntries([{ module: "demo", value: demoEnvSchema }], gatoConfig);',
         'export const authPlugins = enabledEntries([{ module: "demo", value: demoAuthPlugin }], gatoConfig);',
         "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -207,6 +215,8 @@ describe("renderRegistry", () => {
           hasAuth: false,
           hasAuthClient: false,
           hasAuditSink: false,
+          hasEvents: false,
+          hasSubscribers: false,
           locales: [],
         },
       ],
@@ -261,6 +271,8 @@ describe("renderRegistry", () => {
         'export const moduleEnvSchemas = enabledEntries([{ module: "demo", value: demoEnvSchema }], gatoConfig);',
         'export const authPlugins = enabledEntries([{ module: "demo", value: demoAuthPlugin }], gatoConfig);',
         "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -416,6 +428,8 @@ describe("renderRegistry: env binding from @gatojs/env", () => {
         "export const moduleEnvSchemas: never[] = [];",
         "export const authPlugins: never[] = [];",
         "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -428,7 +442,7 @@ describe("renderRegistry: env binding from @gatojs/env", () => {
     );
   });
 
-  it("with an env module the createEnv import follows the Locale import and env follows auditSinks", () => {
+  it("with an env module the createEnv import follows the Locale import and env follows moduleSubscribers", () => {
     const lines = renderRegistry(
       [
         {
@@ -437,6 +451,8 @@ describe("renderRegistry: env binding from @gatojs/env", () => {
           hasModuleTs: true,
           hasEnv: true,
           hasAuditSink: true,
+          hasEvents: false,
+          hasSubscribers: false,
         },
       ],
       BOTH,
@@ -451,11 +467,13 @@ describe("renderRegistry: env binding from @gatojs/env", () => {
       "export const modules = applyGatoConfig([demoModule], gatoConfig);",
     );
 
-    expect(lines.slice(modulesLine, modulesLine + 6)).toEqual([
+    expect(lines.slice(modulesLine, modulesLine + 8)).toEqual([
       "export const modules = applyGatoConfig([demoModule], gatoConfig);",
       'export const moduleEnvSchemas = enabledEntries([{ module: "demo", value: demoEnvSchema }], gatoConfig);',
       "export const authPlugins: never[] = [];",
       'export const auditSinks = enabledEntries([{ module: "demo", value: demoAuditSink }], gatoConfig);',
+      "export const moduleEvents: never[] = [];",
+      "export const moduleSubscribers: never[] = [];",
       "export const env = createEnv(moduleEnvSchemas);",
       "",
     ]);
@@ -497,6 +515,8 @@ describe("renderRegistry: gato.config", () => {
     hasAuth: true,
     hasAuthClient: true,
     hasAuditSink: true,
+    hasEvents: false,
+    hasSubscribers: false,
     locales: ["pl", "en"],
   };
 
@@ -519,6 +539,8 @@ describe("renderRegistry: gato.config", () => {
         'export const moduleEnvSchemas = enabledEntries([{ module: "demo", value: demoEnvSchema }], gatoConfig);',
         'export const authPlugins = enabledEntries([{ module: "demo", value: demoAuthPlugin }], gatoConfig);',
         'export const auditSinks = enabledEntries([{ module: "demo", value: demoAuditSink }], gatoConfig);',
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -555,6 +577,8 @@ describe("renderRegistry: gato.config", () => {
         'export const moduleEnvSchemas = enabledEntries([{ module: "demo", value: demoEnvSchema }], gatoConfig);',
         'export const authPlugins = enabledEntries([{ module: "demo", value: demoAuthPlugin }], gatoConfig);',
         'export const auditSinks = enabledEntries([{ module: "demo", value: demoAuditSink }], gatoConfig);',
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -641,6 +665,8 @@ describe("renderRegistry: gato.config", () => {
         "export const moduleEnvSchemas: never[] = [];",
         "export const authPlugins: never[] = [];",
         "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -699,6 +725,8 @@ describe("renderRegistry: gato.config", () => {
         "export const moduleEnvSchemas: never[] = [];",
         "export const authPlugins: never[] = [];",
         "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -798,6 +826,8 @@ describe("renderRegistry: gato.config", () => {
         "export const moduleEnvSchemas: never[] = [];",
         'export const authPlugins = enabledEntries([{ module: "alpha", value: alphaAuthPlugin }], gatoConfig);',
         "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -831,6 +861,8 @@ describe("renderRegistry: gato.config", () => {
         "export const moduleEnvSchemas: never[] = [];",
         "export const authPlugins: never[] = [];",
         'export const auditSinks = enabledEntries([{ module: "alpha", value: alphaAuditSink }], gatoConfig);',
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -860,6 +892,8 @@ describe("renderRegistry: gato.config", () => {
         "export const moduleEnvSchemas: never[] = [];",
         "export const authPlugins: never[] = [];",
         "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -988,6 +1022,8 @@ describe("renderRegistry: gatoBranding in the client file", () => {
     hasAuth: true,
     hasAuthClient: true,
     hasAuditSink: true,
+    hasEvents: false,
+    hasSubscribers: false,
     locales: ["pl", "en"],
   };
 
@@ -1043,6 +1079,8 @@ describe("renderRegistry: gatoBranding in the client file", () => {
         hasAuth: fc.boolean(),
         hasAuthClient: fc.boolean(),
         hasAuditSink: fc.boolean(),
+        hasEvents: fc.boolean(),
+        hasSubscribers: fc.boolean(),
         locales: fc.constant<string[]>([]),
       }),
       { maxLength: 4 },
@@ -1061,6 +1099,303 @@ describe("renderRegistry: gatoBranding in the client file", () => {
       expect(lines[2]).toMatch(
         /^import \{ (?:[A-Za-z]+, )*gatoBrandingOf \} from "@\/shared\/lib\/modules\/gato-config";$/,
       );
+    },
+  );
+});
+
+describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
+  const SERVER_HELPERS_WITH_EVENTS_IMPORT =
+    'import { applyGatoConfig, enabledEntries, enabledModuleEntries } from "@/shared/lib/modules/gato-config";';
+  const invoices = {
+    name: "invoices",
+    ...base,
+    hasModuleTs: true,
+    hasAuditSink: true,
+    hasEvents: true,
+    hasSubscribers: true,
+  };
+
+  it("a module with events.ts and subscribers.ts gets both imports after the auditSink import and both lists after auditSinks", () => {
+    expect(
+      renderRegistry([invoices], ["pl"], { hasGatoConfig: true }).server,
+    ).toBe(
+      [
+        HEADER,
+        CONFIG_IMPORT,
+        'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
+        SERVER_HELPERS_WITH_EVENTS_IMPORT,
+        'import invoicesModule from "@/features/invoices/module";',
+        'import { auditSink as invoicesAuditSink } from "@/features/invoices/audit-sink";',
+        'import { events as invoicesEvents } from "@/features/invoices/events";',
+        'import { subscribers as invoicesSubscribers } from "@/features/invoices/subscribers";',
+        "",
+        "export const modules = applyGatoConfig([invoicesModule], gatoConfig);",
+        "export const moduleEnvSchemas: never[] = [];",
+        "export const authPlugins: never[] = [];",
+        'export const auditSinks = enabledEntries([{ module: "invoices", value: invoicesAuditSink }], gatoConfig);',
+        'export const moduleEvents = [{ module: "invoices", value: invoicesEvents }];',
+        'export const moduleSubscribers = enabledModuleEntries([{ module: "invoices", value: invoicesSubscribers }], gatoConfig);',
+        "export const env = createEnv(moduleEnvSchemas);",
+        "",
+        "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
+        "",
+        "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
+        "  pl: [],",
+        "};",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("a module with only events.ts imports neither the config nor a helper, because moduleEvents is not filtered", () => {
+    expect(
+      renderRegistry([{ name: "alpha", ...base, hasEvents: true }], ["pl"], {
+        hasGatoConfig: true,
+      }).server,
+    ).toBe(
+      [
+        HEADER,
+        'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
+        'import { events as alphaEvents } from "@/features/alpha/events";',
+        "",
+        "export const modules: never[] = [];",
+        "export const moduleEnvSchemas: never[] = [];",
+        "export const authPlugins: never[] = [];",
+        "export const auditSinks: never[] = [];",
+        'export const moduleEvents = [{ module: "alpha", value: alphaEvents }];',
+        "export const moduleSubscribers: never[] = [];",
+        "export const env = createEnv(moduleEnvSchemas);",
+        "",
+        "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
+        "",
+        "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
+        "  pl: [],",
+        "};",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("a module with only subscribers.ts imports the config and only enabledModuleEntries", () => {
+    expect(
+      renderRegistry(
+        [{ name: "beta", ...base, hasSubscribers: true }],
+        ["pl"],
+        { hasGatoConfig: false },
+      ).server,
+    ).toBe(
+      [
+        HEADER,
+        EMPTY_CONFIG_IMPORT,
+        'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
+        'import { enabledModuleEntries } from "@/shared/lib/modules/gato-config";',
+        'import { subscribers as betaSubscribers } from "@/features/beta/subscribers";',
+        "",
+        "export const modules: never[] = [];",
+        "export const moduleEnvSchemas: never[] = [];",
+        "export const authPlugins: never[] = [];",
+        "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        'export const moduleSubscribers = enabledModuleEntries([{ module: "beta", value: betaSubscribers }], gatoConfig);',
+        "export const env = createEnv(moduleEnvSchemas);",
+        "",
+        "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
+        "",
+        "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
+        "  pl: [],",
+        "};",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("enabledModuleEntries sits after applyGatoConfig when enabledEntries is not used", () => {
+    const lines = renderRegistry(
+      [{ name: "alpha", ...base, hasModuleTs: true, hasSubscribers: true }],
+      ["pl"],
+      { hasGatoConfig: true },
+    ).server.split("\n");
+    expect(lines[4]).toBe(
+      'import { applyGatoConfig, enabledModuleEntries } from "@/shared/lib/modules/gato-config";',
+    );
+  });
+
+  it("enabledModuleEntries sits between enabledEntries and the end of the server helper import", () => {
+    const lines = renderRegistry([invoices], BOTH).server.split("\n");
+    expect(
+      lines.filter((line) => line.includes("@/shared/lib/modules/gato-config")),
+    ).toEqual([EMPTY_CONFIG_IMPORT, SERVER_HELPERS_WITH_EVENTS_IMPORT]);
+  });
+
+  it("with no module declaring events or subscribers both lists are never[] and no helper import names enabledModuleEntries", () => {
+    const { server } = renderRegistry(
+      [{ name: "alpha", ...base, hasModuleTs: true, hasEnv: true }],
+      BOTH,
+    );
+    expect(server.split("\n")).toContain(
+      "export const moduleEvents: never[] = [];",
+    );
+    expect(server.split("\n")).toContain(
+      "export const moduleSubscribers: never[] = [];",
+    );
+    expect(server).not.toContain("enabledModuleEntries");
+    expect(server).not.toContain("/events");
+    expect(server).not.toContain("/subscribers");
+  });
+
+  it("several modules keep the input order in both lists and their imports", () => {
+    const { server } = renderRegistry(
+      [
+        { name: "zeta", ...base, hasEvents: true, hasSubscribers: true },
+        { name: "alpha", ...base, hasEvents: true, hasSubscribers: true },
+      ],
+      ["pl"],
+      { hasGatoConfig: true },
+    );
+    const lines = server.split("\n");
+    expect(lines).toContain(
+      'export const moduleEvents = [{ module: "zeta", value: zetaEvents }, { module: "alpha", value: alphaEvents }];',
+    );
+    expect(lines).toContain(
+      'export const moduleSubscribers = enabledModuleEntries([{ module: "zeta", value: zetaSubscribers }, { module: "alpha", value: alphaSubscribers }], gatoConfig);',
+    );
+    expect(
+      lines.indexOf(
+        'import { events as zetaEvents } from "@/features/zeta/events";',
+      ),
+    ).toBeLessThan(
+      lines.indexOf(
+        'import { events as alphaEvents } from "@/features/alpha/events";',
+      ),
+    );
+    expect(
+      lines.indexOf(
+        'import { subscribers as zetaSubscribers } from "@/features/zeta/subscribers";',
+      ),
+    ).toBeLessThan(
+      lines.indexOf(
+        'import { subscribers as alphaSubscribers } from "@/features/alpha/subscribers";',
+      ),
+    );
+  });
+
+  it("a module enters only the lists of the files it has", () => {
+    const { server } = renderRegistry(
+      [
+        { name: "alpha", ...base, hasEvents: true },
+        { name: "beta", ...base, hasSubscribers: true },
+      ],
+      ["pl"],
+      { hasGatoConfig: true },
+    );
+    const lines = server.split("\n");
+    expect(lines).toContain(
+      'export const moduleEvents = [{ module: "alpha", value: alphaEvents }];',
+    );
+    expect(lines).toContain(
+      'export const moduleSubscribers = enabledModuleEntries([{ module: "beta", value: betaSubscribers }], gatoConfig);',
+    );
+    expect(server).not.toContain("@/features/alpha/subscribers");
+    expect(server).not.toContain("@/features/beta/events");
+  });
+
+  it("a hyphenated module name gives camelCase identifiers and keeps the raw key", () => {
+    const lines = renderRegistry(
+      [
+        {
+          name: "my-feature",
+          ...base,
+          hasEvents: true,
+          hasSubscribers: true,
+        },
+      ],
+      ["pl"],
+    ).server.split("\n");
+    expect(lines).toContain(
+      'import { events as myFeatureEvents } from "@/features/my-feature/events";',
+    );
+    expect(lines).toContain(
+      'import { subscribers as myFeatureSubscribers } from "@/features/my-feature/subscribers";',
+    );
+    expect(lines).toContain(
+      'export const moduleEvents = [{ module: "my-feature", value: myFeatureEvents }];',
+    );
+    expect(lines).toContain(
+      'export const moduleSubscribers = enabledModuleEntries([{ module: "my-feature", value: myFeatureSubscribers }], gatoConfig);',
+    );
+  });
+
+  it("moduleEvents is not wrapped in a config helper, so a disabled module keeps its schemas", () => {
+    const { server } = renderRegistry([invoices], BOTH, {
+      hasGatoConfig: true,
+    });
+    const eventsLines = server
+      .split("\n")
+      .filter((line) => line.startsWith("export const moduleEvents"));
+    expect(eventsLines).toEqual([
+      'export const moduleEvents = [{ module: "invoices", value: invoicesEvents }];',
+    ]);
+  });
+
+  it("the client file says nothing about events or subscribers", () => {
+    const withEvents = renderRegistry([invoices], BOTH, {
+      hasGatoConfig: true,
+    }).client;
+    const withoutEvents = renderRegistry(
+      [{ ...invoices, hasEvents: false, hasSubscribers: false }],
+      BOTH,
+      { hasGatoConfig: true },
+    ).client;
+    expect(withEvents).toBe(withoutEvents);
+    expect(withEvents).not.toContain("events");
+    expect(withEvents).not.toContain("Events");
+    expect(withEvents).not.toContain("ubscribers");
+    expect(withEvents).not.toContain("enabledModuleEntries");
+  });
+
+  test.prop([
+    fc.array(
+      fc.record({
+        name: fc.stringMatching(/^[a-z][a-z0-9]*$/),
+        hasModuleTs: fc.boolean(),
+        hasEnv: fc.boolean(),
+        hasAuth: fc.boolean(),
+        hasAuthClient: fc.boolean(),
+        hasAuditSink: fc.boolean(),
+        hasEvents: fc.boolean(),
+        hasSubscribers: fc.boolean(),
+        locales: fc.constant<string[]>([]),
+      }),
+      { maxLength: 4 },
+    ),
+    fc.boolean(),
+  ])(
+    "every server file declares moduleEvents and moduleSubscribers once, between auditSinks and env",
+    (modules, hasGatoConfig) => {
+      const lines = renderRegistry(modules, BOTH, {
+        hasGatoConfig,
+      }).server.split("\n");
+      const auditSinksAt = lines.findIndex((line) =>
+        line.startsWith("export const auditSinks"),
+      );
+      expect(lines[auditSinksAt + 1]).toMatch(/^export const moduleEvents\b/);
+      expect(lines[auditSinksAt + 2]).toMatch(
+        /^export const moduleSubscribers\b/,
+      );
+      expect(lines[auditSinksAt + 3]).toBe(
+        "export const env = createEnv(moduleEnvSchemas);",
+      );
+      expect(
+        lines.filter((line) => line.startsWith("export const moduleEvents")),
+      ).toHaveLength(1);
+      expect(
+        lines.filter((line) =>
+          line.startsWith("export const moduleSubscribers"),
+        ),
+      ).toHaveLength(1);
     },
   );
 });
