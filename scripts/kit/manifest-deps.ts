@@ -76,7 +76,7 @@ function escapeRegExp(text: string): string {
   return text.replace(REGEXP_SPECIAL, "\\$&");
 }
 
-function globToRegExp(glob: string): RegExp {
+export function globToRegExp(glob: string): RegExp {
   let source = "";
   let index = 0;
   while (index < glob.length) {
