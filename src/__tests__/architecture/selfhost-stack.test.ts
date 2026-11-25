@@ -565,6 +565,26 @@ describe("checkSelfhostCompose", () => {
     expect(checkSelfhostCompose(root)).toEqual([]);
   });
 
+  it("ignores a non-string profile entry and reports a one-shot service with only such entries like one without profiles", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", restart: "no", profiles: [null] };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([oneShotIssue("seed")]);
+  });
+
+  it("ignores a non-string profile entry and reports only the string profiles of a one-shot service", () => {
+    const compose = validCompose();
+    compose.services.seed = {
+      image: "x",
+      restart: "no",
+      profiles: [null, "s3"],
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([
+      oneShotProfileIssue("seed", "s3"),
+    ]);
+  });
+
   it("does not count a waiter under the right profile that only waits for the one-shot service to start", () => {
     const compose = validCompose();
     compose.services.seed = { image: "x", restart: "no", profiles: ["s3"] };
