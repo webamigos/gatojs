@@ -1,6 +1,7 @@
 import type { OrgRole } from "@/shared/lib/auth/roles";
 
 export interface ModuleNavItem {
+  id?: string;
   href: string;
   labelKey: string;
   multiOrgLabelKey?: string;

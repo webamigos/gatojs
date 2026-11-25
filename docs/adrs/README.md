@@ -37,4 +37,5 @@ An ADR is not edited after it is accepted, except to fix a mistake or to add "Su
 | [57](57-the-agent-workflow-is-shipped-by-gatojs.md) | The agent task workflow is the `gato-task` skill shipped by GatoJS; the superpowers plugin is an optional recommendation | Accepted |
 | [58](58-organization-data-keys-are-wrapped-rows-created-on-first-use.md) | Each organization's data key is one wrapped row, created on first use, with no rotation yet | Accepted |
 | [59](59-gato-files-are-protected-and-ejected-with-a-reason.md) | Gato files are protected and ejected with a recorded reason; the CLI state carries `kitFormat`, `ejected` and `seed` | Accepted |
+| [60](60-project-configuration-is-applied-by-the-generated-registries.md) | Project configuration lives in `src/gato.config.ts` and is applied by the generated registries when they load | Accepted |
 | [64](64-production-mail-needs-a-configured-provider-or-explicit-console.md) | Production mail needs a configured provider or an explicit `console`, not Resend specifically | Accepted (supersedes the production `RESEND_API_KEY` rule of D17 and the note in D18) |

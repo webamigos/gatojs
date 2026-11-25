@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  CLIENT_ENTRY_FILES,
   CLIENT_SAFE_AUTH_MODULES,
   checkClientBundles,
   findServerImportsInClient,
@@ -44,6 +45,15 @@ describe("isClientModule", () => {
 
   it("plik bez dyrektyw to nie moduł kliencki", () => {
     expect(isClientModule("export const a = 1;")).toBe(false);
+  });
+});
+
+describe("CLIENT_ENTRY_FILES", () => {
+  it("lists the project config and the config helper as client entries", () => {
+    expect(CLIENT_ENTRY_FILES).toEqual([
+      "src/gato.config.ts",
+      "src/shared/lib/modules/gato-config.ts",
+    ]);
   });
 });
 
@@ -312,6 +322,58 @@ describe("checkClientBundles", () => {
 
   it("nie czyta plików spoza src", () => {
     write("scripts/x.tsx", client('import "server-only";'));
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("reports src/gato.config.ts importing prisma without a use client directive", () => {
+    write(
+      "src/gato.config.ts",
+      'import { prisma } from "@/shared/lib/prisma";\nexport default {};',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/gato.config.ts: @/shared/lib/prisma",
+    ]);
+  });
+
+  it("reports src/shared/lib/modules/gato-config.ts importing env without a use client directive", () => {
+    write(
+      "src/shared/lib/modules/gato-config.ts",
+      'import { env } from "@/env";\nexport const a = env;',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/shared/lib/modules/gato-config.ts: @/env",
+    ]);
+  });
+
+  it("the same import in another file without use client is not reported", () => {
+    write(
+      "src/gato.config.backup.ts",
+      'import { prisma } from "@/shared/lib/prisma";\nexport default {};',
+    );
+    write(
+      "src/features/a/gato.config.ts",
+      'import { prisma } from "@/shared/lib/prisma";\nexport default {};',
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("src/gato.config.ts with only type imports of server modules passes", () => {
+    write(
+      "src/gato.config.ts",
+      'import type { Session } from "@/shared/lib/auth";\nexport default {};',
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("src/gato.config.ts with use client and a server import is reported once", () => {
+    write("src/gato.config.ts", client('import "server-only";'));
+    expect(checkClientBundles(root)).toEqual([
+      "src/gato.config.ts: server-only",
+    ]);
+  });
+
+  it("a missing src/gato.config.ts is not an error", () => {
+    write("src/a.ts", "export const a = 1;");
     expect(checkClientBundles(root)).toEqual([]);
   });
 });

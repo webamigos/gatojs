@@ -4,6 +4,7 @@ export default defineModule({
   key: "users",
   nav: [
     {
+      id: "users.list",
       href: "/users",
       labelKey: "nav",
       multiOrgLabelKey: "nav-members",

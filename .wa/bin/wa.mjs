@@ -602,9 +602,9 @@ async function packageDirectories(projectDir) {
     throw error62;
   }
   const names = [];
-  for (const entry of entries) {
-    if (entry.isDirectory() && await isFile(join(packagesDir, entry.name, "package.json"))) {
-      names.push(entry.name);
+  for (const entry2 of entries) {
+    if (entry2.isDirectory() && await isFile(join(packagesDir, entry2.name, "package.json"))) {
+      names.push(entry2.name);
     }
   }
   return names.sort(compareCodePoint);
@@ -933,7 +933,7 @@ import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile2 } from 
 import { dirname as dirname2, join as join3 } from "node:path";
 
 // src/kit/kit-format.ts
-var SUPPORTED_KIT_FORMATS = [1, 2, 3];
+var SUPPORTED_KIT_FORMATS = [1, 2, 3, 4];
 function assertSupportedKitFormat(format) {
   if (!SUPPORTED_KIT_FORMATS.includes(format)) {
     throw new Error(
@@ -6165,9 +6165,9 @@ var memo = {
     if (!bucket)
       return empty;
     handoff = void 0;
-    const entry = { value: empty, issues: null };
-    bucket.set(payload.value, entry);
-    open.push(entry);
+    const entry2 = { value: empty, issues: null };
+    bucket.set(payload.value, entry2);
+    open.push(entry2);
     return empty;
   },
   guard(inst) {
@@ -6241,16 +6241,16 @@ var memo = {
         const depth = open.length;
         const result = base(payload, ctx);
         handoff = void 0;
-        const entry = open.length > depth ? open.pop() : void 0;
+        const entry2 = open.length > depth ? open.pop() : void 0;
         if (result instanceof Promise) {
           return result.then((r) => {
-            if (entry)
-              entry.issues = r.issues.length ? cloneIssues(r.issues) : NO_ISSUES;
+            if (entry2)
+              entry2.issues = r.issues.length ? cloneIssues(r.issues) : NO_ISSUES;
             return r;
           });
         }
-        if (entry)
-          entry.issues = result.issues.length ? cloneIssues(result.issues) : NO_ISSUES;
+        if (entry2)
+          entry2.issues = result.issues.length ? cloneIssues(result.issues) : NO_ISSUES;
         return result;
       };
       inst._zod.parse = wrapped;
@@ -16664,42 +16664,42 @@ function extractDefs(ctx, schema) {
   if (ctx.external && ctx.sharedDefsExtractedFor === ctx.external)
     return;
   const idToSchema = /* @__PURE__ */ new Map();
-  for (const entry of ctx.seen.entries()) {
-    const id = ctx.metadataRegistry.get(entry[0])?.id;
+  for (const entry2 of ctx.seen.entries()) {
+    const id = ctx.metadataRegistry.get(entry2[0])?.id;
     if (id) {
       const existing = idToSchema.get(id);
-      if (existing && existing !== entry[0]) {
+      if (existing && existing !== entry2[0]) {
         throw new Error(`Duplicate schema id "${id}" detected during JSON Schema conversion. Two different schemas cannot share the same id when converted together.`);
       }
-      idToSchema.set(id, entry[0]);
+      idToSchema.set(id, entry2[0]);
     }
   }
-  const makeURI = (entry) => {
+  const makeURI = (entry2) => {
     const defsSegment = ctx.target === "draft-2020-12" ? "$defs" : "definitions";
     if (ctx.external) {
-      const externalId = ctx.external.registry.get(entry[0])?.id;
+      const externalId = ctx.external.registry.get(entry2[0])?.id;
       const uriGenerator = ctx.external.uri ?? ((id2) => id2);
       if (externalId) {
         return { ref: uriGenerator(externalId) };
       }
-      const id = entry[1].defId ?? entry[1].schema.id ?? `schema${ctx.counter++}`;
-      entry[1].defId = id;
+      const id = entry2[1].defId ?? entry2[1].schema.id ?? `schema${ctx.counter++}`;
+      entry2[1].defId = id;
       return { defId: id, ref: `${uriGenerator("__shared")}#/${defsSegment}/${encodeJSONPointerSegment(id)}` };
     }
     const uriPrefix = `#`;
     const defUriPrefix = `${uriPrefix}/${defsSegment}/`;
-    if (entry[1] === root && !entry[1].schema.id) {
+    if (entry2[1] === root && !entry2[1].schema.id) {
       return { ref: uriPrefix };
     }
-    const defId = entry[1].schema.id ?? `__schema${ctx.counter++}`;
+    const defId = entry2[1].schema.id ?? `__schema${ctx.counter++}`;
     return { defId, ref: defUriPrefix + encodeJSONPointerSegment(defId) };
   };
-  const extractToDef = (entry) => {
-    if (entry[1].schema.$ref) {
+  const extractToDef = (entry2) => {
+    if (entry2[1].schema.$ref) {
       return;
     }
-    const seen = entry[1];
-    const { ref, defId } = makeURI(entry);
+    const seen = entry2[1];
+    const { ref, defId } = makeURI(entry2);
     seen.def = { ...seen.schema };
     if (defId)
       seen.defId = defId;
@@ -16710,8 +16710,8 @@ function extractDefs(ctx, schema) {
     schema2.$ref = ref;
   };
   if (ctx.cycles === "throw") {
-    for (const entry of ctx.seen.entries()) {
-      const seen = entry[1];
+    for (const entry2 of ctx.seen.entries()) {
+      const seen = entry2[1];
       if (seen.cycle) {
         throw new Error(`Cycle detected: #/${seen.cycle?.join("/")}/<root>
 
@@ -16719,31 +16719,31 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       }
     }
   }
-  for (const entry of ctx.seen.entries()) {
-    const seen = entry[1];
-    if (schema === entry[0]) {
-      extractToDef(entry);
+  for (const entry2 of ctx.seen.entries()) {
+    const seen = entry2[1];
+    if (schema === entry2[0]) {
+      extractToDef(entry2);
       continue;
     }
     if (ctx.external) {
-      const ext = ctx.external.registry.get(entry[0])?.id;
-      if (schema !== entry[0] && ext) {
-        extractToDef(entry);
+      const ext = ctx.external.registry.get(entry2[0])?.id;
+      if (schema !== entry2[0] && ext) {
+        extractToDef(entry2);
         continue;
       }
     }
-    const id = ctx.metadataRegistry.get(entry[0])?.id;
+    const id = ctx.metadataRegistry.get(entry2[0])?.id;
     if (id) {
-      extractToDef(entry);
+      extractToDef(entry2);
       continue;
     }
     if (seen.cycle) {
-      extractToDef(entry);
+      extractToDef(entry2);
       continue;
     }
     if (seen.count > 1) {
       if (ctx.reused === "ref") {
-        extractToDef(entry);
+        extractToDef(entry2);
       }
     }
   }
@@ -16925,12 +16925,12 @@ function finalize(ctx, schema) {
     });
   };
   if (!ctx.external || ctx.sharedEmitDoneFor !== ctx.external) {
-    for (const entry of [...ctx.seen.entries()].reverse()) {
-      flattenRef(entry[0]);
+    for (const entry2 of [...ctx.seen.entries()].reverse()) {
+      flattenRef(entry2[0]);
     }
     if (ctx.target !== "openapi-3.0") {
-      for (const entry of ctx.seen.entries()) {
-        compactTypeUnion(entry[1].def ?? entry[1].schema);
+      for (const entry2 of ctx.seen.entries()) {
+        compactTypeUnion(entry2[1].def ?? entry2[1].schema);
       }
     }
     for (const rewrite of ctx.deferred)
@@ -16977,8 +16977,8 @@ function finalize(ctx, schema) {
     delete result.id;
   const defs = ctx.external?.defs ?? {};
   if (!ctx.external || ctx.sharedEmitDoneFor !== ctx.external) {
-    for (const entry of ctx.seen.entries()) {
-      const seen = entry[1];
+    for (const entry2 of ctx.seen.entries()) {
+      const seen = entry2[1];
       if (seen.def && seen.defId) {
         if (seen.def.id === seen.defId)
           delete seen.def.id;
@@ -17590,9 +17590,9 @@ function stringifyKeyNames(bySchema, json2, visited) {
 var pendingRecords = /* @__PURE__ */ new WeakMap();
 function rewriteKeyNames(ctx) {
   const bySchema = /* @__PURE__ */ new Map();
-  for (const entry of ctx.seen.values()) {
-    if (entry.def && !bySchema.has(entry.schema))
-      bySchema.set(entry.schema, entry);
+  for (const entry2 of ctx.seen.values()) {
+    if (entry2.def && !bySchema.has(entry2.schema))
+      bySchema.set(entry2.schema, entry2);
   }
   const rewrites = /* @__PURE__ */ new Map();
   for (const record2 of pendingRecords.get(ctx) ?? []) {
@@ -17606,8 +17606,8 @@ function rewriteKeyNames(ctx) {
   }
   if (!rewrites.size)
     return;
-  for (const entry of ctx.seen.values()) {
-    for (const carrier of [entry.schema, entry.def]) {
+  for (const entry2 of ctx.seen.values()) {
+    for (const carrier of [entry2.schema, entry2.def]) {
       const rewritten = carrier && rewrites.get(carrier.propertyNames);
       if (rewritten)
         carrier.propertyNames = rewritten;
@@ -17801,8 +17801,8 @@ function toJSONSchema(input2, params) {
     const registry2 = input2;
     const ctx2 = initializeContext({ ...params, processors: allProcessors });
     const defs = {};
-    for (const entry of registry2._idmap.entries()) {
-      const [_, schema] = entry;
+    for (const entry2 of registry2._idmap.entries()) {
+      const [_, schema] = entry2;
       processSchema(schema, ctx2);
     }
     const schemas = {};
@@ -17812,8 +17812,8 @@ function toJSONSchema(input2, params) {
       defs
     };
     ctx2.external = external;
-    for (const entry of registry2._idmap.entries()) {
-      const [key, schema] = entry;
+    for (const entry2 of registry2._idmap.entries()) {
+      const [key, schema] = entry2;
       extractDefs(ctx2, schema);
       assignProp(schemas, key, finalize(ctx2, schema));
     }
@@ -20789,10 +20789,10 @@ async function writeKitState(projectDir, state) {
   );
 }
 function installedModules(state) {
-  return Object.entries(state.modules).sort(([a], [b]) => compareModuleNames(a, b)).map(([, entry]) => entry.manifest);
+  return Object.entries(state.modules).sort(([a], [b]) => compareModuleNames(a, b)).map(([, entry2]) => entry2.manifest);
 }
 function projectModuleManifests(state) {
-  return Object.entries(state.projectModules).sort(([a], [b]) => compareCodePoint(a, b)).map(([, entry]) => entry.manifest);
+  return Object.entries(state.projectModules).sort(([a], [b]) => compareCodePoint(a, b)).map(([, entry2]) => entry2.manifest);
 }
 function registeredModules(state) {
   return [...installedModules(state), ...projectModuleManifests(state)];
@@ -20810,24 +20810,68 @@ function identifier(name, suffix) {
 function array2(items) {
   return `[${items.join(", ")}]`;
 }
-function typedArray(name, items) {
-  return items.length === 0 ? `export const ${name}: never[] = [];` : `export const ${name} = ${array2(items)};`;
+var GATO_CONFIG_MODULE = "@/shared/lib/modules/gato-config";
+var PROJECT_CONFIG_IMPORT = 'import gatoConfig from "@/gato.config";';
+var EMPTY_CONFIG_IMPORT = `import { emptyGatoConfig as gatoConfig } from "${GATO_CONFIG_MODULE}";`;
+function entry(module, value) {
+  return `{ module: "${module.name}", value: ${value} }`;
+}
+function configuredModules(name, items) {
+  return items.length === 0 ? `export const ${name}: never[] = [];` : `export const ${name} = applyGatoConfig(${array2(items)}, gatoConfig);`;
+}
+function enabledList(name, entries) {
+  return entries.length === 0 ? `export const ${name}: never[] = [];` : `export const ${name} = enabledEntries(${array2(entries)}, gatoConfig);`;
+}
+function configImports(options, helpers) {
+  if (helpers.length === 0) {
+    return { config: [], helpers: [] };
+  }
+  return {
+    config: [
+      options.hasGatoConfig ? PROJECT_CONFIG_IMPORT : EMPTY_CONFIG_IMPORT
+    ],
+    helpers: [`import { ${helpers.join(", ")} } from "${GATO_CONFIG_MODULE}";`]
+  };
+}
+function usedHelpers(usesApply, usesEnabledEntries) {
+  return [
+    ...usesApply ? ["applyGatoConfig"] : [],
+    ...usesEnabledEntries ? ["enabledEntries"] : []
+  ];
 }
 function renderLocales(locales) {
   return `${GENERATED_HEADER}
 export const locales = ${array2(locales.map((l) => `"${l}"`))} as const;
 `;
 }
-function renderRegistry(modules, locales) {
+function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
   const withModule = modules.filter((m) => m.hasModuleTs);
   const withEnv = modules.filter((m) => m.hasEnv);
   const withAuth = modules.filter((m) => m.hasAuth);
   const withAuthClient = modules.filter((m) => m.hasAuthClient);
   const withAuditSink = modules.filter((m) => m.hasAuditSink);
+  const loadersByLocale = locales.map((locale) => ({
+    locale,
+    loaders: modules.filter((m) => m.locales.includes(locale)).map(
+      (m) => entry(
+        m,
+        `{ key: "${m.name}", load: () => import("@/features/${m.name}/i18n/${locale}.json").then((m) => m.default) }`
+      )
+    )
+  }));
+  const serverImports = configImports(
+    options,
+    usedHelpers(
+      withModule.length > 0,
+      withEnv.length > 0 || withAuth.length > 0 || withAuditSink.length > 0 || loadersByLocale.some(({ loaders }) => loaders.length > 0)
+    )
+  );
   const server = [
     GENERATED_HEADER,
+    ...serverImports.config,
     'import type { Locale } from "@/i18n/config";',
     'import { createEnv } from "@gatojs/env";',
+    ...serverImports.helpers,
     ...withModule.map(
       (m) => `import ${identifier(m.name, "Module")} from "@/features/${m.name}/module";`
     ),
@@ -20841,38 +20885,45 @@ function renderRegistry(modules, locales) {
       (m) => `import { auditSink as ${identifier(m.name, "AuditSink")} } from "@/features/${m.name}/audit-sink";`
     ),
     "",
-    typedArray(
+    configuredModules(
       "modules",
       withModule.map((m) => identifier(m.name, "Module"))
     ),
-    typedArray(
+    enabledList(
       "moduleEnvSchemas",
-      withEnv.map((m) => identifier(m.name, "EnvSchema"))
+      withEnv.map((m) => entry(m, identifier(m.name, "EnvSchema")))
     ),
-    typedArray(
+    enabledList(
       "authPlugins",
-      withAuth.map((m) => identifier(m.name, "AuthPlugin"))
+      withAuth.map((m) => entry(m, identifier(m.name, "AuthPlugin")))
     ),
-    typedArray(
+    enabledList(
       "auditSinks",
-      withAuditSink.map((m) => identifier(m.name, "AuditSink"))
+      withAuditSink.map((m) => entry(m, identifier(m.name, "AuditSink")))
     ),
     "export const env = createEnv(moduleEnvSchemas);",
     "",
     "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
     "",
     "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
-    ...locales.flatMap((locale) => {
-      const loaders = modules.filter((m) => m.locales.includes(locale)).map(
-        (m) => `{ key: "${m.name}", load: () => import("@/features/${m.name}/i18n/${locale}.json").then((m) => m.default) }`
-      );
-      return loaders.length === 0 ? [`  ${locale}: [],`] : [`  ${locale}: [`, ...loaders.map((l) => `    ${l},`), "  ],"];
-    }),
+    ...loadersByLocale.flatMap(
+      ({ locale, loaders }) => loaders.length === 0 ? [`  ${locale}: [],`] : [
+        `  ${locale}: enabledEntries<MessageLoader>([`,
+        ...loaders.map((l) => `    ${l},`),
+        "  ], gatoConfig),"
+      ]
+    ),
     "};",
     ""
   ].join("\n");
+  const clientImports = configImports(
+    options,
+    usedHelpers(withModule.length > 0, withAuthClient.length > 0)
+  );
   const client = [
     GENERATED_HEADER,
+    ...clientImports.config,
+    ...clientImports.helpers,
     ...withAuthClient.map(
       (m) => `import { authClientPlugin as ${identifier(m.name, "AuthClientPlugin")} } from "@/features/${m.name}/auth-client";`
     ),
@@ -20880,11 +20931,13 @@ function renderRegistry(modules, locales) {
       (m) => `import ${identifier(m.name, "Module")} from "@/features/${m.name}/module";`
     ),
     "",
-    typedArray(
+    enabledList(
       "authClientPlugins",
-      withAuthClient.map((m) => identifier(m.name, "AuthClientPlugin"))
+      withAuthClient.map(
+        (m) => entry(m, identifier(m.name, "AuthClientPlugin"))
+      )
     ),
-    typedArray(
+    configuredModules(
       "clientModules",
       withModule.map((m) => identifier(m.name, "Module"))
     ),
@@ -20897,6 +20950,7 @@ function renderRegistry(modules, locales) {
 var SERVER_REGISTRY = "src/modules.generated.ts";
 var CLIENT_REGISTRY = "src/modules.client.generated.ts";
 var LOCALES_FILE = "src/i18n/locales.generated.ts";
+var GATO_CONFIG_FILE = "src/gato.config.ts";
 var GENERATED_FILES = [
   SERVER_REGISTRY,
   CLIENT_REGISTRY,
@@ -20943,8 +20997,8 @@ async function featureEntries(projectDir, files, configuredLocales) {
         continue;
       }
       seen.add(name);
-      const entry = await detectFeature(projectDir, name, configuredLocales);
-      entries.push(entry);
+      const entry2 = await detectFeature(projectDir, name, configuredLocales);
+      entries.push(entry2);
     }
   }
   return entries;
@@ -20957,7 +21011,9 @@ async function generate(projectDir) {
     manifests.map((m) => m.files),
     state.locales
   );
-  const registry2 = renderRegistry(features, state.locales);
+  const registry2 = renderRegistry(features, state.locales, {
+    hasGatoConfig: await exists(join4(projectDir, GATO_CONFIG_FILE))
+  });
   const pending = [];
   for (const [file2, next] of [
     [SERVER_REGISTRY, registry2.server],
@@ -21330,7 +21386,7 @@ function withoutKitOnly(packages, kitOnly) {
   );
   return Object.fromEntries(
     Object.entries(packages).filter(
-      ([path2, entry]) => !removed.has(path2) && !removed.has(entry.resolved)
+      ([path2, entry2]) => !removed.has(path2) && !removed.has(entry2.resolved)
     )
   );
 }
@@ -21461,8 +21517,8 @@ async function collectAnswers(options, manifests, names) {
   return { modules, locales, title, adminEmail, setup };
 }
 async function removeDirectoryContents(dir) {
-  for (const entry of await readdir3(dir)) {
-    await rm2(join8(dir, entry), { recursive: true });
+  for (const entry2 of await readdir3(dir)) {
+    await rm2(join8(dir, entry2), { recursive: true });
   }
 }
 async function discardAssembly(dir, existed) {
@@ -21688,7 +21744,7 @@ var UNHASHED = /* @__PURE__ */ new Set(["managed", "seed"]);
 function recordedHashes(state) {
   return new Map(
     Object.values(state.modules).flatMap(
-      (entry) => Object.entries(entry.files)
+      (entry2) => Object.entries(entry2.files)
     )
   );
 }
@@ -21754,7 +21810,7 @@ function assertRemovable(state, module) {
     throw new Error(`Module ${module} is not installed`);
   }
   const requiredBy = [
-    ...Object.values(state.modules).map((entry) => entry.manifest),
+    ...Object.values(state.modules).map((entry2) => entry2.manifest),
     ...projectModuleManifests(state)
   ].filter((manifest) => manifest.requires.includes(module)).map((manifest) => manifest.name).sort(compareCodePoint);
   if (requiredBy.length > 0) {
@@ -21858,11 +21914,11 @@ async function remove(options) {
   const { projectDir, module, runner, log } = options;
   const state = await readKitState(projectDir);
   assertRemovable(state, module);
-  const entry = state.modules[module];
+  const entry2 = state.modules[module];
   const absolutePaths = await Promise.all(
-    Object.entries(entry.files).filter(([, hash2]) => hash2 !== SEED).map(([file2]) => insideProject(projectDir, file2))
+    Object.entries(entry2.files).filter(([, hash2]) => hash2 !== SEED).map(([file2]) => insideProject(projectDir, file2))
   );
-  const changed = await changedFiles(projectDir, entry.files);
+  const changed = await changedFiles(projectDir, entry2.files);
   if (changed.length > 0 && !options.force) {
     throw new Error(
       `Changed files in module ${module} (use --force):
@@ -21878,7 +21934,7 @@ ${changed.map((file2) => `  ${file2}`).join("\n")}`
   const packageJsonPath = join9(projectDir, "package.json");
   const nextPackageJson = removeDependencies(
     await readFile8(packageJsonPath, "utf8"),
-    entry.manifest,
+    entry2.manifest,
     remaining
   );
   for (const path2 of absolutePaths) {
@@ -21908,9 +21964,9 @@ function nextSteps2(path2, cli) {
     `    keep the change: ${cli} eject ${path2} --reason "<why>"`
   ];
 }
-function ejectedLine(entry) {
-  const state = entry.unchanged ? "unchanged" : "changed";
-  return `  ejected   ${entry.path} (${state}): ${entry.reason}`;
+function ejectedLine(entry2) {
+  const state = entry2.unchanged ? "unchanged" : "changed";
+  return `  ejected   ${entry2.path} (${state}): ${entry2.reason}`;
 }
 function doctorFilesReport(report, { mode, cli }) {
   const problems = report.modified.length + report.deleted.length + report.staleEjected.length;
@@ -22094,7 +22150,7 @@ async function undoEject(options) {
   await writeFile7(absolute, kitFile.content);
   await chmod3(absolute, kitFile.mode);
   const ejected = Object.fromEntries(
-    Object.entries(state.ejected).filter(([entry]) => entry !== path2)
+    Object.entries(state.ejected).filter(([entry2]) => entry2 !== path2)
   );
   await writeKitState(projectDir, { ...state, ejected });
   if (REGION_FILES.includes(path2)) {
@@ -24026,10 +24082,10 @@ function availableLine(manifest) {
 function list(options) {
   const { state, available, availableError, log } = options;
   log("Installed:");
-  for (const [name, entry] of Object.entries(state.modules).sort(
+  for (const [name, entry2] of Object.entries(state.modules).sort(
     ([a], [b]) => compareModuleNames(a, b)
   )) {
-    log(`  ${name} ${entry.version}`);
+    log(`  ${name} ${entry2.version}`);
   }
   if (available === null) {
     log(`Available: could not fetch the kit (${availableError})`);
@@ -24555,7 +24611,7 @@ async function update(options) {
   assertRequirementsInstalled(state, target);
   const recordedHashes2 = Object.assign(
     {},
-    ...Object.values(state.modules).map((entry) => entry.files)
+    ...Object.values(state.modules).map((entry2) => entry2.files)
   );
   const plan = await planUpdate({
     base,
@@ -24806,7 +24862,7 @@ function cliDependency(input2) {
 }
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.6.0" };
+var identity = { name: "wa", version: "0.7.0" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);

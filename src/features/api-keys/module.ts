@@ -2,7 +2,15 @@ import { defineModule } from "@/shared/lib/modules/define-module";
 
 export default defineModule({
   key: "api-keys",
-  nav: [{ href: "/api-keys", labelKey: "nav", icon: "key-round", order: 85 }],
+  nav: [
+    {
+      id: "api-keys.list",
+      href: "/api-keys",
+      labelKey: "nav",
+      icon: "key-round",
+      order: 85,
+    },
+  ],
   routePrefixes: ["/api-keys"],
   roles: ["owner", "admin"],
   apiScopes: [
