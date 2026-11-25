@@ -208,7 +208,7 @@ Plik opisuje, z jakich modułów kitu składa się projekt i jakie ma funkcje w�
 - `modules` to słownik modułów kitu: klucz to nazwa modułu, a wartość to wersja, manifest i mapa `files`. W kicie są wszystkie cztery moduły (`api-keys`, `audit-logs`, `core`, `uploads`), a `files` jest puste. W projekcie są `core` i moduły wybrane przy `wa create` albo dodane przez `wa add`, a `files` mapuje ścieżkę każdego skopiowanego pliku na jego hash albo na `managed` ([16b](16b-rozwoj-kitu.md#hashe)). Generator `files` nie czyta.
 - `projectModules` to słownik funkcji napisanych w projekcie: klucz to nazwa modułu, a wartość ma tylko `manifest`, bez wersji i hashy plików ([D36](decyzje.md#d36)). Generator czyta go tak samo jak `modules` i rejestruje moduły projektu po modułach kitu, alfabetycznie. W repozytorium kitu jest pusty ([Krok 3 tutorialu](09-nowy-modul.md#krok-3)).
 - `manifest.files` to wzorce plików należących do modułu. Generator czyta z nich tylko wzorce zaczynające się od `src/features/<x>/`, żeby wykryć feature ([Wykrywanie feature](#wykrywanie-feature)). Pozostałe wzorce (`src/app/api/uploads/**`, `prisma/schema/uploads.prisma` i inne) generator pomija; czytają je `wa create`, `wa add` i `wa remove` przy kopiowaniu i usuwaniu plików. W manifestach kitu (`kit/modules/<nazwa>.json`) test własności sprawdza, że każdy plik kitu ma dokładnie jednego właściciela ([D38](decyzje.md#d38), [16b](16b-rozwoj-kitu.md#wlasnosc)). W projekcie nic tego nie sprawdza.
-- `env`, `schemaRelations`, `compose` i `ciSteps` wypełniają regiony `wa:*`. W kicie wypełniają je trzy moduły opcjonalne: relacje mają wszystkie trzy, zmienne `api-keys` i `uploads`, a usługi Dockera i kroki CI tylko `uploads`. Moduł `core` ma te pola puste.
+- `env`, `schemaRelations`, `compose`, `selfhostCompose` i `ciSteps` wypełniają regiony `wa:*`. W kicie wypełniają je trzy moduły opcjonalne: relacje mają wszystkie trzy, zmienne `api-keys` i `uploads`, a usługi Dockera i kroki CI tylko `uploads`. Moduł `core` ma te pola puste.
 - `requires` generator czyta tylko u modułów projektu: `readKitState` sprawdza, że każdy wymagany moduł jest w `modules` albo w `projectModules` ([Komunikaty](#referencja-komunikaty)). Pól `version`, `description`, `dependencies`, `devDependencies` i `workspaces` generator nie używa; czyta je CLI przy składaniu i zmianie projektu ([16b](16b-rozwoj-kitu.md#manifesty)). Pełną listę z typami i wartościami domyślnymi podaje [Referencja](#referencja-manifest).
 
 `readKitState` w `packages/gato-cli/src/manifest/kit-state.ts` sprawdza plik schematem Zod, a potem wpisy `projectModules`, i przy błędzie przerywa generator. Pól, których schemat nie zna, nie zgłasza: literówka w nazwie pola (na przykład `schemaRelation` zamiast `schemaRelations`) przechodzi bez błędu, a pole dostaje wartość domyślną.
@@ -243,6 +243,7 @@ Generator uruchom po:
 - dodaniu albo usunięciu w feature pliku `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts`, `audit-sink.ts` albo `i18n/<locale>.json`;
 - dodaniu, usunięciu albo zmianie nazwy katalogu feature;
 - zmianie treści pliku wskazanego w polu `compose` manifestu, bo generator kopiuje ją do `docker-compose.yml`;
+- zmianie treści pliku wskazanego w polu `selfhostCompose` manifestu, bo generator kopiuje ją do `docker-compose.selfhost.yml`;
 - zmianie treści pliku wskazanego w polu `ciSteps` manifestu, bo generator kopiuje ją do regionu `wa:ci-integration` w `.github/workflows/ci.yml` i `.github/workflows/mutation.yml`.
 
 Wynik commitujesz razem ze zmianą, która go wywołała.
@@ -299,7 +300,7 @@ const FEATURE_GLOB = /^src\/features\/([^/*]+)\//;
 
 ### Regiony `wa:*`
 
-Region to fragment pliku między linią z `wa:<marker>:start` a linią z `wa:<marker>:end`. Generator zastępuje wszystko między tymi liniami, a same linie z markerami zostawia. Składnię komentarza (`//` albo `#`) wyznacza plik, a generator szuka tylko tekstu markera. Siedem regionów, z pięcioma różnymi markerami, wymienia stała `regionTargets`:
+Region to fragment pliku między linią z `wa:<marker>:start` a linią z `wa:<marker>:end`. Generator zastępuje wszystko między tymi liniami, a same linie z markerami zostawia. Składnię komentarza (`//` albo `#`) wyznacza plik, a generator szuka tylko tekstu markera. Dziewięć regionów, z pięcioma różnymi markerami, wymienia stała `regionTargets`:
 
 `packages/gato-cli/src/generate/targets.ts`
 
@@ -317,6 +318,12 @@ export const regionTargets: RegionTarget[] = [
   },
   { file: ".env.example", marker: "modules", body: envBody },
   { file: "docker-compose.yml", marker: "services", body: composeBody },
+  {
+    file: "docker-compose.selfhost.yml",
+    marker: "services",
+    body: selfhostComposeBody,
+  },
+  { file: ".env.selfhost.example", marker: "modules", body: selfhostEnvBody },
   {
     file: ".github/workflows/ci.yml",
     marker: "ci-integration",
@@ -337,9 +344,13 @@ export const regionTargets: RegionTarget[] = [
 | `prisma/schema/organizations.prisma` (w modelu `Organization`) | `// wa:relations:start`, `// wa:relations:end` | To samo dla `model: "Organization"`. | `schemaRelations` |
 | `.env.example` (na końcu pliku) | `# wa:modules:start`, `# wa:modules:end` | Dla każdego modułu innego niż `core`, który ma zmienne: linia `# <nazwa modułu>` i linie `NAZWA=example`, w których `{{projectSlug}}` i `{{projectName}}` są zastąpione wartościami z pola `project`. Bloki modułów rozdziela pusta linia. | `env` (`name`, `example`) |
 | `docker-compose.yml` (pod `services:`) | `# wa:services:start`, `# wa:services:end` | Treść pliku wskazanego w `compose`, bez końcowych pustych linii, z każdą niepustą linią wciętą o dwie spacje. Pliki kolejnych modułów następują bez pustej linii. | `compose` (ścieżka względem katalogu projektu) |
+| `docker-compose.selfhost.yml` (pod `services:`) | `# wa:services:start`, `# wa:services:end` | To samo co w `docker-compose.yml`, ale z pliku wskazanego w `selfhostCompose`. Moduł z `compose` i bez `selfhostCompose` nie trafia do tego regionu. | `selfhostCompose` (ścieżka względem katalogu projektu) |
+| `.env.selfhost.example` (na końcu pliku) | `# wa:modules:start`, `# wa:modules:end` | To samo co w `.env.example`, ale z wartością `selfhostExample`, gdy wpis ją ma, a w przeciwnym razie z `example`. Pusty napis `selfhostExample: ""` też wygrywa z `example` i daje linię `NAZWA=`. Placeholdery są podmieniane tak samo. | `env` (`name`, `selfhostExample`, `example`) |
 | `.github/workflows/ci.yml` (w jobie `integration`, przed krokiem „Integration tests”) | `# wa:ci-integration:start`, `# wa:ci-integration:end` | Treść pliku wskazanego w `ciSteps`, czyli lista kroków GitHub Actions, bez końcowych pustych linii, z każdą niepustą linią wciętą o sześć spacji. Fragmenty kolejnych modułów rozdziela pusta linia ([D45](decyzje.md#d45)). | `ciSteps` (ścieżka względem katalogu projektu) |
 | `.github/workflows/mutation.yml` (w jobie `stryker`, przed krokiem „Run Stryker (integration)”) | `# wa:ci-integration:start`, `# wa:ci-integration:end` | To samo co w `ci.yml`. | `ciSteps` |
 | `Dockerfile` (w etapie `deps`, między `COPY package.json package-lock.json ./` a `RUN npm ci`) | `# wa:workspaces:start`, `# wa:workspaces:end` | Linia `COPY packages/<nazwa>/package.json ./packages/<nazwa>/package.json` dla każdego katalogu `packages/<nazwa>` z plikiem `package.json`, w kolejności punktów kodowych. Bez pakietów region jest pusty. W repozytorium GatoJS region wymienia `gato-cli`; w projekcie go nie ma, bo pakiety narzędzi są na liście `kitOnly` ([ADR-56](adrs/56-workspace-packages-replace-d29.md)). | brak: katalogi `packages/*` projektu |
+
+Regiony w `docker-compose.selfhost.yml` i `.env.selfhost.example` (od `gato-cli` 0.6.0, `kitFormat` 3) służą instalacji na własnym serwerze. Wartości z `example` są deweloperskie (`STORAGE_LOCAL_PATH=./volumes/uploads`, klucze MinIO z `docker-compose.yml`) i nie nadają się do produkcji, dlatego manifest może podać dla zmiennej osobną wartość `selfhostExample`, a dla usług osobny plik `selfhostCompose`. Plik docelowy, którego projekt nie ma, generator pomija ([Reguły regionów](#regiony)).
 
 Zmiennych modułu `core` region w `.env.example` nie obejmuje, bo są wpisane w ten plik na stałe; placeholderów w przykładach `core` generator też nie podmienia. Relacja z innym modelem niż `User` i `Organization` nie trafia do żadnego regionu i generator tego nie zgłasza. Moduły projektu wypełniają regiony tak samo jak moduły kitu.
 
@@ -360,7 +371,7 @@ Reguły regionów:
 - W pliku musi być dokładnie jedna linia z markerem początku i jedna z markerem końca, a koniec musi być niżej niż początek, więc oba markery nie mogą stać w jednej linii. Treść regionu nie może zawierać markera tego samego regionu. Jeśli plik ma gdziekolwiek końce linii CRLF, cały wynik ma końce CRLF. Tego pilnuje `replaceRegion` w `packages/gato-cli/src/generate/regions.ts`.
 - Plik docelowy, którego nie ma na dysku, jest pomijany bez błędu.
 - Plik docelowy bez żadnego z dwóch markerów jest pomijany, gdy region byłby pusty. Gdy któryś moduł ma dla niego treść, generator przerywa się błędem `brak regionu` i żaden plik się nie zmienia ([D45](decyzje.md#d45), testy z `describe("generate: plik bez markerów regionu")` w `ci-steps.test.ts`). Projekt, który usunął markery z `ci.yml`, działa więc bez modułów z `ciSteps`. `wa add uploads` skopiuje w nim pliki modułu, dopisze jego zależności do `package.json` i zapisze `.wa/kit.json`, a dopiero generator zakończy się błędem. Tych zmian `wa add` nie cofa. Po dodaniu markerów uruchom `npm run wa -- generate` i `npm install` (`packages/gato-cli/src/commands/add.ts`, [16](16-cli-wa.md#add-cofanie)). Plik z jednym markerem z pary daje błąd `uszkodzony region` także przy pustej treści.
-- Brak pliku z pola `compose` albo `ciSteps` przerywa generator, gdy plik docelowy regionu istnieje (`composeBody`, `ciStepsBody`); bez pliku docelowego `renderRegionTarget` pomija region, zanim sięgnie po treść. Wszystkie te funkcje są w `packages/gato-cli/src/generate/targets.ts`.
+- Brak pliku z pola `compose`, `selfhostCompose` albo `ciSteps` przerywa generator, gdy plik docelowy regionu istnieje (`composeBody`, `selfhostComposeBody`, `ciStepsBody`); bez pliku docelowego `renderRegionTarget` pomija region, zanim sięgnie po treść. Wszystkie te funkcje są w `packages/gato-cli/src/generate/targets.ts`.
 
 Komunikaty błędów podaje [Referencja](#referencja-komunikaty).
 
@@ -429,9 +440,10 @@ Schematy `kitStateSchema` i `moduleManifestSchema` z `packages/gato-cli/src/mani
 | `files` | `string[]` | `[]` | tak: tylko wzorce `src/features/<x>/…`; w `projectModules` co najmniej jeden wzorzec musi zaczynać się od `src/features/<name>/` |
 | `dependencies` | słownik `string` → `string` | `{}` | nie |
 | `devDependencies` | słownik `string` → `string` | `{}` | nie |
-| `env` | lista `{ name, example, required?, generate? }`: `name` co najmniej 1 znak, `example` napis, `required` wartość logiczna, `generate` one of `secret-32`, `secret-64` (32 or 64 random bytes, base64url) or `hex-32` (32 random bytes as 64 hex characters): `gato create` writes a random value of that kind into the new project's `.env` | `[]` | tak: `name` i `example`; `required` i `generate` nie |
+| `env` | lista `{ name, example, selfhostExample?, required?, generate? }`: `name` co najmniej 1 znak, `example` napis, `selfhostExample` napis (wartość dla `.env.selfhost.example`), `required` wartość logiczna, `generate` one of `secret-32`, `secret-64` (32 or 64 random bytes, base64url) or `hex-32` (32 random bytes as 64 hex characters): `gato create` writes a random value of that kind into the new project's `.env` | `[]` | tak: `name`, `example` i `selfhostExample`; `required` i `generate` nie |
 | `schemaRelations` | lista `{ model, field }`, oba co najmniej 1 znak | `[]` | tak: tylko `model` równy `User` albo `Organization` |
 | `compose` | `string` albo `null` | `null` | tak: ścieżka do pliku względem katalogu projektu, region `wa:services` |
+| `selfhostCompose` | `string` albo `null` | `null` | tak: ścieżka do pliku względem katalogu projektu, region `wa:services` w `docker-compose.selfhost.yml` |
 | `ciSteps` | `string` albo `null` | `null` | tak: ścieżka do pliku względem katalogu projektu, region `wa:ci-integration` |
 | `workspaces` | `string[]` | `[]` | nie |
 
@@ -448,6 +460,8 @@ Schematy `kitStateSchema` i `moduleManifestSchema` z `packages/gato-cli/src/mani
 | region `wa:relations` w `prisma/schema/organizations.prisma` | relacje zwrotne modelu `Organization` | `wa generate` |
 | region `wa:modules` w `.env.example` | zmienne modułów innych niż `core` | `wa generate` |
 | region `wa:services` w `docker-compose.yml` | usługi Dockera modułów | `wa generate` |
+| region `wa:services` w `docker-compose.selfhost.yml` | usługi Dockera modułów dla instalacji na własnym serwerze (`selfhostCompose`) | `wa generate` |
+| region `wa:modules` w `.env.selfhost.example` | zmienne modułów innych niż `core` z wartościami `selfhostExample` | `wa generate` |
 | region `wa:ci-integration` w `.github/workflows/ci.yml` i `.github/workflows/mutation.yml` | kroki CI modułów przed testami integracyjnymi | `wa generate` |
 | `src/generated/prisma/` | klient Prismy, w `.gitignore` | `prisma generate` (`postinstall`, `npm run db:generate`), nie `wa generate` |
 
@@ -476,6 +490,6 @@ Komunikaty błędów CLI wypisuje na stderr bez śladu stosu.
 | Plik docelowy bez markerów, a moduł ma treść dla regionu | `<plik>: brak regionu wa:<marker>; dodaj linie ze znacznikami wa:<marker>:start i wa:<marker>:end` | 1 |
 | Brakujący, podwójny albo odwrócony marker regionu | `<plik>: uszkodzony region wa:<marker>` | 1 |
 | Treść regionu zawiera jego marker | `<plik>: treść regionu wa:<marker> zawiera znacznik regionu` | 1 |
-| Brak pliku z pola `compose` albo `ciSteps`, gdy plik docelowy regionu istnieje | `ENOENT: no such file or directory, open '<ścieżka>'` | 1 |
+| Brak pliku z pola `compose`, `selfhostCompose` albo `ciSteps`, gdy plik docelowy regionu istnieje | `ENOENT: no such file or directory, open '<ścieżka>'` | 1 |
 
 Przy każdym błędzie z tej tabeli żaden plik nie zostaje zmieniony. Komunikaty pozostałych komend CLI podają [16](16-cli-wa.md#referencja-komunikaty) i [16b](16b-rozwoj-kitu.md#referencja-komunikaty).

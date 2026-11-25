@@ -74,6 +74,11 @@ describe("checkOwnership na fixture ownership-broken", () => {
     expect(report.composeOutsideModule).toEqual(["demo"]);
   });
 
+  it("reports a selfhostCompose outside the module files and skips one inside them", async () => {
+    const report = await checkOwnership(await makeKitRepo("ownership-broken"));
+    expect(report.selfhostComposeOutsideModule).toEqual(["demo"]);
+  });
+
   it("nie zgłasza plików kitOnly ani generatedFiles jako bez właściciela", async () => {
     const report = await checkOwnership(await makeKitRepo("ownership-broken"));
     expect(report.unowned).not.toContain("docs/readme.md");
@@ -158,6 +163,15 @@ describe("checkOwnership na fixture ownership-order", () => {
     expect(report.composeOutsideModule).toEqual(["alpha", "core", "zeta"]);
   });
 
+  it("sorts the modules with a selfhostCompose outside their files by code point", async () => {
+    const report = await checkOwnership(await makeKitRepo("ownership-order"));
+    expect(report.selfhostComposeOutsideModule).toEqual([
+      "alpha",
+      "core",
+      "zeta",
+    ]);
+  });
+
   it("nie zgłasza plików bez właściciela ani z wieloma właścicielami", async () => {
     const report = await checkOwnership(await makeKitRepo("ownership-order"));
     expect(report.unowned).toEqual([]);
@@ -228,6 +242,31 @@ describe("checkOwnership na fixture ownership-sections", () => {
   });
 });
 
+describe("checkOwnership on the ownership-selfhost fixture", () => {
+  it("checks selfhostCompose, not compose, against the module files", async () => {
+    const report = await checkOwnership(
+      await makeKitRepo("ownership-selfhost"),
+    );
+    expect(report.selfhostComposeOutsideModule).toEqual(["core"]);
+  });
+
+  it("checks compose independently of selfhostCompose", async () => {
+    const report = await checkOwnership(
+      await makeKitRepo("ownership-selfhost"),
+    );
+    expect(report.composeOutsideModule).toEqual(["demo"]);
+  });
+
+  it("has no unowned or multi-owned files", async () => {
+    const report = await checkOwnership(
+      await makeKitRepo("ownership-selfhost"),
+    );
+    expect(report.unowned).toEqual([]);
+    expect(report.multiOwned).toEqual([]);
+    expect(report.globErrors).toEqual([]);
+  });
+});
+
 describe("checkOwnership na repozytorium wa-kit", () => {
   it("każdy plik i każda zależność ma dokładnie jednego właściciela", async () => {
     expect(await checkOwnership(REPO_ROOT)).toEqual({
@@ -237,6 +276,7 @@ describe("checkOwnership na repozytorium wa-kit", () => {
       unownedDependencies: [],
       dependencyMismatch: [],
       composeOutsideModule: [],
+      selfhostComposeOutsideModule: [],
     });
   });
 });

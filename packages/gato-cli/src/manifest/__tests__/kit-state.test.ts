@@ -71,6 +71,7 @@ const NOTES_MANIFEST = {
   env: [{ name: "NOTES_LIMIT", example: "10" }],
   schemaRelations: [{ model: "Organization", field: "notes Note[]" }],
   compose: null,
+  selfhostCompose: null,
   ciSteps: null,
   workspaces: [],
 };
@@ -389,10 +390,10 @@ describe("kit state: kitFormat and ejected", () => {
     });
   });
 
-  it("readKitState of kitFormat 3 rejects with the update gato-cli message", async () => {
-    await writeRawState({ kitFormat: 3, modules: {} });
+  it("readKitState of kitFormat 4 rejects with the update gato-cli message", async () => {
+    await writeRawState({ kitFormat: 4, modules: {} });
     await expect(readKitState(tmp)).rejects.toThrow(
-      "This project uses kit format 3; update gato-cli (npm i -D gato-cli@latest)",
+      "This project uses kit format 4; update gato-cli (npm i -D gato-cli@latest)",
     );
   });
 

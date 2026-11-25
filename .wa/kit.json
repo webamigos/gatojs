@@ -1,7 +1,7 @@
 {
-  "kitVersion": "0.18.0",
+  "kitVersion": "0.19.0",
   "kitRepo": "https://github.com/webamigos/gatojs.git",
-  "kitFormat": 2,
+  "kitFormat": 3,
   "project": {
     "name": "WA App",
     "slug": "wa-app"
@@ -45,6 +45,7 @@
           }
         ],
         "compose": null,
+        "selfhostCompose": null,
         "ciSteps": null,
         "workspaces": []
       },
@@ -78,6 +79,7 @@
           }
         ],
         "compose": null,
+        "selfhostCompose": null,
         "ciSteps": null,
         "workspaces": []
       },
@@ -255,6 +257,7 @@
         "env": [],
         "schemaRelations": [],
         "compose": null,
+        "selfhostCompose": null,
         "ciSteps": null,
         "workspaces": []
       },
@@ -294,6 +297,7 @@
           }
         ],
         "compose": null,
+        "selfhostCompose": null,
         "ciSteps": null,
         "workspaces": []
       },
@@ -377,6 +381,7 @@
           }
         ],
         "compose": "docker/uploads.compose.yml",
+        "selfhostCompose": null,
         "ciSteps": "ci/uploads.integration-steps.yml",
         "workspaces": []
       },

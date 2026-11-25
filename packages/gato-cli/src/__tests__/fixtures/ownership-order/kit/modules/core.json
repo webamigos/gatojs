@@ -4,5 +4,6 @@
   "description": "Rdzen fixture",
   "files": ["package.json", "src/c/**", "zz-core-pusty/**", "aa-core-pusty/**"],
   "dependencies": { "zod": "^3.0.0", "axios": "^1.0.0" },
-  "compose": "poza/core.yml"
+  "compose": "poza/core.yml",
+  "selfhostCompose": "poza/core.selfhost.yml"
 }

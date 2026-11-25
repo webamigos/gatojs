@@ -44,34 +44,47 @@ function fillPlaceholders(
     .replaceAll("{{projectName}}", project.name);
 }
 
-async function envBody({ modules, project }: RegionContext): Promise<string> {
-  return modules
-    .filter((m) => m.name !== "core" && m.env.length > 0)
-    .map((m) =>
-      [
-        `# ${m.name}`,
-        ...m.env.map(
-          (v) => `${v.name}=${fillPlaceholders(v.example, project)}`,
-        ),
-      ].join("\n"),
-    )
-    .join("\n\n");
+type EnvVariable = ModuleManifest["env"][number];
+
+function envBodyWith(pickValue: (variable: EnvVariable) => string) {
+  return async ({ modules, project }: RegionContext): Promise<string> =>
+    modules
+      .filter((m) => m.name !== "core" && m.env.length > 0)
+      .map((m) =>
+        [
+          `# ${m.name}`,
+          ...m.env.map(
+            (v) => `${v.name}=${fillPlaceholders(pickValue(v), project)}`,
+          ),
+        ].join("\n"),
+      )
+      .join("\n\n");
 }
 
-async function composeBody({
-  modules,
-  projectDir,
-}: RegionContext): Promise<string> {
-  const parts: string[] = [];
-  for (const m of modules) {
-    if (m.compose === null) {
-      continue;
+const envBody = envBodyWith((v) => v.example);
+
+export const selfhostEnvBody = envBodyWith(
+  (v) => v.selfhostExample ?? v.example,
+);
+
+function composeBodyWith(pickFile: (m: ModuleManifest) => string | null) {
+  return async ({ modules, projectDir }: RegionContext): Promise<string> => {
+    const parts: string[] = [];
+    for (const m of modules) {
+      const file = pickFile(m);
+      if (file === null) {
+        continue;
+      }
+      const content = await readFile(join(projectDir, file), "utf8");
+      parts.push(indent(content.replace(/\n+$/, "")));
     }
-    const content = await readFile(join(projectDir, m.compose), "utf8");
-    parts.push(indent(content.replace(/\n+$/, "")));
-  }
-  return parts.join("\n");
+    return parts.join("\n");
+  };
 }
+
+const composeBody = composeBodyWith((m) => m.compose);
+
+export const selfhostComposeBody = composeBodyWith((m) => m.selfhostCompose);
 
 async function ciStepsBody({
   modules,
@@ -146,6 +159,12 @@ export const regionTargets: RegionTarget[] = [
   },
   { file: ".env.example", marker: "modules", body: envBody },
   { file: "docker-compose.yml", marker: "services", body: composeBody },
+  {
+    file: "docker-compose.selfhost.yml",
+    marker: "services",
+    body: selfhostComposeBody,
+  },
+  { file: ".env.selfhost.example", marker: "modules", body: selfhostEnvBody },
   {
     file: ".github/workflows/ci.yml",
     marker: "ci-integration",
