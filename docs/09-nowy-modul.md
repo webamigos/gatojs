@@ -290,7 +290,7 @@ Rejestr importuje teraz definicję modułu i tłumaczenia `notes` po modułach k
 ```ts
 import notesModule from "@/features/notes/module";
 // …
-export const clientModules = [accountModule, authModule, dashboardModule, organizationsModule, usersModule, notesModule];
+export const clientModules = applyGatoConfig([accountModule, authModule, dashboardModule, organizationsModule, usersModule, notesModule], gatoConfig);
 ```
 
 `prisma/schema/organizations.prisma`
