@@ -6,12 +6,16 @@ import { tmpdir } from "node:os";
 import {
   parseAddArgs,
   parseCreateArgs,
+  parseDoctorArgs,
+  parseEjectArgs,
   parseListArgs,
   parseRemoveArgs,
   parseUpdateArgs,
 } from "./args.js";
 import { addFromSource } from "./commands/add.js";
 import { create } from "./commands/create.js";
+import { doctorFiles } from "./commands/doctor.js";
+import { eject, undoEjectFromSource } from "./commands/eject.js";
 import { readlinePrompter } from "./process/prompter.js";
 import { spawnRunner } from "./process/runner.js";
 import { kitSync } from "./commands/kit-sync.js";
@@ -24,6 +28,7 @@ import { resolveKitSource } from "./kit/source.js";
 import { readKitState } from "./manifest/kit-state.js";
 import {
   cliDependency,
+  commandPrefix,
   createKitDir,
   kitSourceFromEnv,
   runMetaCommand,
@@ -55,6 +60,34 @@ async function listCommand(kit: string | null): Promise<void> {
       availableError = error instanceof Error ? error.message : String(error);
     }
     list({ state, available, availableError, log: console.log });
+  } finally {
+    await rm(tmpDir, { recursive: true });
+  }
+}
+
+async function ejectCommand(argv: string[]): Promise<void> {
+  const { file, reason, undo, kit } = parseEjectArgs(argv);
+  if (!undo) {
+    await eject({
+      projectDir: process.cwd(),
+      file,
+      reason: reason ?? "",
+      now: () => new Date(),
+      log: console.log,
+    });
+    return;
+  }
+  const tmpDir = await mkdtemp(join(tmpdir(), "wa-eject-"));
+  try {
+    await undoEjectFromSource({
+      projectDir: process.cwd(),
+      file,
+      kitFlag: kit,
+      envSource: kitSourceFromEnv(process.env),
+      runner: spawnRunner,
+      tmpDir,
+      log: console.log,
+    });
   } finally {
     await rm(tmpDir, { recursive: true });
   }
@@ -105,6 +138,19 @@ async function main(argv: string[]): Promise<number> {
       runner: spawnRunner,
       log: console.log,
     });
+    return 0;
+  }
+  if (command === "doctor") {
+    parseDoctorArgs(argv.slice(1));
+    const { exitCode } = await doctorFiles({
+      projectDir: process.cwd(),
+      cli: commandPrefix(identity.name),
+      log: console.log,
+    });
+    return exitCode;
+  }
+  if (command === "eject") {
+    await ejectCommand(argv.slice(1));
     return 0;
   }
   if (command === "list") {

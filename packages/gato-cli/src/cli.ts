@@ -12,7 +12,16 @@ export type MetaOutcome = {
 
 const HELP_ALIASES = ["help", "--help", "-h"];
 const VERSION_ALIASES = ["version", "--version", "-v"];
-const COMMANDS = ["create", "add", "remove", "list", "update", "generate"];
+const COMMANDS = [
+  "create",
+  "add",
+  "remove",
+  "list",
+  "update",
+  "generate",
+  "doctor",
+  "eject",
+];
 
 export function usage(name: CliName): string {
   return [
@@ -25,11 +34,14 @@ export function usage(name: CliName): string {
     `  ${name} list [--kit <path|url>]`,
     `  ${name} update <version> [--kit <path|url>] [--dry-run] [--no-install]`,
     `  ${name} generate`,
+    `  ${name} doctor --files`,
+    `  ${name} eject <file> --reason "<why>"`,
+    `  ${name} eject --undo <file> [--kit <path|url>]`,
     `  ${name} kit sync`,
     `  ${name} help`,
     `  ${name} version`,
     "",
-    "add, list and update read the kit from --kit, then GATO_KIT_SOURCE (or WA_KIT_SOURCE),",
+    "add, list, update and eject --undo read the kit from --kit, then GATO_KIT_SOURCE (or WA_KIT_SOURCE),",
     "then the kitRepo from .wa/kit.json at tag v<kitVersion>.",
   ].join("\n");
 }
@@ -68,6 +80,10 @@ export function runMetaCommand(
     stdout: null,
     stderr: `Unknown command: ${unknownCommandName(argv)}\n\n${usage(identity.name)}`,
   };
+}
+
+export function commandPrefix(name: CliName): string {
+  return name === "gato" ? "gato" : "npm run wa --";
 }
 
 export function kitSourceFromEnv(

@@ -62,6 +62,8 @@ CLI to jeden plik, `.wa/bin/wa.mjs`, zapisany w repozytorium kitu i w każdym pr
 | `wa remove <moduł> [--force] [--no-install]` | w projekcie | Usuwa pliki modułu kitu i jego zależności npm ([wa remove](#wa-remove)). | nie |
 | `wa list [--kit <źródło>]` | w projekcie | Wypisuje moduły zainstalowane, dostępne w kicie i moduły projektu ([wa list](#wa-list)). | tylko do listy „Dostępne” |
 | `wa update <wersja> [--kit <źródło>] [--dry-run] [--no-install]` | w projekcie | Przenosi rdzeń i wszystkie moduły kitu na wersję `<wersja>`, scalając zmiany kitu z lokalnymi zmianami projektu ([wa update](#wa-update)). | tak, w wersji projektu i w wersji docelowej |
+| `wa doctor --files` | w projekcie i w kicie | Wypisuje zmienione, usunięte i wyjęte (ejected) pliki GatoJS; w okresie ostrzeżeń kończy się kodem 0 ([wa doctor](#wa-doctor)). | nie |
+| `wa eject <plik> --reason "<powód>"`, `wa eject --undo <plik> [--kit <źródło>]` | w projekcie | Zapisuje plik GatoJS jako zmieniany świadomie albo przywraca jego wersję z kitu ([wa eject](#wa-eject)). | tylko `--undo`, w wersji projektu |
 | `wa generate` | w projekcie i w kicie | Odświeża pliki generowane i regiony `wa:*` ([02b](02b-rejestr-i-generator.md#wa-generate)). | nie |
 | `wa kit sync` | tylko w kicie | Przepisuje `.wa/kit.json` kitu z manifestów ([16b](16b-rozwoj-kitu.md)). | działa w kicie |
 
@@ -682,6 +684,45 @@ Potem:
 - **Błąd `npm install`** nie cofa zmian: `Zaktualizowano do wa-kit <wersja>, ale npm install się nie powiódł. Uruchom: npm install`, kod 1. Podpowiedzi są wtedy wypisane przed błędem.
 - **Konflikt** nie jest błędem zapisu i niczego nie cofa.
 
+<a id="wa-doctor"></a>
+
+## `wa doctor --files`: pliki GatoJS zmienione w projekcie
+
+Plik GatoJS to ścieżka z hashem treści w `modules.<moduł>.files` w `.wa/kit.json` ([ADR-59](adrs/59-gato-files-are-protected-and-ejected-with-a-reason.md)). `wa doctor --files` (`checkGatoFiles` w `packages/gato-cli/src/doctor/files.ts`) porównuje każdy taki plik z zapisanym hashem przez `contentHash`, czyli tak jak `wa update`: treść regionów `wa:*` się nie liczy. Pomija hashe `managed` i `seed`, pliki generowane (nie mają hashy) i pliki modułów projektu (`projectModules` nie jest czytane). Wynik, posortowany po punktach kodowych:
+
+| Linia | Znaczenie | Następny krok |
+| --- | --- | --- |
+| `modified  <plik>` | treść różni się od GatoJS, plik nie jest wyjęty | cofnij (`wa eject --undo <plik>` albo `git checkout -- <plik>`) albo zostaw ze wpisem: `wa eject <plik> --reason "<why>"` |
+| `deleted   <plik>` | pliku nie ma, nie jest wyjęty | jak wyżej |
+| `ejected   <plik> (changed\|unchanged): <powód>` | plik ma wpis w `ejected`; `unchanged` znaczy, że wpis jest już zbędny | nic albo `wa eject --undo <plik>` |
+| `stale     <plik>: …` | wpis w `ejected` dla ścieżki, która nie jest już plikiem GatoJS | usuń wpis z `ejected` w `.wa/kit.json` |
+
+Przy każdym znalezisku CLI dopisuje wskazówkę o punktach rozszerzeń w `EXTENSION_POINTS.md` (gdy plik istnieje), a w okresie ostrzeżeń linię `This is a warning for now; …`. Projekt bez znalezisk dostaje `GatoJS files: no changes`. Komendy w podpowiedziach mają przedrostek `npm run wa --` w bundlu i `gato` w pakiecie npm.
+
+Kod wyjścia zależy od stałej `FILE_PROTECTION_MODE` w `packages/gato-cli/src/doctor/mode.ts`: dziś `"warn"`, więc zawsze 0; po przełączeniu na `"block"` (zadanie T20 planu rozszerzalności) 1, gdy jest choć jeden plik `modified`, `deleted` albo `stale`. Wyjęte pliki nigdy nie zmieniają kodu wyjścia. `npm run verify` kończy się krokiem `npm run wa -- doctor --files`; w repozytorium GatoJS `files` modułów jest puste, więc krok niczego nie zgłasza. `wa doctor` bez `--files` kończy się błędem `Only --files is implemented; see the gato-cli spec §8`.
+
+<a id="wa-eject"></a>
+
+## `wa eject`: plik GatoJS zmieniany świadomie
+
+`wa eject <plik> --reason "<powód>"` dopisuje do `ejected` w `.wa/kit.json` wpis `{ "reason": "<powód>", "ejectedAt": "<RRRR-MM-DD>" }` (data UTC, powód bez spacji na brzegach). Treści pliku nie zmienia. `wa update` scala wyjęty plik tak samo jak każdy zmieniony plik ([Plan dla pliku](#update-plan)); różnica to zapisany powód, przechodzący `verify` i hook, który pozwala agentowi edytować ten plik. Ścieżka jest względna do projektu (`./src/a.ts` i ścieżka bezwzględna wewnątrz projektu dają `src/a.ts`).
+
+`wa eject --undo <plik> [--kit <źródło>]` przywraca treść i bity uprawnień pliku z kitu w wersji projektu (`kitVersion`) i usuwa wpis z `ejected`, jeśli był. Działa też dla zmienionego pliku bez wpisu. Źródło kitu ustala się jak w `wa list` ([Źródło kitu](#zrodlo-kitu)): `--kit`, potem `GATO_KIT_SOURCE` albo `WA_KIT_SOURCE`, potem `kitRepo` z tagiem `v<kitVersion>`. Po przywróceniu pliku z regionami `wa:*` CLI uruchamia `wa generate`.
+
+Odmowy (kod 1, nic nie jest zapisywane), sprawdzane w tej kolejności:
+
+| Sytuacja | Komunikat |
+| --- | --- |
+| ścieżka poza projektem | `Path outside the project: <plik>` |
+| plik generowany | `<plik> is generated; change the manifest or module files and run npm run wa -- generate` |
+| hash `managed` | `<plik> is managed by GatoJS (wa update merges it); it needs no eject` |
+| hash `seed` | `<plik> is a seed file owned by the project; it needs no eject` |
+| brak hasha (plik projektu, także nowy plik w katalogu GatoJS) | `<plik> is a project file; it needs no eject` |
+| plik już wyjęty (bez `--undo`) | `<plik> is already ejected ("<powód>"); edit its reason in .wa/kit.json` |
+| brak albo pusty `--reason` | `Specify why the file is ejected: --reason "<why>"` |
+| plik GatoJS nieobecny w kicie (`--undo`) | `<plik> is not in GatoJS <wersja>` |
+| `--undo` z `--reason` / `--kit` bez `--undo` / brak pliku | `--undo takes no --reason` / `--kit is only used with --undo` / `Specify the file to eject` |
+
 <a id="moduly-projektu"></a>
 
 ## Moduły projektu a CLI
@@ -716,6 +757,8 @@ Opcje parsuje `parseArgs` z `node:util`; jego błędy CLI tłumaczy na polskie k
 | `remove` | dokładnie 1: moduł | brak | `--force`, `--no-install` |
 | `list` | 0 | `--kit` | brak |
 | `update` | dokładnie 1: wersja | `--kit`, `--from-kit` (wewnętrzna) | `--dry-run`, `--no-install` |
+| `doctor` | 0 | brak | `--files` (wymagana) |
+| `eject` | dokładnie 1: plik | `--reason` (bez `--undo`), `--kit` (tylko z `--undo`) | `--undo` |
 | `generate` | 0; nadmiarowe argumenty i opcje są pomijane | brak | brak |
 | `kit sync` | 0; nadmiarowe argumenty i opcje są pomijane | brak | brak |
 
@@ -739,8 +782,8 @@ Zmienna środowiskowa `WA_KIT_SOURCE` działa jak `--kit` w `add`, `list` i `upd
 
 | Kod | Kiedy |
 | --- | --- |
-| 0 | Komenda się udała, także z liniami `Uwaga: …`. `wa list`, także gdy kitu nie dało się pobrać. `wa update` bez konfliktów i bez plików „do decyzji”, `wa update --dry-run` (także z konfliktami w planie) i `wa update` do wersji, którą projekt już ma. |
-| 1 | Każdy komunikat z tabeli niżej, każdy surowy błąd (Node, Zod, JSON, proces) i linia `Użycie: …`. `wa update` z konfliktem albo plikiem „do decyzji”, mimo zapisanych zmian (sprawdzone dla konfliktu). |
+| 0 | Komenda się udała, także z liniami `Uwaga: …`. `wa doctor --files` w trybie `"warn"`, także ze znaleziskami. `wa list`, także gdy kitu nie dało się pobrać. `wa update` bez konfliktów i bez plików „do decyzji”, `wa update --dry-run` (także z konfliktami w planie) i `wa update` do wersji, którą projekt już ma. |
+| 1 | Każdy komunikat z tabeli niżej, każdy surowy błąd (Node, Zod, JSON, proces) i linia `Użycie: …`. `wa update` z konfliktem albo plikiem „do decyzji”, mimo zapisanych zmian (sprawdzone dla konfliktu). `wa doctor --files` w trybie `"block"` z plikiem `modified`, `deleted` albo `stale`. |
 
 `npm run wa -- …` kończy się tym samym kodem co bundel (sprawdzone dla kodu 1 z npm 11.21.1).
 

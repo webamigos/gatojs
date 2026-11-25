@@ -29,6 +29,7 @@ After a nontrivial correction or a non-obvious gotcha:
 - [A Mac that goes to sleep stops every local Orca worker; the screen turning off is harmless, system sleep is not](lessons/a-sleeping-mac-stops-orca-workers.md)
 - [A Claude Code permission rule ending in `*` accepts any arguments, so `npm test *` also allows the integration config that truncates the test database](lessons/a-wildcard-permission-rule-reaches-the-integration-suite.md)
 - [The commit hook's lint-staged backs up into the git stash, which every worktree of the repo shares](lessons/lint-staged-stashes-into-the-shared-git-stack.md)
+- [lint-staged reformats `packages/gato-cli/src` while committing, so a bundle built before the commit is stale; rebuild after it](lessons/build-the-cli-bundle-after-lint-staged-formats-the-source.md)
 
 ### testing
 
@@ -36,6 +37,7 @@ After a nontrivial correction or a non-obvious gotcha:
 - [Prisma 7 refuses `db push --force-reset` from an AI agent until the user's own consent text is passed in an environment variable](lessons/prisma-refuses-a-database-reset-from-an-agent.md)
 - [Parallel worktrees collide on e2e ports, the uploads directory and database containers unless each one gets its own](lessons/parallel-worktrees-need-their-own-ports-and-dirs.md)
 - [`packages/gato-cli` tests that touch git and the filesystem time out at 5 seconds when the machine is busy; rerun before debugging](lessons/cli-tests-time-out-under-heavy-load.md)
+- [On a loaded machine, Stryker on `packages/gato-cli` needs a task-scoped Vitest config; `taskpolicy -b` and the full dry run never finish](lessons/scope-stryker-dry-runs-for-cli-tasks-under-load.md)
 - [macOS lists directory entries in sorted order, so a test on a real directory cannot see a missing sort; Linux CI can](lessons/macos-lists-directories-in-sorted-order.md)
 - [A new file outside an owned glob (a test in `src/__tests__/`, a file in `packages/<name>/`) needs a manifest entry, and only the CLI gate notices](lessons/a-new-file-needs-an-owner-only-the-cli-gate-checks.md)
 - [Vitest runs test code that `tsc` rejects: a bigint literal passes `npm test` and fails `npm run typecheck` under the ES2017 target](lessons/vitest-runs-what-tsc-rejects.md)

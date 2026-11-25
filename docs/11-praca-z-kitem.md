@@ -252,7 +252,7 @@ Konfiguracja lint-staged:
 `package.json`
 
 ```json
-"verify": "npm run lint && npm run typecheck && npm test && npm run build && turbo run test typecheck lint && npm run test:hooks",
+"verify": "npm run lint && npm run typecheck && npm test && npm run build && turbo run test typecheck lint && npm run test:hooks && npm run wa -- doctor --files",
 ```
 
 | Krok | Komenda | Co sprawdza |
@@ -263,6 +263,7 @@ Konfiguracja lint-staged:
 | `npm run build` | `next build` | Build produkcyjny. |
 | `turbo run test typecheck lint` | Skrypty `test`, `typecheck` i `lint` pakietów w workspace `packages/*`. | W projekcie bez pakietów nic. W repozytorium GatoJS testy, typecheck i lint pakietu narzędzia `packages/gato-cli` (jego pełna bramka to `npm run verify --prefix packages/gato-cli`, [16b-rozwoj-kitu.md](16b-rozwoj-kitu.md#bramka-cli)). Pakiety projektu nie mają skryptu `test`: ich testy uruchamia projekt `packages` w `vitest.config.ts` ([ADR-56](adrs/56-workspace-packages-replace-d29.md)). Zadania w `turbo.json` mają `dependsOn: ["^build"]`. |
 | `npm run test:hooks` | `node --test` na plikach `.claude/hooks/*.test.mjs`. | Hooki Claude Code ([Hooki](#hooki)). |
+| `npm run wa -- doctor --files` | `doctorFiles` w bundlu CLI | Pliki GatoJS zmienione bez `wa eject` ([Pliki GatoJS w projekcie](#pliki-gatojs)). Na razie tylko ostrzega. |
 
 Kroki są połączone `&&`, więc łańcuch kończy się na pierwszym błędzie i kolejne kroki się nie wykonują. `verify` nie uruchamia testów integracyjnych, e2e ani mutacyjnych, bo wymagają bazy albo przeglądarki albo trwają długo ([08-testy.md](08-testy.md#rodzaje)). Nie sprawdza też aktualności plików generowanych, formatowania ani wiadomości commitów. Job `verify` w CI przed `npm run verify` uruchamia generator i porównuje wynik z repozytorium. **Zalecenie:** zrób to samo lokalnie i sprawdź, że generator wypisuje `Bez zmian`:
 
@@ -272,6 +273,27 @@ npm run verify
 ```
 
 Czasy przebiegów są w [08-testy.md](08-testy.md#czas). Pierwszy `verify` po dodaniu feature w projekcie przechodzi bez zmian w testach rdzenia ([09b-implementacja-i-bramki.md](09b-implementacja-i-bramki.md#testy-rdzenia)).
+
+<a id="pliki-gatojs"></a>
+
+### Pliki GatoJS w projekcie: ostrzeżenie, `doctor` i `eject`
+
+`.wa/kit.json` dzieli pliki projektu na trzy grupy ([ADR-59](adrs/59-gato-files-are-protected-and-ejected-with-a-reason.md)):
+
+| Grupa | Definicja | `wa update` |
+| --- | --- | --- |
+| plik GatoJS | ścieżka z hashem treści w `modules.<moduł>.files` | zastępuje go wersją z kitu |
+| wyjęty plik GatoJS | plik GatoJS z wpisem i powodem w `ejected` | scala go trzema drogami, jak dotąd |
+| plik projektu | wszystko inne: moduły projektu, migracje, nowe pliki także w katalogach GatoJS, pliki `managed` i `seed` | nie czyta go |
+
+Okres ostrzeżeń: `npm run verify` kończy się krokiem `npm run wa -- doctor --files`, który wypisuje zmienione i usunięte pliki GatoJS bez wpisu w `ejected`, ale kończy się kodem 0. Wydanie, które to przełączy, zapowie w notach, że `verify` zacznie wtedy padać.
+
+Jak wyczyścić zgłoszony plik:
+
+1. Sprawdź, czy zmianę da się zrobić przez punkt rozszerzenia (`EXTENSION_POINTS.md`, gdy istnieje). Jeśli tak, przenieś ją do pliku projektu i przywróć plik GatoJS: `npm run wa -- eject --undo <plik>` (wersja z kitu w wersji projektu) albo `git checkout -- <plik>`, gdy ostatni commit ma jeszcze wersję z kitu.
+2. Jeśli nie, zostaw zmianę i zapisz powód: `npm run wa -- eject <plik> --reason "<powód>"`, a brakujący punkt rozszerzenia zgłoś w `webamigos/gatojs`.
+
+Szczegóły komend: [16-cli-wa.md](16-cli-wa.md#wa-doctor).
 
 <a id="agenci-ai"></a>
 

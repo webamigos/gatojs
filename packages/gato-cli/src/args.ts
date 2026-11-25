@@ -196,3 +196,52 @@ export function parseUpdateArgs(argv: string[]): UpdateArgs {
     install: !values["no-install"],
   };
 }
+
+export type DoctorArgs = { files: true };
+
+export function parseDoctorArgs(argv: string[]): DoctorArgs {
+  const { values, positionals } = parseOptions(argv, {
+    files: { type: "boolean", default: false },
+  });
+  assertMaxPositionals(positionals, 0);
+  if (!values.files) {
+    throw new Error("Only --files is implemented; see the gato-cli spec §8");
+  }
+  return { files: true };
+}
+
+export type EjectArgs = {
+  file: string;
+  reason: string | null;
+  undo: boolean;
+  kit: string | null;
+};
+
+export function parseEjectArgs(argv: string[]): EjectArgs {
+  const { values, positionals } = parseOptions(argv, {
+    reason: { type: "string" },
+    undo: { type: "boolean", default: false },
+    kit: { type: "string" },
+  });
+  const [file] = positionals;
+  if (file === undefined) {
+    throw new Error("Specify the file to eject");
+  }
+  assertMaxPositionals(positionals, 1);
+  if (values.undo && values.reason !== undefined) {
+    throw new Error("--undo takes no --reason");
+  }
+  if (!values.undo && values.kit !== undefined) {
+    throw new Error("--kit is only used with --undo");
+  }
+  const reason = values.reason?.trim() ?? "";
+  if (!values.undo && reason === "") {
+    throw new Error('Specify why the file is ejected: --reason "<why>"');
+  }
+  return {
+    file,
+    reason: values.undo ? null : reason,
+    undo: values.undo,
+    kit: optionalValue(values.kit, "--kit"),
+  };
+}
