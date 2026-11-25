@@ -18,8 +18,20 @@ export interface GatoModuleConfig {
   access?: GatoModuleAccess;
 }
 
+export interface GatoLogo {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+}
+
+export interface GatoBranding {
+  logo?: GatoLogo;
+}
+
 export interface GatoConfig {
   modules?: Record<string, GatoModuleConfig>;
+  branding?: GatoBranding;
 }
 
 export interface ModuleEntry<T> {
@@ -79,17 +91,57 @@ function moduleProblems(
   return problems;
 }
 
+function isPositiveInteger(value: number): boolean {
+  return Number.isInteger(value) && value > 0;
+}
+
+function logoProblems(logo: GatoLogo): string[] {
+  const problems: string[] = [];
+  if (!logo.src.startsWith("/") || logo.src.startsWith("//")) {
+    problems.push(
+      `branding.logo.src: must start with a single "/" (a file in public/): ${logo.src}`,
+    );
+  }
+  if (logo.alt.trim() === "") {
+    problems.push("branding.logo.alt: must not be blank");
+  }
+  for (const dimension of ["width", "height"] as const) {
+    if (!isPositiveInteger(logo[dimension])) {
+      problems.push(
+        `branding.logo.${dimension}: must be a positive integer: ${logo[dimension]}`,
+      );
+    }
+  }
+  return problems;
+}
+
+export function brandingProblems(config: GatoConfig): string[] {
+  const logo = config.branding?.logo;
+  return logo === undefined ? [] : logoProblems(logo);
+}
+
+export function gatoBrandingOf(config: GatoConfig): GatoBranding {
+  const problems = brandingProblems(config);
+  if (problems.length > 0) {
+    throw new GatoConfigError(problems);
+  }
+  return config.branding ?? {};
+}
+
 export function gatoConfigProblems(
   modules: readonly ModuleDef[],
   config: GatoConfig,
 ): string[] {
-  return Object.entries(config.modules ?? {}).flatMap(([key, moduleConfig]) => {
-    const moduleDef = modules.find((candidate) => candidate.key === key);
-    if (moduleDef === undefined) {
-      return [`modules.${key}: unknown module: ${key}`];
-    }
-    return moduleProblems(moduleDef, moduleConfig);
-  });
+  const problems = Object.entries(config.modules ?? {}).flatMap(
+    ([key, moduleConfig]) => {
+      const moduleDef = modules.find((candidate) => candidate.key === key);
+      if (moduleDef === undefined) {
+        return [`modules.${key}: unknown module: ${key}`];
+      }
+      return moduleProblems(moduleDef, moduleConfig);
+    },
+  );
+  return [...problems, ...brandingProblems(config)];
 }
 
 function isDisabled(config: GatoConfig, key: string): boolean {
