@@ -549,10 +549,16 @@ describe("parseDoctorArgs", () => {
     expect(parseDoctorArgs(["--files"])).toEqual({ files: true });
   });
 
-  it("without --files reports that only --files is implemented", () => {
+  it("without --files reports that only wa doctor --files is implemented", () => {
     expect(messageOf(() => parseDoctorArgs([]))).toBe(
-      "Only --files is implemented; see the gato-cli spec §8",
+      "Only wa doctor --files is implemented; run it with --files",
     );
+  });
+
+  it("without --files gives a message without an internal spec reference", () => {
+    const message = messageOf(() => parseDoctorArgs([]));
+    expect(message).not.toContain("spec");
+    expect(message).not.toContain("§");
   });
 
   it("rejects an extra positional argument", () => {

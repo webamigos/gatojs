@@ -82,7 +82,7 @@ describe("doctorFilesReport", () => {
     const output = text(result.lines);
     expect(output).toContain("src/a.ts");
     expect(output).toContain("gato eject --undo src/a.ts");
-    expect(output).toContain("git checkout -- src/a.ts");
+    expect(output).toContain("git checkout HEAD -- src/a.ts");
     expect(output).toContain('gato eject src/a.ts --reason "<why>"');
     expect(output).toContain("EXTENSION_POINTS.md (when present)");
     expect(output).not.toContain("GatoJS files: no changes");
@@ -94,7 +94,7 @@ describe("doctorFilesReport", () => {
     );
     expect(output).toContain("src/d.ts");
     expect(output).toContain("gato eject --undo src/d.ts");
-    expect(output).toContain("git checkout -- src/d.ts");
+    expect(output).toContain("git checkout HEAD -- src/d.ts");
     expect(output).toContain('gato eject src/d.ts --reason "<why>"');
     expect(output).toContain("EXTENSION_POINTS.md (when present)");
   });
@@ -147,6 +147,17 @@ describe("doctorFilesReport", () => {
     expect(output).toContain("npm run wa -- eject --undo src/a.ts");
     expect(output).toContain('npm run wa -- eject src/a.ts --reason "<why>"');
     expect(output).not.toContain("gato eject");
+  });
+
+  it("prints the revert hint with git checkout HEAD for the wa command", () => {
+    const lines = doctorFilesReport(report({ modified: ["src/x.ts"] }), {
+      mode: "warn",
+      cli: "npm run wa --",
+    }).lines;
+    expect(lines).toContain(
+      "    revert: npm run wa -- eject --undo src/x.ts (or git checkout HEAD -- src/x.ts)",
+    );
+    expect(text(lines)).not.toContain("git checkout -- src/x.ts");
   });
 
   it("marks an ejected file whose content differs as (changed)", () => {
@@ -239,11 +250,11 @@ describe("doctorFilesReport", () => {
     },
   );
 
-  it("puts git checkout -- <path> in the output for a modified file", () => {
+  it("puts git checkout HEAD -- <path> in the output for a modified file", () => {
     const result = doctorFilesReport(report({ modified: ["src/a.ts"] }), GATO);
     expect(
       result.lines.some((line: string) =>
-        line.includes("git checkout -- src/a.ts"),
+        line.includes("git checkout HEAD -- src/a.ts"),
       ),
     ).toBe(true);
   });
@@ -265,7 +276,7 @@ describe("doctorFilesReport", () => {
     ).toEqual([
       "GatoJS files:",
       "  modified  src/a.ts",
-      "    revert: gato eject --undo src/a.ts (or git checkout -- src/a.ts)",
+      "    revert: gato eject --undo src/a.ts (or git checkout HEAD -- src/a.ts)",
       '    keep the change: gato eject src/a.ts --reason "<why>"',
       "Before changing a GatoJS file, look for an extension point in EXTENSION_POINTS.md (when present).",
       "This is a warning for now; a later GatoJS release makes verify fail on these files.",
@@ -278,7 +289,7 @@ describe("doctorFilesReport", () => {
     ).toEqual([
       "GatoJS files:",
       "  deleted   src/d.ts",
-      "    revert: gato eject --undo src/d.ts (or git checkout -- src/d.ts)",
+      "    revert: gato eject --undo src/d.ts (or git checkout HEAD -- src/d.ts)",
       '    keep the change: gato eject src/d.ts --reason "<why>"',
       "Before changing a GatoJS file, look for an extension point in EXTENSION_POINTS.md (when present).",
     ]);
@@ -322,10 +333,10 @@ describe("doctorFilesReport", () => {
     ).toEqual([
       "GatoJS files:",
       "  modified  src/m.ts",
-      "    revert: gato eject --undo src/m.ts (or git checkout -- src/m.ts)",
+      "    revert: gato eject --undo src/m.ts (or git checkout HEAD -- src/m.ts)",
       '    keep the change: gato eject src/m.ts --reason "<why>"',
       "  deleted   src/d.ts",
-      "    revert: gato eject --undo src/d.ts (or git checkout -- src/d.ts)",
+      "    revert: gato eject --undo src/d.ts (or git checkout HEAD -- src/d.ts)",
       '    keep the change: gato eject src/d.ts --reason "<why>"',
       "  ejected   src/e.ts (unchanged): custom login",
       "  stale     src/s.ts: no longer a GatoJS file; remove it from ejected in .wa/kit.json",
