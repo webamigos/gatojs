@@ -295,7 +295,7 @@ Agent w Claude Code dostaje to samo ostrzeżenie wcześniej, przy edycji: hook `
 
 Jak wyczyścić zgłoszony plik:
 
-1. Sprawdź, czy zmianę da się zrobić przez punkt rozszerzenia (`EXTENSION_POINTS.md`, gdy istnieje). Jeśli tak, przenieś ją do pliku projektu i przywróć plik GatoJS: `npm run wa -- eject --undo <plik>` (wersja z kitu w wersji projektu) albo `git checkout -- <plik>`, gdy ostatni commit ma jeszcze wersję z kitu.
+1. Sprawdź, czy zmianę da się zrobić przez punkt rozszerzenia (`EXTENSION_POINTS.md`, gdy istnieje). Jeśli tak, przenieś ją do pliku projektu i przywróć plik GatoJS: `npm run wa -- eject --undo <plik>` (wersja z kitu w wersji projektu) albo `git checkout HEAD -- <plik>`, gdy ostatni commit ma jeszcze wersję z kitu.
 2. Jeśli nie, zostaw zmianę i zapisz powód: `npm run wa -- eject <plik> --reason "<powód>"`, a brakujący punkt rozszerzenia zgłoś w `webamigos/gatojs`.
 
 Szczegóły komend: [16-cli-wa.md](16-cli-wa.md#wa-doctor).
@@ -313,7 +313,7 @@ Rzeczy, które zmienia prawie każdy projekt, mają własne pliki projektu, wię
 | `src/theme.css` | `seed` | `src/app/globals.css` importuje go po tokenach GatoJS, więc nadpisuje np. `--primary` w `:root` i `.dark`, a `--font-sans` w `@theme inline` | pomija go |
 | `README.md` | `seed` | ludzie | pomija go |
 
-Plik `seed` (`seedFiles` w `kit/kit.json`) `wa create` kopiuje raz, z wypełnionymi placeholderami, i zapisuje w `.wa/kit.json` z hashem `"seed"` zamiast hasha treści. Od tej chwili należy do projektu: `wa update` go nie zmienia, nawet gdy nowa wersja kitu ma inną treść, `doctor --files` go nie zgłasza, a hook `protect-gato-files.mjs` go przepuszcza.
+Plik `seed` (`seedFiles` w `kit/kit.json`) `wa create` kopiuje raz, z wypełnionymi placeholderami, i zapisuje w `.wa/kit.json` z hashem `"seed"` zamiast hasha treści. Od tej chwili należy do projektu: `wa update` go nie zmienia, nawet gdy nowa wersja kitu ma inną treść (także w projekcie, który zapisał go jeszcze z hashem treści: liczy się `seedFiles` wersji docelowej), `doctor --files` go nie zgłasza, a hook `protect-gato-files.mjs` go przepuszcza.
 
 <a id="gato-config"></a>
 

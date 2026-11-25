@@ -652,7 +652,7 @@ Po konfliktach:
 
 - Pliki według planu: dodane, zaktualizowane, scalone, z markerami konfliktu, usunięte (z pustymi katalogami nad nimi, jak w `remove`). Konflikt binarny i konflikt na ścieżce nowego pliku kitu zostawiają plik projektu bez zmian.
 - `package.json` według planu, jak każdy plik.
-- `.wa/kit.json`: `kitVersion` równa wersji docelowej, a dla każdego modułu kitu `version` i `manifest` z wersji docelowej i `files` z hashami treści **kitu** (nie scalonej treści) wszystkich plików modułu w tej wersji. `package.json` i `package-lock.json` zachowują znacznik `managed`, a pliki ze znacznikiem `seed` zachowują go, dopóki wersja docelowa ma je w `seedFiles` (plików `seed` plan nie obejmuje: `wa update` ich nie zmienia ani nie scala). `kitFormat` równa `kitFormat` wersji docelowej. Pliki „do decyzji” i pliki nieobecne w wersji docelowej nie mają wpisu. `kitRepo`, `project`, `locales`, `projectModules` i `ejected` zostają bez zmian. Dzięki hashom z treści kitu plik scalony z lokalnymi zmianami dalej liczy się w `wa remove` jako zmieniony, a kolejne `wa update` ma właściwą bazę.
+- `.wa/kit.json`: `kitVersion` równa wersji docelowej, a dla każdego modułu kitu `version` i `manifest` z wersji docelowej i `files` z hashami treści **kitu** (nie scalonej treści) wszystkich plików modułu w tej wersji. `package.json` i `package-lock.json` zachowują znacznik `managed`, a pliki ze znacznikiem `seed` zachowują go, dopóki wersja docelowa ma je w `seedFiles`. Plików `seed` plan nie obejmuje: `wa update` ich nie zmienia ani nie scala. Za plik `seed` uznaje też każdą ścieżkę z `seedFiles` wersji **docelowej**, nawet gdy `.wa/kit.json` ma dla niej hash treści (projekty założone, zanim `seedFiles` istniało, mają tak zapisany `README.md`), i zapisuje jej znacznik `seed`. Nowy w wersji docelowej plik z `seedFiles`, który projekt już ma, też zostaje bez zmian (bez konfliktu); gdy projekt go nie ma, CLI go dodaje. `kitFormat` równa `kitFormat` wersji docelowej. Pliki „do decyzji” i pliki nieobecne w wersji docelowej nie mają wpisu. `kitRepo`, `project`, `locales`, `projectModules` i `ejected` zostają bez zmian. Dzięki hashom z treści kitu plik scalony z lokalnymi zmianami dalej liczy się w `wa remove` jako zmieniony, a kolejne `wa update` ma właściwą bazę.
 
 Komenda nie zmienia `.env` ani `package-lock.json`: lockfile zmienia dopiero `npm install`, więc z `--no-install` albo przy konfliktach `package-lock.json` zostaje stary do pierwszej instalacji.
 
@@ -692,14 +692,14 @@ Plik GatoJS to ścieżka z hashem treści w `modules.<moduł>.files` w `.wa/kit.
 
 | Linia | Znaczenie | Następny krok |
 | --- | --- | --- |
-| `modified  <plik>` | treść różni się od GatoJS, plik nie jest wyjęty | cofnij (`wa eject --undo <plik>` albo `git checkout -- <plik>`) albo zostaw ze wpisem: `wa eject <plik> --reason "<why>"` |
+| `modified  <plik>` | treść różni się od GatoJS, plik nie jest wyjęty | cofnij (`wa eject --undo <plik>` albo `git checkout HEAD -- <plik>`) albo zostaw ze wpisem: `wa eject <plik> --reason "<why>"` |
 | `deleted   <plik>` | pliku nie ma, nie jest wyjęty | jak wyżej |
 | `ejected   <plik> (changed\|unchanged): <powód>` | plik ma wpis w `ejected`; `unchanged` znaczy, że wpis jest już zbędny | nic albo `wa eject --undo <plik>` |
 | `stale     <plik>: …` | wpis w `ejected` dla ścieżki, która nie jest już plikiem GatoJS | usuń wpis z `ejected` w `.wa/kit.json` |
 
 Przy każdym znalezisku CLI dopisuje wskazówkę o punktach rozszerzeń w `EXTENSION_POINTS.md` (gdy plik istnieje), a w okresie ostrzeżeń linię `This is a warning for now; …`. Projekt bez znalezisk dostaje `GatoJS files: no changes`. Komendy w podpowiedziach mają przedrostek `npm run wa --` w bundlu i `gato` w pakiecie npm.
 
-Kod wyjścia zależy od stałej `FILE_PROTECTION_MODE` w `packages/gato-cli/src/doctor/mode.ts`: dziś `"warn"`, więc zawsze 0; po przełączeniu na `"block"` (zadanie T20 planu rozszerzalności) 1, gdy jest choć jeden plik `modified`, `deleted` albo `stale`. Wyjęte pliki nigdy nie zmieniają kodu wyjścia. `npm run verify` kończy się krokiem `npm run wa -- doctor --files`; w repozytorium GatoJS `files` modułów jest puste, więc krok niczego nie zgłasza. `wa doctor` bez `--files` kończy się błędem `Only --files is implemented; see the gato-cli spec §8`.
+Kod wyjścia zależy od stałej `FILE_PROTECTION_MODE` w `packages/gato-cli/src/doctor/mode.ts`: dziś `"warn"`, więc zawsze 0; po przełączeniu na `"block"` (zadanie T20 planu rozszerzalności) 1, gdy jest choć jeden plik `modified`, `deleted` albo `stale`. Wyjęte pliki nigdy nie zmieniają kodu wyjścia. `npm run verify` kończy się krokiem `npm run wa -- doctor --files`; w repozytorium GatoJS `files` modułów jest puste, więc krok niczego nie zgłasza. `wa doctor` bez `--files` kończy się błędem `Only wa doctor --files is implemented; run it with --files`.
 
 <a id="wa-eject"></a>
 
@@ -707,7 +707,7 @@ Kod wyjścia zależy od stałej `FILE_PROTECTION_MODE` w `packages/gato-cli/src/
 
 `wa eject <plik> --reason "<powód>"` dopisuje do `ejected` w `.wa/kit.json` wpis `{ "reason": "<powód>", "ejectedAt": "<RRRR-MM-DD>" }` (data UTC, powód bez spacji na brzegach). Treści pliku nie zmienia. `wa update` scala wyjęty plik tak samo jak każdy zmieniony plik ([Plan dla pliku](#update-plan)); różnica to zapisany powód, przechodzący `verify` i hook, który pozwala agentowi edytować ten plik. Ścieżka jest względna do projektu (`./src/a.ts` i ścieżka bezwzględna wewnątrz projektu dają `src/a.ts`).
 
-`wa eject --undo <plik> [--kit <źródło>]` przywraca treść i bity uprawnień pliku z kitu w wersji projektu (`kitVersion`) i usuwa wpis z `ejected`, jeśli był. Działa też dla zmienionego pliku bez wpisu. Źródło kitu ustala się jak w `wa list` ([Źródło kitu](#zrodlo-kitu)): `--kit`, potem `GATO_KIT_SOURCE` albo `WA_KIT_SOURCE`, potem `kitRepo` z tagiem `v<kitVersion>`. Po przywróceniu pliku z regionami `wa:*` CLI uruchamia `wa generate`.
+`wa eject --undo <plik> [--kit <źródło>]` przywraca treść i bity uprawnień pliku z kitu w wersji projektu (`kitVersion`) i usuwa wpis z `ejected`, jeśli był. Działa też dla zmienionego pliku bez wpisu. Źródło kitu ustala się jak w `wa list` ([Źródło kitu](#zrodlo-kitu)): `--kit`, potem `GATO_KIT_SOURCE` albo `WA_KIT_SOURCE`, potem `kitRepo` z tagiem `v<kitVersion>`. Po przywróceniu pliku z regionami `wa:*` CLI uruchamia `wa generate`. Gdy zapis bitów uprawnień, zapis `.wa/kit.json` albo `wa generate` się nie powiedzie, CLI przywraca poprzednią treść i bity uprawnień pliku (albo usuwa plik, którego wcześniej nie było) oraz poprzedni `.wa/kit.json`, a potem kończy się pierwotnym błędem.
 
 Odmowy (kod 1, nic nie jest zapisywane), sprawdzane w tej kolejności:
 
