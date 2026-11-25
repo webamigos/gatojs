@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 import { createUpload } from "@/features/uploads/services/commands/create-upload";
 import { readOrgContextForApi } from "@/features/uploads/services/api-org-context";
 import { maxUploadBytes } from "@/features/uploads/services/upload-purposes";
+import { isModuleEnabled } from "@/shared/lib/modules/require-module-enabled";
 
 export const runtime = "nodejs";
 
 const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
 
 export async function POST(request: Request) {
+  if (!isModuleEnabled("uploads")) {
+    return new NextResponse(null, { status: 404 });
+  }
   const declaredLength = Number(request.headers.get("content-length"));
   if (
     request.headers.get("content-length") === null ||

@@ -14,6 +14,6 @@ export type ApiOrgContextResult =
 export type CreateUploadResult =
   | { status: 201; body: UploadResponse }
   | {
-      status: 400 | 401 | 403 | 413 | 415 | 500;
+      status: 400 | 401 | 403 | 404 | 413 | 415 | 500;
       body: { error: string };
     };
