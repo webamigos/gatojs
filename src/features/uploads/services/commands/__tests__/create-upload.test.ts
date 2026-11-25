@@ -559,6 +559,37 @@ describe("createUpload awarie zależności", () => {
   });
 });
 
+describe("createUpload failure logging", () => {
+  it("logs a failed putObject with the storage error", async () => {
+    const storageError = new Error("s3 down");
+    mockPutObject.mockRejectedValue(storageError);
+
+    const result = await createUpload(
+      formWith({ file: await makePng(), purpose: "editor-image" }),
+    );
+
+    expect(result).toEqual({ status: 500, body: { error: "storage_failed" } });
+    expect(mockLoggerError).toHaveBeenCalledWith("upload putObject failed", {
+      err: storageError,
+    });
+  });
+
+  it("logs a failed record create with the database error", async () => {
+    const databaseError = new Error("db down");
+    mockUploadCreate.mockRejectedValue(databaseError);
+
+    const result = await createUpload(
+      formWith({ file: await makePng(), purpose: "editor-image" }),
+    );
+
+    expect(result).toEqual({ status: 500, body: { error: "storage_failed" } });
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      "upload record create failed",
+      { err: databaseError },
+    );
+  });
+});
+
 describe("createUpload kody błędów i audyt", () => {
   it("zwraca dokładny kod unauthorized dla braku sesji", async () => {
     mockGetSession.mockResolvedValue(null);

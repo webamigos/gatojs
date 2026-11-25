@@ -30,7 +30,7 @@ vi.mock("@/modules.client.generated", async () => {
   };
 });
 
-import { POST } from "../route";
+import { POST, runtime } from "../route";
 
 function requestWith(contentLength: string | null) {
   const headers = new Headers();
@@ -107,5 +107,11 @@ describe("POST /api/uploads with uploads disabled", () => {
 
     expect(response.status).toBe(404);
     expect(await response.text()).toBe("");
+  });
+});
+
+describe("/api/uploads route config", () => {
+  it("runs on the Node.js runtime", () => {
+    expect(runtime).toBe("nodejs");
   });
 });

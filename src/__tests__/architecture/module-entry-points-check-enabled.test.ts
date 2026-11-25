@@ -295,6 +295,62 @@ describe("module entry point detector on fixtures", () => {
 
       expect(findModuleEntryPoints(root)).toEqual([]);
     });
+
+    it("ignores a file under src/app whose name only starts with route.ts", () => {
+      write(
+        "src/app/api/billing/route.ts.bak",
+        "export async function GET() {\n  return new Response(null);\n}\n",
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([]);
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports an unguarded GET next to a top-level declaration without initializer", () => {
+      write(
+        BILLING_ROUTE,
+        "let helper;\nexport async function GET() {\n  return new Response(String(helper));\n}\n",
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET exported as a declaration without initializer", () => {
+      write(BILLING_ROUTE, "export let GET;\n");
+
+      expect(findModuleEntryPoints(root)).toEqual([`${BILLING_ROUTE}#GET`]);
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a GET built by a call that invokes the guard once at module load", () => {
+      write(
+        BILLING_ROUTE,
+        `${GUARD_IMPORTS.requireModuleEnabled}\nimport { createHandler } from "./create-handler";\nexport const GET = createHandler(requireModuleEnabled("billing"));\n`,
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([`${BILLING_ROUTE}#GET`]);
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it("reports a re-export from another file even when a guarded local function has the same name", () => {
+      write(
+        BILLING_ROUTE,
+        `${GUARD_IMPORTS.requireModuleEnabled}\nasync function handler() {\n  requireModuleEnabled("billing");\n  return new Response(null);\n}\nexport { handler as GET } from "./other";\n`,
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([`${BILLING_ROUTE}#GET`]);
+      expect(unguarded()).toEqual([`${BILLING_ROUTE}#GET`]);
+    });
+
+    it('ignores a "use server" route.ts outside src/app and src/features', () => {
+      write(
+        "src/shared/route.ts",
+        '"use server";\n\nexport async function run() {\n  return 1;\n}\n',
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([]);
+      expect(unguarded()).toEqual([]);
+    });
   });
 
   describe("server action files", () => {
@@ -373,6 +429,48 @@ describe("module entry point detector on fixtures", () => {
       write(file, `"use server";\n\n${COMMAND_BODY}`);
 
       expect(findModuleEntryPoints(root)).toEqual([]);
+    });
+
+    it("ignores a feature file whose name only starts with a TypeScript extension", () => {
+      write(`${BILLING_COMMAND}.bak`, `"use server";\n\n${COMMAND_BODY}`);
+
+      expect(findModuleEntryPoints(root)).toEqual([]);
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a use server file that contains .test.ts in its name without ending with it", () => {
+      const file =
+        "src/features/billing/services/commands/latest.test.tsv-import.ts";
+      write(
+        file,
+        '"use server";\n\nexport async function importRows() {\n  return 1;\n}\n',
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([`${file}#importRows`]);
+      expect(unguarded()).toEqual([`${file}#importRows`]);
+    });
+
+    it("skips holes in an exported array destructuring", () => {
+      write(
+        BILLING_COMMAND,
+        '"use server";\n\nimport { actions } from "./actions";\nexport const [first, , second] = actions;\n',
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_COMMAND}#first`,
+        `${BILLING_COMMAND}#second`,
+      ]);
+    });
+
+    it("reports a use server feature file named route.ts exactly once", () => {
+      const file = "src/features/billing/services/commands/route.ts";
+      write(
+        file,
+        '"use server";\n\nexport async function run() {\n  return 1;\n}\n',
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([`${file}#run`]);
+      expect(unguarded()).toEqual([`${file}#run`]);
     });
 
     it("ignores use server files outside src/features", () => {

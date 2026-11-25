@@ -105,6 +105,19 @@ describe("GET /api/v1/organization with api-keys enabled", () => {
     expect(mockReadOrganization).toHaveBeenCalledWith(API_KEY_CONTEXT);
   });
 
+  it("authenticates the request with the organization:read scope", async () => {
+    const { GET } = await loadRoute(true);
+    const request = requestWith("Bearer gato_live_abc");
+
+    await GET(request);
+
+    expect(mockAuthenticateApiKey).toHaveBeenCalledTimes(1);
+    expect(mockAuthenticateApiKey).toHaveBeenCalledWith(
+      request,
+      "organization:read",
+    );
+  });
+
   it("passes the authentication failure status and error through", async () => {
     mockAuthenticateApiKey.mockResolvedValue({
       ok: false,
@@ -119,5 +132,14 @@ describe("GET /api/v1/organization with api-keys enabled", () => {
     expect(await response.json()).toEqual({ error: "invalid_key" });
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(mockReadOrganization).not.toHaveBeenCalled();
+  });
+});
+
+describe("/api/v1/organization route config", () => {
+  it("runs on the Node.js runtime and is always dynamic", async () => {
+    const route = await loadRoute(true);
+
+    expect(route.runtime).toBe("nodejs");
+    expect(route.dynamic).toBe("force-dynamic");
   });
 });

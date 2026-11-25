@@ -347,6 +347,22 @@ describe("deleteUploadCommand", () => {
     expect(mockLogger.error).toHaveBeenCalled();
   });
 
+  it("logs a failed deleteObject with the error and the deleted row's key and still succeeds", async () => {
+    const storageError = new Error("storage down");
+    mockDeleteObject.mockRejectedValue(storageError);
+
+    const result = await deleteUploadCommand({ id: UPLOAD_ID });
+
+    expect(result).toEqual({ success: true });
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      "upload deleteObject failed",
+      {
+        err: storageError,
+        key: "orgs/org-1/editor-image/own.jpg",
+      },
+    );
+  });
+
   it("podwójne wywołanie: drugie zwraca błąd i nie woła deleteObject ponownie", async () => {
     await deleteUploadCommand({ id: UPLOAD_ID });
     const second = await deleteUploadCommand({ id: UPLOAD_ID });
