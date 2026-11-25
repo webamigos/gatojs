@@ -120,6 +120,20 @@ describe("inviteUserCommand", () => {
     expect(mockAuthApi.signUpEmail).not.toHaveBeenCalled();
   });
 
+  it("returns the schema message of the only invalid field, not the generic fallback", async () => {
+    const result = await inviteUserCommand({
+      ...validInput,
+      email: "not-an-email",
+    });
+
+    expect(result).toEqual({ success: false, error: "Invalid email address" });
+    expect(result).not.toEqual({
+      success: false,
+      error: "Nieprawidłowe dane",
+    });
+    expect(mockPrisma.invitation.create).not.toHaveBeenCalled();
+  });
+
   it("odrzuca rolę spoza listy zapraszanych", async () => {
     const result = await inviteUserCommand({ ...validInput, role: "owner" });
 

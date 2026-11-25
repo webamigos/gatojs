@@ -21,7 +21,7 @@ vi.mock("@/modules.client.generated", async () => {
   };
 });
 
-import { GET } from "../route";
+import { GET, runtime } from "../route";
 
 const ID = "11111111-1111-4111-8111-111111111111";
 
@@ -50,5 +50,11 @@ describe("GET /api/uploads/[id] with uploads disabled", () => {
     expect(await response.text()).toBe("");
     expect(response.headers.get("content-disposition")).toBeNull();
     expect(mockReadUpload).not.toHaveBeenCalled();
+  });
+});
+
+describe("/api/uploads/[id] route module", () => {
+  it("runs on the Node.js runtime", () => {
+    expect(runtime).toBe("nodejs");
   });
 });
