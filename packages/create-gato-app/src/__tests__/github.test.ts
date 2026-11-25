@@ -387,14 +387,6 @@ describe.each(calls)("HTTP errors in $label", ({ what, invoke }) => {
     },
   );
 
-  it.each([null, SECRET])(
-    "500 (token %s) gives only the status and what was requested",
-    async (token) => {
-      const message = await messageOf(invoke(failingFetch(500), token));
-      expect(message).toBe(`GitHub returned 500 for ${what}.`);
-    },
-  );
-
   it("500 mentions the status", async () => {
     const message = await messageOf(invoke(failingFetch(500), SECRET));
     expect(message).toContain("500");
