@@ -64,7 +64,7 @@ Docs only. Port the restore procedure from https://docs.gatojs.com/deployment/se
 File: `src/features/encryption/services/organization-encryption.ts` (`wrappedKeyForWrite`, used by
 `encryptForOrganization(organizationId: string, plaintext: string): Promise<string>`).
 
-Finding (probed on Prisma 7.4 + PostgreSQL 16, 2026-11-25): `upsert` with an empty `update` is not a native
+Finding (probed on Prisma 7.10.1 + PostgreSQL 16, 2026-11-25): `upsert` with an empty `update` is not a native
 `INSERT ... ON CONFLICT`. Prisma runs `SELECT` then `INSERT` in a transaction, so concurrent first writers get `P2002`
 (30 rounds of 10 parallel upserts: 261 of 300 calls failed with `P2002`).
 

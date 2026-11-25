@@ -149,7 +149,7 @@ Every query filters by `organizationId`, and the tenant-scope guard rejects one 
 
 When two requests encrypt for a new organization at once, both generate a key and write it with `upsert` and an
 empty `update`. Prisma 7 does not turn that upsert into `INSERT … ON CONFLICT` on PostgreSQL: it reads, then inserts,
-so the slower request fails on the unique `organizationId` with `P2002` (checked on Prisma 7.4 and PostgreSQL 16,
+so the slower request fails on the unique `organizationId` with `P2002` (checked on Prisma 7.10.1 and PostgreSQL 16,
 2026-11-25). `encryptForOrganization` catches `P2002`, reads the stored row again and encrypts with it, so every
 concurrent first call ends up on the key that was stored first. When that read finds no row, the `P2002` error is
 thrown; any other error is thrown unchanged.
