@@ -1,0 +1,24 @@
+/*
+ * Project theme layer.
+ *
+ * GatoJS creates this file once and never updates it (a seed file), so it is
+ * yours to edit. `src/app/globals.css` imports it after the Gato tokens, so
+ * anything set here wins over them.
+ *
+ * Override a colour token for the light and the dark theme:
+ *
+ *   :root {
+ *     --primary: #7c3aed;
+ *   }
+ *
+ *   .dark {
+ *     --primary: #8b5cf6;
+ *   }
+ *
+ * Gato's `--font-sans` lives in `@theme inline`, so a `:root` override would
+ * not reach the `font-sans` utility; override it in a later `@theme inline`:
+ *
+ *   @theme inline {
+ *     --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+ *   }
+ */

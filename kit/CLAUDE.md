@@ -72,6 +72,9 @@ Zasady dla plików tylko kitu (`kit/`, pakiety narzędzi `packages/gato-cli` i `
   słownik hashy jak `managed`/`seed`): podbij `kitFormat` w `kit/kit.json` i dopisz nową wartość do `SUPPORTED_KIT_FORMATS`
   w `packages/gato-cli/src/kit/kit-format.ts` ([ADR-59](../docs/adrs/59-gato-files-are-protected-and-ejected-with-a-reason.md)).
   Projekt bez pola to format 1. Wypełnienie listy (`seedFiles`, `managedFiles`) nie zmienia formatu.
+- Plik, który projekt dostaje raz i potem zmienia jak własny (`README.md`, `src/theme.css`), to wpis w `seedFiles`
+  w `kit/kit.json` (hash `"seed"`: `wa update`, `doctor --files` i hook `protect-gato-files.mjs` go pomijają), nigdy wyjątek
+  w ochronie plików. Plik nadal potrzebuje właściciela w `files` modułu.
 - Moduł kitu nie zmienia plików rdzenia w swoich commitach. Zmianę rdzenia, której moduł wymaga (szew w `src/shared/`,
   `src/test/integration/setup-env.ts`, `e2e/env.ts`, `mutation-gate.json`, `stryker.integration.config.json`), rób
   osobnym commitem z podbiciem `version` w `kit/modules/core.json`; projekt dostaje ją z rdzeniem także bez modułu.

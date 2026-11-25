@@ -2,6 +2,7 @@
 
 Instructions for agents (Claude Code, Codex, Cursor, Copilot) working in this repository.
 `CLAUDE.md` holds the hard rules and imports this file; keep the two consistent.
+Read `AGENTS.project.md` first when it exists: project rules there win over generic advice, never over the hard rules.
 
 ## What this is
 

@@ -298,6 +298,21 @@ Jak wyczyścić zgłoszony plik:
 
 Szczegóły komend: [16-cli-wa.md](16-cli-wa.md#wa-doctor).
 
+<a id="pliki-towarzyszace"></a>
+
+### Pliki towarzyszące i pliki `seed`
+
+Rzeczy, które zmienia prawie każdy projekt, mają własne pliki projektu, więc nie trzeba w tym celu zmieniać plików GatoJS:
+
+| Plik | Rodzaj | Kto go czyta | `wa update` |
+| --- | --- | --- | --- |
+| `AGENTS.project.md` | towarzyszący, nie ma go w kicie | agent: `AGENTS.md` i `CLAUDE.md` każą przeczytać go najpierw; wygrywa z ogólnymi radami, nigdy z twardymi regułami | nie czyta go |
+| `mutation-gate.project.json` | towarzyszący, nie ma go w kicie | `npm run test:mutation:gate` dokleja go do `mutation-gate.json` ([08-testy.md](08-testy.md#bramka-mutacji-projektu)) | nie czyta go |
+| `src/theme.css` | `seed` | `src/app/globals.css` importuje go po tokenach GatoJS, więc nadpisuje np. `--primary` w `:root` i `.dark`, a `--font-sans` w `@theme inline` | pomija go |
+| `README.md` | `seed` | ludzie | pomija go |
+
+Plik `seed` (`seedFiles` w `kit/kit.json`) `wa create` kopiuje raz, z wypełnionymi placeholderami, i zapisuje w `.wa/kit.json` z hashem `"seed"` zamiast hasha treści. Od tej chwili należy do projektu: `wa update` go nie zmienia, nawet gdy nowa wersja kitu ma inną treść, `doctor --files` go nie zgłasza, a hook `protect-gato-files.mjs` go przepuszcza.
+
 <a id="agenci-ai"></a>
 
 ## Praca z agentami AI
