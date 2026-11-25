@@ -1,6 +1,7 @@
 import "server-only";
 
 import { decryptContent, encryptContent } from "@gatojs/crypto";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/shared/lib/prisma";
 import {
   encryptionKeyProvider,
@@ -25,21 +26,39 @@ async function storedWrappedKey(
   return row?.wrappedKey ?? null;
 }
 
-// WHY: upsert with an empty update keeps the row a concurrent first write stored, so both callers
-// end up with the same data key instead of one ciphertext under a key that was never saved.
+function isUniqueConstraintViolation(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
+}
+
+// WHY: Prisma 7 runs this upsert as SELECT then INSERT, not ON CONFLICT, so a concurrent first
+// writer gets P2002; re-reading the row it stored gives every caller the same saved data key.
 async function wrappedKeyForWrite(organizationId: string): Promise<string> {
   const stored = await storedWrappedKey(organizationId);
   if (stored !== null) {
     return stored;
   }
   const { wrappedKey } = await encryptionKeyProvider().generateDataKey();
-  const row = await prisma.organizationDataKey.upsert({
-    where: { organizationId },
-    create: { organizationId, wrappedKey },
-    update: {},
-    select: { wrappedKey: true },
-  });
-  return row.wrappedKey;
+  try {
+    const row = await prisma.organizationDataKey.upsert({
+      where: { organizationId },
+      create: { organizationId, wrappedKey },
+      update: {},
+      select: { wrappedKey: true },
+    });
+    return row.wrappedKey;
+  } catch (error) {
+    if (!isUniqueConstraintViolation(error)) {
+      throw error;
+    }
+    const concurrentlyStored = await storedWrappedKey(organizationId);
+    if (concurrentlyStored === null) {
+      throw error;
+    }
+    return concurrentlyStored;
+  }
 }
 
 export async function encryptForOrganization(
