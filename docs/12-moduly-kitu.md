@@ -36,7 +36,7 @@ Zweryfikowano z kodem: 6c05f1f, 2026-11-05
 - `src/test/core-modules.ts`
 - `src/features/organizations/services/commands/member-commands.ts`
 - `src/features/organizations/services/commands/enter-organization-command.ts`
-- pliki modułów, które czytają szwy: `src/features/audit-logs/` (`module.ts`, `audit-sink.ts`, `auth.ts`, `components/audit-trail.tsx`, `components/audit-log-view.tsx`, `services/audit-action-labels.ts`), `src/features/api-keys/` (`module.ts`, `services/api-scopes.ts`, `services/api-scope-labels.ts`, `components/api-keys-manager.tsx`, `contracts/api-key.schemas.ts`, `services/commands/api-key-commands.ts`), `src/features/uploads/` (`module.ts`, `services/upload-purposes.ts`, `components/file-upload.tsx`, `services/commands/create-upload.ts`, `services/commands/upload-commands.ts`)
+- pliki modułów, które czytają szwy: `src/features/audit-logs/` (`module.ts`, `audit-sink.ts`, `auth.ts`, `components/audit-trail.tsx`, `components/audit-log-view.tsx`, `components/audit-action-labels.ts`), `src/features/api-keys/` (`module.ts`, `services/api-scopes.ts`, `components/api-scope-labels.ts`, `components/api-keys-manager.tsx`, `contracts/api-key.schemas.ts`, `services/commands/api-key-commands.ts`), `src/features/uploads/` (`module.ts`, `services/upload-purposes.ts`, `components/file-upload.tsx`, `services/commands/create-upload.ts`, `services/commands/upload-commands.ts`)
 - `mutation-gate.json`
 - `docker/uploads.compose.yml`, `docker-compose.yml`, `Dockerfile`, `src/test/integration/setup-env.ts`, `e2e/env.ts`, `src/features/uploads/services/storage-env.ts` (provider storage modułu `uploads`)
 - `.github/workflows/kit.yml`

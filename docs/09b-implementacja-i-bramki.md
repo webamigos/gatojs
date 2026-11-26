@@ -25,7 +25,7 @@ Zweryfikowano z kodem: 2c83429, 2026-11-21 (guard organizacji w [Query](#query) 
 - `src/features/organizations/services/queries/organization-queries.ts`
 - `src/shared/lib/audit.ts`
 - `src/features/audit-logs/components/audit-trail.tsx`
-- `src/features/audit-logs/services/audit-action-labels.ts`
+- `src/features/audit-logs/components/audit-action-labels.ts`
 - `src/features/api-keys/services/authenticate-api-key.ts`
 - `src/features/api-keys/services/api-scopes.ts`
 - `src/app/api/v1/organization/route.ts`

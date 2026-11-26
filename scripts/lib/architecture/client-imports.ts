@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import ts from "typescript";
 import { listFiles, readRepoFile } from "./repo-files";
 
@@ -20,9 +22,18 @@ const SERVER_MODULES = [
   "@/shared/lib/auth",
   "@/generated/prisma",
   "server-only",
+  "@/shared/components/slot",
+  "@/modules.generated",
 ];
 
 const MODULE_SERVER_FILE = /^@\/features\/[^/]+\/(events|subscribers|slots)$/;
+const FEATURE_SERVICES = /^@\/features\/[^/]+\/services(\/|$)/;
+const FEATURE_COMMANDS = /^@\/features\/[^/]+\/services\/commands(\/|$)/;
+const RELATIVE_SPECIFIER = /^\.\.?\//;
+const SOURCE_EXTENSION = /\.tsx?$/;
+const SOURCE_ROOT = "src/";
+const ALIAS_ROOT = "@/";
+const LAZY_TARGET_SUFFIXES = ["", ".tsx", ".ts", "/index.tsx", "/index.ts"];
 const FEATURE_CLIENT_SLOTS_FILE = /^src\/features\/[^/]+\/client-slots\.ts$/;
 const SOURCE_FILE = /\.tsx?$/;
 const GENERATED_DIRECTORY = "src/generated/";
@@ -47,6 +58,9 @@ export function isClientModule(source: string): boolean {
 function isServerModule(specifier: string): boolean {
   if (specifier.startsWith("node:") || MODULE_SERVER_FILE.test(specifier)) {
     return true;
+  }
+  if (FEATURE_SERVICES.test(specifier)) {
+    return !FEATURE_COMMANDS.test(specifier);
   }
   if ((CLIENT_SAFE_AUTH_MODULES as readonly string[]).includes(specifier)) {
     return false;
@@ -73,20 +87,25 @@ function staticSpecifier(statement: ts.Statement): string | undefined {
   return undefined;
 }
 
-function importedSpecifiers(sourceFile: ts.SourceFile): string[] {
-  const specifiers: string[] = [];
+interface ImportedSpecifier {
+  specifier: string;
+  dynamic: boolean;
+}
+
+function importedSpecifiers(sourceFile: ts.SourceFile): ImportedSpecifier[] {
+  const specifiers: ImportedSpecifier[] = [];
   const visit = (node: ts.Node) => {
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
       const specifier = staticSpecifier(node);
       if (specifier !== undefined) {
-        specifiers.push(specifier);
+        specifiers.push({ specifier, dynamic: false });
       }
     } else if (
       ts.isCallExpression(node) &&
       node.expression.kind === ts.SyntaxKind.ImportKeyword &&
       ts.isStringLiteral(node.arguments[0])
     ) {
-      specifiers.push(node.arguments[0].text);
+      specifiers.push({ specifier: node.arguments[0].text, dynamic: true });
     }
     ts.forEachChild(node, visit);
   };
@@ -95,7 +114,74 @@ function importedSpecifiers(sourceFile: ts.SourceFile): string[] {
 }
 
 function serverImports(sourceFile: ts.SourceFile): string[] {
-  return importedSpecifiers(sourceFile).filter(isServerModule);
+  return importedSpecifiers(sourceFile)
+    .map(({ specifier }) => specifier)
+    .filter(isServerModule);
+}
+
+function resolvedRepoPath(file: string, specifier: string): string | null {
+  if (specifier.startsWith(ALIAS_ROOT)) {
+    return `${SOURCE_ROOT}${specifier.slice(ALIAS_ROOT.length)}`;
+  }
+  if (RELATIVE_SPECIFIER.test(specifier)) {
+    return path.posix.join(path.posix.dirname(file), specifier);
+  }
+  return null;
+}
+
+function aliasOf(file: string, specifier: string): string {
+  const resolved = RELATIVE_SPECIFIER.test(specifier)
+    ? path.posix.join(path.posix.dirname(file), specifier)
+    : null;
+  if (resolved === null || !resolved.startsWith(SOURCE_ROOT)) {
+    return specifier;
+  }
+  return `${ALIAS_ROOT}${resolved.slice(SOURCE_ROOT.length).replace(SOURCE_EXTENSION, "")}`;
+}
+
+function serverImportsOfFile(
+  sourceFile: ts.SourceFile,
+  file: string,
+): string[] {
+  return importedSpecifiers(sourceFile)
+    .map(({ specifier }) => specifier)
+    .filter((specifier) => isServerModule(aliasOf(file, specifier)));
+}
+
+function isRepoFile(root: string, file: string): boolean {
+  const full = path.join(root, file);
+  return fs.existsSync(full) && fs.statSync(full).isFile();
+}
+
+function lazyTargetOf(
+  root: string,
+  file: string,
+  specifier: string,
+): string | undefined {
+  const base = resolvedRepoPath(file, specifier);
+  if (base === null) {
+    return undefined;
+  }
+  return LAZY_TARGET_SUFFIXES.map((suffix) => `${base}${suffix}`).find(
+    (candidate) => isRepoFile(root, candidate),
+  );
+}
+
+function lazyTargetsWithoutDirective(
+  root: string,
+  file: string,
+  sourceFile: ts.SourceFile,
+): string[] {
+  return importedSpecifiers(sourceFile)
+    .filter(({ dynamic }) => dynamic)
+    .map(({ specifier }) => specifier)
+    .filter((specifier) => {
+      const target = lazyTargetOf(root, file, specifier);
+      return (
+        target !== undefined && !isClientModule(readRepoFile(root, target))
+      );
+    })
+    .map((specifier) => `${specifier} (missing "use client")`);
 }
 
 export function findServerImportsInClient(source: string): string[] {
@@ -114,10 +200,20 @@ function isClientEntryFile(file: string): boolean {
 }
 
 function serverImportsOf(root: string, file: string): string[] {
-  const source = readRepoFile(root, file);
-  return isClientEntryFile(file)
-    ? serverImports(parse(source))
-    : findServerImportsInClient(source);
+  const sourceFile = parse(readRepoFile(root, file));
+  if (FEATURE_CLIENT_SLOTS_FILE.test(file)) {
+    return [
+      ...serverImportsOfFile(sourceFile, file),
+      ...lazyTargetsWithoutDirective(root, file, sourceFile),
+    ];
+  }
+  if (
+    isClientEntryFile(file) ||
+    isUseClientDirective(sourceFile.statements[0])
+  ) {
+    return serverImportsOfFile(sourceFile, file);
+  }
+  return [];
 }
 
 export function checkClientBundles(root: string): string[] {
