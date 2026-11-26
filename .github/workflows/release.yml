@@ -16,6 +16,8 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.released.outputs.version }}
     permissions:
       contents: write
       issues: write
@@ -41,6 +43,10 @@ jobs:
       - name: Test release scripts
         run: npm test --prefix kit/release
 
+      - name: Version before the release
+        id: before
+        run: echo "version=$(node -p "require('./kit/kit.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -49,3 +55,27 @@ jobs:
           GIT_COMMITTER_NAME: github-actions[bot]
           GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
         run: npm run release --prefix kit/release
+
+      - name: Released version
+        id: released
+        env:
+          BEFORE: ${{ steps.before.outputs.version }}
+        run: |
+          after=$(node -p "require('./kit/kit.json').version")
+          if [ "$after" != "$BEFORE" ]; then
+            echo "version=$after" >> "$GITHUB_OUTPUT"
+          fi
+
+  image:
+    name: Publish the release image
+    needs: release
+    if: ${{ needs.release.outputs.version != '' }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
+      ref: v${{ needs.release.outputs.version }}
