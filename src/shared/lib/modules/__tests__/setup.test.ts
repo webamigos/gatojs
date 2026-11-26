@@ -1038,3 +1038,90 @@ describe("runMissingOrganizationSetups", () => {
     expect(mockPrisma.organizationModuleSetup.upsert).not.toHaveBeenCalled();
   });
 });
+
+describe("runOrganizationSetup: no module has the requested hook", () => {
+  const missingTable = () =>
+    Promise.reject(
+      new Error('relation "organization_module_setups" does not exist'),
+    );
+
+  it.each([
+    ["an empty module list", [] as ModuleSetupEntry[]],
+    ["only a seed-only entry", [seedOnlyEntry]],
+  ])(
+    "with %s onOrganizationCreated resolves empty and reads no rows",
+    async (_label, modules) => {
+      await expect(
+        runOrganizationSetup("org-a", {
+          hook: "onOrganizationCreated",
+          modules,
+        }),
+      ).resolves.toStrictEqual({ ran: [], skipped: [], failed: [] });
+      expect(
+        mockPrisma.organizationModuleSetup.findMany,
+      ).not.toHaveBeenCalled();
+      expect(mockPrisma.organizationModuleSetup.upsert).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["an empty module list", [] as ModuleSetupEntry[]],
+    ["only a seed-only entry", [seedOnlyEntry]],
+  ])(
+    "with %s it still resolves empty and logs nothing when the setup table does not exist yet",
+    async (_label, modules) => {
+      mockPrisma.organizationModuleSetup.findMany.mockImplementation(
+        missingTable,
+      );
+
+      await expect(
+        runOrganizationSetup("org-a", {
+          hook: "onOrganizationCreated",
+          modules,
+        }),
+      ).resolves.toStrictEqual({ ran: [], skipped: [], failed: [] });
+      expect(mockLogger.error).not.toHaveBeenCalled();
+    },
+  );
+
+  it("with an empty registry it resolves empty without reading rows", async () => {
+    registry.setups = [];
+    mockPrisma.organizationModuleSetup.findMany.mockImplementation(
+      missingTable,
+    );
+
+    await expect(
+      runOrganizationSetup("org-a", { hook: "onOrganizationCreated" }),
+    ).resolves.toStrictEqual({ ran: [], skipped: [], failed: [] });
+    expect(mockPrisma.organizationModuleSetup.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("missingOrganizationSetups and runMissingOrganizationSetups: no candidate module", () => {
+  beforeEach(() => {
+    db.organizations.push({ id: "org-a" }, { id: "org-b" });
+  });
+
+  it.each([
+    ["an empty module list", [] as ModuleSetupEntry[]],
+    ["only a seed-only entry", [seedOnlyEntry]],
+  ])(
+    "with %s and no module filter nothing is missing and no setup row is read",
+    async (_label, modules) => {
+      await expect(
+        missingOrganizationSetups({ modules }),
+      ).resolves.toStrictEqual([]);
+      expect(
+        mockPrisma.organizationModuleSetup.findMany,
+      ).not.toHaveBeenCalled();
+    },
+  );
+
+  it("with an empty module list runMissingOrganizationSetups runs nothing", async () => {
+    await expect(
+      runMissingOrganizationSetups({ modules: [] }),
+    ).resolves.toStrictEqual({ ran: [], failed: [] });
+    expect(mockPrisma.organizationModuleSetup.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.organizationModuleSetup.upsert).not.toHaveBeenCalled();
+  });
+});

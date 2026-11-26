@@ -88,7 +88,7 @@ describe("setupOrganizationsCommand --check", () => {
   it("without filters passes neither module nor organization", async () => {
     await setupOrganizationsCommand(["--check"], deps());
 
-    expect(missing.mock.calls[0][0]).toEqual({});
+    expect(missing.mock.calls[0][0]).toStrictEqual({});
   });
 });
 
@@ -110,7 +110,7 @@ describe("setupOrganizationsCommand run mode", () => {
   it("passes only --module when no organization is given", async () => {
     await setupOrganizationsCommand(["--module", "notes"], deps());
 
-    expect(run.mock.calls[0][0]).toEqual({ module: "notes" });
+    expect(run.mock.calls[0][0]).toStrictEqual({ module: "notes" });
   });
 
   it("logs each ran pair and exits 0 when nothing failed", async () => {
