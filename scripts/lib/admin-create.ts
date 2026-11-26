@@ -4,6 +4,7 @@ import { auth } from "@/shared/lib/auth";
 import { ORG_ROLES, USER_ROLES } from "@/shared/lib/auth/roles";
 import { roleFromStored } from "@/shared/lib/auth/admin-guard";
 import { emitEvent } from "@/shared/lib/events";
+import { runOrganizationSetup } from "@/shared/lib/modules/setup";
 import { prisma } from "@/shared/lib/prisma";
 
 export type GlobalAdminRole = "admin" | "superadmin";
@@ -188,6 +189,7 @@ export async function adminCreate(
       options.orgName ?? project.name,
     );
     await emitOrganizationCreated(user.userId, organization);
+    await runOrganizationSetup(organization.organizationId, { hook: "seed" });
     return {
       userId: user.userId,
       organizationId: organization.organizationId,
