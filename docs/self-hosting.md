@@ -23,13 +23,26 @@ committed `init` migration, each in a fresh clone with its own `COMPOSE_PROJECT_
   `minio-init` stays up and healthy after it makes the bucket (verified 2026-11-25; before that change `--wait` failed
   on the exited `minio-init` on both v2.19.1 and v2.33.0);
 - [Back up](#back-up) and [restore](#restore): a set of the local volume, taken and restored into a fresh clone with
-  new volumes, signs the administrator in and downloads the file with the same checksum (verified 2026-11-25). The
-  current scripts (`set -eu`, the `dc` function, `dc stop app`, `pg_restore --exit-on-error`, the MinIO copy) ran as
-  written on 2026-11-26 with the `s3` profile up: after `down -v` and a fresh clone, the restore brought back a
-  database row, a file in the `uploads` volume (owned by UID 1001) and an object in the MinIO bucket, and `app` came
-  up healthy; a truncated dump stopped the restore at `pg_restore` with exit 1 and `app` stopped (verified
-  2026-11-26, without `sudo`, because Docker Desktop's bind mount belongs to the host user). The MinIO restore failed
-  on the fresh clone until `mkdir -p volumes` was added. The administrator sign-in was not repeated on 2026-11-26.
+  new volumes, signs the administrator in and downloads the file with the same checksum (verified 2026-11-25). An
+  earlier version of the scripts (restore by `dropdb` and `find … -delete`) ran on 2026-11-26 with the app image and
+  the `s3` profile.
+- The current scripts (the `trap`, the set checks, the scratch database and directories, the move-aside) ran as
+  written on 2026-11-26 with `WITH_MINIO=yes`, on Docker Engine 24.0.2 with Compose v2.19.1, without `sudo` (Docker
+  Desktop's bind mount belongs to the host user), and with **`app` and `migrate` replaced by `node:22-alpine`
+  stand-ins** (an HTTP server answering the healthcheck, and `node -e 0`), because the app image build did not
+  finish on the loaded machine. `db`, `minio` and `minio-init` were the real services. Each step was checked against
+  a database row, a file in the `uploads` volume and an object in the MinIO bucket:
+  - the backup exited 0 with `app` and `minio` running again; a backup made to fail at the MinIO copy exited 1, and
+    the `trap` started `minio` and `app` again;
+  - a restore from a set without `minio/` stopped at the checks with nothing changed and `app` still running;
+  - a restore from a dump truncated to half its size stopped at `pg_restore` with the live row, file and object
+    unchanged and an empty scratch database; a re-run then stopped on the `.env.selfhost.before-restore` it left;
+  - a full restore brought back the row, the file (owned by UID 1001) and the object, kept the previous ones in
+    `<name>_old`, `.restore-old` and `volumes/minio.before-restore`, and the clean-up block removed them;
+  - after `down -v` and removing `volumes/` and `.env.selfhost`, the restore brought the stack back the same way.
+
+  The app itself (sign-in, `migrate` on the restored database, downloading the file) was not run against the
+  current scripts (not verified).
 
 The TLS examples and the upgrade path have not been run (not verified).
 
@@ -41,7 +54,7 @@ The TLS examples and the upgrade path have not been run (not verified).
 | [Mail](#mail) | written |
 | [Files (`uploads`)](#files-uploads) | written, local volume and `s3` profile verified 2026-11-25 |
 | [TLS](#tls) | written, examples not run |
-| [Back up](#back-up) and [restore](#restore) | written, verified 2026-11-26 (local volume and MinIO) |
+| [Back up](#back-up) and [restore](#restore) | written; current scripts verified 2026-11-26 with stand-ins for `app` and `migrate` (MinIO path), the app on them not verified |
 | [Upgrade](#upgrade) | written |
 | [Prove nothing leaves the machine](#prove-nothing-leaves-the-machine) | placeholder until the egress check (self-hosting Task 7) |
 
@@ -223,35 +236,40 @@ A backup set is the database, the files and the environment, taken in the same w
 | `.env.selfhost` | the checkout; holds `BETTER_AUTH_SECRET`, `POSTGRES_PASSWORD` and the module secrets (`ENCRYPTION_MASTER_KEY`, `API_KEY_PEPPER`) |
 | The project version | the commit of the checkout (`git rev-parse HEAD`) |
 
-The scripts define `dc` as a shell function, because aliases do not work in scripts, and start with `set -eu`, which
-stops at the first failing command.
+The scripts start with `set -eu`, which stops at the first failing command, and define `dc` as a shell function,
+because aliases do not work in scripts. Set `WITH_MINIO=yes` when the stack runs MinIO (the `s3` profile); `dc` then
+passes `--profile s3` to every command.
 
 ```bash
 set -eu
-dc() { docker compose -f docker-compose.selfhost.yml --env-file .env.selfhost "$@"; }
+WITH_MINIO=no
+dc() {
+  if [ "$WITH_MINIO" = yes ]; then set -- --profile s3 "$@"; fi
+  docker compose -f docker-compose.selfhost.yml --env-file .env.selfhost "$@"
+}
 B=/var/backups/app/$(date +%Y%m%d-%H%M)
 mkdir -p "$B"
 
 dc stop app
+trap 'dc start app' EXIT
 dc exec -T db sh -c 'pg_dump -U postgres -d "$POSTGRES_DB" -Fc' > "$B/postgres.dump"
 dc run --rm --no-deps -T --user root --entrypoint tar app -C /app/volumes/uploads -cf - . > "$B/uploads.tar"
+if [ "$WITH_MINIO" = yes ]; then
+  dc stop minio
+  trap 'dc start minio app' EXIT
+  sudo cp -a volumes/minio "$B/minio"
+fi
 cp .env.selfhost "$B/"
 git rev-parse HEAD > "$B/commit"
-dc start app
 ```
+
+The `trap` starts `app` (and `minio`) again when the script ends, also when a step fails, so a failed backup never
+leaves the app offline. MinIO is copied in the same window as the database, so the files and the database come from
+the same moment. MinIO runs as root, so its files belong to root and need `sudo`.
 
 `$POSTGRES_DB` is expanded inside the `db` container, where it holds the database name the Compose file sets (the
 project's name, such as `my_app`). `tar` runs in the app image (BusyBox `tar` in `node:22-alpine`), so nothing else is
 needed on the host.
-
-With MinIO, also copy its data directory while `minio` is stopped. MinIO runs as root, so its files belong to root.
-Run this before `dc start app`, so the files and the database come from the same moment:
-
-```bash
-dc --profile s3 stop minio
-sudo cp -a volumes/minio "$B/minio"
-dc --profile s3 start minio
-```
 
 With an external S3 store, use the store's own versioning or replication.
 
@@ -260,59 +278,94 @@ With an external S3 store, use the store's own versioning or replication.
 ## Restore
 
 Restore onto the same project commit the set was taken from. A newer commit is an upgrade: `migrate` brings the
-schema forward. An older one is not supported.
+schema forward. An older one is not supported. On a new machine, first clone the project at the commit in
+`$B/commit`.
 
-On a new machine, first clone the project at the commit in `$B/commit`. Then restore the database with `app`
-stopped:
+The restore deletes nothing that is live until the set has been restored next to it. It checks the set first,
+restores the database into a scratch database and the files into a scratch directory, and only then swaps them in.
+What was live before is kept aside (the database `<name>_old`, the directory `.restore-old` in the `uploads` volume,
+`volumes/minio.before-restore`, `.env.selfhost.before-restore`) until you remove it after checking the app.
 
 ```bash
 set -eu
-dc() { docker compose -f docker-compose.selfhost.yml --env-file .env.selfhost "$@"; }
+WITH_MINIO=no
+dc() {
+  if [ "$WITH_MINIO" = yes ]; then set -- --profile s3 "$@"; fi
+  docker compose -f docker-compose.selfhost.yml --env-file .env.selfhost "$@"
+}
 B=/var/backups/app/<set>
 
+test -s "$B/postgres.dump"
+test -s "$B/.env.selfhost"
+tar -tf "$B/uploads.tar" > /dev/null
+test ! -e .env.selfhost.before-restore
+if [ "$WITH_MINIO" = yes ]; then
+  sudo test -d "$B/minio"
+  test -n "$(sudo ls -A "$B/minio")"
+  test ! -e volumes/minio.before-restore
+fi
+
+if [ -f .env.selfhost ]; then cp .env.selfhost .env.selfhost.before-restore; fi
 cp "$B/.env.selfhost" .
 dc stop app
-
 dc up -d --wait db
-dc exec -T db sh -c 'dropdb -U postgres --if-exists --force "$POSTGRES_DB" && createdb -U postgres "$POSTGRES_DB"'
-dc exec -T db sh -c 'pg_restore -U postgres -d "$POSTGRES_DB" --no-owner --exit-on-error' < "$B/postgres.dump"
+
+dc exec -T db sh -c 'dropdb -U postgres --if-exists "${POSTGRES_DB}_restore" && createdb -U postgres "${POSTGRES_DB}_restore"'
+dc exec -T db sh -c 'pg_restore -U postgres -d "${POSTGRES_DB}_restore" --no-owner --single-transaction --exit-on-error' < "$B/postgres.dump"
+dc run --rm --no-deps -T --user root --entrypoint sh app -c \
+  'cd /app/volumes/uploads && rm -rf .restore-new && mkdir .restore-new && tar -C .restore-new -xf -' < "$B/uploads.tar"
+if [ "$WITH_MINIO" = yes ]; then
+  sudo rm -rf volumes/minio.restore-new
+  mkdir -p volumes
+  sudo cp -a "$B/minio" volumes/minio.restore-new
+fi
+
+dc exec -T db sh -c 'psql -U postgres -d postgres -v ON_ERROR_STOP=1 --single-transaction \
+  -c "ALTER DATABASE $POSTGRES_DB RENAME TO ${POSTGRES_DB}_old" \
+  -c "ALTER DATABASE ${POSTGRES_DB}_restore RENAME TO $POSTGRES_DB"'
+dc run --rm --no-deps -T --user root --entrypoint sh app -c \
+  'cd /app/volumes/uploads && mkdir .restore-old &&
+   find . -mindepth 1 -maxdepth 1 ! -name .restore-new ! -name .restore-old -exec mv {} .restore-old/ \; &&
+   find .restore-new -mindepth 1 -maxdepth 1 -exec mv {} . \; &&
+   rmdir .restore-new && chown -R 1001:1001 /app/volumes/uploads'
+if [ "$WITH_MINIO" = yes ]; then
+  dc stop minio minio-init
+  if [ -e volumes/minio ]; then sudo mv volumes/minio volumes/minio.before-restore; fi
+  sudo mv volumes/minio.restore-new volumes/minio
+fi
+
+dc up -d --build --wait
 ```
 
-`dc stop app` takes the app offline before anything is dropped; on a new machine there is nothing to stop.
-`--exit-on-error` makes `pg_restore` stop at the first error instead of reporting the errors at the end, and `set -eu`
-then stops the script with `app` still stopped. `POSTGRES_PASSWORD` comes from the saved `.env.selfhost`; a new
-`postgres-data` volume is initialised with it.
+- The checks stop the script before anything changes when a part of the set is missing or empty: the dump,
+  the environment, an `uploads.tar` that `tar` cannot list, or (`WITH_MINIO=yes`) a missing or empty `$B/minio`.
+- `pg_restore --single-transaction --exit-on-error` restores the whole dump or nothing, into `<name>_restore`; a broken
+  dump stops the script with the live database untouched. The two renames run in one transaction and fail while
+  anything is still connected to the database, which is why `app` is stopped first.
+- `.restore-new` and `<name>_restore` are scratch copies that a new run replaces. `.restore-old`, `<name>_old` and
+  `volumes/minio.before-restore` and `.env.selfhost.before-restore` hold the live data from before a restore; when one
+  is left from a run that stopped, the next run stops rather than overwrite it (`mkdir`, `ALTER DATABASE` and
+  `test ! -e` fail). Look at it, put it back
+  or remove it, then run again.
+- `chown` gives the files to the `nextjs` user (UID 1001) the app runs as. The `uploads` volume is created by the
+  first run when it is new.
+- `POSTGRES_PASSWORD` comes from the saved `.env.selfhost`; a new `postgres-data` volume is initialised with it.
+- With an external S3 store, restore the bucket with the store's own tools to the moment of the database dump before
+  the last `dc up`.
 
-Then restore the files the way they were stored, and start the stack only after every step succeeded:
+If a step fails, `app` stays stopped and the live data is where it was or set aside as above: fix the cause and run
+the restore again from the start.
 
-- **Local volume:**
+When the app is up, sign in and open a file uploaded before the backup. Then remove what the restore set aside:
 
-  ```bash
-  dc run --rm --no-deps -T --user root --entrypoint sh app \
-    -c 'find /app/volumes/uploads -mindepth 1 -delete && tar -C /app/volumes/uploads -xf - && chown -R 1001:1001 /app/volumes/uploads' < "$B/uploads.tar"
+```bash
+dc exec -T db sh -c 'dropdb -U postgres "${POSTGRES_DB}_old"'
+dc exec -T --user root app rm -rf /app/volumes/uploads/.restore-old
+if [ "$WITH_MINIO" = yes ]; then sudo rm -rf volumes/minio.before-restore; fi
+rm -f .env.selfhost.before-restore
+```
 
-  dc up -d --build --wait
-  ```
-
-  The run creates the `uploads` volume when it is new. `chown` gives the files back to the `nextjs` user (UID 1001)
-  the app runs as.
-
-- **MinIO:**
-
-  ```bash
-  dc --profile s3 stop minio minio-init
-  sudo rm -rf volumes/minio
-  mkdir -p volumes
-  sudo cp -a "$B/minio" volumes/minio
-
-  dc --profile s3 up -d --build --wait
-  ```
-
-- **External S3 store:** restore the bucket with the store's own tools to the moment of the database dump, then
-  `dc up -d --build --wait`.
-
-If a step fails, `app` stays stopped: fix the cause and run the restore again from the start. Afterwards, sign in and
-open a file uploaded before the backup.
+Run it in the same shell as the restore, or define `dc` and `WITH_MINIO` again first.
 
 ## Upgrade
 
