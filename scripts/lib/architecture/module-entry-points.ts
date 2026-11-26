@@ -1,5 +1,5 @@
 import ts from "typescript";
-import { globToRegExp } from "../../kit/manifest-deps";
+import { globToRegExp } from "./glob";
 import { existingFiles, listFiles, readRepoFile } from "./repo-files";
 
 export const MODULE_GUARD_SOURCES: Readonly<Record<string, string>> = {

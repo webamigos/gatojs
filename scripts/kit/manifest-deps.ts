@@ -1,3 +1,5 @@
+import { globToRegExp } from "../lib/architecture/glob";
+
 export type RepoFile = { path: string; text: string };
 
 export type DependencySection = "dependencies" | "devDependencies";
@@ -74,27 +76,6 @@ export function bumpPatch(version: string): string {
 
 function escapeRegExp(text: string): string {
   return text.replace(REGEXP_SPECIAL, "\\$&");
-}
-
-export function globToRegExp(glob: string): RegExp {
-  let source = "";
-  let index = 0;
-  while (index < glob.length) {
-    if (glob.startsWith("**/", index)) {
-      source += "(?:.*/)?";
-      index += 3;
-    } else if (glob.startsWith("**", index)) {
-      source += ".*";
-      index += 2;
-    } else if (glob[index] === "*") {
-      source += "[^/]*";
-      index += 1;
-    } else {
-      source += escapeRegExp(glob[index] as string);
-      index += 1;
-    }
-  }
-  return new RegExp(`^${source}$`);
 }
 
 function owns(manifest: Manifest, path: string): boolean {
