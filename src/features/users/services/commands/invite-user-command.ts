@@ -65,7 +65,6 @@ const inviteUser = defineCommand({
     );
     emit("users.invited", { invitationId: invitation.id, email, role });
 
-    await markEmailVerified(userId);
     const mailSent = await sendWelcomeEmailBestEffort({ name, email, userId });
 
     revalidatePath("/users");
@@ -114,13 +113,6 @@ async function discardInvitation(invitationId: string): Promise<void> {
       err: error,
     });
   }
-}
-
-async function markEmailVerified(userId: string): Promise<void> {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { emailVerified: true },
-  });
 }
 
 async function sendWelcomeEmailBestEffort(recipient: {
