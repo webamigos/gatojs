@@ -97,6 +97,26 @@ describe.skipIf(!hasKitModules || !hasOptionalModules)(
       ).not.toContain("api-keys");
     });
 
+    it("moduleSlots constructs and has no contribution of a disabled module", async () => {
+      const { moduleSlots } = await import("@/modules.generated");
+      expect(Array.isArray(moduleSlots)).toBe(true);
+      const owners = moduleSlots.map(
+        (entry: { module: string }) => entry.module,
+      );
+      expect(owners).not.toContain("api-keys");
+      expect(owners).not.toContain("audit-logs");
+    });
+
+    it("clientModuleSlots constructs and has no contribution of a disabled module", async () => {
+      const { clientModuleSlots } = await import("@/modules.client.generated");
+      expect(Array.isArray(clientModuleSlots)).toBe(true);
+      const owners = clientModuleSlots.map(
+        (entry: { module: string }) => entry.module,
+      );
+      expect(owners).not.toContain("api-keys");
+      expect(owners).not.toContain("audit-logs");
+    });
+
     it("authClientPlugins is empty", async () => {
       const { authClientPlugins } = await import("@/modules.client.generated");
       expect(authClientPlugins).toEqual([]);

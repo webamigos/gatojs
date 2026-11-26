@@ -288,6 +288,42 @@ describe("findServerImportsInClient", () => {
     ).toEqual([]);
   });
 
+  it("a feature's slots.ts is a server module for a client file", () => {
+    expect(
+      findServerImportsInClient(
+        client('import { slots } from "@/features/invoices/slots";'),
+      ),
+    ).toEqual(["@/features/invoices/slots"]);
+  });
+
+  it("a dynamic import of a feature's slots.ts in a client file is a violation", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'export const load = () => import("@/features/invoices/slots");',
+        ),
+      ),
+    ).toEqual(["@/features/invoices/slots"]);
+  });
+
+  it("a feature's client-slots.ts and names that only start like slots are not server modules", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import { clientSlots } from "@/features/invoices/client-slots";\nimport { a } from "@/features/invoices/slots-list";\nimport { b } from "@/features/invoices/components/slots";\nimport { c } from "@/shared/lib/modules/slots";',
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("a type-only import from a feature's slots.ts in a client file is allowed", () => {
+    expect(
+      findServerImportsInClient(
+        client('import type { slots } from "@/features/invoices/slots";'),
+      ),
+    ).toEqual([]);
+  });
+
   it("zwraca naruszenia w kolejności wystąpienia", () => {
     expect(
       findServerImportsInClient(
@@ -444,6 +480,89 @@ describe("checkClientBundles", () => {
     );
     expect(checkClientBundles(root)).toEqual([
       "src/features/invoices/components/issue-button.tsx: @/features/invoices/events",
+    ]);
+  });
+
+  it("reports a static prisma import in a feature's client-slots.ts without a use client directive", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'import { prisma } from "@/shared/lib/prisma";\nexport const clientSlots = [];',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/x/client-slots.ts: @/shared/lib/prisma",
+    ]);
+  });
+
+  it("reports a dynamic prisma import in a feature's client-slots.ts", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'export const clientSlots = [{ component: () => import("@/shared/lib/prisma") }];',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/x/client-slots.ts: @/shared/lib/prisma",
+    ]);
+  });
+
+  it("reports a feature's client-slots.ts importing a feature's slots.ts", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'import { slots } from "@/features/x/slots";\nexport const clientSlots = slots;',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/x/client-slots.ts: @/features/x/slots",
+    ]);
+  });
+
+  it("reports every feature's client-slots.ts, sorted by path", () => {
+    write(
+      "src/features/zeta/client-slots.ts",
+      'import { env } from "@/env";\nexport const clientSlots = [];',
+    );
+    write(
+      "src/features/alpha/client-slots.ts",
+      'import "server-only";\nexport const clientSlots = [];',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/alpha/client-slots.ts: server-only",
+      "src/features/zeta/client-slots.ts: @/env",
+    ]);
+  });
+
+  it("a feature's slots.ts is not a client entry: its server imports are not reported", () => {
+    write(
+      "src/features/x/slots.ts",
+      'import { prisma } from "@/shared/lib/prisma";\nexport const slots = [{ component: () => import("@/shared/lib/prisma") }];',
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("a client-slots.ts outside the feature root is not a client entry", () => {
+    write(
+      "src/features/x/components/client-slots.ts",
+      'import { prisma } from "@/shared/lib/prisma";\nexport const clientSlots = [];',
+    );
+    write(
+      "src/client-slots.ts",
+      'import { prisma } from "@/shared/lib/prisma";\nexport const clientSlots = [];',
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("a feature's client-slots.ts with only type imports of server modules passes", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'import type { Session } from "@/shared/lib/auth";\nexport const clientSlots = [];',
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("reports a client component importing a feature's slots.ts", () => {
+    write(
+      "src/features/invoices/components/widget.tsx",
+      client('import { slots } from "@/features/invoices/slots";'),
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/invoices/components/widget.tsx: @/features/invoices/slots",
     ]);
   });
 

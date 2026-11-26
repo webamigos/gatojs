@@ -402,10 +402,16 @@ describe("kit state: kitFormat and ejected", () => {
     expect(state.kitFormat).toBe(6);
   });
 
-  it("readKitState of kitFormat 7 rejects with the update gato-cli message", async () => {
+  it("readKitState keeps kitFormat 7", async () => {
     await writeRawState({ kitFormat: 7, modules: {} });
+    const state = await readKitState(tmp);
+    expect(state.kitFormat).toBe(7);
+  });
+
+  it("readKitState of kitFormat 8 rejects with the update gato-cli message", async () => {
+    await writeRawState({ kitFormat: 8, modules: {} });
     await expect(readKitState(tmp)).rejects.toThrow(
-      "This project uses kit format 7; update gato-cli (npm i -D gato-cli@latest)",
+      "This project uses kit format 8; update gato-cli (npm i -D gato-cli@latest)",
     );
   });
 
