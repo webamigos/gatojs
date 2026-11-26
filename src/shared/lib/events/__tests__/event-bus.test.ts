@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod";
+import { z, ZodError } from "zod";
 
 const { mockLogger } = vi.hoisted(() => ({
   mockLogger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
@@ -355,6 +355,26 @@ describe("createEventBus: emit rejects bugs in the emitter", () => {
     ).toBe(true);
     expect(log).toEqual([]);
     expect(mockLogger.error).not.toHaveBeenCalled();
+  });
+
+  it("an invalid payload rejects with exactly invalid payload for users.invited and the ZodError as cause", async () => {
+    const bus = busWith([]);
+
+    const error = await bus
+      .emit(ORIGIN, "users.invited", { ...INVITED_PAYLOAD, role: "boss" })
+      .then(
+        () => null,
+        (reason: unknown) => reason,
+      );
+
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("invalid payload for users.invited");
+    expect((error as Error).name).toBe("EventError");
+    const cause = (error as Error).cause;
+    expect(cause).toBeInstanceOf(ZodError);
+    expect((cause as ZodError).issues.map((issue) => issue.path)).toEqual([
+      ["role"],
+    ]);
   });
 
   it("a payload missing a field rejects before any subscriber runs", async () => {
