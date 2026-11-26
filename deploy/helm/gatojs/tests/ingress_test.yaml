@@ -79,3 +79,31 @@ tests:
       - failedTemplate:
           errorMessage: set ingress.host when ingress.enabled is true
         template: ingress.yaml
+
+  - it: routes every path under / with the Prefix path type
+    set:
+      existingSecret: app-env
+      ingress.enabled: true
+      ingress.host: app.example.com
+    asserts:
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /
+        template: ingress.yaml
+      - equal:
+          path: spec.rules[0].http.paths[0].pathType
+          value: Prefix
+        template: ingress.yaml
+
+  - it: copies ingress.annotations onto the Ingress
+    set:
+      existingSecret: app-env
+      ingress.enabled: true
+      ingress.host: app.example.com
+      ingress.annotations:
+        cert-manager.io/cluster-issuer: le
+    asserts:
+      - equal:
+          path: metadata.annotations["cert-manager.io/cluster-issuer"]
+          value: le
+        template: ingress.yaml

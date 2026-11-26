@@ -139,13 +139,15 @@ tests:
           value: registry.example.com/crm:1.2.3
 
   - it: falls back to the chart appVersion when image.tag is empty
+    chart:
+      appVersion: 9.9.9
     set:
       existingSecret: app-env
       image.repository: registry.example.com/crm
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: registry.example.com/crm:0.1.0
+          value: registry.example.com/crm:9.9.9
 
   - it: uses the Recreate strategy for local storage
     set:
@@ -230,3 +232,139 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: set storage.provider instead of env.STORAGE_LOCAL_PATH
+
+  - it: leaves out an env entry whose value is null and keeps the defaults
+    set:
+      existingSecret: app-env
+      env.FOO: null
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FOO
+          any: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_URL
+            value: https://app.example.com
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_LEVEL
+            value: info
+
+  - it: does not mount the service account token into the pod
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: runs the pod as non-root user 1001 with fsGroup 1001
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1001
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1001
+
+  - it: forbids privilege escalation and drops all capabilities in the container
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value:
+            - ALL
+
+  - it: pulls the image with the secrets from image.pullSecrets
+    set:
+      existingSecret: app-env
+      image.pullSecrets:
+        - name: regcred
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: regcred
+
+  - it: sets no image pull secrets by default
+    set:
+      existingSecret: app-env
+    asserts:
+      - notExists:
+          path: spec.template.spec.imagePullSecrets
+
+  - it: selects pods by the name and instance labels
+    release:
+      name: prod
+    set:
+      existingSecret: app-env
+      nameOverride: crm
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/name: crm
+            app.kubernetes.io/instance: prod
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/name"]
+          value: crm
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/instance"]
+          value: prod
+
+  - it: mounts the uploads volume backed by the release claim
+    set:
+      existingSecret: app-env
+      fullnameOverride: demo
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: uploads
+            mountPath: /app/volumes/uploads
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: uploads
+            persistentVolumeClaim:
+              claimName: demo-uploads
+
+  - it: probes readiness and liveness on the http port
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: http
+
+  - it: names the Deployment after fullnameOverride
+    set:
+      existingSecret: app-env
+      fullnameOverride: demo
+    asserts:
+      - equal:
+          path: metadata.name
+          value: demo
+
+  - it: limits the container memory to 1Gi by default
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi

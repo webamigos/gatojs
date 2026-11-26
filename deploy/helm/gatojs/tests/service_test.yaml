@@ -28,3 +28,26 @@ tests:
             containerPort: 3000
           any: true
         template: deployment.yaml
+
+  - it: selects the pods labelled with the release name and instance
+    release:
+      name: prod
+    set:
+      existingSecret: app-env
+      nameOverride: crm
+    asserts:
+      - equal:
+          path: spec.selector
+          value:
+            app.kubernetes.io/name: crm
+            app.kubernetes.io/instance: prod
+        template: service.yaml
+
+  - it: is a ClusterIP Service
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: spec.type
+          value: ClusterIP
+        template: service.yaml

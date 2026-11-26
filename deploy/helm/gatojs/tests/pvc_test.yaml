@@ -72,3 +72,30 @@ tests:
               claimName: demo-uploads
           any: true
         template: deployment.yaml
+
+  - it: keeps the claim when the release is uninstalled
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+        template: pvc.yaml
+
+  - it: leaves the storage class to the cluster default by default
+    set:
+      existingSecret: app-env
+    asserts:
+      - notExists:
+          path: spec.storageClassName
+        template: pvc.yaml
+
+  - it: sets the storage class from persistence.storageClass
+    set:
+      existingSecret: app-env
+      persistence.storageClass: fast
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: fast
+        template: pvc.yaml
