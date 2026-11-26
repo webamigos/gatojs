@@ -237,7 +237,7 @@ Sukces zwraca 200 i `{ id, name, slug }` organizacji klucza; błędy mają kody 
 | `services/queries/api-key-queries.ts` | `listApiKeysQuery()` | Klucze aktywnej organizacji od najnowszego, z autorem, bez `hashedKey`; guard `requireModuleAccess("api-keys")`. |
 | `services/authenticate-api-key.ts` | `authenticateApiKey`, `ApiKeyContext`, `ApiKeyAuthResult` | Uwierzytelnienie trasy kluczem ([kontrakt](#authenticate)). |
 | `services/api-scopes.ts` | `knownApiScopes()` | Zakresy zadeklarowane w `apiScopes` wszystkich modułów rejestru, bez powtórzeń. |
-| `services/api-scope-labels.ts` | `findApiScopeLabel(scope, modules)` | Namespace i klucz etykiety zakresu. |
+| `components/api-scope-labels.ts` | `findApiScopeLabel(scope, modules)` | Namespace i klucz etykiety zakresu. |
 | `services/api-key-secret.ts` | `apiKeyPrefix()`, `generateApiKey()`, `hashApiKey(plaintext, pepper)` | Prefiks ze sluga, losowanie klucza, HMAC-SHA256. |
 | `services/api-key-pepper.ts` | `apiKeyPepper()` | `API_KEY_PEPPER` z `env`. |
 | `services/organization-api.ts` | `readOrganizationForApiKey(context)` | Dane organizacji dla trasy przykładowej. |

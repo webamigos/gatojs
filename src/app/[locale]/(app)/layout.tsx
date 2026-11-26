@@ -13,6 +13,7 @@ import {
 } from "@/shared/components/app-sidebar";
 import { ServiceModeProvider } from "@/shared/components/service-mode/service-mode-provider";
 import { ServiceModeBanner } from "@/shared/components/service-mode/service-mode-banner";
+import { Slot } from "@/shared/components/slot";
 import { ImpersonationBanner } from "@/features/users/components/impersonation-banner";
 import { logImpersonationStopCommand } from "@/features/users/services/commands/impersonation-commands";
 import { OrgSwitcher } from "@/features/organizations/components/org-switcher";
@@ -42,6 +43,11 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
     return redirect({ href: "/sign-in", locale });
   }
   const multiOrg = env.MULTI_ORG;
+  const accessContext = {
+    userRole: orgContext.userRole,
+    orgRole: orgContext.orgRole,
+    multiOrg,
+  };
   const switchableOrganizations = await getSwitchableOrganizationsQuery();
   const activeOrganizationName =
     switchableOrganizations.find(
@@ -63,22 +69,27 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
         />
         <div className="flex min-h-screen">
           <AppSidebar
-            accessContext={{
-              userRole: orgContext.userRole,
-              orgRole: orgContext.orgRole,
-              multiOrg,
-            }}
+            accessContext={accessContext}
             userName={user.name}
             userEmail={user.email}
           />
           <div className="flex min-w-0 flex-1 flex-col">
             <MobileHeader />
             <main className="flex-1 space-y-4 p-4 md:p-6">
-              <OrgSwitcher
-                organizations={switchableOrganizations}
-                activeOrganizationId={orgContext.organizationId}
-                canCreateOrganization={multiOrg}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <OrgSwitcher
+                  organizations={switchableOrganizations}
+                  activeOrganizationId={orgContext.organizationId}
+                  canCreateOrganization={multiOrg}
+                />
+                <div className="ml-auto flex items-center gap-2">
+                  <Slot
+                    id="app.header.actions"
+                    context={{ organizationId: orgContext.organizationId }}
+                    viewer={accessContext}
+                  />
+                </div>
+              </div>
               {children}
             </main>
           </div>

@@ -8,16 +8,13 @@ interface DashboardPlaceholderProps {
 export function DashboardPlaceholder({ userName }: DashboardPlaceholderProps) {
   const t = useTranslations("dashboard");
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">{t("title")}</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("welcome", { name: userName })}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">{t("placeholder")}</p>
-        </CardContent>
-      </Card>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("welcome", { name: userName })}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">{t("placeholder")}</p>
+      </CardContent>
+    </Card>
   );
 }

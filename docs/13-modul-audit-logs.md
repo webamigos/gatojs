@@ -201,7 +201,7 @@ Moduł nie ma akcji serwerowych (plików `"use server"`): nie da się z przeglą
 | `services/redact.ts` | `redactSensitive(value)` | Redakcja kluczy wrażliwych ([Redakcja](#redakcja)). |
 | `auth.ts` | `authPlugin` | Plugin better-auth zapisujący zdarzenia organizacji ([Zdarzenia](#zdarzenia)). |
 | `services/organization-audit-events.ts` | `organizationAuditEvent(input)`, `AUDITED_ORGANIZATION_PATHS` | Buduje zdarzenie z odpowiedzi endpointu better-auth. |
-| `services/audit-action-labels.ts` | `findAuditActionLabel(action, modules)` | Szuka deklaracji akcji w rejestrze. |
+| `components/audit-action-labels.ts` | `findAuditActionLabel(action, modules)` | Szuka deklaracji akcji w rejestrze. |
 | `contracts/audit-log.schemas.ts` | `auditLogFiltersSchema` | Parsowanie parametrów adresu. |
 
 <a id="dostep"></a>

@@ -3,6 +3,7 @@ import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config"
 import type { Locale } from "@/i18n/config";
 import { createEnv } from "@gatojs/env";
 import { applyGatoConfig, enabledEntries } from "@/shared/lib/modules/gato-config";
+import { slotRegistry } from "@/shared/lib/modules/slots";
 import accountModule from "@/features/account/module";
 import authModule from "@/features/auth/module";
 import dashboardModule from "@/features/dashboard/module";
@@ -17,6 +18,8 @@ import { envSchema as encryptionEnvSchema } from "@/features/encryption/env";
 import { envSchema as uploadsEnvSchema } from "@/features/uploads/env";
 import { authPlugin as auditLogsAuthPlugin } from "@/features/audit-logs/auth";
 import { auditSink as auditLogsAuditSink } from "@/features/audit-logs/audit-sink";
+import * as accountSlots from "@/features/account/slots";
+import * as dashboardSlots from "@/features/dashboard/slots";
 
 export const modules = applyGatoConfig([accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, encryptionModule, uploadsModule], gatoConfig);
 export const moduleEnvSchemas = enabledEntries([{ module: "api-keys", value: apiKeysEnvSchema }, { module: "encryption", value: encryptionEnvSchema }, { module: "uploads", value: uploadsEnvSchema }], gatoConfig);
@@ -24,6 +27,7 @@ export const authPlugins = enabledEntries([{ module: "audit-logs", value: auditL
 export const auditSinks = enabledEntries([{ module: "audit-logs", value: auditLogsAuditSink }], gatoConfig);
 export const moduleEvents: never[] = [];
 export const moduleSubscribers: never[] = [];
+export const moduleSlots = slotRegistry({ slots: [{ module: "account", value: accountSlots }, { module: "dashboard", value: dashboardSlots }], clientSlots: [] }, gatoConfig);
 export const env = createEnv(moduleEnvSchemas);
 
 export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };

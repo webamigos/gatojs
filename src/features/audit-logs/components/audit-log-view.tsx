@@ -35,7 +35,7 @@ import {
   type AuditLogRow,
   type AuditLogSortColumn,
 } from "../contracts/audit-log.types";
-import { findAuditActionLabel } from "../services/audit-action-labels";
+import { findAuditActionLabel } from "./audit-action-labels";
 
 const DATE_FNS_LOCALES: Record<string, DateFnsLocale> = { pl, en: enUS };
 const ALL = "all";
