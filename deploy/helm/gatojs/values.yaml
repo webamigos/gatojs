@@ -18,6 +18,7 @@ existingSecret: ""
 # Non-secret variables, the same names as in .env.selfhost.example.
 env:
   APP_URL: https://app.example.com
+  EMAIL_FROM: "WA App <noreply@example.com>"
   MAIL_PROVIDER: smtp
   AUTH_PUBLIC_SIGNUP: "false"
   MULTI_ORG: "false"
