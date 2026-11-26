@@ -204,12 +204,43 @@ describe("databaseHooks.user.create.after: auth.signed-up", () => {
     expect(created).toEqual([]);
   });
 
-  it("a failing membership write emits no auth.signed-up", async () => {
+  it("a failing membership write when joining the only organization emits no auth.signed-up", async () => {
     mockPrisma.organization.findFirst.mockResolvedValue({ id: "org-only" });
-    mockPrisma.$transaction.mockRejectedValue(new Error("db down"));
+    mockPrisma.member.create.mockRejectedValue(new Error("db down"));
 
     await auth.api.signUpEmail({ body: signupBody }).catch(() => undefined);
 
+    expect(mockPrisma.member.create).toHaveBeenCalledTimes(1);
+    expect(signedUp).toEqual([]);
+  });
+
+  it("a failing membership transaction when joining by invitation emits no auth.signed-up", async () => {
+    mockEnv.AUTH_PUBLIC_SIGNUP = false;
+    mockPrisma.invitation.findFirst.mockResolvedValue({
+      id: "inv-1",
+      organizationId: "org-invited",
+      role: "admin",
+    });
+    mockPrisma.$transaction.mockRejectedValue(new Error("db down"));
+
+    await auth.api
+      .signUpEmail({
+        body: { ...signupBody, invitationId: "inv-1" } as typeof signupBody,
+      })
+      .catch(() => undefined);
+
+    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(signedUp).toEqual([]);
+  });
+
+  it("a failing organization create on MULTI_ORG=true emits neither organizations.created nor auth.signed-up", async () => {
+    mockEnv.MULTI_ORG = true;
+    mockPrisma.organization.create.mockRejectedValue(new Error("db down"));
+
+    await auth.api.signUpEmail({ body: signupBody }).catch(() => undefined);
+
+    expect(mockPrisma.organization.create).toHaveBeenCalledTimes(1);
+    expect(created).toEqual([]);
     expect(signedUp).toEqual([]);
   });
 
