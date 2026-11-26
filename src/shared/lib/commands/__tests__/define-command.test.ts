@@ -110,6 +110,128 @@ describe("defineCommand", () => {
   );
 });
 
+describe("defineCommand: an organizationScoped mark it cannot reach", () => {
+  const marked = () => z.string().meta({ organizationScoped: true });
+
+  function withInput(input: z.ZodObject) {
+    return { ...definition("uploads.delete"), input };
+  }
+
+  it.each([
+    ["ids", z.object({ ids: z.array(marked()) })],
+    ["nested", z.object({ nested: z.object({ teamId: marked() }) })],
+    ["teams", z.object({ teams: z.record(z.string(), marked()) })],
+    ["pair", z.object({ pair: z.tuple([marked()]) })],
+    ["ids", z.object({ ids: z.array(marked()).optional() })],
+    ["items", z.object({ items: z.lazy(() => z.array(marked())) })],
+    [
+      "nested",
+      z.object({
+        id: z.string(),
+        nested: z.union([z.object({ teamId: marked() }), z.null()]),
+      }),
+    ],
+  ])(
+    "throws a CommandError naming the field %s whose mark is out of reach",
+    (field, input) => {
+      const error = thrown(() => defineCommand(withInput(input)));
+
+      expect(error).toBeInstanceOf(CommandError);
+      expect(error.message).toBe(
+        `organizationScoped mark is not reachable: ${field}`,
+      );
+    },
+  );
+
+  it("names the first unreachable field in shape order", () => {
+    const error = thrown(() =>
+      defineCommand(
+        withInput(
+          z.object({
+            teamId: marked(),
+            ids: z.array(marked()),
+            nested: z.object({ teamId: marked() }),
+          }),
+        ),
+      ),
+    );
+
+    expect(error.message).toBe("organizationScoped mark is not reachable: ids");
+  });
+
+  it("a mark reached through followed wrappers is accepted", () => {
+    const command = defineCommand(
+      withInput(
+        z.object({
+          id: z.string(),
+          teamId: z.lazy(() => z.union([marked(), z.null()])).optional(),
+          ownerId: marked().transform((value) => value),
+        }),
+      ),
+    );
+
+    expect(command.key).toBe("uploads.delete");
+  });
+
+  it.each([
+    ["a literal", z.object({ kind: z.literal("a") })],
+    ["an enum", z.object({ kind: z.enum(["a", "b"]) })],
+    [
+      "a literal and an enum under wrappers",
+      z.object({
+        kind: z.union([z.literal("a"), z.enum(["b", "c"])]).optional(),
+      }),
+    ],
+  ])("accepts an input with %s and keeps the key", (_case, input) => {
+    expect(defineCommand(withInput(input)).key).toBe("uploads.delete");
+  });
+
+  it("a mark on a check is not ignored and throws for its field", () => {
+    const error = thrown(() =>
+      defineCommand(
+        withInput(
+          z.object({
+            teamId: z
+              .string()
+              .check(z.custom(() => true).meta({ organizationScoped: true })),
+          }),
+        ),
+      ),
+    );
+
+    expect(error).toBeInstanceOf(CommandError);
+    expect(error.message).toBe(
+      "organizationScoped mark is not reachable: teamId",
+    );
+  });
+
+  it("an unreachable organizationScoped: false is not a mark and is accepted", () => {
+    const command = defineCommand(
+      withInput(
+        z.object({
+          ids: z.array(z.string().meta({ organizationScoped: false })),
+        }),
+      ),
+    );
+
+    expect(command.key).toBe("uploads.delete");
+  });
+
+  it("a field marked both on top and deep inside still throws for the unreachable mark", () => {
+    const error = thrown(() =>
+      defineCommand(
+        withInput(
+          z.object({
+            ids: z.array(marked()).meta({ organizationScoped: true }),
+          }),
+        ),
+      ),
+    );
+
+    expect(error.message).toBe("organizationScoped mark is not reachable: ids");
+  });
+});
+
 describe("defineCommand: the key prefix rule", () => {
   const moduleKey = fc.stringMatching(/^[a-z][a-z0-9-]{0,10}$/);
   const suffix = fc.stringMatching(/^[a-z0-9.-]{1,12}$/);
@@ -556,6 +678,98 @@ describe("organizationScopedKeys", () => {
 
   it("returns an empty list for an empty object", () => {
     expect(organizationScopedKeys(z.object({}))).toEqual([]);
+  });
+
+  it.each([
+    [
+      "transform after the mark",
+      z
+        .string()
+        .meta({ organizationScoped: true })
+        .transform((value) => value),
+    ],
+    [
+      "the input side of a pipe",
+      z.string().meta({ organizationScoped: true }).pipe(z.string()),
+    ],
+    [
+      "the output side of a pipe",
+      z.string().pipe(z.string().meta({ organizationScoped: true })),
+    ],
+    [
+      "a union with null",
+      z.union([z.string().meta({ organizationScoped: true }), z.null()]),
+    ],
+    [
+      "the second option of a union",
+      z.union([z.null(), z.string().meta({ organizationScoped: true })]),
+    ],
+    [
+      "a discriminated union option",
+      z.discriminatedUnion("kind", [
+        z.object({ kind: z.literal("a") }),
+        z
+          .object({ kind: z.literal("b"), value: z.string() })
+          .meta({ organizationScoped: true }),
+      ]),
+    ],
+    ["lazy", z.lazy(() => z.string().meta({ organizationScoped: true }))],
+    [
+      "the right side of an intersection",
+      z.intersection(z.string(), z.string().meta({ organizationScoped: true })),
+    ],
+    [
+      "the left side of an intersection",
+      z.intersection(z.string().meta({ organizationScoped: true }), z.string()),
+    ],
+    ["catch", z.string().meta({ organizationScoped: true }).catch("x")],
+    ["readonly", z.string().meta({ organizationScoped: true }).readonly()],
+    [
+      "nonoptional",
+      z.string().meta({ organizationScoped: true }).optional().nonoptional(),
+    ],
+    ["prefault", z.string().meta({ organizationScoped: true }).prefault("x")],
+    [
+      "optional lazy union with null",
+      z
+        .lazy(() =>
+          z.union([z.string().meta({ organizationScoped: true }), z.null()]),
+        )
+        .optional(),
+    ],
+  ])("finds the mark through %s", (_path, field) => {
+    expect(
+      organizationScopedKeys(z.object({ teamId: field, name: z.string() })),
+    ).toEqual(["teamId"]);
+  });
+
+  it.each([
+    ["transform", z.string().transform((value) => value)],
+    ["pipe", z.string().pipe(z.string())],
+    ["union with null", z.union([z.string(), z.null()])],
+    ["lazy", z.lazy(() => z.string())],
+    ["intersection", z.intersection(z.string(), z.string())],
+  ])("an unmarked %s stays out", (_wrapper, field) => {
+    expect(organizationScopedKeys(z.object({ teamId: field }))).toEqual([]);
+  });
+
+  it("a recursive lazy schema without a mark returns no keys and terminates", () => {
+    const tree: z.ZodType = z.lazy(() =>
+      z.union([z.string(), z.lazy(() => tree), z.null()]),
+    );
+
+    expect(organizationScopedKeys(z.object({ tree }))).toEqual([]);
+  });
+
+  it("a recursive lazy schema with a mark in one option is organization-scoped", () => {
+    const tree: z.ZodType = z.lazy(() =>
+      z.union([
+        z.lazy(() => tree),
+        z.string().meta({ organizationScoped: true }),
+      ]),
+    );
+
+    expect(organizationScopedKeys(z.object({ tree }))).toEqual(["tree"]);
   });
 
   test.prop([

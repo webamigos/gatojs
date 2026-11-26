@@ -1,4 +1,4 @@
-import type { z } from "zod";
+import { globalRegistry, type z } from "zod";
 import type { OrgContext } from "@/shared/lib/auth/org-context";
 import type {
   EventName,
@@ -84,7 +84,7 @@ export class CommandError extends Error {
 
 const ORGANIZATION_ID = "organizationId";
 
-function hasModulePrefix(key: string, module: string): boolean {
+export function hasModulePrefix(key: string, module: string): boolean {
   const prefix = `${module}.`;
   return key.startsWith(prefix) && key.length > prefix.length;
 }
@@ -99,6 +99,7 @@ export function defineCommand<
       `command keys must start with "${definition.module}.": ${definition.key}`,
     );
   }
+  assertMarksReachable(definition.input);
   return Object.freeze({ ...definition });
 }
 
@@ -190,20 +191,82 @@ export function commandHookRegistry(
   return enabledModuleEntries(hooks, config).flatMap(entryHooks);
 }
 
-interface WrappedSchema {
-  meta(): Record<string, unknown> | undefined;
-  def: { innerType?: unknown };
+type Schema = z.core.$ZodType;
+
+const FOLLOWED_PARTS = [
+  "innerType",
+  "in",
+  "out",
+  "options",
+  "left",
+  "right",
+] as const;
+
+function isSchema(value: unknown): value is Schema {
+  return typeof value === "object" && value !== null && "_zod" in value;
 }
 
-function isMarked(field: unknown): boolean {
-  let current = field as WrappedSchema | undefined;
-  while (current !== undefined) {
-    if (current.meta()?.organizationScoped === true) {
-      return true;
-    }
-    current = current.def.innerType as WrappedSchema | undefined;
+function schemasIn(value: unknown): Schema[] {
+  if (isSchema(value)) {
+    return [value];
   }
-  return false;
+  return typeof value === "object" && value !== null
+    ? Object.values(value).filter(isSchema)
+    : [];
+}
+
+function lazyTarget(schema: Schema): Schema[] {
+  const { innerType } = schema._zod as { innerType?: unknown };
+  return isSchema(innerType) ? [innerType] : [];
+}
+
+function partsOf(schema: Schema, followedOnly: boolean): Schema[] {
+  const def = schema._zod.def as unknown as Record<string, unknown>;
+  const values = followedOnly
+    ? FOLLOWED_PARTS.map((part) => def[part])
+    : Object.values(def);
+  return [...lazyTarget(schema), ...values.flatMap(schemasIn)];
+}
+
+function isMark(schema: Schema): boolean {
+  return globalRegistry.get(schema)?.organizationScoped === true;
+}
+
+function marksIn(root: Schema, followedOnly: boolean): Set<Schema> {
+  const marks = new Set<Schema>();
+  const visited = new Set<Schema>();
+  const visit = (schema: Schema): void => {
+    if (visited.has(schema)) {
+      return;
+    }
+    visited.add(schema);
+    if (isMark(schema)) {
+      marks.add(schema);
+    }
+    partsOf(schema, followedOnly).forEach(visit);
+  };
+  visit(root);
+  return marks;
+}
+
+function isMarked(field: Schema): boolean {
+  return marksIn(field, true).size > 0;
+}
+
+function hasUnreachableMark(field: Schema): boolean {
+  const reachable = marksIn(field, true);
+  return [...marksIn(field, false)].some((mark) => !reachable.has(mark));
+}
+
+function assertMarksReachable(schema: CommandSchema): void {
+  const field = Object.entries(schema.shape).find(([, value]) =>
+    hasUnreachableMark(value),
+  );
+  if (field !== undefined) {
+    throw new CommandError(
+      `organizationScoped mark is not reachable: ${field[0]}`,
+    );
+  }
 }
 
 export function organizationScopedKeys(schema: CommandSchema): string[] {
