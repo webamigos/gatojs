@@ -121,14 +121,13 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/shared/config/project", () => ({
   project: { name: "WA App", slug: "wa-app" },
 }));
-vi.mock("@/modules.generated", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/modules.generated")>();
+vi.mock("@/modules.generated", async () => {
   const { z } = await import("zod");
   return {
-    ...actual,
+    modules: [{ key: "api-keys", apiScopes: [{ key: "organization:read" }] }],
+    auditSinks: [],
     moduleCommandHooks: hookStore.entries,
     moduleEvents: [
-      ...actual.moduleEvents.filter((entry) => entry.module !== "api-keys"),
       {
         module: "api-keys",
         value: {
