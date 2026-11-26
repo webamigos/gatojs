@@ -97,6 +97,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         'import type { Locale } from "@/i18n/config";',
         'import { createEnv } from "@gatojs/env";',
         'import { applyGatoConfig, enabledEntries } from "@/shared/lib/modules/gato-config";',
+        'import { slotRegistry } from "@/shared/lib/modules/slots";',
         'import alphaModule from "@/features/alpha/module";',
         'import { envSchema as betaEnvSchema } from "@/features/beta/env";',
         "",
@@ -106,6 +107,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -123,10 +125,12 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         HEADER,
         'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
         'import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
+        'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
         'import alphaModule from "@/features/alpha/module";',
         "",
         "export const authClientPlugins: never[] = [];",
         "export const clientModules = applyGatoConfig([alphaModule], gatoConfig);",
+        "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
         "export const gatoBranding = gatoBrandingOf(gatoConfig);",
         "",
       ].join("\n"),
@@ -201,6 +205,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         'import type { Locale } from "@/i18n/config";',
         'import { createEnv } from "@gatojs/env";',
         'import { enabledModuleEntries } from "@/shared/lib/modules/gato-config";',
+        'import { slotRegistry } from "@/shared/lib/modules/slots";',
         'import { events as alphaEvents } from "@/features/alpha/events";',
         'import { subscribers as betaSubscribers } from "@/features/beta/subscribers";',
         "",
@@ -210,6 +215,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const auditSinks: never[] = [];",
         'export const moduleEvents = [{ module: "alpha", value: alphaEvents }];',
         'export const moduleSubscribers = enabledModuleEntries([{ module: "beta", value: betaSubscribers }], gatoConfig);',
+        "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -247,6 +253,121 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
     expect(server).not.toContain("@/features/alpha/");
   });
 
+  it("a feature with slots.ts and client-slots.ts enters moduleSlots, and its client-slots.ts enters clientModuleSlots", async () => {
+    const dir = await makeProject({
+      alpha: { files: ["src/features/alpha/**"] },
+      beta: { files: ["src/features/beta/**"] },
+    });
+    await put(dir, "src/features/alpha/module.ts", "export default {};");
+    await put(dir, "src/features/alpha/slots.ts", "export const slots = [];");
+    await put(
+      dir,
+      "src/features/alpha/client-slots.ts",
+      "export const clientSlots = [];",
+    );
+    await put(
+      dir,
+      "src/features/beta/client-slots.ts",
+      "export const clientSlots = [];",
+    );
+    await generate(dir);
+    expect(await read(dir, "src/modules.generated.ts")).toBe(
+      [
+        HEADER,
+        'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
+        'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
+        'import { applyGatoConfig } from "@/shared/lib/modules/gato-config";',
+        'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import alphaModule from "@/features/alpha/module";',
+        'import * as alphaSlots from "@/features/alpha/slots";',
+        'import * as alphaClientSlots from "@/features/alpha/client-slots";',
+        'import * as betaClientSlots from "@/features/beta/client-slots";',
+        "",
+        "export const modules = applyGatoConfig([alphaModule], gatoConfig);",
+        "export const moduleEnvSchemas: never[] = [];",
+        "export const authPlugins: never[] = [];",
+        "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
+        'export const moduleSlots = slotRegistry({ slots: [{ module: "alpha", value: alphaSlots }], clientSlots: [{ module: "alpha", value: alphaClientSlots }, { module: "beta", value: betaClientSlots }] }, gatoConfig);',
+        "export const env = createEnv(moduleEnvSchemas);",
+        "",
+        "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
+        "",
+        "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
+        "  pl: [],",
+        "};",
+        "",
+      ].join("\n"),
+    );
+    expect(await read(dir, "src/modules.client.generated.ts")).toBe(
+      [
+        HEADER,
+        'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
+        'import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
+        'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import alphaModule from "@/features/alpha/module";',
+        'import * as alphaClientSlots from "@/features/alpha/client-slots";',
+        'import * as betaClientSlots from "@/features/beta/client-slots";',
+        "",
+        "export const authClientPlugins: never[] = [];",
+        "export const clientModules = applyGatoConfig([alphaModule], gatoConfig);",
+        'export const clientModuleSlots = clientSlotRegistry([{ module: "alpha", value: alphaClientSlots }, { module: "beta", value: betaClientSlots }], gatoConfig);',
+        "export const gatoBranding = gatoBrandingOf(gatoConfig);",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("a feature with only slots.ts keeps the client registry free of it", async () => {
+    const dir = await makeProject({
+      alpha: { files: ["src/features/alpha/**"] },
+    });
+    await put(dir, "src/features/alpha/slots.ts", "export const slots = [];");
+    await generate(dir);
+    expect((await read(dir, "src/modules.generated.ts")).split("\n")).toContain(
+      'export const moduleSlots = slotRegistry({ slots: [{ module: "alpha", value: alphaSlots }], clientSlots: [] }, gatoConfig);',
+    );
+    const client = await read(dir, "src/modules.client.generated.ts");
+    expect(client).not.toContain("@/features/alpha/");
+    expect(client.split("\n")).toContain(
+      "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+    );
+  });
+
+  it("files merely named like slots or client-slots do not register a feature", async () => {
+    const dir = await makeProject({
+      alpha: { files: ["src/features/alpha/**"] },
+    });
+    await put(dir, "src/features/alpha/slots-list.ts", "export const x = 1;");
+    await put(
+      dir,
+      "src/features/alpha/components/slots.ts",
+      "export const x = 1;",
+    );
+    await put(dir, "src/features/alpha/slots.tsx", "export const x = 1;");
+    await put(
+      dir,
+      "src/features/alpha/client-slots.tsx",
+      "export const x = 1;",
+    );
+    await put(
+      dir,
+      "src/features/alpha/components/client-slots.ts",
+      "export const x = 1;",
+    );
+    await generate(dir);
+    const server = await read(dir, "src/modules.generated.ts");
+    expect(server.split("\n")).toContain(
+      "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
+    );
+    expect(server).not.toContain("@/features/alpha/");
+    expect(await read(dir, "src/modules.client.generated.ts")).not.toContain(
+      "@/features/alpha/",
+    );
+  });
+
   it("katalog bez żadnego rozpoznanego pliku nie trafia do rejestru", async () => {
     const dir = await makeProject({
       alpha: { files: ["src/features/alpha/**"] },
@@ -257,8 +378,10 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
     expect(await read(dir, "src/modules.generated.ts")).toBe(
       [
         HEADER,
+        'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
         'import type { Locale } from "@/i18n/config";',
         'import { createEnv } from "@gatojs/env";',
+        'import { slotRegistry } from "@/shared/lib/modules/slots";',
         "",
         "export const modules: never[] = [];",
         "export const moduleEnvSchemas: never[] = [];",
@@ -266,6 +389,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -291,12 +415,14 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         HEADER,
         'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
         'import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
+        'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
         'import alphaModule from "@/features/alpha/module";',
         'import zetaModule from "@/features/zeta/module";',
         'import midModule from "@/features/mid/module";',
         "",
         "export const authClientPlugins: never[] = [];",
         "export const clientModules = applyGatoConfig([alphaModule, zetaModule, midModule], gatoConfig);",
+        "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
         "export const gatoBranding = gatoBrandingOf(gatoConfig);",
         "",
       ].join("\n"),

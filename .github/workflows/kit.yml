@@ -302,6 +302,7 @@ jobs:
           npm run wa -- generate
           npm run typecheck
           npm test
+          npm run build
 
   # The S3 presets in docs/15-modul-uploads.md marked "verified in CI" run here.
   storage-presets:

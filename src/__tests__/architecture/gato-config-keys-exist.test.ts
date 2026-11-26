@@ -184,6 +184,114 @@ describe("findGatoConfigKeyProblems", () => {
   });
 });
 
+describe("findGatoConfigKeyProblems: slots", () => {
+  let root: string;
+
+  const write = (relative: string, content: string) => {
+    const file = path.join(root, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, content);
+  };
+
+  const loader = "() => Promise.resolve({ default: () => null })";
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "gato-config-slots-"));
+    write("src/features/dashboard/module.ts", DASHBOARD_MODULE);
+    write(
+      "src/features/dashboard/slots.ts",
+      'export const slotDefinitions = [{ id: "dashboard.sections", kind: "server" }, { id: "dashboard.widgets", kind: "client" }];\n',
+    );
+    write(
+      "src/features/notes/module.ts",
+      'export default { key: "notes", nav: [], routePrefixes: ["/notes"] };\n',
+    );
+    write(
+      "src/features/notes/slots.ts",
+      `export const slots = [{ slot: "dashboard.sections", id: "notes.summary-card", priority: 10, component: ${loader} }];\n`,
+    );
+    write(
+      "src/features/notes/client-slots.ts",
+      `export const clientSlots = [{ slot: "dashboard.widgets", id: "notes.widget", priority: 10, component: ${loader} }];\n`,
+    );
+  });
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("reports a slot the owner module does not declare", async () => {
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { dashboard: { slots: { "dashboard.nope": { "notes.summary-card": null } } } } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([
+      "modules.dashboard.slots.dashboard.nope: unknown slot: dashboard.nope",
+    ]);
+  });
+
+  it("reports a contribution id that does not contribute to the slot", async () => {
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { dashboard: { slots: { "dashboard.sections": { "notes.nope": null } } } } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([
+      "modules.dashboard.slots.dashboard.sections.notes.nope: unknown contribution: notes.nope",
+    ]);
+  });
+
+  it("returns an empty list for a null and a priority on contributions from slots.ts and client-slots.ts", async () => {
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { dashboard: { slots: { "dashboard.sections": { "notes.summary-card": null }, "dashboard.widgets": { "notes.widget": { priority: 1 } } } } } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([]);
+  });
+
+  it("knows the core slot under modules.app and reports an unknown contribution to it", async () => {
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { app: { slots: { "app.header.actions": { "x.y": null } } } } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([
+      "modules.app.slots.app.header.actions.x.y: unknown contribution: x.y",
+    ]);
+  });
+
+  it("reports modules.app fields other than slots as reserved", async () => {
+    write(
+      "src/gato.config.ts",
+      "export default { modules: { app: { enabled: false } } };\n",
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([
+      "modules.app.enabled: app is reserved for core-hosted slots; only slots is allowed",
+    ]);
+  });
+
+  it("appends the slot problems after the module and branding problems", async () => {
+    write(
+      "src/gato.config.ts",
+      'export default { branding: { logo: { src: "/logo.svg", alt: " ", width: 120, height: 32 } }, modules: { dashboard: { slots: { "dashboard.nope": { "notes.summary-card": null } } }, billing: {} } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([
+      "modules.billing: unknown module: billing",
+      "branding.logo.alt: must not be blank",
+      "modules.dashboard.slots.dashboard.nope: unknown slot: dashboard.nope",
+    ]);
+  });
+
+  it("a slot is unknown once the slots.ts of its owner is gone", async () => {
+    fs.rmSync(path.join(root, "src/features/dashboard/slots.ts"));
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { dashboard: { slots: { "dashboard.sections": { "notes.summary-card": null } } } } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([
+      "modules.dashboard.slots.dashboard.sections: unknown slot: dashboard.sections",
+    ]);
+  });
+});
+
 describe("gato.config.ts in the repo", () => {
   it("names only existing modules and nav ids", async () => {
     await expect(findGatoConfigKeyProblems(repoRoot)).resolves.toEqual([]);
