@@ -316,6 +316,14 @@ describe("findServerImportsInClient", () => {
     ).toEqual([]);
   });
 
+  it("a specifier that only ends like a feature's slots path is not a server module", () => {
+    expect(
+      findServerImportsInClient(
+        client('import x from "vendor/@/features/invoices/slots";'),
+      ),
+    ).toEqual([]);
+  });
+
   it("a type-only import from a feature's slots.ts in a client file is allowed", () => {
     expect(
       findServerImportsInClient(
@@ -543,6 +551,22 @@ describe("checkClientBundles", () => {
     );
     write(
       "src/client-slots.ts",
+      'import { prisma } from "@/shared/lib/prisma";\nexport const clientSlots = [];',
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("a feature's client-slots.tsx is not a client entry: only client-slots.ts is", () => {
+    write(
+      "src/features/x/client-slots.tsx",
+      'import { prisma } from "@/shared/lib/prisma";\nexport const clientSlots = [];',
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("a features/x/client-slots.ts nested below another directory of src is not a client entry", () => {
+    write(
+      "src/legacy/src/features/x/client-slots.ts",
       'import { prisma } from "@/shared/lib/prisma";\nexport const clientSlots = [];',
     );
     expect(checkClientBundles(root)).toEqual([]);

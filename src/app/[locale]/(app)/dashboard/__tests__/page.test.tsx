@@ -16,8 +16,13 @@ const { mockRequireModuleAccess, mockRequireUser, mockEnv, moduleSlots } =
 vi.mock("next-intl/server", () => ({
   setRequestLocale: vi.fn(),
   getTranslations: vi.fn(
-    async () => (key: string) =>
-      key === "title" ? "Dashboard" : `dashboard.${key}`,
+    async (scope?: string | { namespace?: string }) => (key: string) => {
+      const namespace = typeof scope === "string" ? scope : scope?.namespace;
+      if (namespace === "dashboard" && key === "title") {
+        return "Dashboard";
+      }
+      return `${namespace ?? ""}.${key}`;
+    },
   ),
 }));
 vi.mock("@/env", () => ({ env: mockEnv }));

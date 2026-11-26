@@ -727,6 +727,43 @@ describe("slotRegistry: SlotError", () => {
     );
   });
 
+  it("a duplicate slot keeps the kind of its first declaration: the core server slot wins over a client redeclaration", () => {
+    const message = slotErrorMessage(() =>
+      slotRegistry(
+        {
+          slots: [
+            slotsEntry("app", {
+              slotDefinitions: [client("app.header.actions")],
+            }),
+            slotsEntry("notes", {
+              slots: [contribution("app.header.actions", "notes.x", 1)],
+            }),
+          ],
+          clientSlots: [],
+        },
+        {},
+      ),
+    );
+    expect(message).toBe(
+      "duplicate slot: app.header.actions (declared by app and app)",
+    );
+  });
+
+  it("the prefix exemption is for core slots only: a module named app declaring x.y is reported", () => {
+    const message = slotErrorMessage(() =>
+      slotRegistry(
+        {
+          slots: [slotsEntry("app", { slotDefinitions: [server("x.y")] })],
+          clientSlots: [],
+        },
+        {},
+      ),
+    );
+    expect(message.split("\n")).toContain(
+      'slot ids must start with "app.": x.y',
+    );
+  });
+
   it("a contribution id of m without the m. prefix is reported", () => {
     const message = slotErrorMessage(() =>
       slotRegistry(
