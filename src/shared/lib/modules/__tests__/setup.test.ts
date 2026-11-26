@@ -1152,3 +1152,22 @@ describe("missingOrganizationSetups and runMissingOrganizationSetups: no candida
     expect(mockPrisma.organizationModuleSetup.upsert).not.toHaveBeenCalled();
   });
 });
+
+describe("missingOrganizationSetups and runMissingOrganizationSetups: no organizations", () => {
+  it("without an organization option and with no organizations missingOrganizationSetups resolves to an empty list", async () => {
+    await expect(
+      missingOrganizationSetups({ modules: [notesEntry()] }),
+    ).resolves.toStrictEqual([]);
+  });
+
+  it("without an organization option and with no organizations runMissingOrganizationSetups runs nothing", async () => {
+    const notesHook = recordingHook("notes");
+
+    await expect(
+      runMissingOrganizationSetups({ modules: [notesEntry(notesHook)] }),
+    ).resolves.toStrictEqual({ ran: [], failed: [] });
+    expect(notesHook).not.toHaveBeenCalled();
+    expect(mockPrisma.organizationModuleSetup.upsert).not.toHaveBeenCalled();
+    expect(db.rows).toEqual([]);
+  });
+});
