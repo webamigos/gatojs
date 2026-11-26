@@ -416,6 +416,8 @@ Rdzeń emituje zdarzenia, na które moduły (także moduły projektu) reagują w
 
 Subskrybent może emitować kolejne zdarzenia. Łańcuch ma najwyżej 8 zdarzeń razem z pierwszym: dziewiąte nie woła subskrybentów, nie rzuca i raz zapisuje `logger.error("Event depth exceeded", …)` z `EventError` „event depth exceeded 8: <nazwa>”, więc cykl (A emituje B, B emituje A) kończy się zamiast zapętlić. Subskrybent, który potrzebuje `auth` z `@/shared/lib/auth`, importuje go dynamicznie w `run` (`const { auth } = await import("@/shared/lib/auth")`, jak `inviteUserCommand`): `auth` importuje `emitEvent`, a ten rejestr z `subscribers.ts`, więc import statyczny tworzy cykl.
 
+Test, który podmienia `moduleSubscribers`, `moduleEvents` albo `auditSinks`, mockuje `@/modules.generated` fabryką z listą potrzebnych eksportów, bez `importOriginal()` (wzór: `src/shared/lib/auth/__tests__/user-create-hooks.test.ts`). Oryginalny rejestr ładuje `events.ts` i `subscribers.ts` modułów, a one `@/shared/lib/events`; plik wczytany pierwszy raz wewnątrz fabryki mocka Vitest wiąże z oryginalnym rejestrem do końca pliku testów, więc podmienieni subskrybenci nie dostają zdarzeń.
+
 | Zdarzenie | Dane (`payload`) | Kto emituje |
 | --- | --- | --- |
 | `organizations.created` | `name`, `slug`, `ownerUserId` | `createOrganizationWithOwnerCommand` (rejestracja z `MULTI_ORG=true`), `adminCreate` w `scripts/lib/admin-create.ts` po transakcji, która utworzyła organizację. Endpoint better-auth `/organization/create` (nowa organizacja z `OrgSwitcher` przy `MULTI_ORG=true`) jeszcze go nie emituje: plugin better-auth rdzenia (plan rozszerzalności, zadanie 10) |
