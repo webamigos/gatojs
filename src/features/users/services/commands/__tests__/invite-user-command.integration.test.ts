@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { serializeSignedCookie } from "better-call";
 import type { AuditEvent } from "@/shared/lib/audit";
@@ -45,7 +47,6 @@ vi.mock("@/shared/lib/mailer", () => ({
 // auditSinks, jeśli pierwszy załaduje się modules.generated; import audit.ts jako pierwszy
 // wiąże go z podmienionym auditSinks.
 import "@/shared/lib/audit";
-import { organizationAuditSubscribers } from "@/features/audit-logs/services/organization-audit-subscribers";
 import { prisma } from "@/shared/lib/prisma";
 import { inviteUserCommand } from "../invite-user-command";
 import {
@@ -58,26 +59,37 @@ import {
 
 // WHY: the mock factory must not import the subscribers (ADR-61: emit-event.ts would bind to the
 // original registry); the bus reads this list on the first emit, after this line ran.
-subscriberEntries.push(
-  { module: "audit-logs", value: organizationAuditSubscribers },
-  {
-    module: "probe",
-    value: {
-      "auth.signed-up": {
-        id: "probe.signed-up",
-        run: (event: DomainEvent) => {
-          domainEvents.push(event);
-        },
+const hasAuditLogs = fs.existsSync(
+  path.join(process.cwd(), "src/features/audit-logs/module.ts"),
+);
+
+if (hasAuditLogs) {
+  const { organizationAuditSubscribers } = await vi.importActual<{
+    organizationAuditSubscribers: unknown;
+  }>("@/features/audit-logs/services/organization-audit-subscribers");
+  subscriberEntries.push({
+    module: "audit-logs",
+    value: organizationAuditSubscribers,
+  });
+}
+
+subscriberEntries.push({
+  module: "probe",
+  value: {
+    "auth.signed-up": {
+      id: "probe.signed-up",
+      run: (event: DomainEvent) => {
+        domainEvents.push(event);
       },
-      "users.invited": {
-        id: "probe.invited",
-        run: (event: DomainEvent) => {
-          domainEvents.push(event);
-        },
+    },
+    "users.invited": {
+      id: "probe.invited",
+      run: (event: DomainEvent) => {
+        domainEvents.push(event);
       },
     },
   },
-);
+});
 
 let world: {
   admin: { id: string };
@@ -133,133 +145,138 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe("inviteUserCommand na prawdziwym better-auth: dziennik zdarzeń", () => {
-  it("admin organizacji A zapisuje member.invited ze swoim aktorem i id zaproszenia z bazy, a przyjęcie ma aktora zaproszonego", async () => {
-    await signInAs(world.admin.id, world.orgA.id);
+describe.skipIf(!hasAuditLogs)(
+  "inviteUserCommand na prawdziwym better-auth: dziennik zdarzeń",
+  () => {
+    it("admin organizacji A zapisuje member.invited ze swoim aktorem i id zaproszenia z bazy, a przyjęcie ma aktora zaproszonego", async () => {
+      await signInAs(world.admin.id, world.orgA.id);
 
-    const result = await inviteUserCommand({
-      name: "Nowy Użytkownik",
-      email: "nowy@a.example",
-      role: "member",
+      const result = await inviteUserCommand({
+        name: "Nowy Użytkownik",
+        email: "nowy@a.example",
+        role: "member",
+      });
+
+      expect(result.success).toBe(true);
+      const invitation = await prisma.invitation.findFirstOrThrow({
+        where: { email: "nowy@a.example" },
+        select: { id: true, organizationId: true },
+      });
+      const invitedUser = await prisma.user.findUniqueOrThrow({
+        where: { email: "nowy@a.example" },
+        select: { id: true },
+      });
+      expect(invitation.organizationId).toBe(world.orgA.id);
+
+      const invited = recordedEvents.filter(
+        (event) => event.action === "member.invited",
+      );
+      expect(invited).toHaveLength(1);
+      expect(invited[0]).toMatchObject({
+        organizationId: world.orgA.id,
+        actorUserId: world.admin.id,
+        serviceMode: false,
+        entityType: "invitation",
+        entityId: invitation.id,
+        newData: { email: "nowy@a.example", role: "member" },
+      });
+
+      const accepted = recordedEvents.filter(
+        (event) => event.action === "invitation.accepted",
+      );
+      expect(accepted).toHaveLength(1);
+      expect(accepted[0]).toMatchObject({
+        organizationId: world.orgA.id,
+        actorUserId: invitedUser.id,
+      });
+
+      expect(
+        recordedEvents.filter(
+          (event) => event.organizationId === world.orgB.id,
+        ),
+      ).toEqual([]);
     });
 
-    expect(result.success).toBe(true);
-    const invitation = await prisma.invitation.findFirstOrThrow({
-      where: { email: "nowy@a.example" },
-      select: { id: true, organizationId: true },
-    });
-    const invitedUser = await prisma.user.findUniqueOrThrow({
-      where: { email: "nowy@a.example" },
-      select: { id: true },
-    });
-    expect(invitation.organizationId).toBe(world.orgA.id);
+    it("superadmin bez członkostwa w A, z potwierdzeniem, zapisuje member.invited ze swoim aktorem i serviceMode: true", async () => {
+      await signInAs(world.superadmin.id, world.orgA.id);
 
-    const invited = recordedEvents.filter(
-      (event) => event.action === "member.invited",
-    );
-    expect(invited).toHaveLength(1);
-    expect(invited[0]).toMatchObject({
-      organizationId: world.orgA.id,
-      actorUserId: world.admin.id,
-      serviceMode: false,
-      entityType: "invitation",
-      entityId: invitation.id,
-      newData: { email: "nowy@a.example", role: "member" },
-    });
+      const result = await inviteUserCommand(
+        { name: "Nowy Użytkownik", email: "nowy@a.example", role: "member" },
+        { serviceModeConfirmed: true, organizationId: world.orgA.id },
+      );
 
-    const accepted = recordedEvents.filter(
-      (event) => event.action === "invitation.accepted",
-    );
-    expect(accepted).toHaveLength(1);
-    expect(accepted[0]).toMatchObject({
-      organizationId: world.orgA.id,
-      actorUserId: invitedUser.id,
+      expect(result.success).toBe(true);
+      const invitation = await prisma.invitation.findFirstOrThrow({
+        where: { email: "nowy@a.example" },
+        select: { id: true },
+      });
+      const invited = recordedEvents.filter(
+        (event) => event.action === "member.invited",
+      );
+      expect(invited).toHaveLength(1);
+      expect(invited[0]).toMatchObject({
+        organizationId: world.orgA.id,
+        actorUserId: world.superadmin.id,
+        serviceMode: true,
+        entityId: invitation.id,
+      });
     });
 
-    expect(
-      recordedEvents.filter((event) => event.organizationId === world.orgB.id),
-    ).toEqual([]);
-  });
+    it("two invitations by the admin write exactly one member.invited each, through the audit-logs subscriber", async () => {
+      await signInAs(world.admin.id, world.orgA.id);
 
-  it("superadmin bez członkostwa w A, z potwierdzeniem, zapisuje member.invited ze swoim aktorem i serviceMode: true", async () => {
-    await signInAs(world.superadmin.id, world.orgA.id);
+      await inviteUserCommand({
+        name: "Pierwszy",
+        email: "pierwszy@a.example",
+        role: "member",
+      });
+      await inviteUserCommand({
+        name: "Drugi",
+        email: "drugi@a.example",
+        role: "admin",
+      });
 
-    const result = await inviteUserCommand(
-      { name: "Nowy Użytkownik", email: "nowy@a.example", role: "member" },
-      { serviceModeConfirmed: true, organizationId: world.orgA.id },
-    );
-
-    expect(result.success).toBe(true);
-    const invitation = await prisma.invitation.findFirstOrThrow({
-      where: { email: "nowy@a.example" },
-      select: { id: true },
-    });
-    const invited = recordedEvents.filter(
-      (event) => event.action === "member.invited",
-    );
-    expect(invited).toHaveLength(1);
-    expect(invited[0]).toMatchObject({
-      organizationId: world.orgA.id,
-      actorUserId: world.superadmin.id,
-      serviceMode: true,
-      entityId: invitation.id,
-    });
-  });
-
-  it("two invitations by the admin write exactly one member.invited each, through the audit-logs subscriber", async () => {
-    await signInAs(world.admin.id, world.orgA.id);
-
-    await inviteUserCommand({
-      name: "Pierwszy",
-      email: "pierwszy@a.example",
-      role: "member",
-    });
-    await inviteUserCommand({
-      name: "Drugi",
-      email: "drugi@a.example",
-      role: "admin",
+      const first = await prisma.invitation.findFirstOrThrow({
+        where: { email: "pierwszy@a.example" },
+        select: { id: true },
+      });
+      const second = await prisma.invitation.findFirstOrThrow({
+        where: { email: "drugi@a.example" },
+        select: { id: true },
+      });
+      const invited = recordedEvents.filter(
+        (event) => event.action === "member.invited",
+      );
+      expect(invited).toHaveLength(2);
+      expect(invited.map((event) => event.entityId)).toEqual([
+        first.id,
+        second.id,
+      ]);
+      expect(invited.map((event) => event.newData)).toEqual([
+        { email: "pierwszy@a.example", role: "member" },
+        { email: "drugi@a.example", role: "admin" },
+      ]);
+      expect(invited.map((event) => event.serviceMode)).toEqual([false, false]);
     });
 
-    const first = await prisma.invitation.findFirstOrThrow({
-      where: { email: "pierwszy@a.example" },
-      select: { id: true },
-    });
-    const second = await prisma.invitation.findFirstOrThrow({
-      where: { email: "drugi@a.example" },
-      select: { id: true },
-    });
-    const invited = recordedEvents.filter(
-      (event) => event.action === "member.invited",
-    );
-    expect(invited).toHaveLength(2);
-    expect(invited.map((event) => event.entityId)).toEqual([
-      first.id,
-      second.id,
-    ]);
-    expect(invited.map((event) => event.newData)).toEqual([
-      { email: "pierwszy@a.example", role: "member" },
-      { email: "drugi@a.example", role: "admin" },
-    ]);
-    expect(invited.map((event) => event.serviceMode)).toEqual([false, false]);
-  });
+    it("superadmin w trybie serwisowym bez potwierdzenia nie tworzy zaproszenia ani wpisu", async () => {
+      await signInAs(world.superadmin.id, world.orgA.id);
 
-  it("superadmin w trybie serwisowym bez potwierdzenia nie tworzy zaproszenia ani wpisu", async () => {
-    await signInAs(world.superadmin.id, world.orgA.id);
+      const result = await inviteUserCommand({
+        name: "Nowy Użytkownik",
+        email: "nowy@a.example",
+        role: "member",
+      });
 
-    const result = await inviteUserCommand({
-      name: "Nowy Użytkownik",
-      email: "nowy@a.example",
-      role: "member",
+      expect(result).toEqual({
+        success: false,
+        error: "Potwierdź zmianę w trybie serwisowym",
+      });
+      expect(await prisma.invitation.count()).toBe(0);
+      expect(recordedEvents).toEqual([]);
     });
-
-    expect(result).toEqual({
-      success: false,
-      error: "Potwierdź zmianę w trybie serwisowym",
-    });
-    expect(await prisma.invitation.count()).toBe(0);
-    expect(recordedEvents).toEqual([]);
-  });
-});
+  },
+);
 
 describe("inviteUserCommand na prawdziwym better-auth: zdarzenia domenowe", () => {
   it("zaproszenie przez admina organizacji A daje dokładnie users.invited z organizacją A i aktorem admina, bez auth.signed-up", async () => {
