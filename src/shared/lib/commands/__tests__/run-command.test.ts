@@ -1,8 +1,12 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import type * as OrgContextModule from "@/shared/lib/auth/org-context";
 import type { OrgContext } from "@/shared/lib/auth/org-context";
 import type { OperationResult } from "@/shared/types/common";
+import type * as ErrorHandlingModule from "@/shared/utils/error-handling";
+import type * as DefineCommandModule from "../define-command";
+import type * as RunCommandModule from "../run-command";
 import type {
   CommandAccess,
   CommandContext,
@@ -83,6 +87,11 @@ vi.mock("@/modules.client.generated", () => ({
         "probe.trim",
         "probe.silent",
         "probe.both",
+        "probe.transform",
+        "probe.pipe",
+        "probe.nullable-union",
+        "probe.lazy",
+        "probe.",
       ],
       permissions: {
         "probe.manage": {
@@ -95,7 +104,7 @@ vi.mock("@/modules.client.generated", () => ({
       key: "zeta",
       nav: [],
       routePrefixes: [],
-      commands: ["probe.borrowed"],
+      commands: ["probe.borrowed", "zetax.run"],
     },
     { key: "alpha", nav: [], routePrefixes: [] },
     { key: "m", nav: [], routePrefixes: [] },
@@ -103,10 +112,21 @@ vi.mock("@/modules.client.generated", () => ({
   ],
 }));
 
-import { NoOrganizationError } from "@/shared/lib/auth/org-context";
-import { DomainError } from "@/shared/utils/error-handling";
-import { CommandError, defineCommand } from "../define-command";
-import { runCommand } from "../run-command";
+let NoOrganizationError: typeof OrgContextModule.NoOrganizationError;
+let DomainError: typeof ErrorHandlingModule.DomainError;
+let CommandError: typeof DefineCommandModule.CommandError;
+let defineCommand: typeof DefineCommandModule.defineCommand;
+let runCommand: typeof RunCommandModule.runCommand;
+
+// WHY: runCommand remembers one command object per key for the process,
+// so every test gets fresh module instances and builds its own commands.
+async function loadModules(): Promise<void> {
+  vi.resetModules();
+  ({ NoOrganizationError } = await import("@/shared/lib/auth/org-context"));
+  ({ DomainError } = await import("@/shared/utils/error-handling"));
+  ({ CommandError, defineCommand } = await import("../define-command"));
+  ({ runCommand } = await import("../run-command"));
+}
 
 const FAILURE = "Probe failed";
 const DENIED = "Probe denied";
@@ -166,15 +186,16 @@ function probeCommand(options: ProbeOptions = {}) {
   });
 }
 
-const silentCommand = defineCommand({
-  key: "probe.silent",
-  module: "probe",
-  access: "member",
-  input: ID_INPUT,
-  failureMessage: FAILURE,
-  run: (input, context, emit) =>
-    runSpy(input, context, emit as unknown as CommandEmit<ProbeEvent>),
-});
+const silentCommand = () =>
+  defineCommand({
+    key: "probe.silent",
+    module: "probe",
+    access: "member",
+    input: ID_INPUT,
+    failureMessage: FAILURE,
+    run: (input, context, emit) =>
+      runSpy(input, context, emit as unknown as CommandEmit<ProbeEvent>),
+  });
 
 function memberContext(overrides: Partial<OrgContext> = {}): OrgContext {
   return {
@@ -229,7 +250,8 @@ function runContexts(): CommandContext[] {
   return runSpy.mock.calls.map(([, context]) => context);
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await loadModules();
   hookStore.entries.length = 0;
   received.length = 0;
   timeline.length = 0;
@@ -918,8 +940,10 @@ describe("runCommand: before hooks", () => {
       }),
     );
 
-    await runCommand(probeCommand(), { id: ID }, undefined);
-    await runCommand(probeCommand(), { id: ID }, undefined);
+    const command = probeCommand();
+
+    await runCommand(command, { id: ID }, undefined);
+    await runCommand(command, { id: ID }, undefined);
 
     expect(runInputs()).toStrictEqual([{ id: OTHER_ID }, { id: ID }]);
   });
@@ -1323,7 +1347,7 @@ describe("runCommand: result and events", () => {
       return { success: true };
     });
 
-    const result = await runCommand(silentCommand, { id: ID }, undefined);
+    const result = await runCommand(silentCommand(), { id: ID }, undefined);
 
     expect(result).toEqual(FAILURE_RESULT);
     expect(received).toEqual([]);
@@ -1509,5 +1533,317 @@ describe("runCommand: the logged command errors", () => {
       "organization-scoped field rejected for probe.both: workspaceId",
     );
     expect(runSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("runCommand: organization-scoped fields under wrappers", () => {
+  const marked = () => z.string().meta({ organizationScoped: true });
+
+  it.each([
+    [
+      "probe.transform",
+      "transform",
+      z.object({
+        id: z.uuid(),
+        teamId: marked().transform((value) => value),
+      }),
+    ],
+    [
+      "probe.pipe",
+      "pipe",
+      z.object({ id: z.uuid(), teamId: z.string().pipe(marked()) }),
+    ],
+    [
+      "probe.nullable-union",
+      "union with null",
+      z.object({ id: z.uuid(), teamId: z.union([marked(), z.null()]) }),
+    ],
+    [
+      "probe.lazy",
+      "lazy",
+      z.object({ id: z.uuid(), teamId: z.lazy(() => marked()) }),
+    ],
+  ])(
+    "%s: a marked field under %s with another organization's id fails, run not called",
+    async (key, _wrapper, input) => {
+      const result = await runCommand(
+        probeCommand({ key, input }),
+        { id: ID, teamId: "org-b" },
+        undefined,
+      );
+
+      expect(result).toEqual(FAILURE_RESULT);
+      expect(runSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    [
+      "probe.transform",
+      "transform",
+      z.object({
+        id: z.uuid(),
+        teamId: marked().transform((value) => value),
+      }),
+    ],
+    [
+      "probe.pipe",
+      "pipe",
+      z.object({ id: z.uuid(), teamId: z.string().pipe(marked()) }),
+    ],
+    [
+      "probe.nullable-union",
+      "union with null",
+      z.object({ id: z.uuid(), teamId: z.union([marked(), z.null()]) }),
+    ],
+    [
+      "probe.lazy",
+      "lazy",
+      z.object({ id: z.uuid(), teamId: z.lazy(() => marked()) }),
+    ],
+  ])(
+    "%s: a marked field under %s with the context's organization runs",
+    async (key, _wrapper, input) => {
+      const result = await runCommand(
+        probeCommand({ key, input }),
+        { id: ID, teamId: "org-a" },
+        undefined,
+      );
+
+      expect(result).toEqual({ success: true });
+      expect(runInputs()).toStrictEqual([{ id: ID, teamId: "org-a" }]);
+    },
+  );
+
+  it("a hook swapping a marked field under a pipe fails, run not called", async () => {
+    registerHooks(
+      hookEntry(
+        "probe",
+        "probe.pipe-swap",
+        () => ({ id: ID, teamId: "org-b" }),
+        "probe.pipe",
+      ),
+    );
+
+    const result = await runCommand(
+      probeCommand({
+        key: "probe.pipe",
+        input: z.object({ id: z.uuid(), teamId: z.string().pipe(marked()) }),
+      }),
+      { id: ID, teamId: "org-a" },
+      undefined,
+    );
+
+    expect(result).toEqual(FAILURE_RESULT);
+    expect(runSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("runCommand: the command belongs to its module", () => {
+  const borrowed = () =>
+    defineCommand({
+      key: "probe.borrowed",
+      module: "probe",
+      access: "member",
+      input: ID_INPUT,
+      failureMessage: FAILURE,
+      run: (input, context, emit) =>
+        runSpy(input, context, emit as unknown as CommandEmit<ProbeEvent>),
+    });
+
+  function loggedError(): Error {
+    expect(mockLogger.error).toHaveBeenCalledTimes(1);
+    const [message, details] = mockLogger.error.mock.calls[0] as [
+      string,
+      { err: Error },
+    ];
+    expect(message).toBe(FAILURE);
+    expect(details.err).toBeInstanceOf(CommandError);
+    return details.err;
+  }
+
+  it("a command spread into another module that declares its key fails before the session, run not called", async () => {
+    const forged = { ...borrowed(), module: "zeta" };
+
+    const result = await runCommand(forged, { id: ID }, undefined);
+
+    expect(result).toEqual(FAILURE_RESULT);
+    expect(runSpy).not.toHaveBeenCalled();
+    expect(mockGetOrgContext).not.toHaveBeenCalled();
+    expect(mockRequireModuleAccess).not.toHaveBeenCalled();
+    expect(mockGetAdminUserOrNull).not.toHaveBeenCalled();
+    expect(loggedError().message).toBe(
+      "command key probe.borrowed is not owned by module zeta",
+    );
+  });
+
+  it("the ownership check runs before the module-enabled check", async () => {
+    const forged = { ...borrowed(), module: "invoices" };
+
+    const result = await runCommand(forged, { id: ID }, undefined);
+
+    expect(result).toEqual(FAILURE_RESULT);
+    expect(mockLogger.warn).not.toHaveBeenCalled();
+    expect(loggedError().message).toBe(
+      "command key probe.borrowed is not owned by module invoices",
+    );
+  });
+
+  it("a key that only starts with the module name without the dot is not owned", async () => {
+    const forged = { ...borrowed(), key: "zetax.run", module: "zeta" };
+
+    const result = await runCommand(forged, { id: ID }, undefined);
+
+    expect(result).toEqual(FAILURE_RESULT);
+    expect(runSpy).not.toHaveBeenCalled();
+    expect(mockGetOrgContext).not.toHaveBeenCalled();
+    expect(loggedError().message).toBe(
+      "command key zetax.run is not owned by module zeta",
+    );
+  });
+
+  it("a hand-built key with nothing after the module's dot is not owned", async () => {
+    const forged = { ...probeCommand(), key: "probe." };
+
+    const result = await runCommand(forged, { id: ID }, undefined);
+
+    expect(result).toEqual(FAILURE_RESULT);
+    expect(runSpy).not.toHaveBeenCalled();
+    expect(mockGetOrgContext).not.toHaveBeenCalled();
+    expect(loggedError().message).toBe(
+      "command key probe. is not owned by module probe",
+    );
+  });
+
+  it("a command of its own module still runs", async () => {
+    const result = await runCommand(probeCommand(), { id: ID }, undefined);
+
+    expect(result).toEqual({ success: true });
+    expect(runSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("runCommand: one command object per key", () => {
+  const firstRun = vi.fn<ProbeRun>();
+  const secondRun = vi.fn<ProbeRun>();
+
+  function deleteCommand(run: typeof firstRun) {
+    return defineCommand({
+      key: "probe.delete",
+      module: "probe",
+      access: "member",
+      input: ID_INPUT,
+      failureMessage: FAILURE,
+      run: (input, context, emit) =>
+        run(input, context, emit as unknown as CommandEmit<ProbeEvent>),
+    });
+  }
+
+  beforeEach(() => {
+    firstRun.mockReset();
+    firstRun.mockResolvedValue({ success: true, data: "first" });
+    secondRun.mockReset();
+    secondRun.mockResolvedValue({ success: true, data: "second" });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("the same object run twice passes both times", async () => {
+    const first = deleteCommand(firstRun);
+
+    expect(await runCommand(first, { id: ID }, undefined)).toEqual({
+      success: true,
+      data: "first",
+    });
+    expect(await runCommand(first, { id: ID }, undefined)).toEqual({
+      success: true,
+      data: "first",
+    });
+    expect(firstRun).toHaveBeenCalledTimes(2);
+  });
+
+  it("a second object for the same key fails, its run is not called, and the first keeps working", async () => {
+    const first = deleteCommand(firstRun);
+    const second = deleteCommand(secondRun);
+
+    const firstResult = await runCommand(first, { id: ID }, undefined);
+    const secondResult = await runCommand(second, { id: ID }, undefined);
+    const againResult = await runCommand(first, { id: ID }, undefined);
+
+    expect(firstResult).toEqual({ success: true, data: "first" });
+    expect(secondResult).toEqual(FAILURE_RESULT);
+    expect(againResult).toEqual({ success: true, data: "first" });
+    expect(secondRun).not.toHaveBeenCalled();
+    expect(firstRun).toHaveBeenCalledTimes(2);
+  });
+
+  it("the second object is refused before the session read", async () => {
+    await runCommand(deleteCommand(firstRun), { id: ID }, undefined);
+    mockGetOrgContext.mockClear();
+
+    await runCommand(deleteCommand(secondRun), { id: ID }, undefined);
+
+    expect(mockGetOrgContext).not.toHaveBeenCalled();
+  });
+
+  it("logs the duplicate as a CommandError naming the key", async () => {
+    await runCommand(deleteCommand(firstRun), { id: ID }, undefined);
+
+    await runCommand(deleteCommand(secondRun), { id: ID }, undefined);
+
+    expect(mockLogger.error).toHaveBeenCalledTimes(1);
+    const [message, details] = mockLogger.error.mock.calls[0] as [
+      string,
+      { err: Error },
+    ];
+    expect(message).toBe(FAILURE);
+    expect(details.err).toBeInstanceOf(CommandError);
+    expect(details.err.message).toBe(
+      "two command objects registered for probe.delete",
+    );
+  });
+
+  it("objects with different keys do not conflict", async () => {
+    const first = deleteCommand(firstRun);
+
+    await runCommand(first, { id: ID }, undefined);
+    const silent = await runCommand(silentCommand(), { id: ID }, undefined);
+
+    expect(silent).toEqual({ success: true });
+    expect(runSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("in development the newest object replaces the remembered one, and the first runs again afterwards", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    await loadModules();
+    const first = deleteCommand(firstRun);
+    const second = deleteCommand(secondRun);
+
+    const firstResult = await runCommand(first, { id: ID }, undefined);
+    const secondResult = await runCommand(second, { id: ID }, undefined);
+    const againResult = await runCommand(first, { id: ID }, undefined);
+
+    expect(firstResult).toEqual({ success: true, data: "first" });
+    expect(secondResult).toEqual({ success: true, data: "second" });
+    expect(againResult).toEqual({ success: true, data: "first" });
+    expect(secondRun).toHaveBeenCalledTimes(1);
+    expect(firstRun).toHaveBeenCalledTimes(2);
+  });
+
+  it("in production a second object is refused", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    await loadModules();
+
+    await runCommand(deleteCommand(firstRun), { id: ID }, undefined);
+    const result = await runCommand(
+      deleteCommand(secondRun),
+      { id: ID },
+      undefined,
+    );
+
+    expect(result).toEqual(FAILURE_RESULT);
+    expect(secondRun).not.toHaveBeenCalled();
   });
 });

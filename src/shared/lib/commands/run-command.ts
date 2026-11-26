@@ -14,6 +14,7 @@ import type { OperationResult } from "@/shared/types/common";
 import { DomainError, handleCommandError } from "@/shared/utils/error-handling";
 import {
   CommandError,
+  hasModulePrefix,
   organizationScopedKeys,
   type Command,
   type CommandContext,
@@ -31,6 +32,28 @@ interface RecordedEvent {
 
 function deniedMessage(command: AnyCommand): string {
   return command.deniedMessage ?? command.failureMessage;
+}
+
+const commandsByKey = new Map<string, AnyCommand>();
+
+function assertOwnedByModule(command: AnyCommand): void {
+  if (!hasModulePrefix(command.key, command.module)) {
+    throw new CommandError(
+      `command key ${command.key} is not owned by module ${command.module}`,
+    );
+  }
+}
+
+function assertSingleObjectPerKey(command: AnyCommand): void {
+  const known = commandsByKey.get(command.key);
+  // WHY: a dev-server reload re-evaluates command files into new objects for the same key.
+  if (known === undefined || process.env.NODE_ENV === "development") {
+    commandsByKey.set(command.key, command);
+    return;
+  }
+  if (known !== command) {
+    throw new CommandError(`two command objects registered for ${command.key}`);
+  }
 }
 
 function assertDeclared(command: AnyCommand): void {
@@ -106,6 +129,8 @@ async function execute(
   input: unknown,
   confirmation: unknown,
 ): Promise<OperationResult<unknown>> {
+  assertOwnedByModule(command);
+  assertSingleObjectPerKey(command);
   requireModuleEnabled(command.module);
   assertDeclared(command);
   const sessionCtx = await sessionContext(command);
