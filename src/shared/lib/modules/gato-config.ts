@@ -1,5 +1,9 @@
 import type { OrgRole } from "@/shared/lib/auth/roles";
-import type { ModuleDef, ModuleNavItem } from "./define-module";
+import type {
+  ModuleDef,
+  ModuleNavItem,
+  ModulePermission,
+} from "./define-module";
 
 export interface GatoNavOverride {
   order?: number;
@@ -16,6 +20,7 @@ export interface GatoModuleConfig {
   enabled?: boolean;
   nav?: Record<string, GatoNavOverride>;
   access?: GatoModuleAccess;
+  permissions?: Record<string, OrgRole[]>;
 }
 
 export interface GatoLogo {
@@ -75,6 +80,14 @@ function moduleProblems(
   for (const navId of Object.keys(moduleConfig.nav ?? {})) {
     if (!navIds.has(navId)) {
       problems.push(`modules.${key}.nav.${navId}: unknown nav id: ${navId}`);
+    }
+  }
+  const declaredPermissions = moduleDef.permissions ?? {};
+  for (const permissionKey of Object.keys(moduleConfig.permissions ?? {})) {
+    if (!Object.hasOwn(declaredPermissions, permissionKey)) {
+      problems.push(
+        `modules.${key}.permissions.${permissionKey}: unknown permission: ${permissionKey}`,
+      );
     }
   }
   const access = moduleConfig.access;
@@ -167,6 +180,23 @@ function configuredNav(
   });
 }
 
+function configuredPermissions(
+  permissions: Record<string, ModulePermission>,
+  overrides: Record<string, OrgRole[]>,
+): Record<string, ModulePermission> {
+  return Object.fromEntries(
+    Object.entries(permissions).map(([key, permission]) => {
+      const roles = Object.hasOwn(overrides, key) ? overrides[key] : undefined;
+      return [
+        key,
+        roles === undefined
+          ? permission
+          : { ...permission, defaultRoles: [...roles] },
+      ];
+    }),
+  );
+}
+
 function configuredModule<T extends ModuleDef>(
   moduleDef: T,
   moduleConfig: GatoModuleConfig | undefined,
@@ -178,12 +208,22 @@ function configuredModule<T extends ModuleDef>(
     moduleConfig.nav === undefined
       ? moduleDef
       : { ...moduleDef, nav: configuredNav(moduleDef.nav, moduleConfig.nav) };
+  const withPermissions =
+    moduleConfig.permissions === undefined || withNav.permissions === undefined
+      ? withNav
+      : {
+          ...withNav,
+          permissions: configuredPermissions(
+            withNav.permissions,
+            moduleConfig.permissions,
+          ),
+        };
   const access = moduleConfig.access;
   if (access === undefined) {
-    return withNav;
+    return withPermissions;
   }
   return {
-    ...withNav,
+    ...withPermissions,
     roles: access.roles,
     adminOnly: access.adminOnly,
     multiOrgRoles: access.multiOrgRoles,

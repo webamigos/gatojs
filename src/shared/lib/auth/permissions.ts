@@ -1,11 +1,24 @@
 import { clientModules } from "@/modules.client.generated";
-import type { ModuleDef } from "@/shared/lib/modules/define-module";
+import type {
+  ModuleDef,
+  ModulePermission,
+} from "@/shared/lib/modules/define-module";
 import { isGlobalAdmin, type OrgRole, type UserRole } from "./roles";
 
 export interface AccessContext {
   userRole: UserRole;
   orgRole: OrgRole | null;
   multiOrg: boolean;
+}
+
+export type PermissionContext = Pick<AccessContext, "userRole" | "orgRole">;
+
+export class UnknownPermissionError extends Error {
+  name = "UnknownPermissionError";
+
+  constructor(key: string) {
+    super(`unknown permission: ${key}`);
+  }
 }
 
 const registry: readonly ModuleDef[] = clientModules;
@@ -49,4 +62,29 @@ export function canAccessPath(path: string, context: AccessContext): boolean {
   }
   const moduleDef = moduleForPath(path);
   return moduleDef !== null && canAccessModule(moduleDef, context);
+}
+
+function declaredPermission(key: string): ModulePermission | null {
+  for (const moduleDef of registry) {
+    const permissions = moduleDef.permissions ?? {};
+    if (Object.hasOwn(permissions, key)) {
+      return permissions[key] ?? null;
+    }
+  }
+  return null;
+}
+
+export function can(context: PermissionContext, key: string): boolean {
+  const permission = declaredPermission(key);
+  if (permission === null) {
+    throw new UnknownPermissionError(key);
+  }
+  if (isGlobalAdmin(context.userRole)) {
+    return true;
+  }
+  const { orgRole } = context;
+  if (orgRole === null) {
+    return false;
+  }
+  return permission.defaultRoles.includes(orgRole);
 }

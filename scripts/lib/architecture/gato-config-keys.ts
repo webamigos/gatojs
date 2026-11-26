@@ -36,6 +36,22 @@ function moduleFiles(root: string): ModuleFile[] {
     .filter(({ file }) => fs.existsSync(file));
 }
 
+type LoadedModule = { directory: string; moduleDef: ModuleDef };
+
+function loadModules(root: string): Promise<LoadedModule[]> {
+  return Promise.all(
+    moduleFiles(root).map(async ({ directory, file }) => ({
+      directory,
+      moduleDef: await importDefault<ModuleDef>(file),
+    })),
+  );
+}
+
+export async function loadFeatureModules(root: string): Promise<ModuleDef[]> {
+  const loaded = await loadModules(root);
+  return loaded.map(({ moduleDef }) => moduleDef);
+}
+
 export async function findGatoConfigKeyProblems(
   root: string,
 ): Promise<string[]> {
@@ -44,23 +60,15 @@ export async function findGatoConfigKeyProblems(
     return [];
   }
   const config = await importDefault<GatoConfig>(configFile);
-  const modules = await Promise.all(
-    moduleFiles(root).map(({ file }) => importDefault<ModuleDef>(file)),
-  );
-  return gatoConfigProblems(modules, config);
+  return gatoConfigProblems(await loadFeatureModules(root), config);
 }
 
 export async function findModuleKeyMismatches(root: string): Promise<string[]> {
-  const modules = await Promise.all(
-    moduleFiles(root).map(async ({ directory, file }) => ({
-      directory,
-      key: (await importDefault<ModuleDef>(file)).key,
-    })),
-  );
+  const modules = await loadModules(root);
   return modules
-    .filter(({ directory, key }) => key !== directory)
+    .filter(({ directory, moduleDef }) => moduleDef.key !== directory)
     .map(
-      ({ directory, key }) =>
+      ({ directory, moduleDef: { key } }) =>
         `${FEATURES_DIRECTORY}/${directory}/module.ts: key "${key}" differs from the directory name "${directory}"`,
     );
 }
