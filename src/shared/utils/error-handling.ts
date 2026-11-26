@@ -1,4 +1,5 @@
 import { logger } from "@/shared/lib/logger";
+import { ModuleDisabledError } from "@/shared/lib/modules/module-disabled-error";
 import type { OperationResult } from "@/shared/types/common";
 
 export class DomainError extends Error {
@@ -25,6 +26,10 @@ export function handleCommandError(
   if (error instanceof DomainError) {
     logger.warn(defaultMessage, { err: error });
     return { success: false, error: error.message };
+  }
+  if (error instanceof ModuleDisabledError) {
+    logger.warn(defaultMessage, { err: error });
+    return { success: false, error: defaultMessage };
   }
   logger.error(defaultMessage, { err: error });
   return {
