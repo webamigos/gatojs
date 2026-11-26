@@ -4,6 +4,7 @@ import type { Locale } from "@/i18n/config";
 import { createEnv } from "@gatojs/env";
 import { applyGatoConfig, enabledEntries } from "@/shared/lib/modules/gato-config";
 import { slotRegistry } from "@/shared/lib/modules/slots";
+import { commandHookRegistry } from "@/shared/lib/commands/define-command";
 import accountModule from "@/features/account/module";
 import authModule from "@/features/auth/module";
 import dashboardModule from "@/features/dashboard/module";
@@ -18,6 +19,7 @@ import { envSchema as encryptionEnvSchema } from "@/features/encryption/env";
 import { envSchema as uploadsEnvSchema } from "@/features/uploads/env";
 import { authPlugin as auditLogsAuthPlugin } from "@/features/audit-logs/auth";
 import { auditSink as auditLogsAuditSink } from "@/features/audit-logs/audit-sink";
+import { events as uploadsEvents } from "@/features/uploads/events";
 import * as accountSlots from "@/features/account/slots";
 import * as dashboardSlots from "@/features/dashboard/slots";
 
@@ -25,8 +27,9 @@ export const modules = applyGatoConfig([accountModule, authModule, dashboardModu
 export const moduleEnvSchemas = enabledEntries([{ module: "api-keys", value: apiKeysEnvSchema }, { module: "encryption", value: encryptionEnvSchema }, { module: "uploads", value: uploadsEnvSchema }], gatoConfig);
 export const authPlugins = enabledEntries([{ module: "audit-logs", value: auditLogsAuthPlugin }], gatoConfig);
 export const auditSinks = enabledEntries([{ module: "audit-logs", value: auditLogsAuditSink }], gatoConfig);
-export const moduleEvents: never[] = [];
+export const moduleEvents = [{ module: "uploads", value: uploadsEvents }];
 export const moduleSubscribers: never[] = [];
+export const moduleCommandHooks = commandHookRegistry({ modules: [accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, encryptionModule, uploadsModule], hooks: [] }, gatoConfig);
 export const moduleSlots = slotRegistry({ slots: [{ module: "account", value: accountSlots }, { module: "dashboard", value: dashboardSlots }], clientSlots: [] }, gatoConfig);
 export const env = createEnv(moduleEnvSchemas);
 

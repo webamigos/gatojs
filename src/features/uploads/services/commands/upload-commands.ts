@@ -4,33 +4,26 @@ import { z } from "zod";
 import { prisma } from "@/shared/lib/prisma";
 import { auditActor, trackAudit } from "@/shared/lib/audit";
 import { logger } from "@/shared/lib/logger";
-import { getOrgContext } from "@/shared/lib/auth/org-context";
-import { assertServiceModeConfirmed } from "@/shared/lib/auth/service-mode";
 import { can } from "@/shared/lib/auth/permissions";
-import { DomainError, handleCommandError } from "@/shared/utils/error-handling";
-import { requireModuleEnabled } from "@/shared/lib/modules/require-module-enabled";
+import { defineCommand } from "@/shared/lib/commands/define-command";
+import { runCommand } from "@/shared/lib/commands/run-command";
+import { DomainError } from "@/shared/utils/error-handling";
 import type { OperationResult } from "@/shared/types/common";
 import { deleteObject } from "../storage";
 
 const DELETE_FAILED = "Nie udało się usunąć pliku";
 const NO_PERMISSION = "Brak uprawnień do usunięcia pliku";
 
-const deleteUploadSchema = z.object({ id: z.uuid() });
-
-export async function deleteUploadCommand(
-  input: unknown,
-  confirmation?: unknown,
-): Promise<OperationResult> {
-  try {
-    requireModuleEnabled("uploads");
-    const context = await getOrgContext();
-    assertServiceModeConfirmed(context, confirmation);
-    const parsed = deleteUploadSchema.safeParse(input);
-    if (!parsed.success) {
-      return { success: false, error: DELETE_FAILED };
-    }
+const deleteUpload = defineCommand({
+  key: "uploads.delete",
+  module: "uploads",
+  access: "member",
+  input: z.object({ id: z.uuid() }),
+  failureMessage: DELETE_FAILED,
+  events: ["uploads.deleted"],
+  run: async ({ id }, context, emit): Promise<OperationResult> => {
     const upload = await prisma.upload.findFirst({
-      where: { id: parsed.data.id, organizationId: context.organizationId },
+      where: { id, organizationId: context.organizationId },
     });
     if (!upload) {
       return { success: false, error: DELETE_FAILED };
@@ -57,8 +50,14 @@ export async function deleteUploadCommand(
       entityId: upload.id,
       oldData: { purpose: upload.purpose, key: upload.key, size: upload.size },
     });
+    emit("uploads.deleted", { uploadId: upload.id });
     return { success: true };
-  } catch (error) {
-    return handleCommandError(error, DELETE_FAILED);
-  }
+  },
+});
+
+export async function deleteUploadCommand(
+  input: unknown,
+  confirmation?: unknown,
+): Promise<OperationResult> {
+  return runCommand(deleteUpload, input, confirmation);
 }
