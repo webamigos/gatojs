@@ -65,6 +65,7 @@ Rejestr to dwa pliki, które zapisuje `wa generate`. Plik kliencki w kicie w ca�
 import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";
 import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";
 import { clientSlotRegistry } from "@/shared/lib/modules/slots";
+import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";
 import accountModule from "@/features/account/module";
 import authModule from "@/features/auth/module";
 import dashboardModule from "@/features/dashboard/module";
@@ -74,10 +75,12 @@ import apiKeysModule from "@/features/api-keys/module";
 import auditLogsModule from "@/features/audit-logs/module";
 import encryptionModule from "@/features/encryption/module";
 import uploadsModule from "@/features/uploads/module";
+import * as usersComponents from "@/features/users/components";
 
 export const authClientPlugins: never[] = [];
 export const clientModules = applyGatoConfig([accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, encryptionModule, uploadsModule], gatoConfig);
 export const clientModuleSlots = clientSlotRegistry([], gatoConfig);
+export const clientComponentOverrides = componentOverrideRegistry([{ module: "users", value: usersComponents }], gatoConfig);
 export const gatoBranding = gatoBrandingOf(gatoConfig);
 ```
 
@@ -105,6 +108,12 @@ export const moduleSlots = slotRegistry({ slots: [{ module: "account", value: ac
 export const clientModuleSlots = clientSlotRegistry([], gatoConfig);
 ```
 
+Od `gato-cli` 0.11.0 (`kitFormat` 8) plik klienta ma zawsze mapę nadpisań komponentów ([ADR-69](adrs/69-component-overrides-resolve-in-the-client-registry-and-fall-back-to-the-core.md)). Importuje przestrzeń nazw `components.ts` każdego feature, który go ma (`import * as usersComponents from "@/features/users/components";`, po importach `client-slots.ts`), i po `clientModuleSlots` buduje `clientComponentOverrides` przez `componentOverrideRegistry`. Lista nie przechodzi przez `enabledEntries`, bo deklaracje uchwytów wyłączonego modułu nadal obowiązują; nadpisania wyłączonych modułów odrzuca samo `componentOverrideRegistry`. Przy imporcie sprawdza ono deklaracje, nadpisania, sekcję `components` konfiguracji i konflikty (dwa włączone moduły nadpisujące ten sam uchwyt bez rozstrzygnięcia w konfiguracji). Plik serwerowy nie importuje `components.ts`:
+
+```ts
+export const clientComponentOverrides = componentOverrideRegistry([{ module: "users", value: usersComponents }], gatoConfig);
+```
+
 Konfiguracja działa raz, przy pierwszym imporcie rejestru, przed obsługą jakiegokolwiek żądania. Nieznany klucz modułu albo `id` pozycji menu, `access` bez żadnego pola i `enabled: false` dla `auth` albo `organizations` kończą import błędem `GatoConfigError` z listą wszystkich problemów, więc `next build`, `npm run dev` i każdy test importujący rejestr padają od razu. Jak pisać sam plik konfiguracji, opisuje [Konfiguracja projektu](11-praca-z-kitem.md#gato-config) w 11.
 
 Każdy z plików, które generator czyta z feature, trafia do innej tablicy:
@@ -121,12 +130,13 @@ Każdy z plików, które generator czyta z feature, trafia do innej tablicy:
 | `subscribers.ts` | `subscribers` (`defineSubscribers({...})`) | `moduleSubscribers` | `src/modules.generated.ts` | ta sama magistrala: subskrybenci zdarzenia po kolei, w kolejności rejestru, potem według `id` |
 | `slots.ts` | `slotDefinitions` (`defineSlot`) i `slots` (`defineContribution`, wkłady do slotów serwerowych), oba opcjonalne | `moduleSlots` | `src/modules.generated.ts` | `Slot` w `src/shared/components/slot.tsx` |
 | `client-slots.ts` | `clientSlots` (`defineContribution`, wkłady do slotów klienckich) | `moduleSlots` (sprawdzenie) i `clientModuleSlots` | oba pliki | `ClientSlot` w `src/shared/components/client-slot.tsx` |
+| `components.ts` | `componentHandles` (`defineComponentHandle`) i `componentOverrides` (`defineComponentOverride`), oba opcjonalne | `clientComponentOverrides` | `src/modules.client.generated.ts` | `overridable` w `src/shared/lib/modules/overridable.tsx` |
 | `i18n/pl.json`, `i18n/en.json` | treść JSON | `moduleMessages.pl`, `moduleMessages.en`: lista `{ key, load }`, gdzie `key` to nazwa katalogu feature | `src/modules.generated.ts` | `src/i18n/request.ts`, który przez `mergeMessages` umieszcza teksty pod namespace `key` |
 
 - Feature trafia do każdej tablicy osobno, według plików, które ma. Moduł wyłączony w `src/gato.config.ts` (`enabled: false`) nadal ma swoje importy w rejestrze, ale `applyGatoConfig` i `enabledEntries` usuwają go z każdej listy. Feature z samymi tłumaczeniami pojawi się w `moduleMessages`, ale nie w `modules` ani `clientModules`. Żaden feature rdzenia nie ma `env.ts`, `auth.ts`, `auth-client.ts` ani `audit-sink.ts`, więc w projekcie z samym rdzeniem te tablice są puste. W kicie `moduleEnvSchemas` dostaje schematy z `api-keys`, `encryption` i `uploads`, a `authPlugins` i `auditSinks` po jednym wpisie z `audit-logs`. Żaden moduł kitu nie ma `auth-client.ts`.
 - Co dzieje się z każdą tablicą, gdy modułu w projekcie nie ma, zbiera tabela [Szwy generowane](12-moduly-kitu.md#szwy-generowane) w 12. Deklaracje `auditActions`, `apiScopes` i `uploadPurposes`, które moduły czytają z `modules` i `clientModules`, opisuje [Punkty wejścia](12-moduly-kitu.md#punkty-wejscia).
 - Rejestr importuje pliki feature, a nie kopiuje ich treści. Zmiana wewnątrz `module.ts`, `env.ts` albo pliku tłumaczeń nie wymaga więc ponownego uruchomienia generatora. Wymaga go dopiero dodanie albo usunięcie takiego pliku.
-- Są dwa pliki, bo plik kliencki trafia do paczki przeglądarki (przez menu boczne i klienta better-auth), więc importuje tylko `module.ts` i `auth-client.ts`. Plik serwerowy importuje schematy env, pluginy serwerowe better-auth, ujścia audytu i loadery tłumaczeń, które w przeglądarce nie są potrzebne. Plik kliencki czyta też guard na serwerze, więc menu i guard zawsze widzą te same definicje.
+- Są dwa pliki, bo plik kliencki trafia do paczki przeglądarki (przez menu boczne i klienta better-auth), więc importuje tylko `module.ts`, `auth-client.ts`, `client-slots.ts` i `components.ts`. Plik serwerowy importuje schematy env, pluginy serwerowe better-auth, ujścia audytu i loadery tłumaczeń, które w przeglądarce nie są potrzebne. Plik kliencki czyta też guard na serwerze, więc menu i guard zawsze widzą te same definicje.
 - Kolejność: najpierw feature modułu `core`, potem feature pozostałych modułów kitu w kolejności nazw modułów, a na końcu feature modułów projektu z `projectModules`, alfabetycznie (`registeredModules` w `packages/gato-cli/src/manifest/kit-state.ts`). W obrębie modułu feature są ułożone według nazwy katalogu. Kolejność nie wpływa na menu, które sortuje po `order`.
 
 Nazwa katalogu feature z tłumaczeniami musi pasować do wzorca `^[a-z][a-zA-Z0-9-]*$` (na przykład `my_feature` nie pasuje) i nie może być równa namespace rdzenia: `common`, `errors`, `sidebar` ani `serviceMode`. Inaczej `mergeMessages` z `src/i18n/merge-messages.ts` rzuca przy ładowaniu tłumaczeń błąd `Nieprawidłowy klucz namespace i18n: <key>` albo `Kolizja namespace i18n: <key>` i strona się nie wyrenderuje ([D27](decyzje.md#d27)).
@@ -319,7 +329,7 @@ const FEATURE_GLOB = /^src\/features\/([^/*]+)\//;
 ```
 
 1. Generator przechodzi po modułach w kolejności z [Rejestru modułów](#rejestr-modulow) i po wzorcach z ich `files`. Jeśli wzorzec zaczyna się od `src/features/<x>/`, a `<x>` nie zawiera `/` ani `*`, `<x>` staje się kandydatem na feature. Reszta wzorca nie ma znaczenia.
-2. Dla każdego kandydata sprawdza, czy w katalogu `src/features/<x>/` istnieje `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts`, `audit-sink.ts`, `events.ts`, `subscribers.ts`, `slots.ts`, `client-slots.ts` albo `i18n/<język>.json` dla któregoś języka z `locales` w `.wa/kit.json`. Plik tłumaczeń języka spoza `locales` zostaje na dysku, ale jego loader nie trafia do rejestru (test „moduł z en.json przy locales [pl]” w `generate.test.ts`).
+2. Dla każdego kandydata sprawdza, czy w katalogu `src/features/<x>/` istnieje `module.ts`, `env.ts`, `auth.ts`, `auth-client.ts`, `audit-sink.ts`, `events.ts`, `subscribers.ts`, `slots.ts`, `client-slots.ts`, `components.ts` albo `i18n/<język>.json` dla któregoś języka z `locales` w `.wa/kit.json`. Plik tłumaczeń języka spoza `locales` zostaje na dysku, ale jego loader nie trafia do rejestru (test „moduł z en.json przy locales [pl]” w `generate.test.ts`).
 3. Feature trafia do rejestru, gdy istnieje co najmniej jeden z tych plików. W przeciwnym razie generator pomija go bez komunikatu.
 4. Nazwa, która pojawia się w kilku modułach, liczy się raz.
 5. Niezależnie od feature generator sprawdza, czy istnieje `src/gato.config.ts` (dokładnie ta nazwa, w `src/`). Od tego zależy druga linia obu plików rejestru, więc dodanie albo usunięcie pliku konfiguracji wymaga ponownego `wa generate`; zmiana jego treści nie wymaga.
@@ -504,7 +514,7 @@ Schematy `kitStateSchema` i `moduleManifestSchema` z `packages/gato-cli/src/mani
 
 Trzy pierwsze pliki są w `generatedFiles` w `kit/kit.json`: nie należą do żadnego modułu, `wa create` i `wa add` ich nie kopiują, tylko tworzy je generator ([D31](decyzje.md#d31)).
 
-Nazwy w plikach rejestru powstają z nazwy katalogu feature: znaki `-`, `_` i `.` znikają, a następna litera staje się wielka, i dochodzi przyrostek. Katalog `my-feature` daje `myFeatureModule`, `myFeatureEnvSchema`, `myFeatureAuthPlugin`, `myFeatureAuthClientPlugin`, `myFeatureAuditSink`, `myFeatureEvents`, `myFeatureSubscribers`, `myFeatureSlots` i `myFeatureClientSlots`. Pusta tablica ma postać `export const <nazwa>: never[] = [];` i nie przechodzi przez konfigurację. Niepusta lista modułów ma postać `applyGatoConfig([...], gatoConfig)`, a niepusta lista przypisana do modułu `enabledEntries([{ module: "<nazwa katalogu>", value: <identyfikator> }, …], gatoConfig)`; języki w `moduleMessages` używają `enabledEntries<MessageLoader>([...], gatoConfig)`. Niepusta `moduleEvents` to zwykła tablica par bez pomocnika, a niepusta `moduleSubscribers` używa `enabledModuleEntries([...], gatoConfig)`. Import pomocników z `@/shared/lib/modules/gato-config` wymienia tylko użyte (`applyGatoConfig`, `enabledEntries`, `enabledModuleEntries`, `gatoBrandingOf`, w tej kolejności); `gatoConfig` importują zawsze oba pliki, bo od `kitFormat` 7 każdy z nich woła `slotRegistry` albo `clientSlotRegistry` (import z `@/shared/lib/modules/slots`, zaraz po pomocnikach), także z pustymi listami. W `moduleMessages` pole `key` to nazwa katalogu bez zmian, a język bez żadnego loadera ma pustą listę.
+Nazwy w plikach rejestru powstają z nazwy katalogu feature: znaki `-`, `_` i `.` znikają, a następna litera staje się wielka, i dochodzi przyrostek. Katalog `my-feature` daje `myFeatureModule`, `myFeatureEnvSchema`, `myFeatureAuthPlugin`, `myFeatureAuthClientPlugin`, `myFeatureAuditSink`, `myFeatureEvents`, `myFeatureSubscribers`, `myFeatureSlots`, `myFeatureClientSlots` i `myFeatureComponents`. Pusta tablica ma postać `export const <nazwa>: never[] = [];` i nie przechodzi przez konfigurację. Niepusta lista modułów ma postać `applyGatoConfig([...], gatoConfig)`, a niepusta lista przypisana do modułu `enabledEntries([{ module: "<nazwa katalogu>", value: <identyfikator> }, …], gatoConfig)`; języki w `moduleMessages` używają `enabledEntries<MessageLoader>([...], gatoConfig)`. Niepusta `moduleEvents` to zwykła tablica par bez pomocnika, a niepusta `moduleSubscribers` używa `enabledModuleEntries([...], gatoConfig)`. Import pomocników z `@/shared/lib/modules/gato-config` wymienia tylko użyte (`applyGatoConfig`, `enabledEntries`, `enabledModuleEntries`, `gatoBrandingOf`, w tej kolejności); `gatoConfig` importują zawsze oba pliki, bo od `kitFormat` 7 każdy z nich woła `slotRegistry` albo `clientSlotRegistry` (import z `@/shared/lib/modules/slots`, zaraz po pomocnikach), także z pustymi listami. Od `kitFormat` 8 plik klienta zaraz po nim importuje `componentOverrideRegistry` z `@/shared/lib/modules/component-overrides` i woła je zawsze, także z pustą listą. W `moduleMessages` pole `key` to nazwa katalogu bez zmian, a język bez żadnego loadera ma pustą listę.
 
 <a id="referencja-komunikaty"></a>
 
