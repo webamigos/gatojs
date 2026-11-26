@@ -177,6 +177,18 @@ describe("checkPublishWorkflow valid workflows", () => {
     ).toEqual([]);
   });
 
+  it("skips a hand-written job with no value next to a valid build job", () => {
+    expect(
+      checkPublishWorkflow(`${handWritten(["on: push"])}  placeholder:\n`),
+    ).toEqual([]);
+  });
+
+  it("skips a hand-written empty step entry in an otherwise valid build job", () => {
+    expect(
+      checkPublishWorkflow(`${handWritten(["on: push"])}      -\n`),
+    ).toEqual([]);
+  });
+
   it("accepts the runners as a plain matrix list", () => {
     const workflow = validWorkflow();
     buildJob(workflow).strategy = {
