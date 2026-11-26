@@ -2,7 +2,7 @@
 import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";
 import type { Locale } from "@/i18n/config";
 import { createEnv } from "@gatojs/env";
-import { applyGatoConfig, enabledEntries } from "@/shared/lib/modules/gato-config";
+import { applyGatoConfig, enabledEntries, enabledModuleEntries } from "@/shared/lib/modules/gato-config";
 import accountModule from "@/features/account/module";
 import authModule from "@/features/auth/module";
 import dashboardModule from "@/features/dashboard/module";
@@ -15,15 +15,15 @@ import uploadsModule from "@/features/uploads/module";
 import { envSchema as apiKeysEnvSchema } from "@/features/api-keys/env";
 import { envSchema as encryptionEnvSchema } from "@/features/encryption/env";
 import { envSchema as uploadsEnvSchema } from "@/features/uploads/env";
-import { authPlugin as auditLogsAuthPlugin } from "@/features/audit-logs/auth";
 import { auditSink as auditLogsAuditSink } from "@/features/audit-logs/audit-sink";
+import { subscribers as auditLogsSubscribers } from "@/features/audit-logs/subscribers";
 
 export const modules = applyGatoConfig([accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, encryptionModule, uploadsModule], gatoConfig);
 export const moduleEnvSchemas = enabledEntries([{ module: "api-keys", value: apiKeysEnvSchema }, { module: "encryption", value: encryptionEnvSchema }, { module: "uploads", value: uploadsEnvSchema }], gatoConfig);
-export const authPlugins = enabledEntries([{ module: "audit-logs", value: auditLogsAuthPlugin }], gatoConfig);
+export const authPlugins: never[] = [];
 export const auditSinks = enabledEntries([{ module: "audit-logs", value: auditLogsAuditSink }], gatoConfig);
 export const moduleEvents: never[] = [];
-export const moduleSubscribers: never[] = [];
+export const moduleSubscribers = enabledModuleEntries([{ module: "audit-logs", value: auditLogsSubscribers }], gatoConfig);
 export const env = createEnv(moduleEnvSchemas);
 
 export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };
