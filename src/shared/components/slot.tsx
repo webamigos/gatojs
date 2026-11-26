@@ -30,9 +30,6 @@ export async function Slot<Id extends ServerSlotId>({
   fallback = null,
 }: SlotProps<Id>): Promise<ReactNode> {
   const contributions = visibleContributions(moduleSlots, id, viewer);
-  if (contributions.length === 0) {
-    return fallback;
-  }
   const props: SlotComponentProps = context;
   const settled = await Promise.allSettled(
     contributions.map((contribution) => contribution.component()),
