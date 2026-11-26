@@ -566,4 +566,97 @@ describe("UsersManager: widz przekazany do InviteUserDialog", () => {
       { viewer: { userRole: "user", orgRole: "member", multiOrg: true } },
     );
   });
+
+  function inviteViewerElement(props: {
+    currentUserRole: UserRole;
+    currentOrgRole: "owner" | "admin" | "member" | null;
+    multiOrg: boolean;
+  }) {
+    return (
+      <NextIntlClientProvider locale="pl" messages={usersMessages}>
+        <UsersManager
+          users={[]}
+          currentUserId="viewer"
+          currentUserRole={props.currentUserRole}
+          adminImpersonation={false}
+          organizationId="org-1"
+          currentOrgRole={props.currentOrgRole}
+          multiOrg={props.multiOrg}
+        />
+      </NextIntlClientProvider>
+    );
+  }
+
+  it("zmiana roli w organizacji z member na owner po ponownym renderze trafia do viewer", () => {
+    const { rerender } = render(
+      inviteViewerElement({
+        currentUserRole: "user",
+        currentOrgRole: "member",
+        multiOrg: false,
+      }),
+    );
+    expect(mockOverridableProps).toHaveBeenLastCalledWith(
+      "users.invite-dialog",
+      { viewer: { userRole: "user", orgRole: "member", multiOrg: false } },
+    );
+
+    rerender(
+      inviteViewerElement({
+        currentUserRole: "user",
+        currentOrgRole: "owner",
+        multiOrg: false,
+      }),
+    );
+
+    expect(mockOverridableProps).toHaveBeenLastCalledWith(
+      "users.invite-dialog",
+      { viewer: { userRole: "user", orgRole: "owner", multiOrg: false } },
+    );
+  });
+
+  it("zmiana roli globalnej z user na admin po ponownym renderze trafia do viewer", () => {
+    const { rerender } = render(
+      inviteViewerElement({
+        currentUserRole: "user",
+        currentOrgRole: "member",
+        multiOrg: false,
+      }),
+    );
+
+    rerender(
+      inviteViewerElement({
+        currentUserRole: "admin",
+        currentOrgRole: "member",
+        multiOrg: false,
+      }),
+    );
+
+    expect(mockOverridableProps).toHaveBeenLastCalledWith(
+      "users.invite-dialog",
+      { viewer: { userRole: "admin", orgRole: "member", multiOrg: false } },
+    );
+  });
+
+  it("włączenie MULTI_ORG po ponownym renderze trafia do viewer", () => {
+    const { rerender } = render(
+      inviteViewerElement({
+        currentUserRole: "user",
+        currentOrgRole: "member",
+        multiOrg: false,
+      }),
+    );
+
+    rerender(
+      inviteViewerElement({
+        currentUserRole: "user",
+        currentOrgRole: "member",
+        multiOrg: true,
+      }),
+    );
+
+    expect(mockOverridableProps).toHaveBeenLastCalledWith(
+      "users.invite-dialog",
+      { viewer: { userRole: "user", orgRole: "member", multiOrg: true } },
+    );
+  });
 });
