@@ -4,46 +4,38 @@ import { randomBytes } from "node:crypto";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/lib/prisma";
-import { getAdminUserOrNull } from "@/shared/lib/auth/helpers";
-import { getOrgContext } from "@/shared/lib/auth/org-context";
-import { assertServiceModeConfirmed } from "@/shared/lib/auth/service-mode";
-import { emitEvent, eventOrigin } from "@/shared/lib/events";
 import { logger } from "@/shared/lib/logger";
-import { handleCommandError } from "@/shared/utils/error-handling";
 import { withInviteSignup } from "@/shared/lib/auth/invite-signup-scope";
-import { requireModuleEnabled } from "@/shared/lib/modules/require-module-enabled";
 import { createWelcomeSetPasswordUrl } from "@/shared/lib/auth/welcome-set-password";
 import { sendWelcomeSetPasswordEmail } from "@/shared/lib/mailer";
+import { defineCommand } from "@/shared/lib/commands/define-command";
+import { runCommand } from "@/shared/lib/commands/run-command";
 import { inviteUserSchema } from "../../contracts/user-account.schemas";
 import type { OperationResult } from "@/shared/types/common";
 
 type RequestHeaders = Awaited<ReturnType<typeof headers>>;
 
+type InviteUserResult = OperationResult<{ userId: string }> & {
+  warning?: "mail-failed";
+};
+
 const INVITATION_TTL_MS = 48 * 60 * 60 * 1000;
 
-export async function inviteUserCommand(
-  input: unknown,
-  confirmation?: unknown,
-): Promise<OperationResult<{ userId: string }> & { warning?: "mail-failed" }> {
-  try {
-    requireModuleEnabled("users");
-    const admin = await getAdminUserOrNull();
-    if (!admin) {
-      return { success: false, error: "Brak uprawnień" };
-    }
-
-    const parsed = inviteUserSchema.safeParse(input);
-    if (!parsed.success) {
-      return {
-        success: false,
-        error: parsed.error.issues[0]?.message ?? "Nieprawidłowe dane",
-      };
-    }
-    const { name, email, role } = parsed.data;
-
-    const context = await getOrgContext();
-    assertServiceModeConfirmed(context, confirmation);
-
+const inviteUser = defineCommand({
+  key: "users.invite",
+  module: "users",
+  access: "global-admin",
+  input: inviteUserSchema,
+  failureMessage: "Nie udało się zaprosić użytkownika",
+  deniedMessage: "Brak uprawnień",
+  invalidInputMessage: (error) =>
+    error.issues[0]?.message ?? "Nieprawidłowe dane",
+  events: ["users.invited"],
+  run: async (
+    { name, email, role },
+    context,
+    emit,
+  ): Promise<InviteUserResult> => {
     const existing = await prisma.user.findUnique({
       where: { email },
       select: { id: true },
@@ -60,7 +52,7 @@ export async function inviteUserCommand(
         organizationId: context.organizationId,
         email,
         role,
-        inviterId: admin.id,
+        inviterId: context.userId,
         expiresAt: new Date(Date.now() + INVITATION_TTL_MS),
       },
       select: { id: true },
@@ -71,11 +63,7 @@ export async function inviteUserCommand(
       { name, email, invitationId: invitation.id },
       requestHeaders,
     );
-    await emitEvent(eventOrigin(context), "users.invited", {
-      invitationId: invitation.id,
-      email,
-      role,
-    });
+    emit("users.invited", { invitationId: invitation.id, email, role });
 
     await markEmailVerified(userId);
     const mailSent = await sendWelcomeEmailBestEffort({ name, email, userId });
@@ -84,9 +72,14 @@ export async function inviteUserCommand(
     return mailSent
       ? { success: true, data: { userId } }
       : { success: true, data: { userId }, warning: "mail-failed" };
-  } catch (error) {
-    return handleCommandError(error, "Nie udało się zaprosić użytkownika");
-  }
+  },
+});
+
+export async function inviteUserCommand(
+  input: unknown,
+  confirmation?: unknown,
+): Promise<InviteUserResult> {
+  return runCommand(inviteUser, input, confirmation);
 }
 
 async function registerInvitedUser(
