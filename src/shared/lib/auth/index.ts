@@ -33,6 +33,7 @@ import {
   requiresGlobalAdminInSingleOrg,
 } from "./single-org-guard";
 import { eventsPlugin } from "./events-plugin";
+import { orgRoleGuardPlugin } from "./org-role-guard-plugin";
 import { isInviteSignup } from "./invite-signup-scope";
 import { readSignupMembership } from "./signup-membership-context";
 
@@ -148,6 +149,7 @@ export const auth = betterAuth({
         });
       },
     }),
+    orgRoleGuardPlugin,
     eventsPlugin,
     ...authPlugins,
   ],

@@ -11,6 +11,7 @@ export const ORGANIZATION_EVENT_PATHS: ReadonlySet<string> = new Set([
   "/organization/accept-invitation",
   "/organization/update-member-role",
   "/organization/remove-member",
+  "/organization/leave",
 ]);
 
 export interface PreviousMemberRole {
@@ -240,10 +241,10 @@ function roleChangedEvents(
 }
 
 function removedEvents(
-  returned: unknown,
+  removedMember: unknown,
   actorUserId: string | null,
 ): OrganizationEventEmit[] {
-  const member = readMember(field(returned, "member"));
+  const member = readMember(removedMember);
   if (!member) {
     return [];
   }
@@ -276,6 +277,8 @@ export function organizationEvents(
     case "/organization/update-member-role":
       return roleChangedEvents(input);
     case "/organization/remove-member":
+      return removedEvents(field(returned, "member"), actorUserId);
+    case "/organization/leave":
       return removedEvents(returned, actorUserId);
     default:
       return [];
