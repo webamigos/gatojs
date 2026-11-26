@@ -51,6 +51,12 @@ vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next-intl/server", () => ({ getLocale: vi.fn(async () => "pl") }));
+vi.mock("@/i18n/routing", () => ({
+  redirect: vi.fn(() => {
+    throw new Error("NEXT_REDIRECT");
+  }),
+}));
 vi.mock("@/shared/lib/audit", () => ({ trackAudit: mockTrackAudit }));
 vi.mock("@/modules.generated", () => ({
   moduleCommandHooks: [],
