@@ -9,8 +9,10 @@ const { recordedEvents, currentHeaders, domainEvents } = vi.hoisted(() => ({
   domainEvents: [] as DomainEvent[],
 }));
 
-vi.mock("@/modules.generated", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/modules.generated")>()),
+vi.mock("@/modules.generated", async () => ({
+  env: (await import("@gatojs/env")).createEnv([]),
+  authPlugins: [],
+  moduleEvents: [],
   auditSinks: [
     async (event: AuditEvent) => {
       recordedEvents.push(event);

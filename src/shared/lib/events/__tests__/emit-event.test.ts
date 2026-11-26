@@ -7,11 +7,10 @@ const { received, disabledRan, mockLogger } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/shared/lib/logger", () => ({ logger: mockLogger }));
-vi.mock("@/modules.generated", async (importOriginal) => {
+vi.mock("@/modules.generated", async () => {
   const { enabledModuleEntries } =
     await import("@/shared/lib/modules/gato-config");
   return {
-    ...(await importOriginal<typeof import("@/modules.generated")>()),
     moduleEvents: [],
     moduleSubscribers: enabledModuleEntries(
       [

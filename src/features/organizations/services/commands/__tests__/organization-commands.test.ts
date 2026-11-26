@@ -9,8 +9,7 @@ const { mockPrisma, emitted, timeline } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/shared/lib/prisma", () => ({ prisma: mockPrisma }));
-vi.mock("@/modules.generated", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/modules.generated")>()),
+vi.mock("@/modules.generated", () => ({
   moduleEvents: [],
   moduleSubscribers: [
     {

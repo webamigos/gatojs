@@ -27,8 +27,9 @@ vi.mock("@/shared/lib/mailer", () => ({
   sendOrganizationInvitationEmail: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
 }));
-vi.mock("@/modules.generated", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/modules.generated")>()),
+vi.mock("@/modules.generated", () => ({
+  authPlugins: [],
+  auditSinks: [],
   moduleEvents: [],
   moduleSubscribers: [
     {

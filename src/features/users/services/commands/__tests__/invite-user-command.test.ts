@@ -55,8 +55,7 @@ vi.mock("@/shared/lib/audit", async (importActual) => ({
   ...(await importActual<typeof import("@/shared/lib/audit")>()),
   trackAudit: mockTrackAudit,
 }));
-vi.mock("@/modules.generated", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/modules.generated")>()),
+vi.mock("@/modules.generated", () => ({
   moduleEvents: [],
   moduleSubscribers: [
     {
