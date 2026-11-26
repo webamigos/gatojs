@@ -1527,13 +1527,67 @@ describe("punkty wejścia serwera w src", () => {
     expect(violations).toEqual([]);
   });
 
-  it("reguła trybu serwisowego obejmuje inviteUserCommand", () => {
-    const invite = files.find(
-      ({ path }) =>
-        path === "src/features/users/services/commands/invite-user-command.ts",
+  it("inviteUserCommand returns runCommand(inviteUser, input, confirmation) and both rules cover it without a violation", () => {
+    const path = "src/features/users/services/commands/invite-user-command.ts";
+    const invite = files.find((entry) => entry.path === path);
+    expect(invite).toBeDefined();
+    const source = invite?.source ?? "";
+    const file = ts.createSourceFile(
+      path,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
     );
-    expect(invite?.source).toContain("getOrgContext");
-    expect(invite?.source).toContain(SERVICE_MODE_CONFIRMATION);
+    const scope = scopeOf(file);
+    const entry = scope.functions.get("inviteUserCommand");
+    expect(entry?.exported).toBe(true);
+    const fn = entry?.node;
+    const body = fn && fn.body && ts.isBlock(fn.body) ? fn.body : undefined;
+    const [statement] = body?.statements ?? [];
+    expect(body?.statements).toHaveLength(1);
+    const returned =
+      statement && ts.isReturnStatement(statement)
+        ? statement.expression
+        : undefined;
+    const call =
+      returned && ts.isCallExpression(returned) ? returned : undefined;
+    expect(call && localCalleeName(call)).toBe("runCommand");
+    expect(call?.arguments.map((argument) => argument.getText())).toEqual([
+      "inviteUser",
+      "input",
+      "confirmation",
+    ]);
+    expect(fn ? parameterNames(fn) : []).toEqual(["input", "confirmation"]);
+    expect(scope.importedNames.get("runCommand")).toBe("runCommand");
+    expect(source).toContain(
+      'import { runCommand } from "@/shared/lib/commands/run-command";',
+    );
+    expect(source).toMatch(/const inviteUser = defineCommand\(\{/);
+    expect(source).toContain('key: "users.invite"');
+    expect(source).toContain('module: "users"');
+    expect(source).toContain('access: "global-admin"');
+    expect(
+      fn
+        ? serviceModeEventsOf(
+            fn,
+            scope,
+            new Set(parameterNames(fn).filter((name) => name !== "")),
+          )
+        : [],
+    ).toEqual(["orgContext", "confirmation"]);
+    expect(accessesOf(fn as FunctionLike, scope)).toEqual([
+      expect.objectContaining({ kind: "guard" }),
+    ]);
+    expect(
+      findUnconfirmedServiceModeEntrypoints(
+        path,
+        source,
+        hasUseServerDirective,
+      ),
+    ).toEqual([]);
+    expect(findUnguardedEntrypoints(path, source, isServerEntrypoint)).toEqual(
+      [],
+    );
   });
 
   it("wyjątki z listy UNGUARDED_ALLOWED nadal istnieją", () => {

@@ -171,6 +171,7 @@ interface ProbeOptions {
   input?: CommandSchema;
   permission?: string;
   deniedMessage?: string;
+  invalidInputMessage?: (error: z.ZodError) => string;
 }
 
 function probeCommand(options: ProbeOptions = {}) {
@@ -1845,5 +1846,148 @@ describe("runCommand: one command object per key", () => {
 
     expect(result).toEqual(FAILURE_RESULT);
     expect(secondRun).not.toHaveBeenCalled();
+  });
+});
+
+describe("runCommand: invalidInputMessage", () => {
+  const STRING_ID_INPUT: CommandSchema = z.object({ id: z.string() });
+  const firstPath = (error: z.ZodError) =>
+    "first: " + (error.issues[0]?.path.join(".") ?? "");
+
+  it("a failed first parse returns the custom message built from the ZodError, no hook, no run", async () => {
+    const before = spyHook();
+
+    const result = await runCommand(
+      probeCommand({ input: STRING_ID_INPUT, invalidInputMessage: firstPath }),
+      { id: 1 },
+      undefined,
+    );
+
+    expect(result).toEqual({ success: false, error: "first: id" });
+    expect(before).not.toHaveBeenCalled();
+    expect(runSpy).not.toHaveBeenCalled();
+  });
+
+  it("the custom message receives a ZodError describing the rejected field, once", async () => {
+    const message = vi.fn<(error: z.ZodError) => string>(() => "custom");
+
+    await runCommand(
+      probeCommand({ input: STRING_ID_INPUT, invalidInputMessage: message }),
+      { id: 1 },
+      undefined,
+    );
+
+    expect(message).toHaveBeenCalledTimes(1);
+    const [error] = message.mock.calls[0] as [z.ZodError];
+    expect(error).toBeInstanceOf(z.ZodError);
+    expect(error.issues.map((issue) => issue.path)).toEqual([["id"]]);
+  });
+
+  it("without invalidInputMessage a failed first parse returns the failure message", async () => {
+    const result = await runCommand(
+      probeCommand({ input: STRING_ID_INPUT }),
+      { id: 1 },
+      undefined,
+    );
+
+    expect(result).toEqual(FAILURE_RESULT);
+    expect(runSpy).not.toHaveBeenCalled();
+  });
+
+  it("a hook returning input the schema rejects returns the failure message, not the custom one, run not called", async () => {
+    const message = vi.fn(firstPath);
+    registerHooks(hookEntry("probe", "probe.broken", () => ({ id: 42 })));
+
+    const result = await runCommand(
+      probeCommand({ input: STRING_ID_INPUT, invalidInputMessage: message }),
+      { id: "kept" },
+      undefined,
+    );
+
+    expect(result).toEqual(FAILURE_RESULT);
+    expect(message).not.toHaveBeenCalled();
+    expect(runSpy).not.toHaveBeenCalled();
+  });
+
+  it("a hook returning invalid input on a command with a custom message still logs the invalid-input CommandError", async () => {
+    registerHooks(hookEntry("probe", "probe.broken", () => ({ id: 42 })));
+
+    await runCommand(
+      probeCommand({ input: STRING_ID_INPUT, invalidInputMessage: firstPath }),
+      { id: "kept" },
+      undefined,
+    );
+
+    expect(mockLogger.error).toHaveBeenCalledTimes(1);
+    const [, details] = mockLogger.error.mock.calls[0] as [
+      string,
+      { err: Error },
+    ];
+    expect(details.err).toBeInstanceOf(CommandError);
+    expect(details.err.message).toBe(
+      "before hooks returned invalid input for probe.delete",
+    );
+  });
+
+  it("valid input never calls the custom message and runs", async () => {
+    const message = vi.fn(firstPath);
+
+    const result = await runCommand(
+      probeCommand({ input: STRING_ID_INPUT, invalidInputMessage: message }),
+      { id: "kept" },
+      undefined,
+    );
+
+    expect(result).toEqual({ success: true });
+    expect(message).not.toHaveBeenCalled();
+    expect(runInputs()).toStrictEqual([{ id: "kept" }]);
+  });
+
+  it("service mode without a confirmation wins over invalid input: the custom message is not used", async () => {
+    mockGetOrgContext.mockImplementation(async () => serviceContext());
+    const message = vi.fn(firstPath);
+
+    const result = await runCommand(
+      probeCommand({ input: STRING_ID_INPUT, invalidInputMessage: message }),
+      { id: 1 },
+      undefined,
+    );
+
+    expect(result).toEqual(SERVICE_MODE_ERROR);
+    expect(message).not.toHaveBeenCalled();
+  });
+
+  it('"global-admin" without an admin wins over invalid input: deniedMessage, not the custom message', async () => {
+    mockGetAdminUserOrNull.mockResolvedValue(null);
+    const message = vi.fn(firstPath);
+
+    const result = await runCommand(
+      probeCommand({
+        access: "global-admin",
+        deniedMessage: DENIED,
+        input: STRING_ID_INPUT,
+        invalidInputMessage: message,
+      }),
+      { id: 1 },
+      undefined,
+    );
+
+    expect(result).toEqual(DENIED_RESULT);
+    expect(message).not.toHaveBeenCalled();
+  });
+
+  it("invalid input on a command with a denied permission returns the custom message", async () => {
+    const result = await runCommand(
+      probeCommand({
+        input: STRING_ID_INPUT,
+        invalidInputMessage: firstPath,
+        permission: "probe.manage",
+        deniedMessage: DENIED,
+      }),
+      { id: 1 },
+      undefined,
+    );
+
+    expect(result).toEqual({ success: false, error: "first: id" });
   });
 });

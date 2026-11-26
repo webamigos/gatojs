@@ -137,7 +137,11 @@ async function execute(
   assertServiceModeConfirmed(sessionCtx, confirmation);
   const parsed = command.input.safeParse(input);
   if (!parsed.success) {
-    return { success: false, error: command.failureMessage };
+    return {
+      success: false,
+      error:
+        command.invalidInputMessage?.(parsed.error) ?? command.failureMessage,
+    };
   }
   if (
     command.permission !== undefined &&

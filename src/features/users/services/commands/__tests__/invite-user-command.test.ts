@@ -51,8 +51,15 @@ vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next-intl/server", () => ({ getLocale: vi.fn(async () => "pl") }));
+vi.mock("@/i18n/routing", () => ({
+  redirect: vi.fn(() => {
+    throw new Error("NEXT_REDIRECT");
+  }),
+}));
 vi.mock("@/shared/lib/audit", () => ({ trackAudit: mockTrackAudit }));
 vi.mock("@/modules.generated", () => ({
+  moduleCommandHooks: [],
   moduleEvents: [],
   moduleSubscribers: [
     {
@@ -238,10 +245,7 @@ describe("inviteUserCommand", () => {
         }),
       }),
     );
-    expect(mockPrisma.user.update).toHaveBeenCalledWith({
-      where: { id: "new-user-1" },
-      data: { emailVerified: true },
-    });
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
     expect(mockCreateWelcomeUrl).toHaveBeenCalledWith("new-user-1");
     expect(mockSendWelcomeEmail).toHaveBeenCalledWith({
       to: validInput.email,

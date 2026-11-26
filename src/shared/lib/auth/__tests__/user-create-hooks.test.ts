@@ -80,6 +80,28 @@ const createdUser = {
   updatedAt: new Date("2026-11-26T00:00:00.000Z"),
 } as Parameters<AfterUserCreate>[0];
 
+type BeforeUserCreate = NonNullable<
+  NonNullable<
+    NonNullable<
+      NonNullable<typeof auth.options.databaseHooks>["user"]
+    >["create"]
+  >["before"]
+>;
+
+function beforeUserCreate(): BeforeUserCreate {
+  const before = auth.options.databaseHooks?.user?.create?.before;
+  if (!before) {
+    throw new Error("databaseHooks.user.create.before is missing");
+  }
+  return before;
+}
+
+function createdUserData(): Record<string, unknown>[] {
+  return mockPrisma.user.create.mock.calls.map(
+    ([args]) => (args as { data: Record<string, unknown> }).data,
+  );
+}
+
 function afterUserCreate(): AfterUserCreate {
   const after = auth.options.databaseHooks?.user?.create?.after;
   if (!after) {
@@ -468,5 +490,168 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
         payload: { userId: "user-new", email: "jan@example.com" },
       },
     ]);
+  });
+});
+
+const unverifiedUser = {
+  email: "jan@example.com",
+  name: "Jan",
+  emailVerified: false,
+  image: null,
+  createdAt: new Date("2026-11-26T00:00:00.000Z"),
+  updatedAt: new Date("2026-11-26T00:00:00.000Z"),
+} as unknown as Parameters<BeforeUserCreate>[0];
+
+describe("databaseHooks.user.create.before: email verified only for an admin invite", () => {
+  it("the hook called inside withInviteSignup returns the same user fields with emailVerified: true", async () => {
+    const result = await withInviteSignup(async () =>
+      beforeUserCreate()(unverifiedUser, null),
+    );
+
+    expect(result).toEqual({
+      data: {
+        email: "jan@example.com",
+        name: "Jan",
+        emailVerified: true,
+        image: null,
+        createdAt: new Date("2026-11-26T00:00:00.000Z"),
+        updatedAt: new Date("2026-11-26T00:00:00.000Z"),
+      },
+    });
+  });
+
+  it("the hook called outside withInviteSignup does not mark the user verified", async () => {
+    const result = await beforeUserCreate()(unverifiedUser, null);
+
+    expect([
+      undefined,
+      {
+        data: {
+          email: "jan@example.com",
+          name: "Jan",
+          emailVerified: false,
+          image: null,
+          createdAt: new Date("2026-11-26T00:00:00.000Z"),
+          updatedAt: new Date("2026-11-26T00:00:00.000Z"),
+        },
+      },
+    ]).toContainEqual(result);
+  });
+
+  it("the hook called after a finished invite scope does not mark the user verified", async () => {
+    await withInviteSignup(async () =>
+      beforeUserCreate()(unverifiedUser, null),
+    );
+
+    const result = await beforeUserCreate()(unverifiedUser, null);
+
+    expect([
+      undefined,
+      {
+        data: {
+          email: "jan@example.com",
+          name: "Jan",
+          emailVerified: false,
+          image: null,
+          createdAt: new Date("2026-11-26T00:00:00.000Z"),
+          updatedAt: new Date("2026-11-26T00:00:00.000Z"),
+        },
+      },
+    ]).toContainEqual(result);
+  });
+
+  it("signUpEmail inside withInviteSignup creates the user with emailVerified: true and the given email and name", async () => {
+    mockEnv.AUTH_PUBLIC_SIGNUP = false;
+    mockPrisma.invitation.findFirst.mockResolvedValue(INVITATION);
+
+    await withInviteSignup(() =>
+      auth.api.signUpEmail({
+        body: { ...signupBody, invitationId: "inv-1" } as typeof signupBody,
+      }),
+    );
+
+    expect(createdUserData()).toEqual([
+      expect.objectContaining({
+        email: "jan@example.com",
+        name: "Jan",
+        emailVerified: true,
+      }),
+    ]);
+  });
+
+  it("a public signUpEmail creates the user with emailVerified: false", async () => {
+    mockPrisma.organization.findFirst.mockResolvedValue({ id: "org-only" });
+
+    await auth.api.signUpEmail({ body: signupBody });
+
+    expect(createdUserData()).toEqual([
+      expect.objectContaining({
+        email: "jan@example.com",
+        emailVerified: false,
+      }),
+    ]);
+  });
+
+  it("a public signUpEmail with an invitation creates the user with emailVerified: false", async () => {
+    mockEnv.AUTH_PUBLIC_SIGNUP = false;
+    mockPrisma.invitation.findFirst.mockResolvedValue(INVITATION);
+
+    await auth.api.signUpEmail({
+      body: { ...signupBody, invitationId: "inv-1" } as typeof signupBody,
+    });
+
+    expect(createdUserData()).toEqual([
+      expect.objectContaining({
+        email: "jan@example.com",
+        emailVerified: false,
+      }),
+    ]);
+  });
+
+  it("a public signUpEmail with forged emailVerified, inviteSignup and isInviteSignup body fields and an x-invite-signup header creates the user with emailVerified: false", async () => {
+    mockEnv.AUTH_PUBLIC_SIGNUP = false;
+    mockPrisma.invitation.findFirst.mockResolvedValue(INVITATION);
+
+    await auth.api.signUpEmail({
+      body: {
+        ...signupBody,
+        invitationId: "inv-1",
+        emailVerified: true,
+        inviteSignup: true,
+        isInviteSignup: true,
+      } as typeof signupBody,
+      headers: new Headers({ "x-invite-signup": "1" }),
+    });
+
+    expect(createdUserData()).toEqual([
+      expect.objectContaining({
+        email: "jan@example.com",
+        emailVerified: false,
+      }),
+    ]);
+  });
+
+  it("a public signUpEmail running concurrently with an invite scope stays unverified while the invited user is verified", async () => {
+    mockPrisma.invitation.findFirst.mockResolvedValue(INVITATION);
+    mockPrisma.organization.findFirst.mockResolvedValue({ id: "org-only" });
+
+    await Promise.all([
+      withInviteSignup(() =>
+        auth.api.signUpEmail({
+          body: { ...signupBody, invitationId: "inv-1" } as typeof signupBody,
+        }),
+      ),
+      auth.api.signUpEmail({
+        body: { ...signupBody, name: "Ewa", email: "ewa@example.com" },
+      }),
+    ]);
+
+    const byEmail = Object.fromEntries(
+      createdUserData().map((data) => [data.email, data.emailVerified]),
+    );
+    expect(byEmail).toEqual({
+      "jan@example.com": true,
+      "ewa@example.com": false,
+    });
   });
 });
