@@ -245,10 +245,7 @@ describe("inviteUserCommand", () => {
         }),
       }),
     );
-    expect(mockPrisma.user.update).toHaveBeenCalledWith({
-      where: { id: "new-user-1" },
-      data: { emailVerified: true },
-    });
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
     expect(mockCreateWelcomeUrl).toHaveBeenCalledWith("new-user-1");
     expect(mockSendWelcomeEmail).toHaveBeenCalledWith({
       to: validInput.email,

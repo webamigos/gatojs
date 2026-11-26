@@ -225,6 +225,32 @@ describe("users.invite: a before hook changes the input", () => {
     expect(emitted).toEqual([]);
   });
 
+  it("a hook returning the comma-joined role admin,owner fails with the generic message and touches nothing", async () => {
+    registerHook((input) => ({ ...input, role: "admin,owner" }));
+
+    const result = await inviteUserCommand(validInput);
+
+    expect(result).toEqual(FAILURE);
+    expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.invitation.create).not.toHaveBeenCalled();
+    expect(mockAuthApi.signUpEmail).not.toHaveBeenCalled();
+    expectNoDatabaseAccess();
+    expect(emitted).toEqual([]);
+  });
+
+  it("a hook returning the comma-joined role member,member fails with the generic message and touches nothing", async () => {
+    registerHook((input) => ({ ...input, role: "member,member" }));
+
+    const result = await inviteUserCommand(validInput);
+
+    expect(result).toEqual(FAILURE);
+    expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.invitation.create).not.toHaveBeenCalled();
+    expect(mockAuthApi.signUpEmail).not.toHaveBeenCalled();
+    expectNoDatabaseAccess();
+    expect(emitted).toEqual([]);
+  });
+
   it("a hook adding organizationId of another organization still invites into the context's organization", async () => {
     registerHook((input) => ({ ...input, organizationId: "org-2" }));
 
@@ -553,13 +579,26 @@ describe("users.invite: users.invited is emitted only after a successful run", (
     expect(timeline).toEqual(["mail", "event"]);
   });
 
-  it("a failed email verification fails the invite and emits nothing", async () => {
+  it("a user update that would fail does not affect the invite: it succeeds and emits users.invited once", async () => {
     mockPrisma.user.update.mockRejectedValue(new Error("db down"));
 
     const result = await inviteUserCommand(validInput);
 
-    expect(result).toEqual(FAILURE);
-    expect(emitted).toEqual([]);
+    expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    expect(emitted).toEqual([
+      {
+        name: "users.invited",
+        organizationId: "org-1",
+        actorUserId: "admin-1",
+        serviceMode: false,
+        payload: {
+          invitationId: "inv-1",
+          email: "jan@firma.pl",
+          role: "member",
+        },
+      },
+    ]);
   });
 
   it("a failed invitation write fails the invite and emits nothing", async () => {
