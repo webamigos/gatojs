@@ -881,7 +881,20 @@ describe("adminCreate: seed hooks", () => {
     expect(steps).toEqual(["event:org-2", "seed:org-2"]);
   });
 
-  it("runs the seed hooks for the joined oldest organization, without an event", async () => {
+  it("creating the first organization on an empty database seeds it once, right after organizations.created", async () => {
+    const r = await adminCreate({ email: "a@x.pl", ...yes });
+
+    expect(r).toMatchObject({
+      createdOrganization: true,
+      organizationId: "org-2",
+    });
+    expect(setupHooks.seed.mock.calls).toStrictEqual([
+      [{ organizationId: "org-2" }],
+    ]);
+    expect(steps).toEqual(["event:org-2", "seed:org-2"]);
+  });
+
+  it("joining the existing oldest organization does not seed it and emits no event", async () => {
     db.orgs.push({
       id: "org-old",
       name: "Stara",
@@ -889,19 +902,40 @@ describe("adminCreate: seed hooks", () => {
       createdAt: new Date(0),
     });
 
-    await adminCreate({ email: "c@x.pl", ...yes });
+    const r = await adminCreate({ email: "c@x.pl", ...yes });
 
-    expect(steps).toEqual(["seed:org-old"]);
-    expect(setupHooks.seed.mock.calls).toStrictEqual([
-      [{ organizationId: "org-old" }],
-    ]);
+    expect(r).toMatchObject({
+      createdOrganization: false,
+      organizationId: "org-old",
+    });
+    expect(setupHooks.seed).not.toHaveBeenCalled();
+    expect(steps).toEqual([]);
   });
 
-  it("a second run seeds the same organization again", async () => {
+  it("a second admin joining the organization the first one created does not seed it again", async () => {
     await adminCreate({ email: "a@x.pl", ...yes });
-    await adminCreate({ email: "a@x.pl", ...yes });
+    const second = await adminCreate({ email: "b@x.pl", ...yes });
 
-    expect(steps).toEqual(["event:org-2", "seed:org-2", "seed:org-2"]);
+    expect(second).toMatchObject({
+      createdOrganization: false,
+      organizationId: "org-2",
+    });
+    expect(setupHooks.seed.mock.calls).toStrictEqual([
+      [{ organizationId: "org-2" }],
+    ]);
+    expect(steps).toEqual(["event:org-2", "seed:org-2"]);
+  });
+
+  it("a second run for the same email joins the organization and does not seed again", async () => {
+    await adminCreate({ email: "a@x.pl", ...yes });
+    const second = await adminCreate({ email: "a@x.pl", ...yes });
+
+    expect(second).toMatchObject({
+      createdOrganization: false,
+      organizationId: "org-2",
+    });
+    expect(setupHooks.seed).toHaveBeenCalledTimes(1);
+    expect(steps).toEqual(["event:org-2", "seed:org-2"]);
   });
 
   it("does not call onOrganizationCreated itself", async () => {

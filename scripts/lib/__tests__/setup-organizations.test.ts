@@ -203,3 +203,63 @@ describe("setupOrganizationsCommand errors", () => {
     expect(run).not.toHaveBeenCalled();
   });
 });
+
+describe("setupOrganizationsCommand empty option values", () => {
+  it("--organization with an empty value is an error with exit 1 and touches nothing", async () => {
+    await expect(
+      setupOrganizationsCommand(["--organization", ""], deps()),
+    ).resolves.toBe(1);
+    expect(error.mock.calls).toEqual([
+      ["--organization needs a non-empty organization id"],
+    ]);
+    expect(missing).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it("--organization= with an empty inline value is an error with exit 1 and touches nothing", async () => {
+    await expect(
+      setupOrganizationsCommand(["--organization="], deps()),
+    ).resolves.toBe(1);
+    expect(error.mock.calls).toEqual([
+      ["--organization needs a non-empty organization id"],
+    ]);
+    expect(missing).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it("--check with an empty --organization is an error with exit 1 and lists nothing", async () => {
+    await expect(
+      setupOrganizationsCommand(["--check", "--organization", ""], deps()),
+    ).resolves.toBe(1);
+    expect(error.mock.calls).toEqual([
+      ["--organization needs a non-empty organization id"],
+    ]);
+    expect(missing).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it("--module with an empty value is an error with exit 1 and runs nothing", async () => {
+    await expect(
+      setupOrganizationsCommand(["--module", ""], deps()),
+    ).resolves.toBe(1);
+    expect(error.mock.calls).toEqual([
+      ["--module needs a non-empty module key"],
+    ]);
+    expect(run).not.toHaveBeenCalled();
+    expect(missing).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it("--check with an empty --module is an error with exit 1 and lists nothing", async () => {
+    await expect(
+      setupOrganizationsCommand(["--check", "--module="], deps()),
+    ).resolves.toBe(1);
+    expect(error.mock.calls).toEqual([
+      ["--module needs a non-empty module key"],
+    ]);
+    expect(missing).not.toHaveBeenCalled();
+  });
+});

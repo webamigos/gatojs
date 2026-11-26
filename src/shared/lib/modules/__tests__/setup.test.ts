@@ -895,6 +895,19 @@ describe("missingOrganizationSetups", () => {
     expect(error).toBeInstanceOf(OrganizationSetupError);
     expect((error as Error).message).toBe("Organization org-x not found");
   });
+
+  it("an empty organization id reads only the organization with id empty and throws Organization  not found", async () => {
+    const error = await missingOrganizationSetups({
+      organizationId: "",
+      modules: [notesEntry()],
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(OrganizationSetupError);
+    expect((error as Error).message).toBe("Organization  not found");
+    expect(
+      mockPrisma.organization.findMany.mock.calls[0][0].where,
+    ).toStrictEqual({ id: "" });
+  });
 });
 
 describe("runMissingOrganizationSetups", () => {
@@ -1036,6 +1049,20 @@ describe("runMissingOrganizationSetups", () => {
     );
     expect(notesHook).not.toHaveBeenCalled();
     expect(mockPrisma.organizationModuleSetup.upsert).not.toHaveBeenCalled();
+  });
+
+  it("an empty organization id rejects with OrganizationSetupError and runs nothing", async () => {
+    const notesHook = recordingHook("notes");
+
+    await expect(
+      runMissingOrganizationSetups({
+        organizationId: "",
+        modules: [notesEntry(notesHook)],
+      }),
+    ).rejects.toThrow(new OrganizationSetupError("Organization  not found"));
+    expect(notesHook).not.toHaveBeenCalled();
+    expect(mockPrisma.organizationModuleSetup.upsert).not.toHaveBeenCalled();
+    expect(db.rows).toEqual([]);
   });
 });
 

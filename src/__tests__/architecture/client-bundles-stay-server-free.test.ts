@@ -470,6 +470,40 @@ describe("findServerImportsInClient", () => {
     ).toEqual([]);
   });
 
+  it("a static import of a feature's setup.ts in a client file is a violation", () => {
+    expect(
+      findServerImportsInClient(
+        client('import { setup } from "@/features/notes/setup";'),
+      ),
+    ).toEqual(["@/features/notes/setup"]);
+  });
+
+  it("a dynamic import of a feature's setup.ts alone in a client file is a violation", () => {
+    expect(
+      findServerImportsInClient(
+        client('export const load = () => import("@/features/notes/setup");'),
+      ),
+    ).toEqual(["@/features/notes/setup"]);
+  });
+
+  it("a type-only import from a feature's setup.ts in a client file is allowed", () => {
+    expect(
+      findServerImportsInClient(
+        client('import type { setup } from "@/features/notes/setup";'),
+      ),
+    ).toEqual([]);
+  });
+
+  it("names that only look like a feature's setup.ts are not server modules", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import { a } from "@/features/notes/setup-table";\nimport { b } from "@/features/notes/components/setup";',
+        ),
+      ),
+    ).toEqual([]);
+  });
+
   it("the same command imports without use client are not violations", () => {
     expect(
       findServerImportsInClient(
@@ -662,6 +696,20 @@ describe("checkClientBundles", () => {
       "src/features/invoices/components/archive-button.tsx: @/shared/lib/commands/run-command",
       "src/features/invoices/components/archive-button.tsx: @/shared/lib/commands/define-command",
       "src/features/invoices/components/archive-button.tsx: @/features/invoices/command-hooks",
+    ]);
+  });
+
+  it("reports a client component importing a feature's setup.ts", () => {
+    write(
+      "src/features/notes/components/notes-panel.tsx",
+      client('import { setup } from "@/features/notes/setup";'),
+    );
+    write(
+      "src/features/notes/setup.ts",
+      "export const setup = { onOrganizationCreated: async () => {} };",
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/notes/components/notes-panel.tsx: @/features/notes/setup",
     ]);
   });
 
