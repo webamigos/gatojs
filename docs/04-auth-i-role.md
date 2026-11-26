@@ -71,7 +71,8 @@ W aplikacji jest jedna instancja better-auth: `auth` z `src/shared/lib/auth/inde
 | `session.cookieCache` | `enabled: true`, `maxAge: 60 * 5` | Cookie cache przez 5 minut. |
 | plugin `admin` | `defaultRole` `user`, `adminRoles` `admin` i `superadmin`, role z `createAdminRoles` | Rola globalna i uprawnienia endpointów `/admin/*` ([Referencja](#referencja-uprawnienia)). |
 | plugin `organization` | `allowUserToCreateOrganization` zwraca `MULTI_ORG`, `sendInvitationEmail` | Tworzenie organizacji tylko przy `MULTI_ORG=true`. Mail z linkiem `<APP_URL>/accept-invitation/<id>`. |
-| `authPlugins` | z `src/modules.generated.ts` | Pluginy z plików `auth.ts` feature ([02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#rejestr-modulow)). |
+| `eventsPlugin` | `src/shared/lib/auth/events-plugin.ts`, id `gato-events`, zaraz po `organization(...)` | Po endpointach `/organization/create`, `invite-member`, `cancel-invitation`, `accept-invitation`, `update-member-role` i `remove-member` emituje zdarzenia domenowe rdzenia ([05-moduly-rdzenia.md](05-moduly-rdzenia.md#plugin-zdarzen-auth)). |
+| `authPlugins` | z `src/modules.generated.ts` | Pluginy z plików `auth.ts` feature ([02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#rejestr-modulow)). Żaden moduł kitu nie ma już `auth.ts`. |
 
 Kit nie ustawia czasu życia sesji, więc obowiązują wartości domyślne better-auth 1.7.27: sesja wygasa po 7 dniach, a jej termin przesuwa się przy użyciu, gdy od ostatniego przedłużenia minął dzień (`sessionConfig` w `node_modules/better-auth/dist/context/create-context.mjs`).
 
@@ -213,7 +214,7 @@ Kit zaprasza na dwa sposoby: przyciskiem „Zaproś użytkownika” i formularze
 4. Sprawdzenie, że konta z tym adresem nie ma.
 5. Zaproszenie w aktywnej organizacji, ważne 48 godzin.
 6. `auth.api.signUpEmail` z losowym hasłem, `invitationId` i nagłówkami żądania admina. Rejestracja przechodzi przez tę samą bramkę co formularz, więc nowe konto dołącza do organizacji z rolą z zaproszenia, a zaproszenie dostaje `accepted`. Gdy rejestracja się nie uda, komenda usuwa zaproszenie i zwraca „Nie udało się zaprosić użytkownika”.
-7. `trackAudit` ze zdarzeniem `member.invited` (`entityId` = id zaproszenia, `newData: { email, role }`, autor i `serviceMode` z `auditActor(context)`). Komenda nie przechodzi przez endpoint `/organization/invite-member`, więc plugin `audit-logs` tego zaproszenia nie widzi. Wpis ma czas późniejszy niż `invitation.accepted` z rejestracji ([13-modul-audit-logs.md](13-modul-audit-logs.md#zdarzenia)).
+7. `emitEvent` ze zdarzeniem `users.invited` (`invitationId`, `email`, `role`; organizacja, autor i `serviceMode` z `eventOrigin(context)`). Wpis `member.invited` w dzienniku zapisuje z niego subskrybent modułu `audit-logs`, jeden na zaproszenie; bez modułu wpisu nie ma. Komenda nie przechodzi przez endpoint `/organization/invite-member`, więc plugin zdarzeń auth tego zaproszenia nie widzi. Wpis ma czas późniejszy niż `invitation.accepted` z rejestracji ([13-modul-audit-logs.md](13-modul-audit-logs.md#zdarzenia)).
 8. Adres konta zostaje oznaczony jako potwierdzony.
 9. `createWelcomeSetPasswordUrl` zapisuje token i buduje link, a mailer wysyła mail powitalny. Błąd maila nie cofa zaproszenia: komenda zwraca sukces z ostrzeżeniem `mail-failed`, a interfejs pokazuje „Zaproszenie utworzone, ale nie udało się wysłać maila z linkiem do ustawienia hasła. Poproś użytkownika o reset hasła.”.
 

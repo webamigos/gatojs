@@ -158,6 +158,8 @@ Funkcja projektu, która ma działać w projektach z modułem i bez niego (na pr
 
 Rdzeń postępuje tak samo: `joinOrganizationCommand` i `enterOrganizationCommand` wołają `trackAudit` bez sprawdzania, czy moduł jest w projekcie.
 
+Wyjątek to pięć wpisów organizacji (`member.invited`, `invitation.canceled`, `invitation.accepted`, `member.role_changed`, `member.removed`): rdzeń nie woła dla nich `trackAudit`, tylko emituje zdarzenia domenowe (`users.invited`, `users.invitation-canceled`, `users.invitation-accepted`, `organizations.member-role-changed`, `organizations.member-removed`), a wpisy robią z nich subskrybenci modułu ([Zdarzenia](13-modul-audit-logs.md#zdarzenia)). Bez modułu nikt ich nie zapisuje, nawet przy własnym `audit-sink.ts` projektu; funkcja projektu, która chce je mieć w swoim ujściu, subskrybuje te zdarzenia we własnym `subscribers.ts` ([05](05-moduly-rdzenia.md#zdarzenia)).
+
 <a id="bezpieczenstwo"></a>
 
 ## Bezpieczeństwo i izolacja organizacji
