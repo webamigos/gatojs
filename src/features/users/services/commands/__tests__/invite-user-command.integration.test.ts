@@ -16,6 +16,7 @@ const { recordedEvents, currentHeaders, domainEvents, subscriberEntries } =
 vi.mock("@/modules.generated", async () => ({
   env: (await import("@gatojs/env")).createEnv([]),
   authPlugins: [],
+  moduleCommandHooks: [],
   moduleEvents: [],
   auditSinks: [
     async (event: AuditEvent) => {

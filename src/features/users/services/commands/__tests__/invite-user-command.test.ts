@@ -53,6 +53,7 @@ vi.mock("next/headers", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/shared/lib/audit", () => ({ trackAudit: mockTrackAudit }));
 vi.mock("@/modules.generated", () => ({
+  moduleCommandHooks: [],
   moduleEvents: [],
   moduleSubscribers: [
     {
