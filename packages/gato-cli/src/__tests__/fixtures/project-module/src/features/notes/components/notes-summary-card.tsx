@@ -1,15 +1,17 @@
-import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
+import { getOrgContext } from "@/shared/lib/auth/org-context";
 
 interface NotesSummaryCardProps {
   organizationId: string;
 }
 
-export default function NotesSummaryCard({
+export default async function NotesSummaryCard({
   organizationId,
 }: NotesSummaryCardProps) {
-  const t = useTranslations("notes");
+  const { orgRole } = await getOrgContext();
+  const t = await getTranslations("notes");
   return (
-    <section data-organization-id={organizationId}>
+    <section data-organization-id={organizationId} data-org-role={orgRole}>
       <h2 className="text-lg font-semibold">{t("summary")}</h2>
     </section>
   );
