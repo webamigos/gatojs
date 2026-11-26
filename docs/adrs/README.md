@@ -40,3 +40,4 @@ An ADR is not edited after it is accepted, except to fix a mistake or to add "Su
 | [60](60-project-configuration-is-applied-by-the-generated-registries.md) | Project configuration lives in `src/gato.config.ts` and is applied by the generated registries when they load | Accepted |
 | [64](64-production-mail-needs-a-configured-provider-or-explicit-console.md) | Production mail needs a configured provider or an explicit `console`, not Resend specifically | Accepted (supersedes the production `RESEND_API_KEY` rule of D17 and the note in D18) |
 | [65](65-the-self-hosted-stack-is-a-core-compose-file-with-module-regions.md) | The self-hosted stack is a core Compose file with module regions, and it has no mail relay | Accepted |
+| [67](67-projects-publish-their-own-multi-arch-image.md) | Projects publish their own multi-arch image to GHCR with `docker-publish.yml`; Railway is configured in the dashboard, not with `railway.json` | Accepted |

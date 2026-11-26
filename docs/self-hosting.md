@@ -37,6 +37,8 @@ The TLS examples and the upgrade path have not been run (not verified).
 | [TLS](#tls) | written, examples not run |
 | [Back up](#back-up) and [restore](#restore) | written, verified 2026-11-25 |
 | [Upgrade](#upgrade) | written |
+| [Published images](#published-images) | written, not run (the first publish happens on `main` after merge) |
+| [Railway](#railway) | written, not deployed |
 | [Prove nothing leaves the machine](#prove-nothing-leaves-the-machine) | placeholder until the egress check (self-hosting Task 7) |
 
 ## What runs
@@ -44,7 +46,7 @@ The TLS examples and the upgrade path have not been run (not verified).
 | Service | Image | What it does |
 | --- | --- | --- |
 | `db` | `postgres:16` | The database, in the named volume `postgres-data`. No published port. |
-| `migrate` | the app image (`build: .`) | `prisma migrate deploy` once per start, after `db` is healthy. |
+| `migrate` | the app image (`build: .`, or a published one from `APP_IMAGE`) | `prisma migrate deploy` once per start, after `db` is healthy. |
 | `app` | the app image | The Next.js server on port 3000 inside, `${APP_PORT:-3000}` on the host. Starts after `migrate` exits 0. Healthcheck on `/api/healthcheck`. Files in the named volume `uploads`. |
 | `tools` | the `builder` stage | Profile `tools`, for one-off commands such as `npm run admin:create`. |
 | `minio`, `minio-init` | from the `uploads` module | Profile `s3`: a self-hosted S3 store and its bucket. Only in projects with `uploads`. |
@@ -285,6 +287,133 @@ before the backup.
    `migrate` runs first and `app` starts only after it exits 0. If `migrate` fails, `up` stops with an error: read
    `dc logs migrate`, do not run `prisma migrate reset`, and restore the backup if the database is half-migrated.
    Whether the old `app` container keeps serving meanwhile has not been checked (not verified).
+
+## Published images
+
+Every project has `.github/workflows/docker-publish.yml`. It builds the `Dockerfile` natively on amd64 and arm64 and
+pushes one multi-arch image to the GitHub Container Registry (GHCR) of the repository, so staging, production and a
+rollback run the same tested image instead of a build on each host. The decision is
+[ADR-67](adrs/67-projects-publish-their-own-multi-arch-image.md).
+
+| Event | Tags on `ghcr.io/<owner>/<repo>` |
+| --- | --- |
+| Push to `main` | `edge`, `sha-<short commit>` |
+| Push of a tag `v1.2.3` | `1.2.3`, `1.2`, `latest` |
+| "Run workflow" (`workflow_dispatch`) without a version | `edge` (on `main`), `sha-<short commit>` |
+| "Run workflow" or `workflow_call` with `version: 1.2.3` | `1.2.3`, `1.2`, `latest` |
+
+- The image name is the repository name in lower case (GHCR rejects upper case). Pull requests never publish.
+- The workflow uses `GITHUB_TOKEN` only. Each platform image carries SBOM and provenance attestations
+  (`sbom: true`, `provenance: mode=max`), and the multi-arch image gets a signed GitHub attestation, except in a
+  private repository: GitHub signs attestations for private repositories only on Enterprise Cloud, so the step is
+  skipped there.
+- In the GatoJS repository, `release.yml` calls the workflow with the released version after semantic-release, because
+  the release tag points at a `[skip ci]` commit and starts no workflow. `ghcr.io/webamigos/gatojs` is a demo image and
+  the input of the egress check, not something a project deploys.
+
+### Pulling the image on a host
+
+A new package is listed under the repository's (or organization's) "Packages". If it is private, either make it
+public in its "Package settings" ("Change visibility"), or log the host in with a token that can read it: a personal
+access token (classic) with the `read:packages` scope.
+
+```bash
+echo "$GHCR_TOKEN" | docker login ghcr.io -u <github user> --password-stdin
+```
+
+### Deploying a published image in the self-hosted stack
+
+`migrate` and `app` use `image: ${APP_IMAGE:-wa-app:local}`. Pin a version in `.env.selfhost` (the commented
+`APP_IMAGE` line in `.env.selfhost.example`) and start without building:
+
+```bash
+# .env.selfhost
+APP_IMAGE=ghcr.io/<owner>/<repo>:1.2.3
+```
+
+```bash
+dc pull migrate app
+dc up -d --wait --no-build
+```
+
+`migrate` still runs `prisma migrate deploy` from the new image before `app` starts. The server needs the project
+checkout only for the Compose file and `.env.selfhost`; the `tools` profile (`admin:create`) still builds from it.
+Pin an exact version (`1.2.3`), not `latest` or `edge`, so a restart never changes the code.
+
+- **Upgrade:** back up ([Back up](#back-up)), change `APP_IMAGE` to the new version, then the two commands above.
+- **Rollback:** set `APP_IMAGE` back to the previous version. Migrations only go forward: when the newer version
+  migrated the database, restore the backup taken before the upgrade ([Restore](#restore)) together with the old
+  version.
+
+### Checking an image
+
+```bash
+docker buildx imagetools inspect ghcr.io/<owner>/<repo>:1.2.3
+gh attestation verify oci://ghcr.io/<owner>/<repo>:1.2.3 --owner <owner>
+```
+
+The first lists `linux/amd64` and `linux/arm64`; the second checks the signed provenance (public repositories).
+
+## Railway
+
+Railway's "Config as Code" (`railway.json`, `railway.toml`) is deprecated: according to its documentation (fetched
+2026-11-26) new services cannot use it, and existing files stop being read on 2026-12-01. A project therefore enters
+the deployment settings in the Railway dashboard ([ADR-67](adrs/67-projects-publish-their-own-multi-arch-image.md)).
+`railway.toml` stays in the repository only as a record of the values. Nothing in this section was deployed (not
+verified); the Polish runbook [10-wdrozenie.md](10-wdrozenie.md#pierwsze-wdrozenie) has more detail on the
+migration log and on accounts.
+
+### Service settings
+
+| Setting | Value |
+| --- | --- |
+| Pre-deploy command | `node_modules/.bin/prisma migrate deploy` |
+| Healthcheck path | `/api/healthcheck` |
+| Restart policy | On failure, at most 3 retries |
+| Start command | empty (the image runs `node server.js`) |
+| Config file path | empty; a path to `railway.json`/`railway.toml` can make Railway reject the deployment |
+
+The pre-deploy command applies the committed migrations ([Requirements](#requirements)); without it the database
+gets no tables.
+
+### (a) Build from the repository (default)
+
+1. Create a project with a PostgreSQL database service and a service connected to the GitHub repository. Railway
+   builds the `Dockerfile` on every push to the connected branch.
+2. Enter the [service settings](#service-settings) above.
+3. Set the [variables](#variables).
+
+### (b) Deploy the published image
+
+1. Create the service from a Docker image: `ghcr.io/<owner>/<repo>:1.2.3`. For a private package, add registry
+   credentials in the service's source settings (a GitHub user and a classic token with `read:packages`), or make the
+   package public ([Pulling the image](#pulling-the-image-on-a-host)).
+2. Enter the same [service settings](#service-settings) and [variables](#variables).
+3. Deploy a new version by changing the image tag; roll back by setting the previous tag (with the database caveat
+   from [Rollback](#deploying-a-published-image-in-the-self-hosted-stack)).
+
+### Variables
+
+- `DATABASE_URL`: a reference to the database service, `${{Postgres.DATABASE_URL}}`.
+- `BETTER_AUTH_SECRET` (`openssl rand -base64 32`) and `APP_URL` (the `https://` domain from the service's networking
+  settings).
+- Mail: `EMAIL_FROM` plus `SMTP_HOST` (and its port, user and password) or `RESEND_API_KEY`, or `MAIL_PROVIDER=console`
+  ([Mail](#mail)).
+- Files (`uploads`): a Railway volume mounted at `/app/volumes/uploads` with `STORAGE_PROVIDER=local` and
+  `STORAGE_LOCAL_PATH=/app/volumes/uploads` (one replica only), or `STORAGE_PROVIDER=s3` with a preset from the
+  [preset table](15-modul-uploads.md#presety-s3) for more replicas.
+- Module secrets such as `API_KEY_PEPPER` and `ENCRYPTION_MASTER_KEY`, generated as in [Install](#1-write-the-environment).
+
+### First administrator
+
+From a checkout of the project, with the Railway CLI linked to the service. `railway run` runs the script on your
+machine with the service's variables, so it needs the database's public address:
+
+```bash
+railway run sh -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" npm run admin:create -- --email admin@example.com'
+```
+
+`DATABASE_PUBLIC_URL` must be a variable of the app service (a reference to `${{Postgres.DATABASE_PUBLIC_URL}}`).
 
 ## Prove nothing leaves the machine
 
