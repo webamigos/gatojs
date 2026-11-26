@@ -6,7 +6,8 @@ After reading this you will know:
 - how to configure `ENCRYPTION_MASTER_KEY` locally, in CI and in production, and what stops the server at startup;
 - the envelope format and why it is pinned by a fixed vector;
 - how `encryptForOrganization` and `decryptForOrganization` use a data key per organization;
-- what happens when the master key changes or an organization is deleted.
+- what happens when the master key changes or an organization is deleted;
+- what moving the data to another environment needs.
 
 Verified against the code: branch `feat/module-encryption`, 2026-11-23.
 
@@ -27,7 +28,7 @@ Sources:
 A module that stores sensitive text (tokens of an integration, notes a customer must not see in a database dump)
 encrypts it before writing and decrypts it after reading. Each organization has its own data key, so a payload
 of one organization cannot be decrypted with another organization's key, and deleting an organization makes its
-payloads unreadable.
+payloads unreadable in the live database ([Deleting an organization](#delete-organization)).
 
 The module adds no UI, no route and no Compose service. It adds:
 
@@ -144,12 +145,35 @@ Rules:
 ## Data keys
 
 One `OrganizationDataKey` row per organization (`organizationId` is unique), created on the first encryption.
-When two requests encrypt for a new organization at once, both write with `upsert` and an empty `update`, so both
-use the row that was stored first. Every query filters by `organizationId`, and the tenant-scope guard rejects one
-that does not.
+Every query filters by `organizationId`, and the tenant-scope guard rejects one that does not.
+
+When two requests encrypt for a new organization at once, both generate a key and write it with `upsert` and an
+empty `update`. Prisma 7 does not turn that upsert into `INSERT … ON CONFLICT` on PostgreSQL: it reads, then inserts,
+so the slower request fails on the unique `organizationId` with `P2002` (checked on Prisma 7.10.1 and PostgreSQL 16,
+2026-11-25). `encryptForOrganization` catches `P2002`, reads the stored row again and encrypts with it, so every
+concurrent first call ends up on the key that was stored first. When that read finds no row, the `P2002` error is
+thrown; any other error is thrown unchanged.
+
+<a id="delete-organization"></a>
+
+### Deleting an organization
 
 The row is deleted with its organization (`onDelete: Cascade`), which makes that organization's payloads
-permanently unreadable.
+unreadable in the live database. It does not reach backups: a database dump taken before the deletion still holds
+the wrapped data key next to the payloads, and anyone with that dump and `ENCRYPTION_MASTER_KEY` can decrypt them.
+To make the data unrecoverable, expire or destroy those backups as well (or give up the master key, which loses
+every other organization's data too).
+
+<a id="move-environment"></a>
+
+### Moving data to another environment
+
+A data key is stored wrapped under the master key, so the database alone is not enough. To move the data to
+another environment (a restore on a new server, a copy into staging), set the same `ENCRYPTION_MASTER_KEY` there;
+with another key every stored data key fails to unwrap ([Changing the master key](#master-key-change)). The
+`api-keys` module has the same rule for `API_KEY_PEPPER`: keys are stored as HMAC-SHA256 hashes keyed with the pepper,
+so with another pepper no existing API key authenticates ([14](14-modul-api-keys.md#pepper)). Keep both secrets with every backup of the
+database.
 
 <a id="master-key-change"></a>
 
@@ -172,6 +196,6 @@ new master key) is a follow-up.
 | Probe fails for an unusable provider | `packages/crypto/src/__tests__/probe.test.ts` |
 | Env rules, production example value | `src/features/encryption/__tests__/env.test.ts`, `src/__tests__/instrumentation.test.ts` |
 | Own key per organization, other organization's payload fails, random IV | `src/features/encryption/services/__tests__/organization-encryption.test.ts` |
-| Two organizations on a real database, concurrent first use, cascade delete | `services/__tests__/organization-encryption.integration.test.ts` |
+| Two organizations on a real database, 10 concurrent first encryptions, cascade delete | `services/__tests__/organization-encryption.integration.test.ts` |
 
 `packages/crypto/src/` and `src/features/encryption/services/` are critical files in `mutation-gate.json`.

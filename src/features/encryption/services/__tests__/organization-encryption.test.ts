@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Prisma } from "@/generated/prisma/client";
 
 const MASTER_KEY_HEX =
   "c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf";
@@ -34,6 +35,11 @@ const { mockEnv, store } = vi.hoisted(() => ({
     upsertCalls: [] as UpsertArgs[],
     hiddenFromNextFindUnique: new Set<string>(),
     failFindUnique: null as Error | null,
+    failUpsert: null as {
+      error: Error;
+      rowStoredByAnotherWriter: StoredDataKey | null;
+    } | null,
+    findUniqueCallsBeforeUpsert: null as number | null,
   },
 }));
 
@@ -57,6 +63,17 @@ vi.mock("@/shared/lib/prisma", () => ({
       },
       upsert: async (args: UpsertArgs) => {
         store.upsertCalls.push(args);
+        store.findUniqueCallsBeforeUpsert = store.findUniqueCalls.length;
+        if (store.failUpsert) {
+          const { error, rowStoredByAnotherWriter } = store.failUpsert;
+          if (rowStoredByAnotherWriter) {
+            store.rows.set(
+              rowStoredByAnotherWriter.organizationId,
+              rowStoredByAnotherWriter,
+            );
+          }
+          throw error;
+        }
         const organizationId = args.where.organizationId;
         if (typeof organizationId !== "string") {
           throw new Error("upsert without an organizationId filter");
@@ -95,6 +112,29 @@ function seedFixedKey(organizationId: string): void {
   });
 }
 
+function rowWithFixedKey(organizationId: string): StoredDataKey {
+  return {
+    id: `other-writer-${organizationId}`,
+    organizationId,
+    wrappedKey: WRAPPED_DATA_KEY,
+    createdAt: new Date("2026-11-25T09:00:00.000Z"),
+  };
+}
+
+function knownRequestError(code: string): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError(
+    "Unique constraint failed on the fields: (`organization_id`)",
+    { code, clientVersion: "7.4.2" },
+  );
+}
+
+function findUniqueCallsAfterUpsert(): Array<Record<string, unknown>> {
+  if (store.findUniqueCallsBeforeUpsert === null) {
+    throw new Error("upsert was not called");
+  }
+  return store.findUniqueCalls.slice(store.findUniqueCallsBeforeUpsert);
+}
+
 function fixedDataKey(): Buffer {
   return Buffer.from(DATA_KEY_HEX, "hex");
 }
@@ -106,6 +146,8 @@ beforeEach(() => {
   store.upsertCalls.length = 0;
   store.hiddenFromNextFindUnique.clear();
   store.failFindUnique = null;
+  store.failUpsert = null;
+  store.findUniqueCallsBeforeUpsert = null;
 });
 
 describe("encryptForOrganization", () => {
@@ -282,6 +324,78 @@ describe("encryptForOrganization", () => {
     );
     expect(store.findUniqueCalls).toEqual([]);
     expect(store.upsertCalls).toEqual([]);
+  });
+});
+
+describe("encryptForOrganization when the first write races another writer", () => {
+  it("uses the row another writer stored when the upsert hits the unique constraint", async () => {
+    store.failUpsert = {
+      error: knownRequestError("P2002"),
+      rowStoredByAnotherWriter: rowWithFixedKey(ORG_A),
+    };
+    const { encryptForOrganization, decryptContent } = await loadFresh();
+
+    const ciphertext = await encryptForOrganization(ORG_A, "lost the race");
+
+    expect(decryptContent(ciphertext, fixedDataKey())).toBe("lost the race");
+    expect(store.upsertCalls).toHaveLength(1);
+    expect(store.rows.size).toBe(1);
+    expect(store.rows.get(ORG_A)?.wrappedKey).toBe(WRAPPED_DATA_KEY);
+    expect(findUniqueCallsAfterUpsert()).toEqual([{ organizationId: ORG_A }]);
+  });
+
+  it("re-reads only the given organization's row after the unique constraint error", async () => {
+    store.rows.set(ORG_B, {
+      id: "row-of-b",
+      organizationId: ORG_B,
+      wrappedKey: Buffer.alloc(60, 7).toString("base64"),
+      createdAt: new Date("2026-11-20T00:00:00.000Z"),
+    });
+    store.failUpsert = {
+      error: knownRequestError("P2002"),
+      rowStoredByAnotherWriter: rowWithFixedKey(ORG_A),
+    };
+    const { encryptForOrganization, decryptContent } = await loadFresh();
+
+    const ciphertext = await encryptForOrganization(ORG_A, "own row");
+
+    expect(decryptContent(ciphertext, fixedDataKey())).toBe("own row");
+    expect(store.rows.size).toBe(2);
+    expect(findUniqueCallsAfterUpsert()).toEqual([{ organizationId: ORG_A }]);
+  });
+
+  it("rethrows the same unique constraint error when the re-read finds no row", async () => {
+    const error = knownRequestError("P2002");
+    store.failUpsert = { error, rowStoredByAnotherWriter: null };
+    const { encryptForOrganization } = await loadFresh();
+
+    await expect(encryptForOrganization(ORG_A, "x")).rejects.toBe(error);
+    expect(store.rows.size).toBe(0);
+    expect(findUniqueCallsAfterUpsert()).toEqual([{ organizationId: ORG_A }]);
+  });
+
+  it("propagates a known database error with another code without re-reading", async () => {
+    const error = knownRequestError("P2003");
+    store.failUpsert = {
+      error,
+      rowStoredByAnotherWriter: rowWithFixedKey(ORG_A),
+    };
+    const { encryptForOrganization } = await loadFresh();
+
+    await expect(encryptForOrganization(ORG_A, "x")).rejects.toBe(error);
+    expect(findUniqueCallsAfterUpsert()).toEqual([]);
+  });
+
+  it("propagates a plain error from the upsert without re-reading", async () => {
+    const error = new Error("connection reset");
+    store.failUpsert = {
+      error,
+      rowStoredByAnotherWriter: rowWithFixedKey(ORG_A),
+    };
+    const { encryptForOrganization } = await loadFresh();
+
+    await expect(encryptForOrganization(ORG_A, "x")).rejects.toBe(error);
+    expect(findUniqueCallsAfterUpsert()).toEqual([]);
   });
 });
 
