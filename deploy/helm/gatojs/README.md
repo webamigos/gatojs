@@ -10,18 +10,18 @@ section "Kubernetes (Helm)".
 
 ## Values
 
-| Value | Default | Meaning |
-| --- | --- | --- |
-| `existingSecret` | `""` (required) | A Secret read with `envFrom` by the app and the migrate Job: `DATABASE_URL`, `BETTER_AUTH_SECRET`, the mail secrets and the module secrets. |
-| `env` | `APP_URL`, `MAIL_PROVIDER`, ... | Non-secret variables, the same names as in `.env.selfhost.example`. Set `APP_URL` to the address users reach. |
-| `image.repository`, `image.tag` | project name, `appVersion` | The image you built and pushed. |
-| `image.pullSecrets` | `[]` | Pull secrets for a private registry. |
-| `storage.provider` | `local` | `local`: uploads on a PVC at `/app/volumes/uploads`, one replica. `s3`: an S3-compatible store (`S3_*` in `env` and the Secret), any number of replicas. |
-| `replicaCount` | `1` | More than one needs `storage.provider=s3`. |
-| `persistence.size`, `.storageClass`, `.accessMode` | `5Gi`, cluster default, `ReadWriteOnce` | The uploads PVC (local storage only). |
-| `ingress.enabled`, `.host`, `.className`, `.annotations`, `.tls` | off | One host routed to the Service. |
-| `migrations.enabled` | `true` | Turn off when migrations run elsewhere. |
-| `resources`, `podSecurityContext`, `securityContext`, `nodeSelector`, `tolerations`, `affinity` | see `values.yaml` | Pod settings. The pod runs as UID 1001, the `nextjs` user of the image. |
+| Value                                                                                           | Default                                 | Meaning                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `existingSecret`                                                                                | `""` (required)                         | A Secret read with `envFrom` by the app and the migrate Job: `DATABASE_URL`, `BETTER_AUTH_SECRET`, the mail secrets and the module secrets.              |
+| `env`                                                                                           | `APP_URL`, `MAIL_PROVIDER`, ...         | Non-secret variables, the same names as in `.env.selfhost.example`. Set `APP_URL` to the address users reach.                                            |
+| `image.repository`, `image.tag`                                                                 | project name, `appVersion`              | The image you built and pushed.                                                                                                                          |
+| `image.pullSecrets`                                                                             | `[]`                                    | Pull secrets for a private registry.                                                                                                                     |
+| `storage.provider`                                                                              | `local`                                 | `local`: uploads on a PVC at `/app/volumes/uploads`, one replica. `s3`: an S3-compatible store (`S3_*` in `env` and the Secret), any number of replicas. |
+| `replicaCount`                                                                                  | `1`                                     | More than one needs `storage.provider=s3`.                                                                                                               |
+| `persistence.size`, `.storageClass`, `.accessMode`                                              | `5Gi`, cluster default, `ReadWriteOnce` | The uploads PVC (local storage only).                                                                                                                    |
+| `ingress.enabled`, `.host`, `.className`, `.annotations`, `.tls`                                | off                                     | One host routed to the Service.                                                                                                                          |
+| `migrations.enabled`                                                                            | `true`                                  | Turn off when migrations run elsewhere.                                                                                                                  |
+| `resources`, `podSecurityContext`, `securityContext`, `nodeSelector`, `tolerations`, `affinity` | see `values.yaml`                       | Pod settings. The pod runs as UID 1001, the `nextjs` user of the image.                                                                                  |
 
 The chart sets `STORAGE_PROVIDER` (and `STORAGE_LOCAL_PATH` for `local`) itself; setting them in `env` fails the
 render. Helm keeps the uploads PVC after `helm uninstall` (`helm.sh/resource-policy: keep`); delete it by hand when the

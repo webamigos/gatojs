@@ -14,3 +14,4 @@ reports
 .stryker-tmp
 .wa/bin
 .wa/kit.json
+deploy/helm/*/templates
