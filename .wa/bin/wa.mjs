@@ -944,7 +944,8 @@ var SUPPORTED_KIT_FORMATS = [
   6,
   7,
   8,
-  9
+  9,
+  10
 ];
 function assertSupportedKitFormat(format) {
   if (!SUPPORTED_KIT_FORMATS.includes(format)) {
@@ -20855,6 +20856,9 @@ function configImports(options, helpers) {
     helpers: helpers.length === 0 ? [] : [`import { ${helpers.join(", ")} } from "${GATO_CONFIG_MODULE}";`]
   };
 }
+function setupEntry(module) {
+  return `{ module: "${module.name}", version: "${module.version}", value: ${identifier(module.name, "Setup")} }`;
+}
 function slotsImport(module) {
   return `import * as ${identifier(module.name, "Slots")} from "@/features/${module.name}/slots";`;
 }
@@ -20892,6 +20896,7 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
   const withCommandHooks = modules.filter((m) => m.hasCommandHooks);
   const withSlots = modules.filter((m) => m.hasSlots);
   const withClientSlots = modules.filter((m) => m.hasClientSlots);
+  const withSetup = modules.filter((m) => m.hasSetup);
   const withComponents = modules.filter((m) => m.hasComponents);
   const loadersByLocale = locales.map((locale) => ({
     locale,
@@ -20907,7 +20912,7 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
     usedHelpers({
       applyGatoConfig: withModule.length > 0,
       enabledEntries: withEnv.length > 0 || withAuth.length > 0 || withAuditSink.length > 0 || loadersByLocale.some(({ loaders }) => loaders.length > 0),
-      enabledModuleEntries: withSubscribers.length > 0,
+      enabledModuleEntries: withSubscribers.length > 0 || withSetup.length > 0,
       gatoBrandingOf: false
     })
   );
@@ -20940,6 +20945,9 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
     ...withCommandHooks.map(
       (m) => `import { commandHooks as ${identifier(m.name, "CommandHooks")} } from "@/features/${m.name}/command-hooks";`
     ),
+    ...withSetup.map(
+      (m) => `import { setup as ${identifier(m.name, "Setup")} } from "@/features/${m.name}/setup";`
+    ),
     ...withSlots.map(slotsImport),
     ...withClientSlots.map(clientSlotsImport),
     "",
@@ -20968,6 +20976,7 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
       withSubscribers.map((m) => entry(m, identifier(m.name, "Subscribers")))
     ),
     `export const moduleCommandHooks = commandHookRegistry({ modules: ${array2(withModule.map((m) => identifier(m.name, "Module")))}, hooks: ${array2(withCommandHooks.map((m) => entry(m, identifier(m.name, "CommandHooks"))))} }, gatoConfig);`,
+    enabledModuleList("moduleSetups", withSetup.map(setupEntry)),
     `export const moduleSlots = slotRegistry({ slots: ${namespaceEntries(withSlots, "Slots")}, clientSlots: ${namespaceEntries(withClientSlots, "ClientSlots")} }, gatoConfig);`,
     "export const env = createEnv(moduleEnvSchemas);",
     "",
@@ -21045,7 +21054,7 @@ async function exists(path2) {
     return false;
   }
 }
-async function detectFeature(projectDir, name, configuredLocales) {
+async function detectFeature(projectDir, name, version2, configuredLocales) {
   const base = join4(projectDir, "src", "features", name);
   const locales = [];
   for (const locale of configuredLocales) {
@@ -21065,14 +21074,16 @@ async function detectFeature(projectDir, name, configuredLocales) {
     hasCommandHooks: await exists(join4(base, "command-hooks.ts")),
     hasSlots: await exists(join4(base, "slots.ts")),
     hasClientSlots: await exists(join4(base, "client-slots.ts")),
+    hasSetup: await exists(join4(base, "setup.ts")),
+    version: version2,
     hasComponents: await exists(join4(base, "components.ts")),
     locales
   };
 }
-async function featureEntries(projectDir, files, configuredLocales) {
+async function featureEntries(projectDir, manifests, configuredLocales) {
   const seen = /* @__PURE__ */ new Set();
   const entries = [];
-  for (const globs of files) {
+  for (const { files: globs, version: version2 } of manifests) {
     const names = [
       ...new Set(
         globs.map((glob) => FEATURE_GLOB.exec(glob)?.[1]).filter((n) => !!n)
@@ -21083,7 +21094,12 @@ async function featureEntries(projectDir, files, configuredLocales) {
         continue;
       }
       seen.add(name);
-      const entry2 = await detectFeature(projectDir, name, configuredLocales);
+      const entry2 = await detectFeature(
+        projectDir,
+        name,
+        version2,
+        configuredLocales
+      );
       entries.push(entry2);
     }
   }
@@ -21092,11 +21108,7 @@ async function featureEntries(projectDir, files, configuredLocales) {
 async function generate(projectDir) {
   const state = await readKitState(projectDir);
   const manifests = registeredModules(state);
-  const features = await featureEntries(
-    projectDir,
-    manifests.map((m) => m.files),
-    state.locales
-  );
+  const features = await featureEntries(projectDir, manifests, state.locales);
   const registry2 = renderRegistry(features, state.locales, {
     hasGatoConfig: await exists(join4(projectDir, GATO_CONFIG_FILE))
   });
@@ -21421,7 +21433,15 @@ ${collisions.map((file2) => `  ${file2}`).join("\n")}`
     }
   }
   log(`npx prisma migrate dev --name add-${module}`);
-  return { added: toAdd.map((manifest) => manifest.name) };
+  const added = toAdd.map((manifest) => manifest.name);
+  for (const name of added) {
+    if (existsSync(join7(projectDir, "src", "features", name, "setup.ts"))) {
+      log(
+        `Existing organizations did not run ${name}'s setup: npm run setup:organizations -- --module ${name}`
+      );
+    }
+  }
+  return { added };
 }
 async function addFromSource(options) {
   const state = await readKitState(options.projectDir);
@@ -24963,7 +24983,7 @@ function cliDependency(input2) {
 }
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.12.0" };
+var identity = { name: "wa", version: "0.13.0" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);

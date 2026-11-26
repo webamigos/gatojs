@@ -213,7 +213,7 @@ flowchart TD
 7. **`git init`**, gdy nie podano `--no-git`.
 8. **`npm install`**, gdy nie podano `--no-install`. `npm install` dopasowuje lockfile do `package.json` projektu. Z `--no-install` `package-lock.json` ma do pierwszej instalacji zależności całego kitu.
 9. **Pierwszy commit** `chore: initial commit from wa-kit v<wersja>`, z `--no-verify`, czyli bez hooków husky, tylko po `npm install`. Z `--no-install` CLI robi samo `git init`, bo pierwsza instalacja zmieniłaby zacommitowany lockfile i `wa update` odmówiłby pracy na brudnym drzewie; commit robisz po `npm install` (kolejne kroki). Nieudany commit (na przykład brak `user.name` albo `user.email`) nie przerywa komendy: CLI wypisuje `Uwaga: nie utworzono commita (<powód>). Skonfiguruj git i zrób commit ręcznie.`
-10. **Setup** (z `--setup` albo po odpowiedzi „t”): `docker compose up -d --wait`, `npx prisma migrate dev --name init` i, jeśli podano adres, `npm run admin:create -- --email <adres>`. Nieudany krok kończy komendę błędem `Project created at <ścieżka>, but the setup failed (<powód>). Continue with:` z listą kroków do uruchomienia; projekt i pierwszy commit zostają.
+10. **Setup** (z `--setup` albo po odpowiedzi „t”): `docker compose up -d --wait`, `npx prisma migrate dev --name init` i, jeśli podano adres, `npm run admin:create -- --email <adres>`. Ten `admin:create` tworzy pierwszą organizację, więc woła hooki `seed` modułów; kolejne `admin:create` dołączające do istniejącej organizacji ich nie wołają ([Konfiguracja organizacji](09-nowy-modul.md#konfiguracja-organizacji)). Nieudany krok kończy komendę błędem `Project created at <ścieżka>, but the setup failed (<powód>). Continue with:` z listą kroków do uruchomienia; projekt i pierwszy commit zostają.
 11. **Kolejne kroki.** Bez setupu CLI wypisuje `cd <ścieżka>`, `docker compose up -d`, `npx prisma migrate dev --name init`, `npm run admin:create -- --email <adres albo <your-email>>` i `npm run dev`. Z `--no-install` po `cd` dochodzi `npm install`, a z gitem także `git add -A && git commit -m "chore: initial commit"`. Po setupie tylko `cd <ścieżka>` i `npm run dev`, także wtedy, gdy setup pominął `admin:create` z braku adresu; pierwsze konto założysz wtedy sam ([01-uruchomienie.md](01-uruchomienie.md#admin-create)).
 
 <a id="create-cofanie"></a>
@@ -309,6 +309,7 @@ flowchart TD
     copy --> generate["wa generate"]
     generate --> install["npm install"]
     install --> hint["podpowiedź migracji"]
+    hint --> setupHint["podpowiedź setup:organizations"]
 ```
 
 1. **`.wa/kit.json`.** Brak pliku daje `Brak .wa/kit.json w <katalog> — to nie jest projekt wa-kit`. Plik, który nie przechodzi walidacji, daje błąd walidacji ([Referencja](#referencja-komunikaty)).
@@ -320,7 +321,8 @@ flowchart TD
 7. **Kolizje.** Jeśli na ścieżce któregokolwiek pliku z zestawu coś już jest (plik, katalog albo symlink, także wiszący), komenda kończy się błędem `Pliki już istnieją, przerwano bez zmian:` z alfabetyczną listą ścieżek i niczego nie zmienia (sprawdzone). CLI nie nadpisuje plików projektu.
 8. **Kopiowanie** z placeholderami według nazw z `.wa/kit.json` projektu, z hashami plików; dopisanie zależności npm do `package.json`; zapis `.wa/kit.json`.
 9. **`wa generate`**, potem `npm install` (bez `--no-install`).
-10. **Podpowiedź migracji:** ostatnia linia wyjścia to `npx prisma migrate dev --name add-<moduł>`, z nazwą z argumentu, także gdy CLI dodało moduły z `requires`. Migrację tworzysz i commitujesz sam ([03b](03b-schemat-i-migracje.md#migracje-w-projekcie)).
+10. **Podpowiedź migracji:** linia `npx prisma migrate dev --name add-<moduł>`, z nazwą z argumentu, także gdy CLI dodało moduły z `requires`. Migrację tworzysz i commitujesz sam ([03b](03b-schemat-i-migracje.md#migracje-w-projekcie)).
+11. **Podpowiedź konfiguracji organizacji** (od `gato-cli` 0.13.0): dla każdego dodanego modułu (także z `requires`, w kolejności dodawania), który ma w projekcie `src/features/<moduł>/setup.ts`, linia `Existing organizations did not run <moduł>'s setup: npm run setup:organizations -- --module <moduł>`. Organizacje utworzone przed dodaniem modułu nie wykonały jego `onOrganizationCreated`; uruchom komendę po migracji ([Konfiguracja organizacji](09-nowy-modul.md#konfiguracja-organizacji)). Bez takich modułów ostatnią linią zostaje podpowiedź migracji.
 
 Przebieg w projekcie `acme-app` z modułem `uploads` (sprawdzone, domyślne źródło, wyjście skrócone):
 
@@ -341,6 +343,7 @@ Zmienione pliki: nowe pliki modułu (`prisma/schema/api-keys.prisma`, `src/featu
 2. **Migracja:** `npx prisma migrate dev --name add-<moduł>` przy działającej bazie, potem commit migracji.
 3. **Usługi:** moduł z `compose` dodaje usługi do `docker-compose.yml`. Usługi `uploads` `0.2.0` (`minio`, `minio-init`) mają profil `s3`: uruchamiasz je przez `docker compose --profile s3 up -d` tylko przy `STORAGE_PROVIDER=s3`, a przy `local` niczego nie uruchamiasz ([15-modul-uploads.md](15-modul-uploads.md#minio)).
 4. Bez `npm install` w trakcie `add` (`--no-install`) zainstaluj zależności sam.
+5. **Organizacje:** po podpowiedzi `Existing organizations did not run …` uruchom po migracji `npm run setup:organizations -- --module <moduł>`.
 
 <a id="add-zaleznosci"></a>
 

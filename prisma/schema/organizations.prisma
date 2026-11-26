@@ -7,8 +7,9 @@ model Organization {
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime? @updatedAt @map("updated_at")
 
-  members     Member[]
-  invitations Invitation[]
+  members      Member[]
+  invitations  Invitation[]
+  moduleSetups OrganizationModuleSetup[]
 
   // wa:relations:start
   apiKeys ApiKey[]
@@ -51,4 +52,17 @@ model Invitation {
   @@index([organizationId])
   @@index([inviterId])
   @@map("invitations")
+}
+
+model OrganizationModuleSetup {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  moduleKey      String   @map("module_key")
+  moduleVersion  String   @map("module_version")
+  finishedAt     DateTime @map("finished_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, moduleKey])
+  @@map("organization_module_setups")
 }
