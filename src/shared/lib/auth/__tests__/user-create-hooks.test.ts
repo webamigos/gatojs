@@ -54,7 +54,7 @@ vi.mock("@/modules.generated", async (importOriginal) => ({
 }));
 
 import { auth } from "../index";
-import type * as InviteSignupScope from "../invite-signup-scope";
+import { withInviteSignup } from "../invite-signup-scope";
 
 const signupBody = {
   name: "Jan",
@@ -287,15 +287,8 @@ const INVITATION = {
   role: "admin",
 };
 
-const INVITE_SIGNUP_SCOPE_MODULE = "../invite-signup-scope";
-
-async function inviteSignupScope(): Promise<typeof InviteSignupScope> {
-  return import(INVITE_SIGNUP_SCOPE_MODULE);
-}
-
 describe("databaseHooks.user.create.after: admin invite scope", () => {
   it("a sign-up inside withInviteSignup emits no auth.signed-up and still creates the invitation's membership", async () => {
-    const { withInviteSignup } = await inviteSignupScope();
     mockEnv.AUTH_PUBLIC_SIGNUP = false;
     mockPrisma.invitation.findFirst.mockResolvedValue(INVITATION);
 
@@ -319,8 +312,6 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
   });
 
   it("the hook called directly inside withInviteSignup with a join membership emits nothing and still writes the membership", async () => {
-    const { withInviteSignup } = await inviteSignupScope();
-
     await withInviteSignup(() =>
       afterUserCreate()(createdUser, {
         signupMembership: {
@@ -343,7 +334,6 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
   });
 
   it("a public sign-up after a finished invite scope emits auth.signed-up again", async () => {
-    const { withInviteSignup } = await inviteSignupScope();
     mockEnv.AUTH_PUBLIC_SIGNUP = false;
     mockPrisma.invitation.findFirst.mockResolvedValue(INVITATION);
     await withInviteSignup(() =>
@@ -371,7 +361,6 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
   });
 
   it("a public sign-up running concurrently with an invite scope still emits its own auth.signed-up", async () => {
-    const { withInviteSignup } = await inviteSignupScope();
     mockPrisma.invitation.findFirst.mockResolvedValue(INVITATION);
     mockPrisma.organization.findFirst.mockResolvedValue({ id: "org-only" });
     mockPrisma.user.create.mockImplementation(

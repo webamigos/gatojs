@@ -32,8 +32,6 @@ const { emitted, timeline, failingSubscriber, scopeInSubscriber } = vi.hoisted(
   }),
 );
 
-const INVITE_SIGNUP_SCOPE_MODULE = "@/shared/lib/auth/invite-signup-scope";
-
 vi.mock("@/shared/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/shared/lib/auth/helpers", () => ({
   getAdminUserOrNull: () => mockGetAdminUserOrNull(),
@@ -82,11 +80,8 @@ vi.mock("@/modules.generated", async (importOriginal) => ({
           },
           {
             id: "probe.scope",
-            run: async () => {
-              const scope = (await import(
-                INVITE_SIGNUP_SCOPE_MODULE
-              )) as typeof InviteSignupScope;
-              scopeInSubscriber.push(scope.isInviteSignup());
+            run: () => {
+              scopeInSubscriber.push(isInviteSignup());
             },
           },
         ],
@@ -96,7 +91,7 @@ vi.mock("@/modules.generated", async (importOriginal) => ({
 }));
 
 import { revalidatePath } from "next/cache";
-import type * as InviteSignupScope from "@/shared/lib/auth/invite-signup-scope";
+import { isInviteSignup } from "@/shared/lib/auth/invite-signup-scope";
 import { inviteUserCommand } from "../invite-user-command";
 
 const WELCOME_URL =
@@ -144,10 +139,6 @@ beforeEach(() => {
   failingSubscriber.enabled = false;
   scopeInSubscriber.length = 0;
 });
-
-async function inviteSignupScope(): Promise<typeof InviteSignupScope> {
-  return import(INVITE_SIGNUP_SCOPE_MODULE);
-}
 
 function expectNoDatabaseAccess() {
   expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
@@ -732,7 +723,6 @@ describe("inviteUserCommand", () => {
     });
 
     it("isInviteSignup() is true while auth.api.signUpEmail runs, also after an await inside it", async () => {
-      const { isInviteSignup } = await inviteSignupScope();
       const seen: boolean[] = [];
       mockAuthApi.signUpEmail.mockImplementation(async () => {
         seen.push(isInviteSignup());
@@ -748,8 +738,6 @@ describe("inviteUserCommand", () => {
     });
 
     it("isInviteSignup() is false after a successful invitation", async () => {
-      const { isInviteSignup } = await inviteSignupScope();
-
       const result = await inviteUserCommand(validInput);
 
       expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
@@ -757,7 +745,6 @@ describe("inviteUserCommand", () => {
     });
 
     it("isInviteSignup() is false after a failed account registration", async () => {
-      const { isInviteSignup } = await inviteSignupScope();
       const seen: boolean[] = [];
       mockAuthApi.signUpEmail.mockImplementation(async () => {
         seen.push(isInviteSignup());
@@ -775,8 +762,6 @@ describe("inviteUserCommand", () => {
     });
 
     it("the users.invited subscribers run outside the invite scope", async () => {
-      await inviteSignupScope();
-
       await inviteUserCommand(validInput);
 
       expect(emitted).toHaveLength(1);
@@ -784,7 +769,6 @@ describe("inviteUserCommand", () => {
     });
 
     it("the existing-email check, the invitation write and the welcome mail run outside the invite scope", async () => {
-      const { isInviteSignup } = await inviteSignupScope();
       const seen: Record<string, boolean> = {};
       mockPrisma.user.findUnique.mockImplementation(async () => {
         seen.findUnique = isInviteSignup();
