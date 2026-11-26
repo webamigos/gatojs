@@ -19,9 +19,21 @@ export interface SlotContextMap {
   "app.header.actions": { organizationId: string };
 }
 
-export type SlotId = keyof SlotContextMap & string;
+// WHY: empty in the core; a host module adds its client slots here by declaration merging.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface ClientSlotContextMap {}
 
-export type SlotContext<Id extends SlotId> = SlotContextMap[Id];
+export type ServerSlotId = keyof SlotContextMap & string;
+
+export type ClientSlotId = keyof ClientSlotContextMap & string;
+
+export type SlotId = ServerSlotId | ClientSlotId;
+
+export type SlotContext<Id extends SlotId> = Id extends ServerSlotId
+  ? SlotContextMap[Id]
+  : Id extends ClientSlotId
+    ? ClientSlotContextMap[Id]
+    : never;
 
 export interface SlotDefinition {
   id: string;
@@ -81,8 +93,16 @@ export const coreSlotDefinitions: readonly SlotDefinition[] = [
   { id: "app.header.actions", kind: "server" },
 ];
 
-export function defineSlot<Id extends SlotId>(
+export function defineSlot<Id extends ServerSlotId>(
   id: Id,
+  options: { kind: "server" },
+): SlotDefinition;
+export function defineSlot<Id extends ClientSlotId>(
+  id: Id,
+  options: { kind: "client" },
+): SlotDefinition;
+export function defineSlot(
+  id: string,
   options: { kind: SlotKind },
 ): SlotDefinition {
   return { id, kind: options.kind };
@@ -280,6 +300,18 @@ function structuralProblems(
   ];
 }
 
+function priorityProblems(
+  path: string,
+  override: GatoSlotOverride | null,
+): string[] {
+  if (override === null || Number.isFinite(override.priority)) {
+    return [];
+  }
+  return [
+    `${path}.priority: must be a finite number: ${String(override.priority)}`,
+  ];
+}
+
 export function slotConfigProblems(
   input: SlotRegistryInput,
   config: GatoConfig,
@@ -294,19 +326,17 @@ export function slotConfigProblems(
       if (!isDeclared) {
         return [`modules.${key}.slots.${slotId}: unknown slot: ${slotId}`];
       }
-      return Object.keys(overrides)
-        .filter(
-          (contributionId) =>
-            !contributions.some(
-              ({ contribution }) =>
-                contribution.slot === slotId &&
-                contribution.id === contributionId,
-            ),
-        )
-        .map(
-          (contributionId) =>
-            `modules.${key}.slots.${slotId}.${contributionId}: unknown contribution: ${contributionId}`,
+      return Object.entries(overrides).flatMap(([contributionId, override]) => {
+        const path = `modules.${key}.slots.${slotId}.${contributionId}`;
+        const isKnown = contributions.some(
+          ({ contribution }) =>
+            contribution.slot === slotId && contribution.id === contributionId,
         );
+        if (!isKnown) {
+          return [`${path}: unknown contribution: ${contributionId}`];
+        }
+        return priorityProblems(path, override);
+      });
     }),
   );
 }

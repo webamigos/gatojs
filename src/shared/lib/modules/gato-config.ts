@@ -157,6 +157,15 @@ function coreSlotsConfigProblems(moduleConfig: GatoModuleConfig): string[] {
     );
 }
 
+function reservedKeyProblems(modules: readonly ModuleDef[]): string[] {
+  return modules
+    .filter((moduleDef) => moduleDef.key === CORE_SLOTS_CONFIG_KEY)
+    .map(
+      () =>
+        `modules.${CORE_SLOTS_CONFIG_KEY}: the key ${CORE_SLOTS_CONFIG_KEY} is reserved for core-hosted slots and cannot be a module key`,
+    );
+}
+
 export function gatoConfigProblems(
   modules: readonly ModuleDef[],
   config: GatoConfig,
@@ -173,7 +182,11 @@ export function gatoConfigProblems(
       return moduleProblems(moduleDef, moduleConfig);
     },
   );
-  return [...problems, ...brandingProblems(config)];
+  return [
+    ...reservedKeyProblems(modules),
+    ...problems,
+    ...brandingProblems(config),
+  ];
 }
 
 function isDisabled(config: GatoConfig, key: string): boolean {
