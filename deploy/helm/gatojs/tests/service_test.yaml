@@ -1,0 +1,30 @@
+suite: service
+templates:
+  - service.yaml
+  - deployment.yaml
+tests:
+  - it: renders one Service on port 3000 targeting the http container port
+    set:
+      existingSecret: app-env
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: service.yaml
+      - isKind:
+          of: Service
+        template: service.yaml
+      - equal:
+          path: spec.ports[0].port
+          value: 3000
+        template: service.yaml
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+        template: service.yaml
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http
+            containerPort: 3000
+          any: true
+        template: deployment.yaml

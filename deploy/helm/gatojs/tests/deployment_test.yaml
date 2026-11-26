@@ -1,0 +1,232 @@
+suite: deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: renders one Deployment with one replica by default
+    set:
+      existingSecret: app-env
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: probes readiness on /api/healthcheck
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /api/healthcheck
+
+  - it: probes liveness on /api/healthcheck
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /api/healthcheck
+
+  - it: exposes container port 3000 named http
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 3000
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].name
+          value: http
+
+  - it: reads secrets from the Secret named by existingSecret
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].secretRef.name
+          value: app-env
+
+  - it: takes the envFrom secret name from existingSecret, not a fixed name
+    set:
+      existingSecret: crm-secrets
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].secretRef.name
+          value: crm-secrets
+
+  - it: sets local storage env for the default provider
+    set:
+      existingSecret: app-env
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: STORAGE_LOCAL_PATH
+            value: /app/volumes/uploads
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: STORAGE_PROVIDER
+            value: local
+
+  - it: mounts the uploads volume at /app/volumes/uploads for local storage
+    set:
+      existingSecret: app-env
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /app/volumes/uploads
+          any: true
+
+  - it: renders every default env entry as a string name/value pair
+    set:
+      existingSecret: app-env
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_URL
+            value: https://app.example.com
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MAIL_PROVIDER
+            value: smtp
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AUTH_PUBLIC_SIGNUP
+            value: "false"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MULTI_ORG
+            value: "false"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_LEVEL
+            value: info
+
+  - it: renders an overridden env value
+    set:
+      existingSecret: app-env
+      env.APP_URL: https://crm.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_URL
+            value: https://crm.example.com
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_URL
+            value: https://app.example.com
+
+  - it: builds the image from repository and tag
+    set:
+      existingSecret: app-env
+      image.repository: registry.example.com/crm
+      image.tag: 1.2.3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: registry.example.com/crm:1.2.3
+
+  - it: falls back to the chart appVersion when image.tag is empty
+    set:
+      existingSecret: app-env
+      image.repository: registry.example.com/crm
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: registry.example.com/crm:0.1.0
+
+  - it: uses the Recreate strategy for local storage
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: uses the RollingUpdate strategy for s3 storage
+    set:
+      existingSecret: app-env
+      storage.provider: s3
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+
+  - it: fails without existingSecret
+    asserts:
+      - failedTemplate:
+          errorMessage: "set existingSecret: a Secret with DATABASE_URL, BETTER_AUTH_SECRET and the mail and storage secrets"
+
+  - it: fails when existingSecret is removed from values
+    set:
+      existingSecret: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "set existingSecret: a Secret with DATABASE_URL, BETTER_AUTH_SECRET and the mail and storage secrets"
+
+  - it: fails with two replicas on local storage
+    set:
+      existingSecret: app-env
+      storage.provider: local
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: storage.provider=local supports one replica; use storage.provider=s3 for more
+
+  - it: runs three replicas on s3 storage without the local path or the uploads mount
+    set:
+      existingSecret: app-env
+      storage.provider: s3
+      replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: STORAGE_PROVIDER
+            value: s3
+      - notExists:
+          path: spec.template.spec.containers[0].env[?(@.name == "STORAGE_LOCAL_PATH")]
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /app/volumes/uploads
+          any: true
+
+  - it: rejects an unknown storage provider
+    set:
+      existingSecret: app-env
+      storage.provider: azure
+    asserts:
+      - failedTemplate:
+          errorMessage: storage.provider must be local or s3, got "azure"
+
+  - it: rejects STORAGE_PROVIDER in env
+    set:
+      existingSecret: app-env
+      env.STORAGE_PROVIDER: s3
+    asserts:
+      - failedTemplate:
+          errorMessage: set storage.provider instead of env.STORAGE_PROVIDER
+
+  - it: rejects STORAGE_LOCAL_PATH in env
+    set:
+      existingSecret: app-env
+      env.STORAGE_LOCAL_PATH: /data
+    asserts:
+      - failedTemplate:
+          errorMessage: set storage.provider instead of env.STORAGE_LOCAL_PATH

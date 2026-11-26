@@ -1,0 +1,76 @@
+suite: migrate job
+templates:
+  - migrate-job.yaml
+tests:
+  - it: renders one Job run before install and upgrade
+    set:
+      existingSecret: app-env
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-install,pre-upgrade
+
+  - it: runs prisma migrate deploy
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - node_modules/.bin/prisma
+            - migrate
+            - deploy
+
+  - it: reads secrets from the Secret named by existingSecret
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].secretRef.name
+          value: app-env
+
+  - it: takes the envFrom secret name from existingSecret, not a fixed name
+    set:
+      existingSecret: crm-secrets
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].secretRef.name
+          value: crm-secrets
+
+  - it: never restarts a failed migration pod
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: spec.template.spec.restartPolicy
+          value: Never
+
+  - it: retries as many times as migrations.backoffLimit
+    set:
+      existingSecret: app-env
+    asserts:
+      - equal:
+          path: spec.backoffLimit
+          value: 1
+
+  - it: runs the app image
+    set:
+      existingSecret: app-env
+      image.repository: registry.example.com/crm
+      image.tag: 1.2.3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: registry.example.com/crm:1.2.3
+
+  - it: renders no Job when migrations are disabled
+    set:
+      existingSecret: app-env
+      migrations.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
