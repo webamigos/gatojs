@@ -18,7 +18,7 @@ services:
       retries: 10
   migrate:
     build: .
-    image: wa-app:local
+    image: ${APP_IMAGE:-wa-app:local}
     command: ["node_modules/.bin/prisma", "migrate", "deploy"]
     env_file: .env.selfhost
     environment: *app-environment
@@ -28,7 +28,7 @@ services:
     restart: "no"
   app:
     build: .
-    image: wa-app:local
+    image: ${APP_IMAGE:-wa-app:local}
     env_file: .env.selfhost
     environment: *app-environment
     depends_on:

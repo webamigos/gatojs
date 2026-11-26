@@ -6,7 +6,7 @@ topics: ['registry', 'generator', 'slots', 'next-build', 'client-bundle']
 
 # A lazy `import()` in a file the client registry imports still ships its target to the browser; server-only contributions go in files only the server registry imports
 
-**In short**: the extensibility spec and plan put each module's `slots.ts` (lazy `() => import("./card")` per contribution) into both generated registries. `src/modules.client.generated.ts` is part of the browser bundle (`app-sidebar.tsx` is `"use client"` and imports it), and the bundler follows a dynamic `import()` too, so a server contribution (an async component calling `getOrgContext()`, `next/headers`, Prisma) would be built for the browser and break `next build`. Task 15 split the files: `slots.ts` goes into the server registry only, `client-slots.ts` into both ([ADR-66](../adrs/66-ui-slots-split-server-and-client-contributions.md)).
+**In short**: the extensibility spec and plan put each module's `slots.ts` (lazy `() => import("./card")` per contribution) into both generated registries. `src/modules.client.generated.ts` is part of the browser bundle (`app-sidebar.tsx` is `"use client"` and imports it), and the bundler follows a dynamic `import()` too, so a server contribution (an async component calling `getOrgContext()`, `next/headers`, Prisma) would be built for the browser and break `next build`. Task 15 split the files: `slots.ts` goes into the server registry only, `client-slots.ts` into both ([ADR-68](../adrs/68-ui-slots-split-server-and-client-contributions.md)).
 
 **Context**: `feat/ui-slots`, 2026-11-26, extensibility plan Task 15. Caught while writing the contract, before any code.
 

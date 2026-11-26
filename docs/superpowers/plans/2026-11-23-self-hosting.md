@@ -422,6 +422,8 @@ Why: `docker-compose.selfhost.yml` and `.env.selfhost.example` are core files (d
 
 **Branch:** `feat/image-publishing` (after Task 6 and Task 8; lane B, no `gato-cli` changes). Added 2026-11-24 by Patryk's decision.
 
+**Changed 2026-11-26 (coordinator):** Railway's Config as Code is deprecated (new services cannot use it; files stop being read on 2026-12-01), so no `railway.json` and no `checkRailwayConfig`; the runbook gives the dashboard settings instead and ADR-67 records why. Follow-ups: `.railway/railway.ts` and removing `railway.toml`. The pull_request issue text is `docker-publish.yml: must not run on pull_request; it pushes images`.
+
 Why: a project built with GatoJS should deploy one tested image to every environment (staging, production, a rollback to the previous tag) instead of rebuilding on each host. GatoJS itself is a framework, so its own image (`ghcr.io/webamigos/gatojs`) is a demo and the input of the egress check, not something a client project deploys. The same workflow file serves both: it names the image after `github.repository`.
 
 **Files:**

@@ -1,5 +1,5 @@
 {
-  "kitVersion": "0.28.0",
+  "kitVersion": "0.29.0",
   "kitRepo": "https://github.com/webamigos/gatojs.git",
   "kitFormat": 7,
   "project": {
@@ -87,10 +87,10 @@
       "files": {}
     },
     "core": {
-      "version": "0.27.0",
+      "version": "0.28.0",
       "manifest": {
         "name": "core",
-        "version": "0.27.0",
+        "version": "0.28.0",
         "description": "GatoJS core: auth, organizations, users, account, dashboard",
         "requires": [],
         "files": [
@@ -105,6 +105,7 @@
           ".env.example",
           ".env.selfhost.example",
           ".github/workflows/ci.yml",
+          ".github/workflows/docker-publish.yml",
           ".github/workflows/e2e.yml",
           ".github/workflows/helm.yml",
           ".github/workflows/mutation.yml",

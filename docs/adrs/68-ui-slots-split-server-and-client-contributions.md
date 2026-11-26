@@ -1,4 +1,4 @@
-# ADR-66: UI slots keep server contributions out of the client registry, and core-hosted slots are configured under `modules.app`
+# ADR-68: UI slots keep server contributions out of the client registry, and core-hosted slots are configured under `modules.app`
 
 **Status:** Accepted (the `modules.app` config shape waits for Patryk's confirmation before release)
 **Date:** 2026-11-26

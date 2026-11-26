@@ -613,7 +613,7 @@ Przed implementacją oba przebiegi są czerwone z powodu `TypeError: … is not 
 
 ## Wkład do slotu UI
 
-Strony GatoJS mają sloty: miejsca, w które moduł projektu wstawia własny komponent bez edycji pliku GatoJS ([ADR-66](adrs/66-ui-slots-split-server-and-client-contributions.md)). Pierwsze trzy to sloty serwerowe:
+Strony GatoJS mają sloty: miejsca, w które moduł projektu wstawia własny komponent bez edycji pliku GatoJS ([ADR-68](adrs/68-ui-slots-split-server-and-client-contributions.md)). Pierwsze trzy to sloty serwerowe:
 
 | Slot | Gdzie | Kontekst (propsy komponentu) | Konfiguracja w `src/gato.config.ts` |
 | --- | --- | --- | --- |

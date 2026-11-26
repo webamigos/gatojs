@@ -378,7 +378,7 @@ Strona startowa po zalogowaniu z treścią zastępczą, którą projekt klienta 
 
 | Adres | Plik | Zawartość |
 | --- | --- | --- |
-| `/dashboard` | `src/app/[locale]/(app)/dashboard/page.tsx` | `requireModuleAccess("dashboard")`, potem `requireUser()`, nagłówek „Dashboard” i slot `dashboard.sections` (`<Slot>` z kontekstem `{ organizationId }`, [ADR-66](adrs/66-ui-slots-split-server-and-client-contributions.md)). Gdy żaden wkład do slotu nie jest widoczny dla użytkownika, slot pokazuje `DashboardPlaceholder` z imieniem użytkownika albo jego adresem, gdy imię jest puste. |
+| `/dashboard` | `src/app/[locale]/(app)/dashboard/page.tsx` | `requireModuleAccess("dashboard")`, potem `requireUser()`, nagłówek „Dashboard” i slot `dashboard.sections` (`<Slot>` z kontekstem `{ organizationId }`, [ADR-68](adrs/68-ui-slots-split-server-and-client-contributions.md)). Gdy żaden wkład do slotu nie jest widoczny dla użytkownika, slot pokazuje `DashboardPlaceholder` z imieniem użytkownika albo jego adresem, gdy imię jest puste. |
 
 Adres `/dashboard` jest wpisany na stałe jako cel przejścia w sześciu miejscach. Kto zmieni adres strony startowej, musi poprawić każde z nich:
 
