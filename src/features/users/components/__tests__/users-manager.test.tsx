@@ -26,6 +26,10 @@ const {
   };
 });
 
+vi.mock("@/modules.client.generated", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/modules.client.generated")>()),
+  clientModuleSlots: [],
+}));
 vi.mock("@/i18n/routing", () => ({
   useRouter: () => stableRouter,
 }));
@@ -81,6 +85,9 @@ function managerElement(users: UserAccountListItem[], viewer: Viewer) {
         currentUserId={viewer.currentUserId}
         currentUserRole={viewer.currentUserRole}
         adminImpersonation={viewer.adminImpersonation}
+        organizationId="org-1"
+        currentOrgRole="member"
+        multiOrg={false}
       />
     </NextIntlClientProvider>
   );

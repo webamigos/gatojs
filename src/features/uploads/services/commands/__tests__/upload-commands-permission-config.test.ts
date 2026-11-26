@@ -89,10 +89,21 @@ vi.mock("@/i18n/routing", () => ({
   }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/modules.generated", () => ({
-  auditSinks: [],
-  modules: [{ key: "uploads", nav: [], routePrefixes: [] }],
-}));
+vi.mock("@/modules.generated", async () => {
+  const { z } = await import("zod");
+  return {
+    auditSinks: [],
+    modules: [{ key: "uploads", nav: [], routePrefixes: [] }],
+    moduleCommandHooks: [],
+    moduleEvents: [
+      {
+        module: "uploads",
+        value: { "uploads.deleted": z.object({ uploadId: z.string() }) },
+      },
+    ],
+    moduleSubscribers: [],
+  };
+});
 vi.mock("@/modules.client.generated", async () => {
   const { applyGatoConfig } = await import("@/shared/lib/modules/gato-config");
   const { default: uploadsModule } = await import("@/features/uploads/module");

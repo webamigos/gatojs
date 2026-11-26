@@ -98,6 +98,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         'import { createEnv } from "@gatojs/env";',
         'import { applyGatoConfig, enabledEntries } from "@/shared/lib/modules/gato-config";',
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         'import alphaModule from "@/features/alpha/module";',
         'import { envSchema as betaEnvSchema } from "@/features/beta/env";',
         "",
@@ -107,6 +108,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [alphaModule], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -208,6 +210,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         'import { createEnv } from "@gatojs/env";',
         'import { enabledModuleEntries } from "@/shared/lib/modules/gato-config";',
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         'import { events as alphaEvents } from "@/features/alpha/events";',
         'import { subscribers as betaSubscribers } from "@/features/beta/subscribers";',
         "",
@@ -217,6 +220,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const auditSinks: never[] = [];",
         'export const moduleEvents = [{ module: "alpha", value: alphaEvents }];',
         'export const moduleSubscribers = enabledModuleEntries([{ module: "beta", value: betaSubscribers }], gatoConfig);',
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -281,6 +285,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         'import { createEnv } from "@gatojs/env";',
         'import { applyGatoConfig } from "@/shared/lib/modules/gato-config";',
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         'import alphaModule from "@/features/alpha/module";',
         'import * as alphaSlots from "@/features/alpha/slots";',
         'import * as alphaClientSlots from "@/features/alpha/client-slots";',
@@ -292,6 +297,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [alphaModule], hooks: [] }, gatoConfig);",
         'export const moduleSlots = slotRegistry({ slots: [{ module: "alpha", value: alphaSlots }], clientSlots: [{ module: "alpha", value: alphaClientSlots }, { module: "beta", value: betaClientSlots }] }, gatoConfig);',
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -322,6 +328,111 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "",
       ].join("\n"),
     );
+  });
+
+  it("a feature with command-hooks.ts enters moduleCommandHooks of the server file only, next to every module.ts identifier", async () => {
+    const dir = await makeProject({
+      alpha: { files: ["src/features/alpha/**"] },
+      beta: { files: ["src/features/beta/**"] },
+      gamma: { files: ["src/features/gamma/**"] },
+    });
+    await put(dir, "src/features/alpha/module.ts", "export default {};");
+    await put(
+      dir,
+      "src/features/alpha/command-hooks.ts",
+      "export const commandHooks = {};",
+    );
+    await put(
+      dir,
+      "src/features/beta/command-hooks.ts",
+      "export const commandHooks = {};",
+    );
+    await put(dir, "src/features/gamma/module.ts", "export default {};");
+    await generate(dir);
+    expect(await read(dir, "src/modules.generated.ts")).toBe(
+      [
+        HEADER,
+        'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
+        'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
+        'import { applyGatoConfig } from "@/shared/lib/modules/gato-config";',
+        'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
+        'import alphaModule from "@/features/alpha/module";',
+        'import gammaModule from "@/features/gamma/module";',
+        'import { commandHooks as alphaCommandHooks } from "@/features/alpha/command-hooks";',
+        'import { commandHooks as betaCommandHooks } from "@/features/beta/command-hooks";',
+        "",
+        "export const modules = applyGatoConfig([alphaModule, gammaModule], gatoConfig);",
+        "export const moduleEnvSchemas: never[] = [];",
+        "export const authPlugins: never[] = [];",
+        "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
+        'export const moduleCommandHooks = commandHookRegistry({ modules: [alphaModule, gammaModule], hooks: [{ module: "alpha", value: alphaCommandHooks }, { module: "beta", value: betaCommandHooks }] }, gatoConfig);',
+        "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
+        "export const env = createEnv(moduleEnvSchemas);",
+        "",
+        "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
+        "",
+        "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
+        "  pl: [],",
+        "};",
+        "",
+      ].join("\n"),
+    );
+    expect(await read(dir, "src/modules.client.generated.ts")).toBe(
+      [
+        HEADER,
+        'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
+        'import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
+        'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
+        'import alphaModule from "@/features/alpha/module";',
+        'import gammaModule from "@/features/gamma/module";',
+        "",
+        "export const authClientPlugins: never[] = [];",
+        "export const clientModules = applyGatoConfig([alphaModule, gammaModule], gatoConfig);",
+        "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
+        "export const gatoBranding = gatoBrandingOf(gatoConfig);",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("files merely named like command-hooks do not register command hooks", async () => {
+    const dir = await makeProject({
+      alpha: { files: ["src/features/alpha/**"] },
+    });
+    await put(dir, "src/features/alpha/module.ts", "export default {};");
+    await put(
+      dir,
+      "src/features/alpha/command-hooks-list.ts",
+      "export const x = 1;",
+    );
+    await put(
+      dir,
+      "src/features/alpha/components/command-hooks.ts",
+      "export const x = 1;",
+    );
+    await put(
+      dir,
+      "src/features/alpha/command-hooks.tsx",
+      "export const x = 1;",
+    );
+    await put(
+      dir,
+      "src/features/alpha/commands-hooks.ts",
+      "export const x = 1;",
+    );
+    await generate(dir);
+    const server = await read(dir, "src/modules.generated.ts");
+    expect(server.split("\n")).toContain(
+      "export const moduleCommandHooks = commandHookRegistry({ modules: [alphaModule], hooks: [] }, gatoConfig);",
+    );
+    expect(server).not.toContain("command-hooks");
+    expect(server).not.toContain("alphaCommandHooks");
   });
 
   it("a feature with only slots.ts keeps the client registry free of it", async () => {
@@ -486,6 +597,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         'import type { Locale } from "@/i18n/config";',
         'import { createEnv } from "@gatojs/env";',
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         "",
         "export const modules: never[] = [];",
         "export const moduleEnvSchemas: never[] = [];",
@@ -493,6 +605,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",

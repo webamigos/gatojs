@@ -19,6 +19,7 @@ export const CLIENT_ENTRY_FILES = [
 
 const SERVER_MODULES = [
   "@/shared/lib/events",
+  "@/shared/lib/commands",
   "@/shared/lib/prisma",
   "@/env",
   "@gatojs/env",
@@ -29,7 +30,8 @@ const SERVER_MODULES = [
   "@/modules.generated",
 ];
 
-const MODULE_SERVER_FILE = /^@\/features\/[^/]+\/(events|subscribers|slots)$/;
+const MODULE_SERVER_FILE =
+  /^@\/features\/[^/]+\/(events|subscribers|slots|command-hooks)$/;
 const FEATURE_SERVICES = /^@\/features\/[^/]+\/services(\/|$)/;
 const FEATURE_COMMANDS = /^@\/features\/[^/]+\/services\/commands(\/|$)/;
 const RELATIVE_SPECIFIER = /^\.\.?\//;

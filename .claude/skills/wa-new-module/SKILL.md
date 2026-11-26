@@ -26,6 +26,7 @@ Moduł nie edytuje plików rdzenia w żadnym z wariantów.
    - każde query i komenda ma test izolacji na prawdziwej bazie (`*.integration.test.ts`, pomocniki w `src/test/integration/`): dwie organizacje, odczyt i zapis z kontekstem jednej nie dotyka drugiej;
    - query w `services/queries/` po `getOrgContext()` albo `requireModuleAccess(key)`, z filtrem `organizationId`;
    - komenda w `services/commands/` z `"use server"`, sygnatura `(input: unknown, confirmation?: unknown)`, `assertServiceModeConfirmed(context, confirmation)` przed Prismą, wynik `OperationResult<T>`;
+   - albo komenda przez `defineCommand` z `src/shared/lib/commands/define-command.ts`, gdy inne moduły mają ją móc zatrzymać hookiem `before`: eksport `(input, confirmation?)` zwraca `runCommand(komenda, input, confirmation)` wprost, a klucz komendy (`<x>.<nazwa>`) trafia do `commands` w `module.ts` ([docs/06-wzorce-kodu.md](../../../docs/06-wzorce-kodu.md#define-command), ADR-62);
    - komponent woła komendę przez `useServiceModeAction().run`;
    - strona w `src/app/[locale]/(app)/<x>/` chroniona `requireModuleAccess(key)`.
 

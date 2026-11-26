@@ -7,6 +7,7 @@ export type RegistryModule = {
   hasAuditSink: boolean;
   hasEvents: boolean;
   hasSubscribers: boolean;
+  hasCommandHooks: boolean;
   hasSlots: boolean;
   hasClientSlots: boolean;
   hasComponents: boolean;
@@ -34,6 +35,7 @@ const PROJECT_CONFIG_IMPORT = 'import gatoConfig from "@/gato.config";';
 const EMPTY_CONFIG_IMPORT = `import { emptyGatoConfig as gatoConfig } from "${GATO_CONFIG_MODULE}";`;
 const SLOTS_MODULE = "@/shared/lib/modules/slots";
 const COMPONENT_OVERRIDES_MODULE = "@/shared/lib/modules/component-overrides";
+const COMMANDS_MODULE = "@/shared/lib/commands/define-command";
 
 type ConfigHelper =
   | "applyGatoConfig"
@@ -127,6 +129,7 @@ export function renderRegistry(
   const withAuditSink = modules.filter((m) => m.hasAuditSink);
   const withEvents = modules.filter((m) => m.hasEvents);
   const withSubscribers = modules.filter((m) => m.hasSubscribers);
+  const withCommandHooks = modules.filter((m) => m.hasCommandHooks);
   const withSlots = modules.filter((m) => m.hasSlots);
   const withClientSlots = modules.filter((m) => m.hasClientSlots);
   const withComponents = modules.filter((m) => m.hasComponents);
@@ -163,6 +166,7 @@ export function renderRegistry(
     'import { createEnv } from "@gatojs/env";',
     ...serverImports.helpers,
     `import { slotRegistry } from "${SLOTS_MODULE}";`,
+    `import { commandHookRegistry } from "${COMMANDS_MODULE}";`,
     ...withModule.map(
       (m) =>
         `import ${identifier(m.name, "Module")} from "@/features/${m.name}/module";`,
@@ -186,6 +190,10 @@ export function renderRegistry(
     ...withSubscribers.map(
       (m) =>
         `import { subscribers as ${identifier(m.name, "Subscribers")} } from "@/features/${m.name}/subscribers";`,
+    ),
+    ...withCommandHooks.map(
+      (m) =>
+        `import { commandHooks as ${identifier(m.name, "CommandHooks")} } from "@/features/${m.name}/command-hooks";`,
     ),
     ...withSlots.map(slotsImport),
     ...withClientSlots.map(clientSlotsImport),
@@ -214,6 +222,7 @@ export function renderRegistry(
       "moduleSubscribers",
       withSubscribers.map((m) => entry(m, identifier(m.name, "Subscribers"))),
     ),
+    `export const moduleCommandHooks = commandHookRegistry({ modules: ${array(withModule.map((m) => identifier(m.name, "Module")))}, hooks: ${array(withCommandHooks.map((m) => entry(m, identifier(m.name, "CommandHooks"))))} }, gatoConfig);`,
     `export const moduleSlots = slotRegistry({ slots: ${namespaceEntries(withSlots, "Slots")}, clientSlots: ${namespaceEntries(withClientSlots, "ClientSlots")} }, gatoConfig);`,
     "export const env = createEnv(moduleEnvSchemas);",
     "",

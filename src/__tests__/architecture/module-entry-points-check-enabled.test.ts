@@ -82,7 +82,7 @@ const GUARD_IMPORTS: Record<string, string> = {
     'import { isModuleEnabled } from "@/shared/lib/modules/require-module-enabled";',
   requireModuleAccess:
     'import { requireModuleAccess } from "@/shared/lib/auth/require-module-access";',
-  runCommand: 'import { runCommand } from "@/shared/lib/run-command";',
+  runCommand: 'import { runCommand } from "@/shared/lib/commands/run-command";',
 };
 
 const E = GUARD_IMPORTS.requireModuleEnabled;
@@ -98,11 +98,12 @@ const serverAction = (imports: string, body: string) =>
   `"use server";\n\n${imports}\nexport async function doIt() {\n${body}\n  return { success: true };\n}\n`;
 
 describe("MODULE_GUARDS", () => {
-  it("lists exactly the three module guards", () => {
+  it("lists exactly the four module guards", () => {
     expect([...MODULE_GUARDS]).toEqual([
       "requireModuleAccess",
       "requireModuleEnabled",
       "isModuleEnabled",
+      "runCommand",
     ]);
   });
 
@@ -111,6 +112,7 @@ describe("MODULE_GUARDS", () => {
       requireModuleAccess: "@/shared/lib/auth/require-module-access",
       requireModuleEnabled: "@/shared/lib/modules/require-module-enabled",
       isModuleEnabled: "@/shared/lib/modules/require-module-enabled",
+      runCommand: "@/shared/lib/commands/run-command",
     });
   });
 });
@@ -1306,6 +1308,475 @@ describe("module entry point detector on fixtures", () => {
       );
 
       expect(unguarded()).toEqual([`${BILLING_COMMAND}#doIt`]);
+    });
+  });
+
+  describe("runCommand as a module guard", () => {
+    const R = GUARD_IMPORTS.runCommand;
+    const D =
+      'import { defineCommand } from "@/shared/lib/commands/define-command";';
+    const BILLING_CMD =
+      'const cmd = defineCommand({ key: "billing.archive", module: "billing", access: "member" });';
+    const ARCHIVE_SIGNATURE =
+      "export async function archive(input: unknown, confirmation?: unknown) {";
+
+    const commandFile = (preamble: string, body: string) =>
+      `"use server";\n\n${preamble}\n${ARCHIVE_SIGNATURE}\n${body}\n}\n`;
+
+    it("accepts an export that returns runCommand of a module-level command of its own module", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\n${BILLING_CMD}`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([
+        `${BILLING_COMMAND}#archive`,
+      ]);
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a command whose module is a module-level string constant equal to the owner", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\nconst MODULE_KEY = "billing";\nconst cmd = defineCommand({ key: "billing.archive", module: MODULE_KEY, access: "member" });`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts an arrow export whose concise body is the runCommand call", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${R}\n${D}\n${BILLING_CMD}\nexport const archive = async (input: unknown, confirmation?: unknown) =>\n  runCommand(cmd, input, confirmation);\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts an export that returns the awaited runCommand call", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\n${BILLING_CMD}`,
+          "  return await runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts runCommand and defineCommand imported under local aliases", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          'import { runCommand as run } from "@/shared/lib/commands/run-command";\nimport { defineCommand as command } from "@/shared/lib/commands/define-command";\nconst cmd = command({ key: "billing.archive", module: "billing", access: "member" });',
+          "  return run(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a module route handler that returns runCommand of its own module's command", () => {
+      write(
+        BILLING_ROUTE,
+        `${R}\n${D}\n${BILLING_CMD}\nexport async function POST(request: Request) {\n  return runCommand(cmd, await request.json(), undefined);\n}\n`,
+      );
+
+      expect(findModuleEntryPoints(root)).toEqual([`${BILLING_ROUTE}#POST`]);
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a module-owned use server file under src/app that returns runCommand of its owner's command", () => {
+      write(
+        BILLING_PAGE_ACTIONS,
+        commandFile(
+          `${R}\n${D}\n${BILLING_CMD}`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports an export that returns runCommand of another module's command", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\nconst cmd = defineCommand({ key: "auth.archive", module: "auth", access: "member" });`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports a command whose module is a module-level constant holding another module's key", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\nconst MODULE_KEY = "auth";\nconst cmd = defineCommand({ key: "auth.archive", module: MODULE_KEY, access: "member" });`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports a command whose module is a module-level let holding the owner's key", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\nlet MODULE_KEY = "billing";\nconst cmd = defineCommand({ key: "billing.archive", module: MODULE_KEY, access: "member" });`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports a command whose module is a template literal", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\nconst cmd = defineCommand({ key: "billing.archive", module: \`billing\`, access: "member" });`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports a command defined without a module property", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\nconst cmd = defineCommand({ key: "billing.archive", access: "member" });`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports a command defined from a variable instead of an object literal", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\nconst definition = { key: "billing.archive", module: "billing", access: "member" };\nconst cmd = defineCommand(definition);`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports a command imported from another file", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\nimport { cmd } from "./archive-command";`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports a command held in a module-level let", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\nlet cmd = defineCommand({ key: "billing.archive", module: "billing", access: "member" });`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports a command defined inside the exported function", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}`,
+          '  const cmd = defineCommand({ key: "billing.archive", module: "billing", access: "member" });\n  return runCommand(cmd, input, confirmation);',
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports a command defined by defineCommand imported from another path", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\nimport { defineCommand } from "@/shared/lib/define-command";\n${BILLING_CMD}`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports a command defined by a local function named defineCommand", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\nfunction defineCommand<T>(definition: T): T {\n  return definition;\n}\n${BILLING_CMD}`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports runCommand imported from another path", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `import { runCommand } from "@/shared/lib/run-command";\n${D}\n${BILLING_CMD}`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports an awaited runCommand followed by a Prisma call", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${P}\n${R}\n${D}\n${BILLING_CMD}`,
+          "  await runCommand(cmd, input, confirmation);\n  return prisma.invoice.findMany();",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports an awaited runCommand stored in a variable and returned later", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\n${BILLING_CMD}`,
+          "  const result = await runCommand(cmd, input, confirmation);\n  return result;",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports a Prisma call before the returned runCommand", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${P}\n${R}\n${D}\n${BILLING_CMD}`,
+          "  await prisma.invoice.findMany();\n  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports runCommand whose result is chained before it is returned", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\n${BILLING_CMD}`,
+          "  return runCommand(cmd, input, confirmation).then((result) => result);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports an arrow export whose block body calls runCommand without returning it", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${R}\n${D}\n${BILLING_CMD}\nexport const archive = async (input: unknown, confirmation?: unknown) => {\n  await runCommand(cmd, input, confirmation);\n};\n`,
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports runCommand of the owner's command in a use server file under src/app that no module owns", () => {
+      write(
+        "src/app/x/actions.ts",
+        commandFile(
+          `${R}\n${D}\nconst cmd = defineCommand({ key: "x.archive", module: "x", access: "member" });`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual(["src/app/x/actions.ts#archive"]);
+    });
+
+    it("reports a command built by another define-command export aliased to defineCommand", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\nimport { defineCommandHooks as defineCommand } from "@/shared/lib/commands/define-command";\n${BILLING_CMD}`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports a command defined by defineCommand called without arguments", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\nconst cmd = defineCommand();`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports runCommand called without arguments", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(`${R}\n${D}\n${BILLING_CMD}`, "  return runCommand();"),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it.each([
+      [
+        "no module property",
+        'const cmd = defineCommand({ key: "x.archive", access: "member" });',
+      ],
+      [
+        "a module held in a let",
+        'let MODULE_KEY = "x";\nconst cmd = defineCommand({ key: "x.archive", module: MODULE_KEY, access: "member" });',
+      ],
+      [
+        "a template literal module",
+        'const cmd = defineCommand({ key: "x.archive", module: `x`, access: "member" });',
+      ],
+    ])(
+      "reports runCommand in a use server file under src/app that no module owns, for a command with %s",
+      (_case, declaration) => {
+        write(
+          "src/app/x/actions.ts",
+          commandFile(
+            `${R}\n${D}\n${declaration}`,
+            "  return runCommand(cmd, input, confirmation);",
+          ),
+        );
+
+        expect(unguarded()).toEqual(["src/app/x/actions.ts#archive"]);
+      },
+    );
+
+    it("reports a Prisma call inside runCommand's second argument", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${P}\n${R}\n${D}\n${BILLING_CMD}`,
+          "  return runCommand(cmd, await prisma.item.findFirst(), confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it.each([
+      [
+        "an if without braces",
+        "  if (input.soft) return runCommand(cmd, input, confirmation);\n  return prisma.invoice.deleteMany({});",
+      ],
+      [
+        "an if block",
+        "  if (input.soft) {\n    return runCommand(cmd, input, confirmation);\n  }\n  return prisma.invoice.deleteMany({});",
+      ],
+      [
+        "a try with a finally that touches Prisma",
+        "  try {\n    return runCommand(cmd, input, confirmation);\n  } finally {\n    await prisma.invoice.deleteMany({});\n  }",
+      ],
+      [
+        "the concise body of an inner arrow called after Prisma",
+        "  const later = () => runCommand(cmd, input, confirmation);\n  await prisma.invoice.deleteMany({});\n  return later();",
+      ],
+      [
+        "the block body of an inner arrow called after Prisma",
+        "  const later = async () => {\n    return runCommand(cmd, input, confirmation);\n  };\n  await prisma.invoice.deleteMany({});\n  return later();",
+      ],
+      [
+        "an awaited return in an if block",
+        "  if (input.soft) {\n    return await runCommand(cmd, input, confirmation);\n  }\n  return prisma.invoice.deleteMany({});",
+      ],
+      [
+        "a bare block",
+        "  {\n    return runCommand(cmd, input, confirmation);\n  }\n  return prisma.invoice.deleteMany({});",
+      ],
+      [
+        "a loop",
+        "  for (const item of input.items) {\n    return runCommand(cmd, item, confirmation);\n  }\n  return prisma.invoice.deleteMany({});",
+      ],
+      [
+        "a switch case",
+        '  switch (input.mode) {\n    case "soft":\n      return runCommand(cmd, input, confirmation);\n  }\n  return prisma.invoice.deleteMany({});',
+      ],
+    ])("reports runCommand returned from %s", (_place, body) => {
+      write(
+        BILLING_COMMAND,
+        commandFile(`${P}\n${R}\n${D}\n${BILLING_CMD}`, body),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports runCommand returned only from an if when nothing else touches Prisma", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\n${BILLING_CMD}`,
+          "  if (input) return runCommand(cmd, input, confirmation);\n  return { success: false };",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("accepts an arrow export whose block body returns runCommand at its top level", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${R}\n${D}\n${BILLING_CMD}\nexport const archive = async (input: unknown, confirmation?: unknown) => {\n  return runCommand(cmd, input, confirmation);\n};\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a function expression export that returns runCommand at its top level", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${R}\n${D}\n${BILLING_CMD}\nexport const archive = async function (input: unknown, confirmation?: unknown) {\n  return runCommand(cmd, input, confirmation);\n};\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("reports a Prisma call inside runCommand's third argument only", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${P}\n${R}\n${D}\n${BILLING_CMD}`,
+          "  return runCommand(cmd, input, await prisma.item.findFirst());",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
     });
   });
 

@@ -15,7 +15,8 @@ export default async function UsersPage({ params }: UsersPageProps) {
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const { userId, userRole } = await requireModuleAccess("users");
+  const { userId, userRole, organizationId, orgRole } =
+    await requireModuleAccess("users");
 
   if (isGlobalAdmin(userRole)) {
     const users = await getUserAccountsQuery();
@@ -25,6 +26,9 @@ export default async function UsersPage({ params }: UsersPageProps) {
         currentUserId={userId}
         currentUserRole={userRole}
         adminImpersonation={env.ADMIN_IMPERSONATION}
+        organizationId={organizationId}
+        currentOrgRole={orgRole}
+        multiOrg={env.MULTI_ORG}
       />
     );
   }
