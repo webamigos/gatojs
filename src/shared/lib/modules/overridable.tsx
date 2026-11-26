@@ -9,12 +9,18 @@ import {
 } from "react";
 import { clientComponentOverrides } from "@/modules.client.generated";
 import { OverrideErrorBoundary } from "@/shared/components/override-error-boundary";
-import type {
-  ComponentHandle,
-  ComponentHandleProps,
-  OverrideComponentProps,
-  RegisteredComponentOverride,
+import type { AccessContext } from "@/shared/lib/auth/permissions";
+import {
+  CONFIG_OVERRIDE_SOURCE,
+  type ComponentHandle,
+  type ComponentHandleProps,
+  type OverrideComponentProps,
+  type RegisteredComponentOverride,
 } from "./component-overrides";
+import { moduleVisibleTo } from "./slot-access";
+
+export type OverridableProps<H extends ComponentHandle> =
+  ComponentHandleProps<H> & { viewer: AccessContext };
 
 type LazyOverrideComponent = LazyExoticComponent<
   ComponentType<OverrideComponentProps>
@@ -37,6 +43,23 @@ function lazyComponentOf(
   return component;
 }
 
+function visibleOverride(
+  handle: string,
+  viewer: AccessContext,
+): RegisteredComponentOverride | undefined {
+  const override = clientComponentOverrides.get(handle);
+  if (override === undefined) {
+    return undefined;
+  }
+  if (
+    override.source === CONFIG_OVERRIDE_SOURCE ||
+    moduleVisibleTo(override.source, viewer)
+  ) {
+    return override;
+  }
+  return undefined;
+}
+
 function overrideElement(
   override: RegisteredComponentOverride,
   props: OverrideComponentProps,
@@ -52,10 +75,10 @@ function overrideElement(
 export function overridable<H extends ComponentHandle>(
   handle: H,
   Base: ComponentType<ComponentHandleProps<H>>,
-): ComponentType<ComponentHandleProps<H>> {
+): ComponentType<OverridableProps<H>> {
   const RawBase = Base as ComponentType<OverrideComponentProps>;
-  function Overridable(props: ComponentHandleProps<H>): ReactNode {
-    const override = clientComponentOverrides.get(handle);
+  function Overridable({ viewer, ...props }: OverridableProps<H>): ReactNode {
+    const override = visibleOverride(handle, viewer);
     const baseProps = props as OverrideComponentProps;
     if (override === undefined) {
       return <RawBase {...baseProps} />;
