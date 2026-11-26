@@ -87,10 +87,10 @@
       "files": {}
     },
     "core": {
-      "version": "0.23.0",
+      "version": "0.23.1",
       "manifest": {
         "name": "core",
-        "version": "0.23.0",
+        "version": "0.23.1",
         "description": "GatoJS core: auth, organizations, users, account, dashboard",
         "requires": [],
         "files": [
@@ -270,10 +270,10 @@
       "files": {}
     },
     "encryption": {
-      "version": "0.1.2",
+      "version": "0.1.3",
       "manifest": {
         "name": "encryption",
-        "version": "0.1.2",
+        "version": "0.1.3",
         "description": "Per-organization envelope encryption (AES-256-GCM) with data keys wrapped by a master key",
         "requires": [],
         "files": [
