@@ -813,6 +813,18 @@ describe("checkSelfhostCompose", () => {
     expect(checkSelfhostCompose(root)).toEqual([]);
   });
 
+  it("does not treat a service with a restart policy other than no as one-shot even when a waiter under a profile waits for it to complete", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", restart: "unless-stopped" };
+    compose.services.worker = {
+      image: "w",
+      profiles: ["s3"],
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
   it("checks a one-shot service under its profiles other than tools", () => {
     const compose = validCompose();
     compose.services.seed = {
