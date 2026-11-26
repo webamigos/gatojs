@@ -137,6 +137,7 @@ type ContributionSource = "slots.ts" | "client-slots.ts";
 
 interface DeclaredSlot {
   owner: string;
+  core: boolean;
   definition: SlotDefinition;
 }
 
@@ -160,11 +161,13 @@ function declaredSlots(input: SlotRegistryInput): DeclaredSlot[] {
   return [
     ...coreSlotDefinitions.map((definition) => ({
       owner: CORE_SLOTS_CONFIG_KEY,
+      core: true,
       definition,
     })),
     ...input.slots.flatMap((entry) =>
       (entry.value.slotDefinitions ?? []).map((definition) => ({
         owner: entry.module,
+        core: false,
         definition,
       })),
     ),
@@ -236,9 +239,8 @@ function structuralProblems(
   return [
     ...declared
       .filter(
-        ({ owner, definition }) =>
-          owner !== CORE_SLOTS_CONFIG_KEY &&
-          !definition.id.startsWith(`${owner}.`),
+        ({ owner, core, definition }) =>
+          !core && !definition.id.startsWith(`${owner}.`),
       )
       .map(
         ({ owner, definition }) =>
