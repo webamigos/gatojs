@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  createElement,
   lazy,
   Suspense,
   type ComponentType,
@@ -39,6 +40,24 @@ function lazyComponentOf(
   const component = lazy(contribution.component);
   lazyComponents.set(contribution, component);
   return component;
+}
+
+export interface ClientSlotContributionProps {
+  contribution: RegisteredContribution;
+  props: SlotComponentProps;
+}
+
+export function ClientSlotContribution({
+  contribution,
+  props,
+}: ClientSlotContributionProps): ReactNode {
+  return (
+    <SlotErrorBoundary contributionId={contribution.id}>
+      <Suspense fallback={null}>
+        {createElement(lazyComponentOf(contribution), props)}
+      </Suspense>
+    </SlotErrorBoundary>
+  );
 }
 
 export function ClientSlot<Id extends ClientSlotId>({

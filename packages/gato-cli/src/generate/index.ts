@@ -48,6 +48,7 @@ async function detectFeature(
     hasAuditSink: await exists(join(base, "audit-sink.ts")),
     hasEvents: await exists(join(base, "events.ts")),
     hasSubscribers: await exists(join(base, "subscribers.ts")),
+    hasCommandHooks: await exists(join(base, "command-hooks.ts")),
     hasSlots: await exists(join(base, "slots.ts")),
     hasClientSlots: await exists(join(base, "client-slots.ts")),
     hasSetup: await exists(join(base, "setup.ts")),

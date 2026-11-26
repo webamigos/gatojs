@@ -9,6 +9,7 @@
     "src/shared/lib/audit.ts",
     "src/shared/lib/events/",
     "src/shared/lib/modules/setup.ts",
+    "src/shared/lib/commands/",
     "src/features/audit-logs/services/",
     "src/features/api-keys/services/",
     "src/features/uploads/services/",

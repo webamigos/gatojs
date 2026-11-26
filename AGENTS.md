@@ -82,6 +82,8 @@ npx prisma migrate dev --name <name>     # new migration
   - right after `getOrgContext()` or `requireModuleAccess()`, call
     `assertServiceModeConfirmed(context, confirmation)` (`src/shared/lib/auth/service-mode.ts`), before the first
     Prisma access;
+  - or return `runCommand(command, input, confirmation)` for a `defineCommand` command (`src/shared/lib/commands/`):
+    it runs the guards, the confirmation and other modules' `before` hooks in a fixed order (ADR-62);
   - in service mode (`serviceMode: true`) without the confirmation `{ serviceModeConfirmed: true, organizationId }`
     of the active organization, the command returns the error "Potwierdź zmianę w trybie serwisowym" ("confirm the change
     in service mode"); outside service mode only a missing confirmation or a confirmation of the active organization

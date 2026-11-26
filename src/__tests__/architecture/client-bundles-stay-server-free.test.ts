@@ -421,6 +421,62 @@ describe("findServerImportsInClient", () => {
     ).toEqual([]);
   });
 
+  it("the commands library, its run-command and define-command files and a feature's command-hooks.ts are server modules for a client file, in order", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import { runCommand } from "@/shared/lib/commands/run-command";\nimport { defineCommand } from "@/shared/lib/commands/define-command";\nimport { commandHooks } from "@/features/invoices/command-hooks";\nimport * as commands from "@/shared/lib/commands";',
+        ),
+      ),
+    ).toEqual([
+      "@/shared/lib/commands/run-command",
+      "@/shared/lib/commands/define-command",
+      "@/features/invoices/command-hooks",
+      "@/shared/lib/commands",
+    ]);
+  });
+
+  it("a dynamic import of run-command or of a feature's command-hooks.ts in a client file is a violation", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'export const run = () => import("@/shared/lib/commands/run-command");\nexport const hooks = () => import("@/features/billing/command-hooks");',
+        ),
+      ),
+    ).toEqual([
+      "@/shared/lib/commands/run-command",
+      "@/features/billing/command-hooks",
+    ]);
+  });
+
+  it("names that only start like the commands library or command-hooks are not server modules", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import { a } from "@/shared/lib/commands-list";\nimport { b } from "@/features/invoices/command-hooks-table";\nimport { c } from "@/features/invoices/components/command-hooks";\nimport { d } from "@/shared/lib/command";',
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("a type-only import from define-command or a feature's command-hooks.ts in a client file is allowed", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import type { CommandContext } from "@/shared/lib/commands/define-command";\nimport type { commandHooks } from "@/features/invoices/command-hooks";',
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("the same command imports without use client are not violations", () => {
+    expect(
+      findServerImportsInClient(
+        'import { runCommand } from "@/shared/lib/commands/run-command";\nimport { commandHooks } from "@/features/invoices/command-hooks";',
+      ),
+    ).toEqual([]);
+  });
+
   it("relative specifiers are ignored: the source has no path to resolve them against", () => {
     expect(
       findServerImportsInClient(
@@ -587,6 +643,24 @@ describe("checkClientBundles", () => {
     );
     expect(checkClientBundles(root)).toEqual([
       "src/features/invoices/components/issue-button.tsx: @/features/invoices/events",
+    ]);
+  });
+
+  it("reports a client component importing run-command, define-command and a feature's command-hooks.ts", () => {
+    write(
+      "src/features/invoices/components/archive-button.tsx",
+      client(
+        'import { runCommand } from "@/shared/lib/commands/run-command";\nimport { defineCommand } from "@/shared/lib/commands/define-command";\nimport { commandHooks } from "@/features/invoices/command-hooks";\nimport { archiveInvoiceCommand } from "@/features/invoices/services/commands/archive";',
+      ),
+    );
+    write(
+      "src/features/invoices/services/commands/archive.ts",
+      '"use server";\nimport { runCommand } from "@/shared/lib/commands/run-command";',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/invoices/components/archive-button.tsx: @/shared/lib/commands/run-command",
+      "src/features/invoices/components/archive-button.tsx: @/shared/lib/commands/define-command",
+      "src/features/invoices/components/archive-button.tsx: @/features/invoices/command-hooks",
     ]);
   });
 

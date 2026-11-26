@@ -8,3 +8,15 @@ export interface UserAccountListItem {
   emailVerified: boolean;
   createdAt: Date;
 }
+
+// WHY: type aliases, not interfaces: ClientSlot passes the context as Record<string, unknown>,
+// and only a type alias is assignable to an index signature.
+export type UserTableRowActionProps = {
+  userId: string;
+  organizationId: string;
+};
+
+export type UserTableCellProps = {
+  row: UserAccountListItem;
+  organizationId: string;
+};

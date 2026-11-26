@@ -1,4 +1,4 @@
-import { betterAuth } from "better-auth";
+import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import {
   createAuthMiddleware,
@@ -36,6 +36,15 @@ import { eventsPlugin } from "./events-plugin";
 import { orgRoleGuardPlugin } from "./org-role-guard-plugin";
 import { isInviteSignup } from "./invite-signup-scope";
 import { readSignupMembership } from "./signup-membership-context";
+
+type UserCreateHooks = NonNullable<
+  NonNullable<NonNullable<BetterAuthOptions["databaseHooks"]>["user"]>["create"]
+>;
+
+const verifyInvitedUserEmail: NonNullable<UserCreateHooks["before"]> = async (
+  user,
+) =>
+  isInviteSignup() ? { data: { ...user, emailVerified: true } } : undefined;
 
 export const auth = betterAuth({
   secret: env.BETTER_AUTH_SECRET,
@@ -89,6 +98,7 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
+        before: verifyInvitedUserEmail,
         after: async (user, context) => {
           const membership = readSignupMembership(context);
           if (!membership) {

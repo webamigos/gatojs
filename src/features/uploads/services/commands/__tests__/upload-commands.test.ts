@@ -1,5 +1,9 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  CommandContext,
+  RegisteredCommandHook,
+} from "@/shared/lib/commands/define-command";
 
 const UPLOAD_ID = "11111111-1111-4111-8111-111111111111";
 const FOREIGN_ID = "22222222-2222-4222-8222-222222222222";
@@ -71,6 +75,11 @@ const {
   };
 });
 
+const { hookStore, emittedEvents } = vi.hoisted(() => ({
+  hookStore: { entries: [] as RegisteredCommandHook[] },
+  emittedEvents: [] as unknown[],
+}));
+
 vi.mock("@/env", () => ({ env: { MULTI_ORG: false } }));
 vi.mock("@/shared/lib/prisma", () => ({ prisma: prismaFake }));
 vi.mock("@/shared/lib/auth/org-context", async (importOriginal) => ({
@@ -90,11 +99,35 @@ vi.mock("@/i18n/routing", () => ({
   }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/modules.generated", () => ({
-  auditSinks: [],
-  modules: [{ key: "uploads", nav: [], routePrefixes: [] }],
-}));
+vi.mock("@/modules.generated", async () => {
+  const { z } = await import("zod");
+  return {
+    auditSinks: [],
+    modules: [{ key: "uploads", nav: [], routePrefixes: [] }],
+    moduleCommandHooks: hookStore.entries,
+    moduleEvents: [
+      {
+        module: "uploads",
+        value: { "uploads.deleted": z.object({ uploadId: z.string() }) },
+      },
+    ],
+    moduleSubscribers: [
+      {
+        module: "probe",
+        value: {
+          "uploads.deleted": {
+            id: "probe.record",
+            run: (event: unknown) => {
+              emittedEvents.push(event);
+            },
+          },
+        },
+      },
+    ],
+  };
+});
 
+import { DomainError } from "@/shared/utils/error-handling";
 import { deleteUploadCommand } from "../upload-commands";
 
 const MEMBER_CONTEXT = {
@@ -167,6 +200,11 @@ beforeEach(() => {
   mockTrackAudit.mockResolvedValue(undefined);
   mockLogger.warn.mockReset();
   mockLogger.error.mockReset();
+});
+
+beforeEach(() => {
+  hookStore.entries.length = 0;
+  emittedEvents.length = 0;
 });
 
 describe("deleteUploadCommand", () => {
@@ -427,5 +465,174 @@ describe("deleteUploadCommand on an upload whose uploader was removed", () => {
 
     expect(result).toEqual({ success: true });
     expect(remainingIds()).toEqual([UPLOAD_ID, FOREIGN_ID, OTHER_ORG_ID]);
+  });
+});
+
+describe("deleteUploadCommand through runCommand: events and before hooks", () => {
+  it("a successful delete emits one uploads.deleted with the upload id and the context origin", async () => {
+    const result = await deleteUploadCommand({ id: UPLOAD_ID });
+
+    expect(result).toEqual({ success: true });
+    expect(emittedEvents).toEqual([
+      {
+        name: "uploads.deleted",
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        serviceMode: false,
+        payload: { uploadId: UPLOAD_ID },
+      },
+    ]);
+  });
+
+  it("a delete refused by the permission rule emits no event", async () => {
+    const result = await deleteUploadCommand({ id: FOREIGN_ID });
+
+    expect(result).toEqual(NO_PERMISSION_ERROR);
+    expect(emittedEvents).toEqual([]);
+  });
+
+  it("a missing upload returns the delete failure and emits no event", async () => {
+    const result = await deleteUploadCommand({
+      id: "44444444-4444-4444-8444-444444444444",
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Nie udało się usunąć pliku",
+    });
+    expect(emittedEvents).toEqual([]);
+  });
+
+  it("an upload of another organization returns the delete failure and emits no event", async () => {
+    mockGetOrgContext.mockResolvedValue({
+      ...MEMBER_CONTEXT,
+      orgRole: "owner",
+    });
+
+    const result = await deleteUploadCommand({ id: OTHER_ORG_ID });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Nie udało się usunąć pliku",
+    });
+    expect(emittedEvents).toEqual([]);
+  });
+
+  it("service mode without a confirmation emits no event", async () => {
+    mockGetOrgContext.mockResolvedValue({
+      ...MEMBER_CONTEXT,
+      orgRole: "owner",
+      serviceMode: true,
+    });
+
+    await deleteUploadCommand({ id: UPLOAD_ID });
+
+    expect(emittedEvents).toEqual([]);
+  });
+
+  it("a before hook on uploads.delete receives the parsed { id } and the frozen context", async () => {
+    const seen: { input: unknown; context: CommandContext }[] = [];
+    hookStore.entries.push({
+      module: "uploads",
+      command: "uploads.delete",
+      hook: {
+        id: "uploads.probe",
+        before: (input, context) => {
+          seen.push({ input: { ...input }, context });
+        },
+      },
+    });
+
+    const result = await deleteUploadCommand({ id: UPLOAD_ID, extra: "x" });
+
+    expect(result).toEqual({ success: true });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.input).toStrictEqual({ id: UPLOAD_ID });
+    expect(seen[0]!.context).toEqual(MEMBER_CONTEXT);
+    expect(Object.isFrozen(seen[0]!.context)).toBe(true);
+  });
+
+  it("a before hook vetoing with DomainError returns its message and deletes nothing", async () => {
+    hookStore.entries.push({
+      module: "uploads",
+      command: "uploads.delete",
+      hook: {
+        id: "uploads.veto",
+        before: () => {
+          throw new DomainError("This file is attached to an issued invoice");
+        },
+      },
+    });
+
+    const result = await deleteUploadCommand({ id: UPLOAD_ID });
+
+    expect(result).toEqual({
+      success: false,
+      error: "This file is attached to an issued invoice",
+    });
+    expectNothingDeleted();
+    expect(emittedEvents).toEqual([]);
+  });
+
+  it("a before hook swapping in another organization's upload id deletes nothing", async () => {
+    mockGetOrgContext.mockResolvedValue({
+      ...MEMBER_CONTEXT,
+      orgRole: "owner",
+    });
+    hookStore.entries.push({
+      module: "uploads",
+      command: "uploads.delete",
+      hook: { id: "uploads.swap", before: () => ({ id: OTHER_ORG_ID }) },
+    });
+
+    const result = await deleteUploadCommand({ id: UPLOAD_ID });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Nie udało się usunąć pliku",
+    });
+    expectNothingDeleted();
+    expect(emittedEvents).toEqual([]);
+  });
+
+  it("a before hook swapping a member's own upload id for another member's upload returns the permission error", async () => {
+    hookStore.entries.push({
+      module: "uploads",
+      command: "uploads.delete",
+      hook: { id: "uploads.swap", before: () => ({ id: FOREIGN_ID }) },
+    });
+
+    const result = await deleteUploadCommand({ id: UPLOAD_ID });
+
+    expect(result).toEqual(NO_PERMISSION_ERROR);
+    expect(remainingIds()).toEqual([UPLOAD_ID, FOREIGN_ID, OTHER_ORG_ID]);
+    expectNothingDeleted();
+    expect(emittedEvents).toEqual([]);
+  });
+
+  it("a before hook swapping in another own-organization upload id deletes that upload", async () => {
+    mockGetOrgContext.mockResolvedValue({
+      ...MEMBER_CONTEXT,
+      orgRole: "owner",
+    });
+    hookStore.entries.push({
+      module: "uploads",
+      command: "uploads.delete",
+      hook: { id: "uploads.swap", before: () => ({ id: FOREIGN_ID }) },
+    });
+
+    const result = await deleteUploadCommand({ id: UPLOAD_ID });
+
+    expect(result).toEqual({ success: true });
+    expect(remainingIds()).toEqual([UPLOAD_ID, OTHER_ORG_ID]);
+    expect(emittedEvents).toEqual([
+      {
+        name: "uploads.deleted",
+        organizationId: "org-1",
+        actorUserId: "user-1",
+        serviceMode: false,
+        payload: { uploadId: FOREIGN_ID },
+      },
+    ]);
   });
 });
