@@ -11,9 +11,13 @@ import {
 import { render, screen } from "@testing-library/react";
 import type { AccessContext } from "@/shared/lib/auth/permissions";
 import type { ModuleDef } from "@/shared/lib/modules/define-module";
+import type {
+  RegisteredContribution,
+  SlotComponentLoader,
+} from "@/shared/lib/modules/slots";
 
-const { clientModuleSlots, countedLoader, boomError, loadError } = vi.hoisted(
-  () => {
+const { clientModuleSlots, countedLoader, sharedLoader, boomError, loadError } =
+  vi.hoisted(() => {
     function card(label: string) {
       return function Card(props: Record<string, unknown>) {
         return (
@@ -48,8 +52,11 @@ const { clientModuleSlots, countedLoader, boomError, loadError } = vi.hoisted(
     const loadError = new Error("load failed");
     const Counted = card("dashboard.counted");
     const countedLoader = vi.fn(() => Promise.resolve({ default: Counted }));
+    const Shared = card("dashboard.shared");
+    const sharedLoader = vi.fn(() => Promise.resolve({ default: Shared }));
     return {
       countedLoader,
+      sharedLoader,
       boomError,
       loadError,
       clientModuleSlots: [
@@ -90,10 +97,18 @@ const { clientModuleSlots, countedLoader, boomError, loadError } = vi.hoisted(
           kind: "client",
         },
         entry("dashboard", "dashboard.fine", "dashboard.throwing", 2),
+        {
+          slot: "dashboard.shared",
+          id: "dashboard.shared",
+          priority: 1,
+          roles: undefined,
+          component: sharedLoader,
+          module: "dashboard",
+          kind: "client",
+        },
       ],
     };
-  },
-);
+  });
 
 vi.mock("@/modules.client.generated", () => {
   const modules: ModuleDef[] = [
@@ -114,7 +129,7 @@ vi.mock("@/modules.client.generated", () => {
   };
 });
 
-import { ClientSlot } from "../client-slot";
+import { ClientSlot, ClientSlotContribution } from "../client-slot";
 
 const MEMBER: AccessContext = {
   userRole: "user",
@@ -391,5 +406,162 @@ describe("ClientSlot: only client slot ids", () => {
       "dashboard.sections",
       "app.header.actions",
     ]);
+  });
+});
+
+function standalone(
+  id: string,
+  component: SlotComponentLoader,
+): RegisteredContribution {
+  return {
+    slot: "users.table.columns",
+    id,
+    priority: 1,
+    roles: undefined,
+    component,
+    module: "crm",
+    kind: "client",
+  };
+}
+
+function Echo(props: Record<string, unknown>) {
+  return (
+    <p data-testid="contribution">
+      {`echo ${Object.keys(props).sort().join(",")} organizationId=${String(props.organizationId)} userId=${String(props.userId)}`}
+    </p>
+  );
+}
+
+describe("ClientSlotContribution", () => {
+  it("renders the contribution's lazy component with exactly the given props", async () => {
+    render(
+      <ClientSlotContribution
+        contribution={standalone("crm.echo", () =>
+          Promise.resolve({ default: Echo }),
+        )}
+        props={{ organizationId: "org-9", userId: "u-1" }}
+      />,
+    );
+    expect(
+      await screen.findByText(
+        "echo organizationId,userId organizationId=org-9 userId=u-1",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shares the lazy component of a contribution with ClientSlot: the loader runs once", async () => {
+    const contribution = clientModuleSlots.find(
+      (entry) => entry.id === "dashboard.shared",
+    ) as unknown as RegisteredContribution;
+    render(
+      <>
+        <AnyClientSlot
+          id="dashboard.shared"
+          context={{ organizationId: "org-1" }}
+          viewer={MEMBER}
+        />
+        <ClientSlotContribution
+          contribution={contribution}
+          props={{ organizationId: "org-2" }}
+        />
+      </>,
+    );
+    expect(
+      await screen.findByText(
+        "dashboard.shared organizationId=org-2 userId=undefined",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "dashboard.shared organizationId=org-1 userId=undefined",
+      ),
+    ).toBeInTheDocument();
+    expect(sharedLoader).toHaveBeenCalledTimes(1);
+  });
+
+  it("a contribution still loading does not hold back its siblings", () => {
+    render(
+      <>
+        <p>host</p>
+        <ClientSlotContribution
+          contribution={standalone(
+            "crm.pending",
+            () => new Promise<never>(() => {}),
+          )}
+          props={{ organizationId: "org-1" }}
+        />
+      </>,
+    );
+    expect(screen.getByText("host")).toBeInTheDocument();
+  });
+});
+
+describe("ClientSlotContribution: a failing contribution hides only itself", () => {
+  let consoleError: MockInstance<typeof console.error>;
+
+  beforeEach(() => {
+    consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    consoleError.mockRestore();
+  });
+
+  it("a throwing component is caught by a boundary named after the contribution id", async () => {
+    const error = new Error("cell boom");
+    function Boom(): never {
+      throw error;
+    }
+    render(
+      <>
+        <p>host</p>
+        <ClientSlotContribution
+          contribution={standalone("crm.boom", () =>
+            Promise.resolve({ default: Boom }),
+          )}
+          props={{ organizationId: "org-1" }}
+        />
+        <ClientSlotContribution
+          contribution={standalone("crm.echo-next", () =>
+            Promise.resolve({ default: Echo }),
+          )}
+          props={{ organizationId: "org-1" }}
+        />
+      </>,
+    );
+    expect(
+      await screen.findByText(
+        "echo organizationId organizationId=org-1 userId=undefined",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("host")).toBeInTheDocument();
+    expect(consoleError).toHaveBeenCalledWith(
+      "Slot contribution failed to render:",
+      "crm.boom",
+      error,
+    );
+  });
+
+  it("a rejected loader is caught by a boundary named after the contribution id", async () => {
+    const error = new Error("cell load failed");
+    render(
+      <>
+        <p>host</p>
+        <ClientSlotContribution
+          contribution={standalone("crm.rejecting", () =>
+            Promise.reject(error),
+          )}
+          props={{ organizationId: "org-1" }}
+        />
+      </>,
+    );
+    await vi.waitFor(() =>
+      expect(consoleError).toHaveBeenCalledWith(
+        "Slot contribution failed to render:",
+        "crm.rejecting",
+        error,
+      ),
+    );
+    expect(screen.getByText("host")).toBeInTheDocument();
   });
 });
