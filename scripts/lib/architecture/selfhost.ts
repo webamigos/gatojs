@@ -106,14 +106,6 @@ function runsUnderProfile(
   return runsAlways(service) || effectiveProfiles(service).includes(profile);
 }
 
-function startsOnlyByHand(service: ComposeService | null | undefined): boolean {
-  const profiles = effectiveProfiles(service);
-  return (
-    profiles.length > 0 &&
-    profiles.every((profile) => profile === TOOLS_PROFILE)
-  );
-}
-
 function profilesStartedByUp(
   service: ComposeService | null | undefined,
 ): string[] {
@@ -137,11 +129,15 @@ function isOneShot(
   name: string,
   service: ComposeService | null | undefined,
 ): boolean {
-  if (name === "migrate" || startsOnlyByHand(service)) {
+  if (name === "migrate") {
     return false;
   }
+  if (service?.restart === "no") {
+    return true;
+  }
   return (
-    service?.restart === "no" || waitersToComplete(services, name).length > 0
+    service?.restart === undefined &&
+    waitersToComplete(services, name).length > 0
   );
 }
 
