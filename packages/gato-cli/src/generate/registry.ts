@@ -9,6 +9,8 @@ export type RegistryModule = {
   hasSubscribers: boolean;
   hasSlots: boolean;
   hasClientSlots: boolean;
+  hasSetup: boolean;
+  version: string;
   locales: string[];
 };
 
@@ -80,6 +82,10 @@ function configImports(
   };
 }
 
+function setupEntry(module: RegistryModule): string {
+  return `{ module: "${module.name}", version: "${module.version}", value: ${identifier(module.name, "Setup")} }`;
+}
+
 function slotsImport(module: RegistryModule): string {
   return `import * as ${identifier(module.name, "Slots")} from "@/features/${module.name}/slots";`;
 }
@@ -123,6 +129,7 @@ export function renderRegistry(
   const withSubscribers = modules.filter((m) => m.hasSubscribers);
   const withSlots = modules.filter((m) => m.hasSlots);
   const withClientSlots = modules.filter((m) => m.hasClientSlots);
+  const withSetup = modules.filter((m) => m.hasSetup);
   const loadersByLocale = locales.map((locale) => ({
     locale,
     loaders: modules
@@ -144,7 +151,7 @@ export function renderRegistry(
         withAuth.length > 0 ||
         withAuditSink.length > 0 ||
         loadersByLocale.some(({ loaders }) => loaders.length > 0),
-      enabledModuleEntries: withSubscribers.length > 0,
+      enabledModuleEntries: withSubscribers.length > 0 || withSetup.length > 0,
       gatoBrandingOf: false,
     }),
   );
@@ -180,6 +187,10 @@ export function renderRegistry(
       (m) =>
         `import { subscribers as ${identifier(m.name, "Subscribers")} } from "@/features/${m.name}/subscribers";`,
     ),
+    ...withSetup.map(
+      (m) =>
+        `import { setup as ${identifier(m.name, "Setup")} } from "@/features/${m.name}/setup";`,
+    ),
     ...withSlots.map(slotsImport),
     ...withClientSlots.map(clientSlotsImport),
     "",
@@ -207,6 +218,7 @@ export function renderRegistry(
       "moduleSubscribers",
       withSubscribers.map((m) => entry(m, identifier(m.name, "Subscribers"))),
     ),
+    enabledModuleList("moduleSetups", withSetup.map(setupEntry)),
     `export const moduleSlots = slotRegistry({ slots: ${slotEntries(withSlots, "Slots")}, clientSlots: ${slotEntries(withClientSlots, "ClientSlots")} }, gatoConfig);`,
     "export const env = createEnv(moduleEnvSchemas);",
     "",

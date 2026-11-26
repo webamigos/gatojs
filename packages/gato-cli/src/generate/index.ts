@@ -29,6 +29,7 @@ async function exists(path: string): Promise<boolean> {
 async function detectFeature(
   projectDir: string,
   name: string,
+  version: string,
   configuredLocales: string[],
 ): Promise<RegistryModule> {
   const base = join(projectDir, "src", "features", name);
@@ -49,18 +50,20 @@ async function detectFeature(
     hasSubscribers: await exists(join(base, "subscribers.ts")),
     hasSlots: await exists(join(base, "slots.ts")),
     hasClientSlots: await exists(join(base, "client-slots.ts")),
+    hasSetup: await exists(join(base, "setup.ts")),
+    version,
     locales,
   };
 }
 
 async function featureEntries(
   projectDir: string,
-  files: string[][],
+  manifests: { files: string[]; version: string }[],
   configuredLocales: string[],
 ): Promise<RegistryModule[]> {
   const seen = new Set<string>();
   const entries: RegistryModule[] = [];
-  for (const globs of files) {
+  for (const { files: globs, version } of manifests) {
     const names = [
       ...new Set(
         globs
@@ -73,7 +76,12 @@ async function featureEntries(
         continue;
       }
       seen.add(name);
-      const entry = await detectFeature(projectDir, name, configuredLocales);
+      const entry = await detectFeature(
+        projectDir,
+        name,
+        version,
+        configuredLocales,
+      );
       entries.push(entry);
     }
   }
@@ -85,11 +93,7 @@ export async function generate(
 ): Promise<{ changed: string[] }> {
   const state = await readKitState(projectDir);
   const manifests = registeredModules(state);
-  const features = await featureEntries(
-    projectDir,
-    manifests.map((m) => m.files),
-    state.locales,
-  );
+  const features = await featureEntries(projectDir, manifests, state.locales);
   const registry = renderRegistry(features, state.locales, {
     hasGatoConfig: await exists(join(projectDir, GATO_CONFIG_FILE)),
   });
