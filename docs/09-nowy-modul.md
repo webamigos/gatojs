@@ -655,6 +655,50 @@ export const slots = [
 
 Własny slot na stronie swojego modułu deklaruje moduł w swoim `slots.ts` (`export const slotDefinitions = [defineSlot("<x>.<nazwa>", { kind: "server" })]` i typ kontekstu w `declare module "@/shared/lib/modules/slots" { interface SlotContextMap { … } }`, jak `src/features/dashboard/slots.ts`; slot kliencki, `{ kind: "client" }`, rozszerza zamiast tego `ClientSlotContextMap` i renderuje się przez `<ClientSlot>` z `src/shared/components/client-slot.tsx`), a strona renderuje `<Slot id="<x>.<nazwa>" context={…} viewer={…} />` z `src/shared/components/slot.tsx`.
 
+<a id="konfiguracja-organizacji"></a>
+
+## Konfiguracja organizacji
+
+Moduł, który potrzebuje danych startowych w każdej organizacji (kategorie, szablony, ustawienia), zapisuje je w `src/features/<x>/setup.ts` z eksportem `setup`:
+
+```ts
+import { defineSetup } from "@/shared/lib/modules/setup";
+import { prisma } from "@/shared/lib/prisma";
+
+export const setup = defineSetup({
+  async onOrganizationCreated({ organizationId }) {
+    await prisma.noteCategory.upsert({
+      where: { organizationId_name: { organizationId, name: "Ogólne" } },
+      create: { organizationId, name: "Ogólne" },
+      update: {},
+    });
+  },
+  async seed({ organizationId }) {
+    await prisma.note.createMany({
+      data: [{ organizationId, title: "Pierwsza notatka" }],
+      skipDuplicates: true,
+    });
+  },
+});
+```
+
+- `onOrganizationCreated` woła subskrybent rdzenia `organizations.module-setup` po zdarzeniu `organizations.created` (nowa organizacja przy rejestracji, w panelu albo w `npm run admin:create`). Po sukcesie rdzeń zapisuje wiersz `OrganizationModuleSetup` (organizacja, moduł, wersja manifestu), a organizacja z takim wierszem nie uruchamia hooka drugi raz.
+- `seed` (dane demonstracyjne albo początkowe) woła tylko `npm run admin:create`, po `organizations.created`, dla utworzonej albo dołączonej organizacji, przy każdym uruchomieniu skryptu. `seed` nie zapisuje wiersza.
+- **Oba hooki muszą być idempotentne**: hook może przerwać się w połowie i uruchomić ponownie, a `seed` działa przy każdym `admin:create`. Używaj `upsert`, `createMany({ skipDuplicates: true })` albo sprawdzenia przed zapisem.
+- **Błędy nie przerywają tworzenia organizacji.** Hook, który rzuci błąd, albo nieudany zapis wiersza trafia do logu (`Organization setup failed` z `organizationId`, `module` i `hook`), wiersz nie powstaje, a hooki pozostałych modułów i tak się wykonują. Nie ma ponowień ([ADR-61](adrs/61-domain-events-run-subscribers-after-success.md)): organizację bez wiersza naprawia `npm run setup:organizations`.
+- Hook dostaje tylko `{ organizationId }`, bez sesji, i działa poza akcją serwerową: każde zapytanie filtruje po tym `organizationId`.
+- Po dodaniu albo usunięciu `setup.ts` uruchom `npm run wa -- generate` (lista `moduleSetups` w `src/modules.generated.ts`). Hook modułu wyłączonego w `src/gato.config.ts` się nie wykonuje.
+
+Organizacje, które istniały przed dodaniem modułu (albo których hook się nie udał), nie mają wiersza. `npm run setup:organizations` uruchamia brakujące `onOrganizationCreated`, organizacja po organizacji (najstarsze pierwsze):
+
+```bash
+npm run setup:organizations -- --module notes
+npm run setup:organizations -- --organization <id> --module notes
+npm run setup:organizations -- --check
+```
+
+Skrypt wypisuje `ran <organizacja> <moduł>` i `failed <organizacja> <moduł>` (albo `Nothing to set up`) i kończy się kodem 1, gdy coś się nie udało. `--check` niczego nie uruchamia: wypisuje brakujące pary `<organizacja> <moduł>` z kodem 1 albo `All organizations are set up` z kodem 0. Nieznany moduł (bez `onOrganizationCreated` albo wyłączony) i nieznana organizacja kończą się błędem i kodem 1. `wa add` przypomina o tej komendzie dla dodanego modułu z `setup.ts` ([16-cli-wa.md](16-cli-wa.md#add-po)).
+
 <a id="dalej"></a>
 
 ## Dalej

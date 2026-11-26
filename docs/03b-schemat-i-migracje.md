@@ -39,7 +39,7 @@ Schemat nie jest jednym plikiem, tylko katalogiem `prisma/schema/` z kilkoma pli
 | --- | --- |
 | `prisma/schema/base.prisma` | Generator `prisma-client` z wyjściem `../../src/generated/prisma` i źródło danych `postgresql` bez adresu. |
 | `prisma/schema/auth.prisma` | Modele better-auth: `User`, `Session`, `Account`, `Verification`. |
-| `prisma/schema/organizations.prisma` | Modele pluginu `organization` z better-auth: `Organization`, `Member`, `Invitation`. |
+| `prisma/schema/organizations.prisma` | Modele pluginu `organization` z better-auth: `Organization`, `Member`, `Invitation`, oraz model rdzenia `OrganizationModuleSetup` (tabela `organization_module_setups`). |
 | `prisma/schema/<modul>.prisma` | Modele modułu. Pola relacji zwrotnych w `User` i `Organization` wpisuje generator kitu do regionów `wa:relations` ([02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#regiony)). |
 
 Komendy `prisma` czytają konfigurację z `prisma.config.ts`:
@@ -91,6 +91,8 @@ globalForPrisma.prisma = prisma;
 - Prisma łączy się przez adapter `@prisma/adapter-pg` i pulę połączeń `pg`. Pula ma najwyżej `DATABASE_POOL_MAX` połączeń. Wartość czyta `parseInt`, a gdy wynik nie jest dodatnią liczbą całkowitą (także przy braku zmiennej), pula ma 10 połączeń. Zmienna nie przechodzi przez walidację w `packages/env/src/core-env-schema.ts` ([07-i18n-mail-env.md](07-i18n-mail-env.md)).
 - Połączenie bezczynne dłużej niż 30 sekund jest zamykane. Na wolne połączenie pula czeka do 10 sekund, a Postgres przerywa zapytanie, które trwa dłużej niż 30 sekund (`statement_timeout`).
 - Obiekt jest zapisany w `globalThis`, więc moduły przeładowywane przez `next dev` używają tej samej puli zamiast otwierać nowe połączenia po każdej zmianie pliku.
+
+`OrganizationModuleSetup` zapisuje, że `onOrganizationCreated` modułu skończyło się dla organizacji: `organizationId`, `moduleKey`, `moduleVersion` (wersja manifestu modułu z rejestru) i `finishedAt`, unikalne `(organizationId, moduleKey)`, usuwane kaskadowo z organizacją. Relacja `moduleSetups` w `Organization` stoi poza regionem `wa:relations`, bo model należy do rdzenia. Model ma `organizationId`, więc obejmuje go strażnik tenant-scope; wiersze wszystkich organizacji czyta tylko `npm run setup:organizations` przez `withoutTenantScope` ([Konfiguracja organizacji](09-nowy-modul.md#konfiguracja-organizacji)). Kit nie dołącza migracji: po `wa update` do `core` 0.30.0 projekt tworzy ją sam (`npx prisma migrate dev --name organization-module-setups`), jak przy każdej zmianie schematu rdzenia.
 
 Kod feature używa Prismy tylko w komendach, query i serwisach, nigdy w komponentach i stronach ([AGENTS.md](../AGENTS.md#struktura)). Poza feature Prismy używają w rdzeniu kod z `src/shared/lib/auth/` (na przykład `getOrgContext()`) i endpoint `/api/healthcheck`, który wykonuje `SELECT 1`.
 
