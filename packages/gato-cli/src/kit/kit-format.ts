@@ -1,4 +1,6 @@
-export const SUPPORTED_KIT_FORMATS: readonly number[] = [1, 2, 3, 4, 5, 6, 7];
+export const SUPPORTED_KIT_FORMATS: readonly number[] = [
+  1, 2, 3, 4, 5, 6, 7, 8,
+];
 
 export function assertSupportedKitFormat(format: number): void {
   if (!SUPPORTED_KIT_FORMATS.includes(format)) {
