@@ -324,6 +324,16 @@ describe("findServerImportsInClient", () => {
     ).toEqual([]);
   });
 
+  it("a specifier that only contains a feature's services path is not a server module", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import x from "vendor/@/features/invoices/services/queries/list";',
+        ),
+      ),
+    ).toEqual([]);
+  });
+
   it("a type-only import from a feature's slots.ts in a client file is allowed", () => {
     expect(
       findServerImportsInClient(
@@ -901,6 +911,18 @@ describe("checkClientBundles", () => {
       'export const clientSlots = [\n  { component: () => import("./components/nope") },\n  { component: () => import("some-lib") },\n];',
     );
     write("node_modules/some-lib/index.ts", "export default 1;");
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("a package lazy target is not resolved against the client-slots.ts directory", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'export const clientSlots = [{ component: () => import("some-lib") }];',
+    );
+    write(
+      "src/features/x/some-lib.tsx",
+      "export default function SomeLib() {\n  return null;\n}",
+    );
     expect(checkClientBundles(root)).toEqual([]);
   });
 

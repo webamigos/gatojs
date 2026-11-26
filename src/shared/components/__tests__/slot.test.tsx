@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ComponentType } from "react";
 import { renderToString } from "react-dom/server";
+import ts from "typescript";
 import {
   afterEach,
   beforeEach,
@@ -309,12 +310,22 @@ describe("Slot: a failing contribution does not take down the host", () => {
     useRegistry(registeredSlots);
   });
 
-  it("starts with import server-only", () => {
+  it("imports server-only at the top level", () => {
     const source = fs.readFileSync(
       path.resolve(import.meta.dirname, "../slot.tsx"),
       "utf8",
     );
-    expect(source.split("\n")[0]).toBe('import "server-only";');
+    const sourceFile = ts.createSourceFile(
+      "slot.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+    );
+    const importedModules = sourceFile.statements
+      .filter(ts.isImportDeclaration)
+      .map((statement) => statement.moduleSpecifier)
+      .filter(ts.isStringLiteral)
+      .map((specifier) => specifier.text);
+    expect(importedModules).toContain("server-only");
   });
 
   it("a throwing component hides only itself: host, a and c render", async () => {

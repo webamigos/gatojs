@@ -10,6 +10,7 @@ import {
   type MockInstance,
 } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { isClientModule } from "../../../../scripts/lib/architecture/client-imports";
 import { SlotErrorBoundary } from "../slot-error-boundary";
 
 const thrown = new Error("boom");
@@ -35,12 +36,12 @@ function boundaryLogCalls(): unknown[][] {
 }
 
 describe("SlotErrorBoundary", () => {
-  it("is a client component: the file starts with use client", () => {
+  it("is a client component: use client is its first statement", () => {
     const source = fs.readFileSync(
       path.resolve(import.meta.dirname, "../slot-error-boundary.tsx"),
       "utf8",
     );
-    expect(source.split("\n")[0]).toBe('"use client";');
+    expect(isClientModule(source)).toBe(true);
   });
 
   it("renders a healthy child unchanged, without a wrapper", () => {
