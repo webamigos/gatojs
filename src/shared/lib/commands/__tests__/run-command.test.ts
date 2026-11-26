@@ -1178,6 +1178,7 @@ describe("runCommand: result and events", () => {
         name: "users.invitation-canceled",
         organizationId: "org-a",
         actorUserId: "user-1",
+        serviceMode: false,
         payload: { invitationId: "inv-1" },
       },
     ]);
@@ -1211,12 +1212,14 @@ describe("runCommand: result and events", () => {
         name: "users.invitation-canceled",
         organizationId: "org-a",
         actorUserId: "user-1",
+        serviceMode: false,
         payload: { invitationId: "inv-1" },
       },
       {
         name: "users.invitation-canceled",
         organizationId: "org-a",
         actorUserId: "user-1",
+        serviceMode: false,
         payload: { invitationId: "inv-2" },
       },
     ]);
@@ -1240,6 +1243,7 @@ describe("runCommand: result and events", () => {
         name: "users.invitation-canceled",
         organizationId: "org-a",
         actorUserId: "super-1",
+        serviceMode: true,
         payload: { invitationId: "inv-1" },
       },
     ]);

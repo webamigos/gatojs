@@ -478,6 +478,7 @@ describe("deleteUploadCommand through runCommand: events and before hooks", () =
         name: "uploads.deleted",
         organizationId: "org-1",
         actorUserId: "user-1",
+        serviceMode: false,
         payload: { uploadId: UPLOAD_ID },
       },
     ]);
@@ -614,6 +615,7 @@ describe("deleteUploadCommand through runCommand: events and before hooks", () =
         name: "uploads.deleted",
         organizationId: "org-1",
         actorUserId: "user-1",
+        serviceMode: false,
         payload: { uploadId: FOREIGN_ID },
       },
     ]);
