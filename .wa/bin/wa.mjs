@@ -935,7 +935,16 @@ import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile2 } from 
 import { dirname as dirname2, join as join3 } from "node:path";
 
 // src/kit/kit-format.ts
-var SUPPORTED_KIT_FORMATS = [1, 2, 3, 4, 5, 6, 7];
+var SUPPORTED_KIT_FORMATS = [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8
+];
 function assertSupportedKitFormat(format) {
   if (!SUPPORTED_KIT_FORMATS.includes(format)) {
     throw new Error(
@@ -20822,6 +20831,7 @@ var GATO_CONFIG_MODULE = "@/shared/lib/modules/gato-config";
 var PROJECT_CONFIG_IMPORT = 'import gatoConfig from "@/gato.config";';
 var EMPTY_CONFIG_IMPORT = `import { emptyGatoConfig as gatoConfig } from "${GATO_CONFIG_MODULE}";`;
 var SLOTS_MODULE = "@/shared/lib/modules/slots";
+var COMMANDS_MODULE = "@/shared/lib/commands/define-command";
 function entry(module, value) {
   return `{ module: "${module.name}", value: ${value} }`;
 }
@@ -20874,6 +20884,7 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
   const withAuditSink = modules.filter((m) => m.hasAuditSink);
   const withEvents = modules.filter((m) => m.hasEvents);
   const withSubscribers = modules.filter((m) => m.hasSubscribers);
+  const withCommandHooks = modules.filter((m) => m.hasCommandHooks);
   const withSlots = modules.filter((m) => m.hasSlots);
   const withClientSlots = modules.filter((m) => m.hasClientSlots);
   const loadersByLocale = locales.map((locale) => ({
@@ -20901,6 +20912,7 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
     'import { createEnv } from "@gatojs/env";',
     ...serverImports.helpers,
     `import { slotRegistry } from "${SLOTS_MODULE}";`,
+    `import { commandHookRegistry } from "${COMMANDS_MODULE}";`,
     ...withModule.map(
       (m) => `import ${identifier(m.name, "Module")} from "@/features/${m.name}/module";`
     ),
@@ -20918,6 +20930,9 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
     ),
     ...withSubscribers.map(
       (m) => `import { subscribers as ${identifier(m.name, "Subscribers")} } from "@/features/${m.name}/subscribers";`
+    ),
+    ...withCommandHooks.map(
+      (m) => `import { commandHooks as ${identifier(m.name, "CommandHooks")} } from "@/features/${m.name}/command-hooks";`
     ),
     ...withSlots.map(slotsImport),
     ...withClientSlots.map(clientSlotsImport),
@@ -20946,6 +20961,7 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
       "moduleSubscribers",
       withSubscribers.map((m) => entry(m, identifier(m.name, "Subscribers")))
     ),
+    `export const moduleCommandHooks = commandHookRegistry({ modules: ${array2(withModule.map((m) => identifier(m.name, "Module")))}, hooks: ${array2(withCommandHooks.map((m) => entry(m, identifier(m.name, "CommandHooks"))))} }, gatoConfig);`,
     `export const moduleSlots = slotRegistry({ slots: ${slotEntries(withSlots, "Slots")}, clientSlots: ${slotEntries(withClientSlots, "ClientSlots")} }, gatoConfig);`,
     "export const env = createEnv(moduleEnvSchemas);",
     "",
@@ -21037,6 +21053,7 @@ async function detectFeature(projectDir, name, configuredLocales) {
     hasAuditSink: await exists(join4(base, "audit-sink.ts")),
     hasEvents: await exists(join4(base, "events.ts")),
     hasSubscribers: await exists(join4(base, "subscribers.ts")),
+    hasCommandHooks: await exists(join4(base, "command-hooks.ts")),
     hasSlots: await exists(join4(base, "slots.ts")),
     hasClientSlots: await exists(join4(base, "client-slots.ts")),
     locales
@@ -24936,7 +24953,7 @@ function cliDependency(input2) {
 }
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.10.0" };
+var identity = { name: "wa", version: "0.11.0" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);

@@ -300,6 +300,7 @@ Definicja modułu (`src/features/uploads/module.ts`):
 | `nav`, `routePrefixes` | `[]` | Brak strony i pozycji menu. |
 | `roles` | brak | Moduł nie ogranicza ról; trasy i komenda sprawdzają dostęp same ([Dostęp](#dostep)). |
 | `auditActions` | `upload.created`, `upload.deleted` | Etykiety zdarzeń plików w dzienniku ([Zdarzenia](#zdarzenia)). |
+| `commands` | `["uploads.delete"]` | Klucz komendy `deleteUploadCommand`, na który inne moduły mogą założyć hook `before` ([Usuwanie](#usuwanie)). |
 | `permissions` | `uploads.delete-others`: `defaultRoles: ["owner", "admin"]`, `labelKey: "permission-delete-others"` | Kto usuwa cudze pliki ([Usuwanie](#usuwanie), [Uprawnienia](15b-modul-uploads-uzycie.md#uprawnienia)). |
 | `uploadPurposes` | `editor-image`: `image/jpeg`, `image/png`, `image/webp`, `maxBytes: 5 * 1024 * 1024`, `visibility: "public"`, `resizeImage: { maxWidth: 1200 }` | Cel kitu dla obrazów w edytorach ([Kontrakt celu](#cel-uploadu)). |
 
@@ -398,13 +399,14 @@ Odpowiedzi z przebiegu (sprawdzone): plik `editor-image` bez sesji 200 z `cache-
 
 ### Usuwanie: `deleteUploadCommand`
 
-`deleteUploadCommand(input, confirmation?)` (`services/commands/upload-commands.ts`, `"use server"`) przyjmuje `{ id }`:
+`deleteUploadCommand(input, confirmation?)` (`services/commands/upload-commands.ts`, `"use server"`) przyjmuje `{ id }`. Od `uploads` 0.6.0 to komenda `uploads.delete` uruchamiana przez `runCommand` ([ADR-62](adrs/62-gato-commands-run-through-define-command-with-before-hooks-only.md), [wzorzec](06-wzorce-kodu.md#define-command)):
 
-1. `getOrgContext()` i `assertServiceModeConfirmed(context, confirmation)`.
+1. `requireModuleEnabled("uploads")`, `getOrgContext()` i `assertServiceModeConfirmed(context, confirmation)`; potem hooki `before` innych modułów na `uploads.delete` (`command-hooks.ts`), które mogą odmówić (`DomainError` z własnym komunikatem) albo podmienić `id` na plik tej samej organizacji.
 2. `id` musi być UUID; plik szuka się z filtrem `organizationId` aktywnej organizacji. Nieprawidłowe `id`, plik innej organizacji i plik nieistniejący dają ten sam błąd „Nie udało się usunąć pliku”.
 3. Usunąć może autor (`uploadedById` równe użytkownikowi) albo ten, komu `can(context, "uploads.delete-others")` daje `true`: domyślnie owner i admin organizacji, zawsze admin i superadmin globalny ([Uprawnienia](15b-modul-uploads-uzycie.md#uprawnienia)); pozostali dostają „Brak uprawnień do usunięcia pliku” i nic nie jest usuwane.
 4. Komenda usuwa obiekt z magazynu, potem rekord (z warunkiem `{ id, organizationId }`), potem woła `trackAudit` z `upload.deleted`. **Błąd usunięcia obiektu nie zatrzymuje komendy**: trafia do logu jako `upload deleteObject failed` z kluczem, rekord znika, a obiekt zostaje osierocony ([Osierocone obiekty](#osierocone)).
-5. Drugie wywołanie dla tego samego `id` zwraca błąd i nie woła magazynu.
+5. Po udanym usunięciu komenda emituje zdarzenie `uploads.deleted` z `{ uploadId }` (`src/features/uploads/events.ts`); odmowa i błąd nie emitują nic ([ADR-61](adrs/61-domain-events-run-subscribers-after-success.md)).
+6. Drugie wywołanie dla tego samego `id` zwraca błąd i nie woła magazynu.
 
 Komendę woła kod projektu przez `useServiceModeAction().run` albo z własnej komendy, która usuwa encję ([15b](15b-modul-uploads-uzycie.md#usuwanie-z-encja)).
 
