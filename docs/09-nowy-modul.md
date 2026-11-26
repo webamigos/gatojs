@@ -639,10 +639,12 @@ export const slots = [
 - Wkłady jednego slotu stoją według `priority` rosnąco, a przy równych według `id`.
 - `roles: ["owner", "admin"]` ukrywa wkład przed pozostałymi rolami w organizacji (admin i superadmin globalny widzą go zawsze). Wkład modułu, do którego użytkownik nie ma dostępu (`roles`, `adminOnly` w `module.ts`), albo modułu wyłączonego w `src/gato.config.ts` też się nie pokaże. To ukrywanie interfejsu, nie zabezpieczenie: komponent, który czyta dane, woła query zaczynające się od `getOrgContext()`.
 - Komponent dostaje kontekst slotu jako propsy, a TypeScript sprawdza je z typem slotu. W `slots.ts` może to być asynchroniczny komponent serwerowy, bo plik trafia tylko do rejestru serwerowego. Wkłady do slotów klienckich (pierwsze przyjdą z tabelą użytkowników) idą do `client-slots.ts` (eksport `clientSlots`), który trafia do paczki przeglądarki, więc nie może importować kodu serwerowego.
+- Wkład, którego komponent rzuca błąd przy renderowaniu albo którego `import()` się nie powiedzie, znika ze strony, a reszta strony i pozostałe wkłady się renderują; błąd ląduje w logu serwera (ładowanie) albo w konsoli przeglądarki (renderowanie).
+- Każdy plik leniwie importowany z `client-slots.ts` zaczyna się od `"use client"`, a `client-slots.ts` i komponenty klienckie nie importują `slots.ts` ani `services/` poza `services/commands/` (także ścieżką względną); pilnuje tego `client-bundles-stay-server-free.test.ts`.
 - Po dodaniu albo usunięciu `slots.ts` lub `client-slots.ts` uruchom `npm run wa -- generate`.
 - Ukrycie wkładu w projekcie: `modules: { dashboard: { slots: { "dashboard.sections": { "notes.summary-card": null } } } }`, a zmiana kolejności: `{ priority: 5 }` zamiast `null`.
 
-Własny slot na stronie swojego modułu deklaruje moduł w swoim `slots.ts` (`export const slotDefinitions = [defineSlot("<x>.<nazwa>", { kind: "server" })]` i typ kontekstu w `declare module "@/shared/lib/modules/slots" { interface SlotContextMap { … } }`, jak `src/features/dashboard/slots.ts`), a strona renderuje `<Slot id="<x>.<nazwa>" context={…} viewer={…} />` z `src/shared/components/slot.tsx`.
+Własny slot na stronie swojego modułu deklaruje moduł w swoim `slots.ts` (`export const slotDefinitions = [defineSlot("<x>.<nazwa>", { kind: "server" })]` i typ kontekstu w `declare module "@/shared/lib/modules/slots" { interface SlotContextMap { … } }`, jak `src/features/dashboard/slots.ts`; slot kliencki, `{ kind: "client" }`, rozszerza zamiast tego `ClientSlotContextMap` i renderuje się przez `<ClientSlot>` z `src/shared/components/client-slot.tsx`), a strona renderuje `<Slot id="<x>.<nazwa>" context={…} viewer={…} />` z `src/shared/components/slot.tsx`.
 
 <a id="dalej"></a>
 
