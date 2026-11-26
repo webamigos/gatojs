@@ -8,8 +8,13 @@ const { mockLogger } = vi.hoisted(() => ({
 vi.mock("@/shared/lib/logger", () => ({ logger: mockLogger }));
 
 import { coreEvents } from "../core-events";
-import { defineEvents, type DomainEvent } from "../define-events";
-import { createEventBus } from "../event-bus";
+import {
+  defineEvents,
+  EventError,
+  type DomainEvent,
+  type EventMap,
+} from "../define-events";
+import { createEventBus, type EventBus } from "../event-bus";
 
 const ORIGIN = { organizationId: "org-a", actorUserId: "u1" };
 const INVITED_PAYLOAD = {
@@ -992,5 +997,481 @@ describe("createEventBus: construction problems", () => {
         ],
       ),
     ).not.toThrow();
+  });
+});
+
+describe("createEventBus: the payload is deep-frozen", () => {
+  function metaBus(subscribers: Record<string, unknown>) {
+    return busWith(
+      [{ module: "m", value: subscribers }],
+      [
+        {
+          module: "m",
+          value: defineEvents({
+            "m.tagged": z.object({
+              meta: z.object({ tags: z.array(z.string()) }),
+            }),
+          }),
+        },
+      ],
+    );
+  }
+
+  it("pushing to a nested array and assigning a nested field both throw TypeError and the next subscriber sees the original payload", async () => {
+    const seen: unknown[] = [];
+    const frozen: boolean[] = [];
+    const bus = metaBus({
+      "m.tagged": [
+        subscriber("m.a-push", (event) => {
+          (event.payload as { meta: { tags: string[] } }).meta.tags.push("b");
+        }),
+        subscriber("m.b-assign", (event) => {
+          (event.payload as { meta: Record<string, unknown> }).meta.x = 1;
+        }),
+        subscriber("m.c-read", (event) => {
+          const payload = event.payload as { meta: { tags: string[] } };
+          seen.push(payload);
+          frozen.push(
+            Object.isFrozen(payload.meta),
+            Object.isFrozen(payload.meta.tags),
+          );
+        }),
+      ],
+    });
+
+    await bus.emit(ORIGIN, "m.tagged", { meta: { tags: ["a"] } });
+
+    expect(seen).toEqual([{ meta: { tags: ["a"] } }]);
+    expect(frozen).toEqual([true, true]);
+    expect(mockLogger.error.mock.calls).toEqual([
+      [
+        "Event subscriber failed",
+        {
+          event: "m.tagged",
+          subscriber: "m.a-push",
+          error: expect.any(TypeError),
+        },
+      ],
+      [
+        "Event subscriber failed",
+        {
+          event: "m.tagged",
+          subscriber: "m.b-assign",
+          error: expect.any(TypeError),
+        },
+      ],
+    ]);
+  });
+
+  it("objects inside an array of the payload are frozen too", async () => {
+    const received: DomainEvent[] = [];
+    const bus = busWith(
+      [
+        {
+          module: "m",
+          value: {
+            "m.listed": subscriber("m.read", (event) => {
+              received.push(event);
+            }),
+          },
+        },
+      ],
+      [
+        {
+          module: "m",
+          value: defineEvents({
+            "m.listed": z.object({
+              items: z.array(
+                z.object({ id: z.string(), tags: z.array(z.string()) }),
+              ),
+            }),
+          }),
+        },
+      ],
+    );
+
+    await bus.emit(ORIGIN, "m.listed", {
+      items: [{ id: "i1", tags: ["t"] }],
+    });
+
+    const payload = received[0].payload as {
+      items: { id: string; tags: string[] }[];
+    };
+    expect(Object.isFrozen(payload.items)).toBe(true);
+    expect(Object.isFrozen(payload.items[0])).toBe(true);
+    expect(Object.isFrozen(payload.items[0].tags)).toBe(true);
+  });
+});
+
+describe("createEventBus: event schemas must be strip-mode z.object()", () => {
+  function moduleEventBus(schema: unknown) {
+    return () =>
+      busWith([], [{ module: "m", value: { "m.x": schema } as EventMap }]);
+  }
+
+  it.each([
+    ["z.looseObject", z.looseObject({ a: z.string() })],
+    ["passthrough()", z.object({ a: z.string() }).passthrough()],
+    ["loose()", z.object({ a: z.string() }).loose()],
+    ["catchall(z.string())", z.object({ a: z.string() }).catchall(z.string())],
+    ["z.strictObject", z.strictObject({ a: z.string() })],
+    ["strict()", z.object({ a: z.string() }).strict()],
+  ])(
+    "a module event built with %s throws EventError: must be a z.object() that strips unknown keys",
+    (_label, schema) => {
+      const error = constructionError(moduleEventBus(schema));
+
+      expect(error).toBeInstanceOf(EventError);
+      expect(error.message).toContain(
+        "event m.x must be a z.object() that strips unknown keys",
+      );
+      expect(error.message).not.toContain(
+        "event m.x must be a z.object() schema",
+      );
+    },
+  );
+
+  it("a module event that is a transform, not a ZodObject, throws EventError: must be a z.object() schema", () => {
+    const error = constructionError(
+      moduleEventBus(z.object({ a: z.string() }).transform((value) => value)),
+    );
+
+    expect(error).not.toBeInstanceOf(TypeError);
+    expect(error).toBeInstanceOf(EventError);
+    expect(error.message).toContain("event m.x must be a z.object() schema");
+    expect(error.message).not.toContain("strips unknown keys");
+  });
+
+  it("a module event that is a z.string() throws EventError: must be a z.object() schema", () => {
+    const error = constructionError(moduleEventBus(z.string()));
+
+    expect(error).toBeInstanceOf(EventError);
+    expect(error.message).toContain("event m.x must be a z.object() schema");
+  });
+
+  it("a plain z.object() module event constructs without an error", () => {
+    expect(moduleEventBus(z.object({ a: z.string() }))).not.toThrow();
+  });
+
+  it("a core event built with z.looseObject throws EventError too", () => {
+    const error = constructionError(() =>
+      createEventBus({
+        core: { "core.thing": z.looseObject({ a: z.string() }) } as EventMap,
+        events: [],
+        subscribers: [],
+      }),
+    );
+
+    expect(error).toBeInstanceOf(EventError);
+    expect(error.message).toContain(
+      "event core.thing must be a z.object() that strips unknown keys",
+    );
+  });
+
+  it("a core event that is a transform throws EventError: must be a z.object() schema", () => {
+    const error = constructionError(() =>
+      createEventBus({
+        core: {
+          "core.thing": z.object({ a: z.string() }).transform((value) => value),
+        } as unknown as EventMap,
+        events: [],
+        subscribers: [],
+      }),
+    );
+
+    expect(error).toBeInstanceOf(EventError);
+    expect(error.message).toContain(
+      "event core.thing must be a z.object() schema",
+    );
+  });
+
+  it("schema problems join the other registry problems in one EventError, one line each", () => {
+    const error = constructionError(() =>
+      busWith(
+        [
+          {
+            module: "m",
+            value: { "m.nope": subscriber("m.z", () => undefined) },
+          },
+        ],
+        [
+          {
+            module: "m",
+            value: {
+              issued: z.object({}),
+              "m.loose": z.looseObject({}),
+              "m.mapped": z.object({}).transform((value) => value),
+            } as unknown as EventMap,
+          },
+        ],
+      ),
+    );
+    const lines = error.message.split("\n");
+    const problems = [
+      'event keys must start with "m.": issued',
+      "event m.loose must be a z.object() that strips unknown keys",
+      "event m.mapped must be a z.object() schema",
+      "unknown event: m.nope (subscriber m.z)",
+    ];
+    const lineOf = (problem: string) =>
+      lines.findIndex((line) => line.includes(problem));
+
+    expect(error).toBeInstanceOf(EventError);
+    expect(problems.map(lineOf).every((index) => index >= 0)).toBe(true);
+    expect(new Set(problems.map(lineOf)).size).toBe(4);
+  });
+
+  it("an organizationId sent with a plain z.object() schema is stripped before the subscriber", async () => {
+    const received: DomainEvent[] = [];
+    const bus = busWith(
+      [
+        {
+          module: "m",
+          value: {
+            "m.x": subscriber("m.read", (event) => {
+              received.push(event);
+            }),
+          },
+        },
+      ],
+      [
+        {
+          module: "m",
+          value: defineEvents({ "m.x": z.object({ a: z.string() }) }),
+        },
+      ],
+    );
+
+    await bus.emit(ORIGIN, "m.x", { a: "v", organizationId: "org-evil" });
+
+    expect(received).toEqual([
+      {
+        name: "m.x",
+        organizationId: "org-a",
+        actorUserId: "u1",
+        payload: { a: "v" },
+      },
+    ]);
+  });
+});
+
+describe("createEventBus: nested emits are capped at depth 8", () => {
+  const RUNAWAY_GUARD = 20;
+  const NESTED_EVENTS = [
+    {
+      module: "m",
+      value: defineEvents({
+        "m.a": z.object({}),
+        "m.b": z.object({}),
+        "m.c": z.object({ chain: z.string() }),
+      }),
+    },
+  ];
+
+  function nestedBus(subscribers: Record<string, unknown>): EventBus {
+    return busWith([{ module: "m", value: subscribers }], NESTED_EVENTS);
+  }
+
+  function pingPongBus(runs: { a: number; b: number }): EventBus {
+    const bus: EventBus = nestedBus({
+      "m.a": subscriber("m.on-a", async () => {
+        runs.a += 1;
+        if (runs.a < RUNAWAY_GUARD) {
+          await bus.emit(ORIGIN, "m.b", {});
+        }
+      }),
+      "m.b": subscriber("m.on-b", async () => {
+        runs.b += 1;
+        if (runs.b < RUNAWAY_GUARD) {
+          await bus.emit(ORIGIN, "m.a", {});
+        }
+      }),
+    });
+    return bus;
+  }
+
+  function counterBus(limit: number, runs: { count: number }): EventBus {
+    const bus: EventBus = nestedBus({
+      "m.a": subscriber("m.count", async () => {
+        runs.count += 1;
+        if (runs.count < limit && runs.count < RUNAWAY_GUARD) {
+          await bus.emit(ORIGIN, "m.a", {});
+        }
+      }),
+    });
+    return bus;
+  }
+
+  it("m.a -> m.b -> m.a ping-pong runs each subscriber 4 times, logs Event depth exceeded once for m.a and resolves", async () => {
+    const runs = { a: 0, b: 0 };
+    const bus = pingPongBus(runs);
+
+    await expect(bus.emit(ORIGIN, "m.a", {})).resolves.toBeUndefined();
+
+    expect(runs).toEqual({ a: 4, b: 4 });
+    expect(mockLogger.error).toHaveBeenCalledTimes(1);
+    expect(mockLogger.error).toHaveBeenCalledWith("Event depth exceeded", {
+      event: "m.a",
+      error: expect.any(EventError),
+    });
+    const { error } = mockLogger.error.mock.calls[0][1] as { error: Error };
+    expect(error.name).toBe("EventError");
+    expect(error.message).toBe("event depth exceeded 8: m.a");
+  });
+
+  it("the overflow is not reported as a subscriber failure", async () => {
+    const bus = pingPongBus({ a: 0, b: 0 });
+
+    await bus.emit(ORIGIN, "m.a", {});
+
+    expect(
+      mockLogger.error.mock.calls.filter(
+        ([message]) => message === "Event subscriber failed",
+      ),
+    ).toEqual([]);
+  });
+
+  it("a chain of exactly 8 emits runs 8 times and logs nothing", async () => {
+    const runs = { count: 0 };
+    const bus = counterBus(8, runs);
+
+    await bus.emit(ORIGIN, "m.a", {});
+
+    expect(runs.count).toBe(8);
+    expect(mockLogger.error).not.toHaveBeenCalled();
+  });
+
+  it("a chain that wants 9 emits stops after 8 runs and logs the 9th once", async () => {
+    const runs = { count: 0 };
+    const bus = counterBus(9, runs);
+
+    await bus.emit(ORIGIN, "m.a", {});
+
+    expect(runs.count).toBe(8);
+    expect(mockLogger.error).toHaveBeenCalledTimes(1);
+    expect(mockLogger.error.mock.calls[0][0]).toBe("Event depth exceeded");
+    expect(
+      (mockLogger.error.mock.calls[0][1] as { error: Error }).error.message,
+    ).toBe("event depth exceeded 8: m.a");
+  });
+
+  it("a second top-level emit after an overflowing chain starts at depth 0 again", async () => {
+    const runs = { a: 0, b: 0 };
+    const bus = pingPongBus(runs);
+    await bus.emit(ORIGIN, "m.a", {});
+    runs.a = 0;
+    runs.b = 0;
+
+    await bus.emit(ORIGIN, "m.a", {});
+
+    expect(runs).toEqual({ a: 4, b: 4 });
+    expect(mockLogger.error).toHaveBeenCalledTimes(2);
+  });
+
+  it("three sibling emits of m.b from one subscriber run m.on-b 3 times and log nothing", async () => {
+    const log: string[] = [];
+    const bus: EventBus = nestedBus({
+      "m.a": subscriber("m.on-a", async () => {
+        await bus.emit(ORIGIN, "m.b", {});
+        await bus.emit(ORIGIN, "m.b", {});
+        await bus.emit(ORIGIN, "m.b", {});
+      }),
+      "m.b": recorder(log, "m.on-b"),
+    });
+
+    await bus.emit(ORIGIN, "m.a", {});
+
+    expect(log).toEqual(["m.on-b", "m.on-b", "m.on-b"]);
+    expect(mockLogger.error).not.toHaveBeenCalled();
+  });
+
+  it("ten sibling emits at depth 1 do not add up to the cap", async () => {
+    const log: string[] = [];
+    const bus: EventBus = nestedBus({
+      "m.a": subscriber("m.on-a", async () => {
+        for (const round of [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+        ]) {
+          await bus.emit(ORIGIN, "m.c", { chain: round });
+        }
+      }),
+      "m.c": subscriber("m.on-c", (event) => {
+        log.push((event.payload as { chain: string }).chain);
+      }),
+    });
+
+    await bus.emit(ORIGIN, "m.a", {});
+
+    expect(log).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+    expect(mockLogger.error).not.toHaveBeenCalled();
+  });
+
+  it("ten sequential top-level emits each run their subscriber", async () => {
+    const log: string[] = [];
+    const bus = nestedBus({
+      "m.c": subscriber("m.on-c", (event) => {
+        log.push((event.payload as { chain: string }).chain);
+      }),
+    });
+
+    for (const round of ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]) {
+      await bus.emit(ORIGIN, "m.c", { chain: round });
+    }
+
+    expect(log).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+    expect(mockLogger.error).not.toHaveBeenCalled();
+  });
+
+  it("two concurrent chains of 8 emits do not add up their depths", async () => {
+    const runs: Record<string, number> = { x: 0, y: 0 };
+    const bus: EventBus = nestedBus({
+      "m.c": subscriber("m.chain", async (event) => {
+        const { chain } = event.payload as { chain: string };
+        runs[chain] += 1;
+        await Promise.resolve();
+        if (runs[chain] < 8) {
+          await bus.emit(ORIGIN, "m.c", { chain });
+        }
+      }),
+    });
+
+    await Promise.all([
+      bus.emit(ORIGIN, "m.c", { chain: "x" }),
+      bus.emit(ORIGIN, "m.c", { chain: "y" }),
+    ]);
+
+    expect(runs).toEqual({ x: 8, y: 8 });
+    expect(mockLogger.error).not.toHaveBeenCalled();
+  });
+
+  it("the depth is per bus: a chain of 8 on one bus leaves another bus at depth 0", async () => {
+    const runs = { count: 0 };
+    const otherLog: string[] = [];
+    const other = nestedBus({ "m.b": recorder(otherLog, "m.on-b") });
+    const bus: EventBus = nestedBus({
+      "m.a": subscriber("m.count", async () => {
+        runs.count += 1;
+        if (runs.count < 8) {
+          await bus.emit(ORIGIN, "m.a", {});
+          return;
+        }
+        await other.emit(ORIGIN, "m.b", {});
+      }),
+    });
+
+    await bus.emit(ORIGIN, "m.a", {});
+
+    expect(runs.count).toBe(8);
+    expect(otherLog).toEqual(["m.on-b"]);
+    expect(mockLogger.error).not.toHaveBeenCalled();
   });
 });

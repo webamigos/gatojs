@@ -54,6 +54,7 @@ vi.mock("@/modules.generated", async (importOriginal) => ({
 }));
 
 import { auth } from "../index";
+import type * as InviteSignupScope from "../invite-signup-scope";
 
 const signupBody = {
   name: "Jan",
@@ -277,5 +278,195 @@ describe("databaseHooks.user.create.after: auth.signed-up", () => {
     );
 
     expect(signedUp).toEqual([]);
+  });
+});
+
+const INVITATION = {
+  id: "inv-1",
+  organizationId: "org-invited",
+  role: "admin",
+};
+
+const INVITE_SIGNUP_SCOPE_MODULE = "../invite-signup-scope";
+
+async function inviteSignupScope(): Promise<typeof InviteSignupScope> {
+  return import(INVITE_SIGNUP_SCOPE_MODULE);
+}
+
+describe("databaseHooks.user.create.after: admin invite scope", () => {
+  it("a sign-up inside withInviteSignup emits no auth.signed-up and still creates the invitation's membership", async () => {
+    const { withInviteSignup } = await inviteSignupScope();
+    mockEnv.AUTH_PUBLIC_SIGNUP = false;
+    mockPrisma.invitation.findFirst.mockResolvedValue(INVITATION);
+
+    await withInviteSignup(() =>
+      auth.api.signUpEmail({
+        body: { ...signupBody, invitationId: "inv-1" } as typeof signupBody,
+      }),
+    );
+
+    expect(signedUp).toEqual([]);
+    expect(created).toEqual([]);
+    expect(mockPrisma.member.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.member.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: "user-new",
+        organizationId: "org-invited",
+        role: "admin",
+      }),
+    });
+    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("the hook called directly inside withInviteSignup with a join membership emits nothing and still writes the membership", async () => {
+    const { withInviteSignup } = await inviteSignupScope();
+
+    await withInviteSignup(() =>
+      afterUserCreate()(createdUser, {
+        signupMembership: {
+          action: "join",
+          organizationId: "org-7",
+          role: "member",
+        },
+      } as unknown as Parameters<AfterUserCreate>[1]),
+    );
+
+    expect(signedUp).toEqual([]);
+    expect(mockPrisma.member.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.member.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: "user-direct",
+        organizationId: "org-7",
+        role: "member",
+      }),
+    });
+  });
+
+  it("a public sign-up after a finished invite scope emits auth.signed-up again", async () => {
+    const { withInviteSignup } = await inviteSignupScope();
+    mockEnv.AUTH_PUBLIC_SIGNUP = false;
+    mockPrisma.invitation.findFirst.mockResolvedValue(INVITATION);
+    await withInviteSignup(() =>
+      auth.api.signUpEmail({
+        body: { ...signupBody, invitationId: "inv-1" } as typeof signupBody,
+      }),
+    );
+
+    await auth.api.signUpEmail({
+      body: {
+        ...signupBody,
+        email: "ewa@example.com",
+        invitationId: "inv-1",
+      } as typeof signupBody,
+    });
+
+    expect(signedUp).toEqual([
+      {
+        name: "auth.signed-up",
+        organizationId: "org-invited",
+        actorUserId: "user-new",
+        payload: { userId: "user-new", email: "ewa@example.com" },
+      },
+    ]);
+  });
+
+  it("a public sign-up running concurrently with an invite scope still emits its own auth.signed-up", async () => {
+    const { withInviteSignup } = await inviteSignupScope();
+    mockPrisma.invitation.findFirst.mockResolvedValue(INVITATION);
+    mockPrisma.organization.findFirst.mockResolvedValue({ id: "org-only" });
+    mockPrisma.user.create.mockImplementation(
+      async ({ data }: { data: Record<string, unknown> }) => ({
+        ...data,
+        id: data.email === "ewa@example.com" ? "user-ewa" : "user-new",
+      }),
+    );
+
+    await Promise.all([
+      withInviteSignup(() =>
+        auth.api.signUpEmail({
+          body: { ...signupBody, invitationId: "inv-1" } as typeof signupBody,
+        }),
+      ),
+      auth.api.signUpEmail({
+        body: { ...signupBody, name: "Ewa", email: "ewa@example.com" },
+      }),
+    ]);
+
+    expect(signedUp).toEqual([
+      {
+        name: "auth.signed-up",
+        organizationId: "org-only",
+        actorUserId: "user-ewa",
+        payload: { userId: "user-ewa", email: "ewa@example.com" },
+      },
+    ]);
+  });
+
+  it("a public sign-up with forged inviteSignup, adminInvite and isInviteSignup body fields still emits one auth.signed-up", async () => {
+    mockPrisma.organization.findFirst.mockResolvedValue({ id: "org-only" });
+
+    await auth.api.signUpEmail({
+      body: {
+        ...signupBody,
+        inviteSignup: true,
+        adminInvite: true,
+        isInviteSignup: true,
+      } as typeof signupBody,
+    });
+
+    expect(signedUp).toEqual([
+      {
+        name: "auth.signed-up",
+        organizationId: "org-only",
+        actorUserId: "user-new",
+        payload: { userId: "user-new", email: "jan@example.com" },
+      },
+    ]);
+  });
+
+  it("a public sign-up by invitation with forged marker fields in the body still emits auth.signed-up for the invitation's organization", async () => {
+    mockEnv.AUTH_PUBLIC_SIGNUP = false;
+    mockPrisma.invitation.findFirst.mockResolvedValue(INVITATION);
+
+    await auth.api.signUpEmail({
+      body: {
+        ...signupBody,
+        invitationId: "inv-1",
+        inviteSignup: true,
+        adminInvite: "true",
+        isInviteSignup: "1",
+      } as typeof signupBody,
+    });
+
+    expect(signedUp).toEqual([
+      {
+        name: "auth.signed-up",
+        organizationId: "org-invited",
+        actorUserId: "user-new",
+        payload: { userId: "user-new", email: "jan@example.com" },
+      },
+    ]);
+  });
+
+  it("a public sign-up with forged marker headers still emits one auth.signed-up", async () => {
+    mockPrisma.organization.findFirst.mockResolvedValue({ id: "org-only" });
+
+    await auth.api.signUpEmail({
+      body: signupBody,
+      headers: new Headers({
+        "x-invite-signup": "true",
+        "x-admin-invite": "true",
+        "invite-signup": "1",
+      }),
+    });
+
+    expect(signedUp).toEqual([
+      {
+        name: "auth.signed-up",
+        organizationId: "org-only",
+        actorUserId: "user-new",
+        payload: { userId: "user-new", email: "jan@example.com" },
+      },
+    ]);
   });
 });
