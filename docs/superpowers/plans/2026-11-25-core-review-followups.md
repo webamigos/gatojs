@@ -104,6 +104,60 @@ Docs only (Polish file): deleting an organization makes values unreadable only i
 keep the wrapped data key. Moving data to another environment requires the same `ENCRYPTION_MASTER_KEY` (and
 `API_KEY_PEPPER` for api-keys).
 
+## Fix 5: merge keys and Compose's one-shot rules in the self-hosted checks
+
+From the independent review of PR #114. File: `scripts/lib/architecture/selfhost.ts`,
+`checkSelfhostCompose(root: string): string[]`. Tests: `src/__tests__/architecture/selfhost-stack.test.ts`. Issue
+literals `I1`–`I4` as in Fix 1, unchanged.
+
+Rules, following Compose:
+
+- The file is parsed with YAML merge keys resolved (`parse(text, { merge: true })`), as Compose does, so a service
+  built from `<<: *anchor` is checked with the merged keys.
+- A service without `restart` has Compose's default `restart: "no"`. It is a one-shot service when at least one other
+  service waits for it with `service_completed_successfully` (a service nobody waits to complete is taken as
+  long-running, like `db`). A service with `restart: "no"` is a one-shot service as before.
+- Compose starts a service when any of its profiles is active. The `tools` profile is started only by hand
+  (`dc --profile tools run`), so it is left out of the profiles a one-shot service is checked under; a one-shot service
+  whose only profile is `tools` is not checked, one with `["tools", "s3"]` is checked under `s3`.
+
+### Behaviours
+
+1. A module service `minio` built from an anchor that publishes a port: top-level `x-exposed: &exposed` with
+   `ports: ["9000:9000"]`, `minio: { <<: *exposed, image: "minio" }` (hand-written YAML) → `[I3("minio")]`.
+2. The same anchor merged into `app` → `[]` (app may publish ports).
+3. `seed` without `restart`, the only waiter `worker` (`profiles: ["s3"]`) waits for it to complete → `[I1("seed")]`.
+4. `seed` without `restart`, `app` (no profiles) waits for it to complete → `[]`.
+5. `seed` without `restart`, `profiles: ["s3", "full"]`, the only waiter `worker` (`profiles: ["s3"]`) waits for it to
+   complete → `[I2("seed", "full")]`.
+6. `seed` without `restart` that a service only waits to start (`service_started`) and no profiles → `[]` (not a
+   one-shot service).
+7. `seed` without `restart` and no waiter → `[]`.
+8. One-shot `seed` (`restart: "no"`) with `profiles: ["tools", "s3"]` and no waiter → `[I2("seed", "s3")]` (only `s3`).
+9. One-shot `seed` (`restart: "no"`) with `profiles: ["tools"]` and no waiter → `[]` (existing `tools` test).
+10. One-shot `seed` (`restart: "no"`) with `profiles: ["s3", "full"]`, one waiter `worker` with
+    `profiles: ["s3", "full"]` waiting for it to complete → `[]`.
+11. A service without `restart` named `migrate` stays exempt: the repository stack still passes.
+
+### Mutations to kill
+
+- Dropping `{ merge: true }` → behaviour 1.
+- Treating every service without `restart` as one-shot → behaviour 7 (and the repository stack: `db` has
+  `restart`, but fixtures' `db` has none).
+- Counting a `service_started` waiter as making a service one-shot → behaviour 6.
+- Keeping the whole-service `tools` exemption → behaviour 8; reporting `tools` itself → behaviours 8, 9.
+- Requiring a waiter's profiles to equal the one-shot service's → behaviour 10 still passes; covered by Fix 1's
+  behaviour 4.
+
+## Fix 6: backups never leave the app stopped, restores never delete live data first
+
+Docs only (`docs/self-hosting.md`). Backup: `trap 'dc start app' EXIT` right after `dc stop app`; the MinIO copy inside
+the same block, before `app` starts again. Restore: check the set first (`postgres.dump` non-empty and readable by
+`pg_restore --list`, `uploads.tar` listable, `$B/minio` a non-empty directory); take a safety `pg_dump` of the live
+database; restore into a scratch database with `pg_restore --single-transaction --exit-on-error` and swap it in by
+renaming only after it succeeded; move the old uploads and `volumes/minio` aside and remove them only at the end.
+Record a run only for what ran.
+
 ## Versions
 
 Core patch, encryption patch (next free on main when finishing).
