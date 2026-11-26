@@ -127,9 +127,14 @@ vi.mock("@/shared/config/project", () => ({
   project: { name: "Test Projekt", slug: "test-projekt" },
 }));
 
-const { emitted, transaction } = vi.hoisted(() => ({
+const { emitted, transaction, steps, setupHooks } = vi.hoisted(() => ({
   emitted: [] as { event: unknown; insideTransaction: boolean }[],
   transaction: { open: false },
+  steps: [] as string[],
+  setupHooks: {
+    seed: vi.fn(),
+    onOrganizationCreated: vi.fn(),
+  },
 }));
 
 vi.mock("@/modules.generated", () => ({
@@ -141,9 +146,22 @@ vi.mock("@/modules.generated", () => ({
         "organizations.created": {
           id: "probe.record",
           run: (event: unknown) => {
+            steps.push(
+              `event:${(event as { organizationId: string }).organizationId}`,
+            );
             emitted.push({ event, insideTransaction: transaction.open });
           },
         },
+      },
+    },
+  ],
+  moduleSetups: [
+    {
+      module: "notes",
+      version: "1.2.0",
+      value: {
+        seed: setupHooks.seed,
+        onOrganizationCreated: setupHooks.onOrganizationCreated,
       },
     },
   ],
@@ -827,6 +845,104 @@ describe("adminCreate: organizations.created", () => {
       "db down",
     );
     expect(emitted).toEqual([]);
+  });
+});
+
+describe("adminCreate: seed hooks", () => {
+  beforeEach(() => {
+    db.users.length = 0;
+    db.orgs.length = 0;
+    db.members.length = 0;
+    db.seq = 0;
+    emitted.length = 0;
+    steps.length = 0;
+    transaction.open = false;
+    setupHooks.seed.mockReset();
+    setupHooks.seed.mockImplementation(
+      (context: { organizationId: string }) => {
+        steps.push(`seed:${context.organizationId}`);
+      },
+    );
+    setupHooks.onOrganizationCreated.mockReset();
+  });
+
+  it("runs the seed hooks once for the created organization with exactly its id", async () => {
+    const r = await adminCreate({ email: "a@x.pl", ...yes });
+
+    expect(r.organizationId).toBe("org-2");
+    expect(setupHooks.seed.mock.calls).toStrictEqual([
+      [{ organizationId: "org-2" }],
+    ]);
+  });
+
+  it("runs the seed hooks after organizations.created was emitted", async () => {
+    await adminCreate({ email: "a@x.pl", ...yes });
+
+    expect(steps).toEqual(["event:org-2", "seed:org-2"]);
+  });
+
+  it("runs the seed hooks for the joined oldest organization, without an event", async () => {
+    db.orgs.push({
+      id: "org-old",
+      name: "Stara",
+      slug: "stara",
+      createdAt: new Date(0),
+    });
+
+    await adminCreate({ email: "c@x.pl", ...yes });
+
+    expect(steps).toEqual(["seed:org-old"]);
+    expect(setupHooks.seed.mock.calls).toStrictEqual([
+      [{ organizationId: "org-old" }],
+    ]);
+  });
+
+  it("a second run seeds the same organization again", async () => {
+    await adminCreate({ email: "a@x.pl", ...yes });
+    await adminCreate({ email: "a@x.pl", ...yes });
+
+    expect(steps).toEqual(["event:org-2", "seed:org-2", "seed:org-2"]);
+  });
+
+  it("does not call onOrganizationCreated itself", async () => {
+    await adminCreate({ email: "a@x.pl", ...yes });
+
+    expect(setupHooks.onOrganizationCreated).not.toHaveBeenCalled();
+  });
+
+  it("a failing seed does not fail adminCreate", async () => {
+    setupHooks.seed.mockRejectedValue(new Error("seed broke"));
+
+    await expect(
+      adminCreate({ email: "a@x.pl", ...yes }),
+    ).resolves.toMatchObject({
+      organizationId: "org-2",
+      createdOrganization: true,
+    });
+  });
+
+  it("a failing transaction runs no seed", async () => {
+    mockPrisma.$transaction.mockRejectedValueOnce(new Error("db down"));
+
+    await expect(adminCreate({ email: "a@x.pl", ...yes })).rejects.toThrow(
+      "db down",
+    );
+    expect(setupHooks.seed).not.toHaveBeenCalled();
+  });
+
+  it("an aborted run seeds nothing", async () => {
+    db.users.push({
+      id: "u-b",
+      email: "b@x.pl",
+      name: "b",
+      role: "user",
+      emailVerified: true,
+    });
+
+    await expect(
+      adminCreate({ email: "b@x.pl", yes: false, confirm: async () => false }),
+    ).rejects.toThrow("Aborted");
+    expect(setupHooks.seed).not.toHaveBeenCalled();
   });
 });
 

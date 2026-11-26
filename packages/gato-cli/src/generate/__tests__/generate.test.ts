@@ -319,6 +319,7 @@ describe("generate", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -419,6 +420,48 @@ describe("generate", () => {
     expect(await read(dir, "src/modules.client.generated.ts")).toContain(
       "export const clientModules = applyGatoConfig([authModule, demoModule, alfaModule, zetaModule], gatoConfig);",
     );
+  });
+
+  it("a project module with setup.ts enters moduleSetups with its manifest version after the kit modules", async () => {
+    const dir = await copyFixture("minimal");
+    await addProjectModule(dir, "notes", NOTES_ENTRY);
+    await writeFile(
+      join(dir, "src/features/notes/setup.ts"),
+      "export const setup = {};",
+    );
+    await writeFile(
+      join(dir, "src/features/demo/setup.ts"),
+      "export const setup = {};",
+    );
+    await generate(dir);
+    const lines = (await read(dir, "src/modules.generated.ts")).split("\n");
+    expect(lines).toContain(
+      'import { setup as notesSetup } from "@/features/notes/setup";',
+    );
+    expect(lines).toContain(
+      'export const moduleSetups = enabledModuleEntries([{ module: "demo", version: "1.0.0", value: demoSetup }, { module: "notes", version: "0.1.0", value: notesSetup }], gatoConfig);',
+    );
+    expect(await read(dir, "src/modules.client.generated.ts")).not.toContain(
+      "setup",
+    );
+  });
+
+  it("removing setup.ts and generating again empties moduleSetups", async () => {
+    const dir = await copyFixture("minimal");
+    await addProjectModule(dir, "notes", NOTES_ENTRY);
+    await writeFile(
+      join(dir, "src/features/notes/setup.ts"),
+      "export const setup = {};",
+    );
+    await generate(dir);
+    await rm(join(dir, "src/features/notes/setup.ts"));
+    const { changed } = await generate(dir);
+    expect(changed).toEqual(["src/modules.generated.ts"]);
+    const server = await read(dir, "src/modules.generated.ts");
+    expect(server.split("\n")).toContain(
+      "export const moduleSetups: never[] = [];",
+    );
+    expect(server).not.toContain("notesSetup");
   });
 
   it("modul projektu z niezainstalowanym wymogiem przerywa generowanie bez zmian plikow", async () => {

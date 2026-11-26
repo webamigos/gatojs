@@ -7,6 +7,7 @@ import { generate } from "../index.js";
 const tmpDirs: string[] = [];
 
 type ModuleSpec = {
+  version?: string;
   files?: string[];
   env?: { name: string; example: string }[];
   schemaRelations?: { model: string; field: string }[];
@@ -28,10 +29,10 @@ async function makeProject(
     Object.entries(modules).map(([name, spec]) => [
       name,
       {
-        version: "1.0.0",
+        version: spec.version ?? "1.0.0",
         manifest: {
           name,
-          version: "1.0.0",
+          version: spec.version ?? "1.0.0",
           description: name,
           files: spec.files ?? [],
           env: spec.env ?? [],
@@ -107,6 +108,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -215,6 +217,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const auditSinks: never[] = [];",
         'export const moduleEvents = [{ module: "alpha", value: alphaEvents }];',
         'export const moduleSubscribers = enabledModuleEntries([{ module: "beta", value: betaSubscribers }], gatoConfig);',
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -229,6 +232,96 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
     const client = await read(dir, "src/modules.client.generated.ts");
     expect(client).not.toContain("events");
     expect(client).not.toContain("subscribers");
+  });
+
+  it("a feature with setup.ts enters moduleSetups with the version of the manifest that owns it, in the server file only", async () => {
+    const dir = await makeProject({
+      alpha: { version: "1.2.0", files: ["src/features/alpha/**"] },
+    });
+    await put(dir, "src/features/alpha/setup.ts", "export const setup = {};");
+    await generate(dir);
+    expect(await read(dir, "src/modules.generated.ts")).toBe(
+      [
+        HEADER,
+        'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
+        'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
+        'import { enabledModuleEntries } from "@/shared/lib/modules/gato-config";',
+        'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { setup as alphaSetup } from "@/features/alpha/setup";',
+        "",
+        "export const modules: never[] = [];",
+        "export const moduleEnvSchemas: never[] = [];",
+        "export const authPlugins: never[] = [];",
+        "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
+        'export const moduleSetups = enabledModuleEntries([{ module: "alpha", version: "1.2.0", value: alphaSetup }], gatoConfig);',
+        "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
+        "export const env = createEnv(moduleEnvSchemas);",
+        "",
+        "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
+        "",
+        "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
+        "  pl: [],",
+        "};",
+        "",
+      ].join("\n"),
+    );
+    const client = await read(dir, "src/modules.client.generated.ts");
+    expect(client).not.toContain("setup");
+    expect(client).not.toContain("Setup");
+  });
+
+  it("each feature with setup.ts carries the version of its own owning manifest, also when one manifest owns two features", async () => {
+    const dir = await makeProject({
+      alpha: {
+        version: "0.3.0",
+        files: ["src/features/alpha/**", "src/features/gamma/**"],
+      },
+      beta: { version: "2.1.0", files: ["src/features/beta/**"] },
+    });
+    await put(dir, "src/features/alpha/setup.ts", "export const setup = {};");
+    await put(dir, "src/features/beta/setup.ts", "export const setup = {};");
+    await put(dir, "src/features/gamma/setup.ts", "export const setup = {};");
+    await generate(dir);
+    const setupLines = (await read(dir, "src/modules.generated.ts"))
+      .split("\n")
+      .filter((line) => line.startsWith("export const moduleSetups"));
+    expect(setupLines).toHaveLength(1);
+    expect(setupLines[0]).toContain(
+      '{ module: "alpha", version: "0.3.0", value: alphaSetup }',
+    );
+    expect(setupLines[0]).toContain(
+      '{ module: "beta", version: "2.1.0", value: betaSetup }',
+    );
+    expect(setupLines[0]).toContain(
+      '{ module: "gamma", version: "0.3.0", value: gammaSetup }',
+    );
+    expect(setupLines[0].match(/\{ module: /g)).toHaveLength(3);
+  });
+
+  it("files merely named like setup do not register a feature", async () => {
+    const dir = await makeProject({
+      alpha: { files: ["src/features/alpha/**"] },
+    });
+    await put(
+      dir,
+      "src/features/alpha/setup-helpers.ts",
+      "export const x = 1;",
+    );
+    await put(
+      dir,
+      "src/features/alpha/components/setup.ts",
+      "export const x = 1;",
+    );
+    await put(dir, "src/features/alpha/setup.tsx", "export const x = 1;");
+    await generate(dir);
+    const server = await read(dir, "src/modules.generated.ts");
+    expect(server.split("\n")).toContain(
+      "export const moduleSetups: never[] = [];",
+    );
+    expect(server).not.toContain("@/features/alpha/");
   });
 
   it("files merely named like events or subscribers do not register a feature", async () => {
@@ -290,6 +383,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleSetups: never[] = [];",
         'export const moduleSlots = slotRegistry({ slots: [{ module: "alpha", value: alphaSlots }], clientSlots: [{ module: "alpha", value: alphaClientSlots }, { module: "beta", value: betaClientSlots }] }, gatoConfig);',
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -389,6 +483,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",

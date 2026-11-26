@@ -1284,3 +1284,157 @@ describe("add: ejected files", () => {
     ).toBe(2);
   });
 });
+
+describe("add: organization setup hint", () => {
+  const DEMO_HINT =
+    "Existing organizations did not run demo's setup: npm run setup:organizations -- --module demo";
+  const NEEDS_DEMO_HINT =
+    "Existing organizations did not run needs-demo's setup: npm run setup:organizations -- --module needs-demo";
+
+  async function kitWithSetups(modules: string[]): Promise<string> {
+    const kitCopy = await makeKitRepo("kit");
+    for (const name of modules) {
+      await writeProjectFile(
+        kitCopy,
+        `src/features/${name}/setup.ts`,
+        "export const setup = {};\n",
+      );
+    }
+    await runCommand("git", ["-C", kitCopy, "add", "-A"]);
+    return kitCopy;
+  }
+
+  function setupHints(): string[] {
+    return log.mock.calls
+      .map(([line]) => line)
+      .filter((line) => line.startsWith("Existing organizations"));
+  }
+
+  it("a module with setup.ts logs the hint as the last line, right after the migrate hint", async () => {
+    const kitCopy = await kitWithSetups(["demo"]);
+    const dir = await createProject("app", []);
+    await add({
+      projectDir: dir,
+      module: "demo",
+      kitDir: kitCopy,
+      install: false,
+      runner,
+      log,
+    });
+    expect(log.mock.calls.slice(-2)).toEqual([
+      ["npx prisma migrate dev --name add-demo"],
+      [DEMO_HINT],
+    ]);
+  });
+
+  it("with install true the hint still comes after npm install and the migrate hint", async () => {
+    const kitCopy = await kitWithSetups(["demo"]);
+    const dir = await createProject("app", []);
+    await add({
+      projectDir: dir,
+      module: "demo",
+      kitDir: kitCopy,
+      install: true,
+      runner,
+      log,
+    });
+    expect(runner).toHaveBeenCalledWith("npm", ["install"], dir);
+    expect(log.mock.calls.slice(-2)).toEqual([
+      ["npx prisma migrate dev --name add-demo"],
+      [DEMO_HINT],
+    ]);
+  });
+
+  it("a module without setup.ts logs no hint", async () => {
+    const dir = await createProject("app", []);
+    await add({
+      projectDir: dir,
+      module: "demo",
+      kitDir,
+      install: false,
+      runner,
+      log,
+    });
+    expect(setupHints()).toEqual([]);
+  });
+
+  it("a dependency added along with the module gets its own hint, in add order", async () => {
+    const kitCopy = await kitWithSetups(["demo", "needs-demo"]);
+    const dir = await createProject("app", []);
+    await add({
+      projectDir: dir,
+      module: "needs-demo",
+      kitDir: kitCopy,
+      install: false,
+      runner,
+      log,
+    });
+    expect(setupHints()).toEqual([DEMO_HINT, NEEDS_DEMO_HINT]);
+    expect(log.mock.calls.slice(-2)).toEqual([[DEMO_HINT], [NEEDS_DEMO_HINT]]);
+  });
+
+  it("only modules with setup.ts get a hint when several are added", async () => {
+    const kitCopy = await kitWithSetups(["needs-demo"]);
+    const dir = await createProject("app", []);
+    await add({
+      projectDir: dir,
+      module: "needs-demo",
+      kitDir: kitCopy,
+      install: false,
+      runner,
+      log,
+    });
+    expect(setupHints()).toEqual([NEEDS_DEMO_HINT]);
+  });
+
+  it("an already installed module with setup.ts gets no hint when another module is added", async () => {
+    const dir = await createProject("app", ["demo"]);
+    await writeProjectFile(
+      dir,
+      "src/features/demo/setup.ts",
+      "export const setup = {};\n",
+    );
+    await add({
+      projectDir: dir,
+      module: "needs-demo",
+      kitDir,
+      install: false,
+      runner,
+      log,
+    });
+    expect(setupHints()).toEqual([]);
+  });
+
+  it("a failing npm install logs no hint", async () => {
+    const kitCopy = await kitWithSetups(["demo"]);
+    const dir = await createProject("app", []);
+    runner.mockRejectedValueOnce(new Error("x"));
+    await expect(
+      add({
+        projectDir: dir,
+        module: "demo",
+        kitDir: kitCopy,
+        install: true,
+        runner,
+        log,
+      }),
+    ).rejects.toThrow("Module added, but npm install failed. Run: npm install");
+    expect(setupHints()).toEqual([]);
+  });
+
+  it("a failed add logs no hint", async () => {
+    const kitCopy = await kitWithSetups(["demo"]);
+    const dir = await createProject("app", ["demo"]);
+    await expect(
+      add({
+        projectDir: dir,
+        module: "demo",
+        kitDir: kitCopy,
+        install: false,
+        runner,
+        log,
+      }),
+    ).rejects.toThrow();
+    expect(setupHints()).toEqual([]);
+  });
+});
