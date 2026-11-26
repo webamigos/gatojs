@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/shared/lib/prisma";
 import { auditActor, trackAudit } from "@/shared/lib/audit";
 import { logger } from "@/shared/lib/logger";
+import { isModuleEnabled } from "@/shared/lib/modules/require-module-enabled";
 import {
   assertServiceModeConfirmed,
   ServiceModeConfirmationError,
@@ -27,7 +28,7 @@ function readConfirmation(formData: FormData): unknown {
 }
 
 function failure(
-  status: 400 | 401 | 403 | 413 | 415 | 500,
+  status: 400 | 401 | 403 | 404 | 413 | 415 | 500,
   error: string,
 ): CreateUploadResult {
   return { status, body: { error } };
@@ -36,6 +37,9 @@ function failure(
 export async function createUpload(
   formData: FormData,
 ): Promise<CreateUploadResult> {
+  if (!isModuleEnabled("uploads")) {
+    return failure(404, "not_found");
+  }
   const contextResult = await readOrgContextForApi();
   if (!contextResult.ok) {
     return failure(contextResult.status, "unauthorized");

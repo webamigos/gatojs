@@ -154,6 +154,57 @@ describe("organization encryption on a real database", () => {
     );
   });
 
+  it("ten parallel first encryptions for one organization all succeed with one shared data key", async () => {
+    const plaintexts = [
+      "value-0",
+      "value-1",
+      "value-2",
+      "value-3",
+      "value-4",
+      "value-5",
+      "value-6",
+      "value-7",
+      "value-8",
+      "value-9",
+    ];
+
+    await Promise.all(plaintexts.map(() => prisma.$queryRaw`SELECT 1`));
+
+    const results = await Promise.allSettled(
+      plaintexts.map((plaintext) =>
+        encryptForOrganization(world.orgA.id, plaintext),
+      ),
+    );
+
+    expect(
+      results.flatMap((result) =>
+        result.status === "rejected" ? [String(result.reason)] : [],
+      ),
+    ).toEqual([]);
+    expect(results.map((result) => result.status)).toEqual([
+      "fulfilled",
+      "fulfilled",
+      "fulfilled",
+      "fulfilled",
+      "fulfilled",
+      "fulfilled",
+      "fulfilled",
+      "fulfilled",
+      "fulfilled",
+      "fulfilled",
+    ]);
+    expect(await dataKeyRows(world.orgA.id)).toHaveLength(1);
+    expect(await dataKeyRows(world.orgB.id)).toEqual([]);
+    const decrypted = await Promise.all(
+      results.map((result) =>
+        result.status === "fulfilled"
+          ? decryptForOrganization(world.orgA.id, result.value)
+          : Promise.reject(result.reason),
+      ),
+    );
+    expect(decrypted).toEqual(plaintexts);
+  });
+
   it("deleting an organization removes its data key", async () => {
     await encryptForOrganization(world.orgA.id, "alpha");
     await encryptForOrganization(world.orgB.id, "beta");

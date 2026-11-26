@@ -168,6 +168,20 @@ describe("inviteUserCommand", () => {
     expect(mockAuthApi.signUpEmail).not.toHaveBeenCalled();
   });
 
+  it("returns the schema message of the only invalid field, not the generic fallback", async () => {
+    const result = await inviteUserCommand({
+      ...validInput,
+      email: "not-an-email",
+    });
+
+    expect(result).toEqual({ success: false, error: "Invalid email address" });
+    expect(result).not.toEqual({
+      success: false,
+      error: "Nieprawidłowe dane",
+    });
+    expect(mockPrisma.invitation.create).not.toHaveBeenCalled();
+  });
+
   it("odrzuca rolę spoza listy zapraszanych", async () => {
     const result = await inviteUserCommand({ ...validInput, role: "owner" });
 
@@ -315,6 +329,64 @@ describe("inviteUserCommand", () => {
       warning: "mail-failed",
     });
     expect(mockSendWelcomeEmail).not.toHaveBeenCalled();
+  });
+
+  it("logs an undelivered welcome email with the user id and the mailer error", async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+    mockSendWelcomeEmail.mockResolvedValue({
+      error: "Failed to send welcome email",
+    });
+
+    await inviteUserCommand(validInput);
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      "[USERS] Welcome set-password email not delivered",
+      { userId: "new-user-1", err: "Failed to send welcome email" },
+    );
+  });
+
+  it("logs a thrown token creation error with the user id and the error", async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+    const tokenError = new Error("db down");
+    mockCreateWelcomeUrl.mockRejectedValue(tokenError);
+
+    await inviteUserCommand(validInput);
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      "[USERS] Failed to send set-password email",
+      { userId: "new-user-1", err: tokenError },
+    );
+  });
+
+  it("logs a thrown mailer error with the user id and the error", async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+    const smtpError = new Error("smtp down");
+    mockSendWelcomeEmail.mockRejectedValue(smtpError);
+
+    await inviteUserCommand(validInput);
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      "[USERS] Failed to send set-password email",
+      { userId: "new-user-1", err: smtpError },
+    );
+  });
+
+  it("returns the failure and logs the invitation id when discarding the invitation also fails", async () => {
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+    mockAuthApi.signUpEmail.mockRejectedValue(new Error("signup failed"));
+    const deleteError = new Error("delete failed");
+    mockPrisma.invitation.delete.mockRejectedValue(deleteError);
+
+    const result = await inviteUserCommand(validInput);
+
+    expect(result).toEqual({
+      success: false,
+      error: "Nie udało się zaprosić użytkownika",
+    });
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      "[USERS] Failed to discard invitation",
+      { invitationId: "inv-1", err: deleteError },
+    );
   });
 
   it("mailer bez skonfigurowanego transportu ({ data: null }) → brak ostrzeżenia", async () => {

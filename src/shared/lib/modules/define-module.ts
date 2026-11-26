@@ -27,6 +27,11 @@ export interface ModuleUploadPurpose {
   resizeImage?: { maxWidth: number };
 }
 
+export interface ModulePermission {
+  defaultRoles: OrgRole[];
+  labelKey: string;
+}
+
 export interface ModuleDef {
   key: string;
   nav: ModuleNavItem[];
@@ -38,6 +43,7 @@ export interface ModuleDef {
   auditActions?: ModuleAuditAction[];
   apiScopes?: ModuleApiScope[];
   uploadPurposes?: ModuleUploadPurpose[];
+  permissions?: Record<string, ModulePermission>;
 }
 
 export function defineModule<T extends ModuleDef>(definition: T): T {

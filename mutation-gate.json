@@ -101,72 +101,9 @@
     },
     {
       "file": "src/features/users/services/commands/invite-user-command.ts",
-      "mutator": "StringLiteral",
-      "original": "\"Nie udało się zaprosić użytkownika\"",
-      "replacement": "\"\"",
-      "reason": "message only: the test checks the error status/type, the message text is not a contract"
-    },
-    {
-      "file": "src/features/users/services/commands/invite-user-command.ts",
-      "mutator": "BlockStatement",
-      "original": "{\n    logger.error(\"[USERS] Failed to discard invitation\", {\n      invitationId,\n      err: error,\n    });\n  }",
-      "replacement": "{}",
-      "reason": "log only: the log text and payload are not a contract"
-    },
-    {
-      "file": "src/features/users/services/commands/invite-user-command.ts",
-      "mutator": "StringLiteral",
-      "original": "\"[USERS] Failed to discard invitation\"",
-      "replacement": "\"\"",
-      "reason": "log only: the log text and payload are not a contract"
-    },
-    {
-      "file": "src/features/users/services/commands/invite-user-command.ts",
-      "mutator": "ObjectLiteral",
-      "original": "{\n      invitationId,\n      err: error,\n    }",
-      "replacement": "{}",
-      "reason": "log only: the log text and payload are not a contract"
-    },
-    {
-      "file": "src/features/users/services/commands/invite-user-command.ts",
-      "mutator": "StringLiteral",
-      "original": "\"[USERS] Welcome set-password email not delivered\"",
-      "replacement": "\"\"",
-      "reason": "log only: the log text and payload are not a contract"
-    },
-    {
-      "file": "src/features/users/services/commands/invite-user-command.ts",
-      "mutator": "ObjectLiteral",
-      "original": "{\n        userId: recipient.userId,\n        err: delivery.error,\n      }",
-      "replacement": "{}",
-      "reason": "log only: the log text and payload are not a contract"
-    },
-    {
-      "file": "src/features/users/services/commands/invite-user-command.ts",
-      "mutator": "StringLiteral",
-      "original": "\"[USERS] Failed to send set-password email\"",
-      "replacement": "\"\"",
-      "reason": "log only: the log text and payload are not a contract"
-    },
-    {
-      "file": "src/features/users/services/commands/invite-user-command.ts",
-      "mutator": "ObjectLiteral",
-      "original": "{\n      userId: recipient.userId,\n      err: error,\n    }",
-      "replacement": "{}",
-      "reason": "log only: the log text and payload are not a contract"
-    },
-    {
-      "file": "src/features/users/services/commands/invite-user-command.ts",
       "mutator": "OptionalChaining",
       "original": "parsed.error.issues[0]?.message",
       "replacement": "parsed.error.issues[0].message",
-      "reason": "equivalent: a failed safeParse always has at least one issue with a message"
-    },
-    {
-      "file": "src/features/users/services/commands/invite-user-command.ts",
-      "mutator": "LogicalOperator",
-      "original": "parsed.error.issues[0]?.message ?? \"Nieprawidłowe dane\"",
-      "replacement": "parsed.error.issues[0]?.message && \"Nieprawidłowe dane\"",
       "reason": "equivalent: a failed safeParse always has at least one issue with a message"
     },
     {

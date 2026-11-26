@@ -6,8 +6,9 @@ import { auditActor, trackAudit } from "@/shared/lib/audit";
 import { logger } from "@/shared/lib/logger";
 import { getOrgContext } from "@/shared/lib/auth/org-context";
 import { assertServiceModeConfirmed } from "@/shared/lib/auth/service-mode";
-import { isGlobalAdmin, ORG_ROLES } from "@/shared/lib/auth/roles";
+import { can } from "@/shared/lib/auth/permissions";
 import { DomainError, handleCommandError } from "@/shared/utils/error-handling";
+import { requireModuleEnabled } from "@/shared/lib/modules/require-module-enabled";
 import type { OperationResult } from "@/shared/types/common";
 import { deleteObject } from "../storage";
 
@@ -21,6 +22,7 @@ export async function deleteUploadCommand(
   confirmation?: unknown,
 ): Promise<OperationResult> {
   try {
+    requireModuleEnabled("uploads");
     const context = await getOrgContext();
     assertServiceModeConfirmed(context, confirmation);
     const parsed = deleteUploadSchema.safeParse(input);
@@ -35,9 +37,7 @@ export async function deleteUploadCommand(
     }
     const allowed =
       upload.uploadedById === context.userId ||
-      context.orgRole === ORG_ROLES.OWNER ||
-      context.orgRole === ORG_ROLES.ADMIN ||
-      isGlobalAdmin(context.userRole);
+      can(context, "uploads.delete-others");
     if (!allowed) {
       throw new DomainError(NO_PERMISSION);
     }

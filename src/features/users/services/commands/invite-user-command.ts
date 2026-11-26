@@ -12,6 +12,7 @@ import { emitEvent, eventOrigin } from "@/shared/lib/events";
 import { logger } from "@/shared/lib/logger";
 import { handleCommandError } from "@/shared/utils/error-handling";
 import { withInviteSignup } from "@/shared/lib/auth/invite-signup-scope";
+import { requireModuleEnabled } from "@/shared/lib/modules/require-module-enabled";
 import { createWelcomeSetPasswordUrl } from "@/shared/lib/auth/welcome-set-password";
 import { sendWelcomeSetPasswordEmail } from "@/shared/lib/mailer";
 import { inviteUserSchema } from "../../contracts/user-account.schemas";
@@ -26,6 +27,7 @@ export async function inviteUserCommand(
   confirmation?: unknown,
 ): Promise<OperationResult<{ userId: string }> & { warning?: "mail-failed" }> {
   try {
+    requireModuleEnabled("users");
     const admin = await getAdminUserOrNull();
     if (!admin) {
       return { success: false, error: "Brak uprawnień" };

@@ -29,6 +29,7 @@ vi.mock("@/shared/lib/auth", () => ({
 import { prisma } from "@/shared/lib/prisma";
 import { withoutTenantScope } from "@/shared/lib/tenant-scope";
 import { createUpload } from "../commands/create-upload";
+import { deleteUploadCommand } from "../commands/upload-commands";
 import { deleteObject, getObject } from "../storage";
 import {
   createOrganization,
@@ -226,5 +227,37 @@ describe("izolacja uploadów między organizacjami", () => {
     expect(
       await withoutTenantScope("test assertion", () => prisma.upload.count()),
     ).toBe(0);
+  });
+
+  it("an owner of org B cannot delete org A's upload", async () => {
+    await signInAs(world.alice, world.orgA);
+    await createUpload(await pngForm());
+    const [rowA] = await prisma.upload.findMany({
+      where: { organizationId: world.orgA.id },
+    });
+    writtenKeys.push(rowA!.key);
+    const carol = await createUser({ email: "carol@example.com" });
+    await prisma.member.create({
+      data: {
+        organizationId: world.orgB.id,
+        userId: carol.id,
+        role: "owner",
+      },
+    });
+    await signInAs(carol, world.orgB);
+    mockTrackAudit.mockClear();
+
+    const result = await deleteUploadCommand({ id: rowA!.id });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Nie udało się usunąć pliku",
+    });
+    const stillThere = await prisma.upload.findMany({
+      where: { organizationId: world.orgA.id },
+    });
+    expect(stillThere.map((row) => row.id)).toEqual([rowA!.id]);
+    expect(await getObject(rowA!.key)).not.toBeNull();
+    expect(mockTrackAudit).not.toHaveBeenCalled();
   });
 });

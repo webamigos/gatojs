@@ -347,6 +347,22 @@ describe("deleteUploadCommand", () => {
     expect(mockLogger.error).toHaveBeenCalled();
   });
 
+  it("logs a failed deleteObject with the error and the deleted row's key and still succeeds", async () => {
+    const storageError = new Error("storage down");
+    mockDeleteObject.mockRejectedValue(storageError);
+
+    const result = await deleteUploadCommand({ id: UPLOAD_ID });
+
+    expect(result).toEqual({ success: true });
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      "upload deleteObject failed",
+      {
+        err: storageError,
+        key: "orgs/org-1/editor-image/own.jpg",
+      },
+    );
+  });
+
   it("podwójne wywołanie: drugie zwraca błąd i nie woła deleteObject ponownie", async () => {
     await deleteUploadCommand({ id: UPLOAD_ID });
     const second = await deleteUploadCommand({ id: UPLOAD_ID });
@@ -354,5 +370,62 @@ describe("deleteUploadCommand", () => {
     expect(second.success).toBe(false);
     expect(mockDeleteObject).toHaveBeenCalledTimes(1);
     expect(mockTrackAudit).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("deleteUploadCommand on an upload whose uploader was removed", () => {
+  const ORPHAN_ID = "55555555-5555-4555-8555-555555555555";
+
+  beforeEach(() => {
+    uploadStore.rows.push({
+      id: ORPHAN_ID,
+      organizationId: "org-1",
+      uploadedById: null,
+      key: "orgs/org-1/editor-image/orphan.jpg",
+      fileName: "orphan.jpg",
+      purpose: "editor-image",
+      size: 40,
+    });
+  });
+
+  it("refuses an org member with the permission error and keeps the row, object and audit untouched", async () => {
+    const result = await deleteUploadCommand({ id: ORPHAN_ID });
+
+    expect(result).toEqual(NO_PERMISSION_ERROR);
+    expect(remainingIds()).toEqual([
+      UPLOAD_ID,
+      FOREIGN_ID,
+      OTHER_ORG_ID,
+      ORPHAN_ID,
+    ]);
+    expect(mockDeleteObject).not.toHaveBeenCalled();
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it.each(["owner", "admin"])(
+    "lets an org %s delete it through uploads.delete-others",
+    async (orgRole) => {
+      mockGetOrgContext.mockResolvedValue({ ...MEMBER_CONTEXT, orgRole });
+
+      const result = await deleteUploadCommand({ id: ORPHAN_ID });
+
+      expect(result).toEqual({ success: true });
+      expect(remainingIds()).toEqual([UPLOAD_ID, FOREIGN_ID, OTHER_ORG_ID]);
+      expect(mockDeleteObject).toHaveBeenCalledWith(
+        "orgs/org-1/editor-image/orphan.jpg",
+      );
+    },
+  );
+
+  it("lets a global superadmin who is a plain org member delete it", async () => {
+    mockGetOrgContext.mockResolvedValue({
+      ...MEMBER_CONTEXT,
+      userRole: "superadmin",
+    });
+
+    const result = await deleteUploadCommand({ id: ORPHAN_ID });
+
+    expect(result).toEqual({ success: true });
+    expect(remainingIds()).toEqual([UPLOAD_ID, FOREIGN_ID, OTHER_ORG_ID]);
   });
 });
