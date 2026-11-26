@@ -41,6 +41,9 @@ vi.mock("../../services/commands/invite-user-command", () => ({
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: mockToastError },
 }));
+vi.mock("@/shared/lib/modules/overridable", () => ({
+  overridable: (_handle: string, Base: unknown) => Base,
+}));
 
 import { UsersManager } from "../users-manager";
 

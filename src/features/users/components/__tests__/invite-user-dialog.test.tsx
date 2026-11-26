@@ -31,6 +31,9 @@ vi.mock("sonner", () => ({
     error: mockToastError,
   },
 }));
+vi.mock("@/shared/lib/modules/overridable", () => ({
+  overridable: (_handle: string, Base: unknown) => Base,
+}));
 
 import { ServiceModeProvider } from "@/shared/components/service-mode/service-mode-provider";
 import { InviteUserDialog } from "../invite-user-dialog";

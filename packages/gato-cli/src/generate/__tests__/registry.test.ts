@@ -16,6 +16,10 @@ const BRANDING_ONLY_IMPORT =
   'import { gatoBrandingOf } from "@/shared/lib/modules/gato-config";';
 const BRANDING_EXPORT =
   "export const gatoBranding = gatoBrandingOf(gatoConfig);";
+const COMPONENT_REGISTRY_IMPORT =
+  'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";';
+const EMPTY_COMPONENT_OVERRIDES =
+  "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);";
 const BOTH = ["pl", "en"] as ("pl" | "en")[];
 
 const base = {
@@ -28,6 +32,7 @@ const base = {
   hasSubscribers: false,
   hasSlots: false,
   hasClientSlots: false,
+  hasComponents: false,
   locales: [],
 };
 
@@ -46,6 +51,7 @@ describe("renderRegistry", () => {
           hasSubscribers: false,
           hasSlots: false,
           hasClientSlots: false,
+          hasComponents: false,
           locales: ["pl", "en"],
         },
       ],
@@ -100,10 +106,12 @@ describe("renderRegistry", () => {
         EMPTY_CONFIG_IMPORT,
         BRANDING_ONLY_IMPORT,
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         "",
         "export const authClientPlugins: never[] = [];",
         "export const clientModules: never[] = [];",
         "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         BRANDING_EXPORT,
         "",
       ].join("\n"),
@@ -157,6 +165,7 @@ describe("renderRegistry", () => {
     hasSubscribers: false,
     hasSlots: false,
     hasClientSlots: false,
+    hasComponents: false,
     locales: ["pl", "en"],
   };
 
@@ -204,12 +213,14 @@ describe("renderRegistry", () => {
         'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
         'import { applyGatoConfig, enabledEntries, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         'import { authClientPlugin as demoAuthClientPlugin } from "@/features/demo/auth-client";',
         'import demoModule from "@/features/demo/module";',
         "",
         'export const authClientPlugins = enabledEntries([{ module: "demo", value: demoAuthClientPlugin }], gatoConfig);',
         "export const clientModules = applyGatoConfig([demoModule], gatoConfig);",
         "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         "export const gatoBranding = gatoBrandingOf(gatoConfig);",
         "",
       ].join("\n"),
@@ -231,6 +242,7 @@ describe("renderRegistry", () => {
           hasSubscribers: false,
           hasSlots: false,
           hasClientSlots: false,
+          hasComponents: false,
           locales: [],
         },
       ],
@@ -407,11 +419,13 @@ describe("renderRegistry", () => {
         EMPTY_CONFIG_IMPORT,
         'import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         'import auditLogsModule from "@/features/audit-logs/module";',
         "",
         "export const authClientPlugins: never[] = [];",
         "export const clientModules = applyGatoConfig([auditLogsModule], gatoConfig);",
         "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         BRANDING_EXPORT,
         "",
       ].join("\n"),
@@ -476,6 +490,7 @@ describe("renderRegistry: env binding from @gatojs/env", () => {
           hasSubscribers: false,
           hasSlots: false,
           hasClientSlots: false,
+          hasComponents: false,
         },
       ],
       BOTH,
@@ -543,6 +558,7 @@ describe("renderRegistry: gato.config", () => {
     hasSubscribers: false,
     hasSlots: false,
     hasClientSlots: false,
+    hasComponents: false,
     locales: ["pl", "en"],
   };
 
@@ -635,12 +651,14 @@ describe("renderRegistry: gato.config", () => {
         'import gatoConfig from "@/gato.config";',
         'import { applyGatoConfig, enabledEntries, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         'import { authClientPlugin as demoAuthClientPlugin } from "@/features/demo/auth-client";',
         'import demoModule from "@/features/demo/module";',
         "",
         'export const authClientPlugins = enabledEntries([{ module: "demo", value: demoAuthClientPlugin }], gatoConfig);',
         "export const clientModules = applyGatoConfig([demoModule], gatoConfig);",
         "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         "export const gatoBranding = gatoBrandingOf(gatoConfig);",
         "",
       ].join("\n"),
@@ -656,12 +674,14 @@ describe("renderRegistry: gato.config", () => {
         'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
         'import { applyGatoConfig, enabledEntries, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         'import { authClientPlugin as demoAuthClientPlugin } from "@/features/demo/auth-client";',
         'import demoModule from "@/features/demo/module";',
         "",
         'export const authClientPlugins = enabledEntries([{ module: "demo", value: demoAuthClientPlugin }], gatoConfig);',
         "export const clientModules = applyGatoConfig([demoModule], gatoConfig);",
         "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         "export const gatoBranding = gatoBrandingOf(gatoConfig);",
         "",
       ].join("\n"),
@@ -721,10 +741,12 @@ describe("renderRegistry: gato.config", () => {
         CONFIG_IMPORT,
         BRANDING_ONLY_IMPORT,
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         "",
         "export const authClientPlugins: never[] = [];",
         "export const clientModules: never[] = [];",
         "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         BRANDING_EXPORT,
         "",
       ].join("\n"),
@@ -738,10 +760,12 @@ describe("renderRegistry: gato.config", () => {
         EMPTY_CONFIG_IMPORT,
         BRANDING_ONLY_IMPORT,
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         "",
         "export const authClientPlugins: never[] = [];",
         "export const clientModules: never[] = [];",
         "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         BRANDING_EXPORT,
         "",
       ].join("\n"),
@@ -788,10 +812,12 @@ describe("renderRegistry: gato.config", () => {
         CONFIG_IMPORT,
         BRANDING_ONLY_IMPORT,
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         "",
         "export const authClientPlugins: never[] = [];",
         "export const clientModules: never[] = [];",
         "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         BRANDING_EXPORT,
         "",
       ].join("\n"),
@@ -821,11 +847,13 @@ describe("renderRegistry: gato.config", () => {
         CONFIG_IMPORT,
         'import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         'import alphaModule from "@/features/alpha/module";',
         "",
         "export const authClientPlugins: never[] = [];",
         "export const clientModules = applyGatoConfig([alphaModule], gatoConfig);",
         "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         BRANDING_EXPORT,
         "",
       ].join("\n"),
@@ -844,11 +872,13 @@ describe("renderRegistry: gato.config", () => {
         EMPTY_CONFIG_IMPORT,
         'import { enabledEntries, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         'import { authClientPlugin as betaAuthClientPlugin } from "@/features/beta/auth-client";',
         "",
         'export const authClientPlugins = enabledEntries([{ module: "beta", value: betaAuthClientPlugin }], gatoConfig);',
         "export const clientModules: never[] = [];",
         "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         BRANDING_EXPORT,
         "",
       ].join("\n"),
@@ -1082,28 +1112,31 @@ describe("renderRegistry: gatoBranding in the client file", () => {
     hasSubscribers: false,
     hasSlots: false,
     hasClientSlots: false,
+    hasComponents: false,
     locales: ["pl", "en"],
   };
 
-  it("the client file ends with clientModules, clientModuleSlots and the gatoBranding line, with hasGatoConfig", () => {
+  it("the client file ends with clientModules, clientModuleSlots, clientComponentOverrides and the gatoBranding line, with hasGatoConfig", () => {
     const lines = renderRegistry([full], BOTH, {
       hasGatoConfig: true,
     }).client.split("\n");
-    expect(lines.slice(-4)).toEqual([
+    expect(lines.slice(-5)).toEqual([
       "export const clientModules = applyGatoConfig([demoModule], gatoConfig);",
       "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+      EMPTY_COMPONENT_OVERRIDES,
       BRANDING_EXPORT,
       "",
     ]);
   });
 
-  it("the client file ends with clientModules, clientModuleSlots and the gatoBranding line, without hasGatoConfig", () => {
+  it("the client file ends with clientModules, clientModuleSlots, clientComponentOverrides and the gatoBranding line, without hasGatoConfig", () => {
     const lines = renderRegistry([full], BOTH, {
       hasGatoConfig: false,
     }).client.split("\n");
-    expect(lines.slice(-4)).toEqual([
+    expect(lines.slice(-5)).toEqual([
       "export const clientModules = applyGatoConfig([demoModule], gatoConfig);",
       "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+      EMPTY_COMPONENT_OVERRIDES,
       BRANDING_EXPORT,
       "",
     ]);
@@ -1143,6 +1176,7 @@ describe("renderRegistry: gatoBranding in the client file", () => {
         hasSubscribers: fc.boolean(),
         hasSlots: fc.boolean(),
         hasClientSlots: fc.boolean(),
+        hasComponents: fc.boolean(),
         locales: fc.constant<string[]>([]),
       }),
       { maxLength: 4 },
@@ -1438,6 +1472,7 @@ describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
         hasSubscribers: fc.boolean(),
         hasSlots: fc.boolean(),
         hasClientSlots: fc.boolean(),
+        hasComponents: fc.boolean(),
         locales: fc.constant<string[]>([]),
       }),
       { maxLength: 4 },
@@ -1534,12 +1569,14 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
         CONFIG_IMPORT,
         'import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         CLIENT_SLOT_REGISTRY_IMPORT,
+        COMPONENT_REGISTRY_IMPORT,
         'import invoicesModule from "@/features/invoices/module";',
         'import * as invoicesClientSlots from "@/features/invoices/client-slots";',
         "",
         "export const authClientPlugins: never[] = [];",
         "export const clientModules = applyGatoConfig([invoicesModule], gatoConfig);",
         'export const clientModuleSlots = clientSlotRegistry([{ module: "invoices", value: invoicesClientSlots }], gatoConfig);',
+        EMPTY_COMPONENT_OVERRIDES,
         BRANDING_EXPORT,
         "",
       ].join("\n"),
@@ -1590,10 +1627,12 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
         EMPTY_CONFIG_IMPORT,
         BRANDING_ONLY_IMPORT,
         CLIENT_SLOT_REGISTRY_IMPORT,
+        COMPONENT_REGISTRY_IMPORT,
         "",
         "export const authClientPlugins: never[] = [];",
         "export const clientModules: never[] = [];",
         EMPTY_CLIENT_MODULE_SLOTS,
+        EMPTY_COMPONENT_OVERRIDES,
         BRANDING_EXPORT,
         "",
       ].join("\n"),
@@ -1699,8 +1738,9 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
       ],
       ["pl"],
     ).client.split("\n");
-    expect(lines.slice(3, 9)).toEqual([
+    expect(lines.slice(3, 10)).toEqual([
       CLIENT_SLOT_REGISTRY_IMPORT,
+      COMPONENT_REGISTRY_IMPORT,
       'import { authClientPlugin as betaAuthClientPlugin } from "@/features/beta/auth-client";',
       'import alphaModule from "@/features/alpha/module";',
       'import betaModule from "@/features/beta/module";',
@@ -1762,6 +1802,7 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
         hasSubscribers: fc.boolean(),
         hasSlots: fc.boolean(),
         hasClientSlots: fc.boolean(),
+        hasComponents: fc.boolean(),
         locales: fc.constant<string[]>([]),
       }),
       { maxLength: 4 },
@@ -1795,8 +1836,218 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
       expect(clientLines[clientModulesAt + 1]).toMatch(
         /^export const clientModuleSlots = clientSlotRegistry\(\[.*\], gatoConfig\);$/,
       );
-      expect(clientLines[clientModulesAt + 2]).toBe(BRANDING_EXPORT);
+      expect(clientLines[clientModulesAt + 2]).toMatch(
+        /^export const clientComponentOverrides = componentOverrideRegistry\(\[.*\], gatoConfig\);$/,
+      );
+      expect(clientLines[clientModulesAt + 3]).toBe(BRANDING_EXPORT);
       expect(clientLines[3]).toBe(CLIENT_SLOT_REGISTRY_IMPORT);
+      expect(clientLines[4]).toBe(COMPONENT_REGISTRY_IMPORT);
+    },
+  );
+});
+
+describe("renderRegistry: clientComponentOverrides", () => {
+  const CLIENT_SLOT_REGISTRY_IMPORT =
+    'import { clientSlotRegistry } from "@/shared/lib/modules/slots";';
+  const invoices = {
+    name: "invoices",
+    ...base,
+    hasModuleTs: true,
+    hasClientSlots: true,
+    hasComponents: true,
+  };
+
+  it("a module with components.ts gets a namespace import after its client-slots import and an entry in clientComponentOverrides", () => {
+    expect(
+      renderRegistry([invoices], ["pl"], { hasGatoConfig: true }).client,
+    ).toBe(
+      [
+        HEADER,
+        CONFIG_IMPORT,
+        'import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
+        CLIENT_SLOT_REGISTRY_IMPORT,
+        COMPONENT_REGISTRY_IMPORT,
+        'import invoicesModule from "@/features/invoices/module";',
+        'import * as invoicesClientSlots from "@/features/invoices/client-slots";',
+        'import * as invoicesComponents from "@/features/invoices/components";',
+        "",
+        "export const authClientPlugins: never[] = [];",
+        "export const clientModules = applyGatoConfig([invoicesModule], gatoConfig);",
+        'export const clientModuleSlots = clientSlotRegistry([{ module: "invoices", value: invoicesClientSlots }], gatoConfig);',
+        'export const clientComponentOverrides = componentOverrideRegistry([{ module: "invoices", value: invoicesComponents }], gatoConfig);',
+        BRANDING_EXPORT,
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("a module with only components.ts imports only gatoBrandingOf as a helper and enters clientComponentOverrides unfiltered", () => {
+    expect(
+      renderRegistry([{ name: "alpha", ...base, hasComponents: true }], ["pl"])
+        .client,
+    ).toBe(
+      [
+        HEADER,
+        EMPTY_CONFIG_IMPORT,
+        BRANDING_ONLY_IMPORT,
+        CLIENT_SLOT_REGISTRY_IMPORT,
+        COMPONENT_REGISTRY_IMPORT,
+        'import * as alphaComponents from "@/features/alpha/components";',
+        "",
+        "export const authClientPlugins: never[] = [];",
+        "export const clientModules: never[] = [];",
+        "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        'export const clientComponentOverrides = componentOverrideRegistry([{ module: "alpha", value: alphaComponents }], gatoConfig);',
+        BRANDING_EXPORT,
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("without components.ts clientComponentOverrides is built from an empty list", () => {
+    const { client } = renderRegistry(
+      [{ name: "alpha", ...base, hasModuleTs: true, hasClientSlots: true }],
+      ["pl"],
+    );
+    expect(client.split("\n")).toContain(EMPTY_COMPONENT_OVERRIDES);
+    expect(client).not.toContain("@/features/alpha/components");
+  });
+
+  it("the server file is the same with and without components.ts and never mentions component overrides", () => {
+    const withComponents = renderRegistry([invoices], BOTH, {
+      hasGatoConfig: true,
+    }).server;
+    const withoutComponents = renderRegistry(
+      [{ ...invoices, hasComponents: false }],
+      BOTH,
+      { hasGatoConfig: true },
+    ).server;
+    expect(withComponents).toBe(withoutComponents);
+    expect(withComponents).not.toContain("@/features/invoices/components");
+    expect(withComponents).not.toContain("invoicesComponents");
+    expect(withComponents).not.toContain("componentOverrideRegistry");
+    expect(withComponents).not.toContain("component-overrides");
+    expect(withComponents).not.toContain("clientComponentOverrides");
+  });
+
+  it("with no modules at all the server file has no component line", () => {
+    expect(renderRegistry([], BOTH).server).not.toContain("omponent");
+  });
+
+  it("several modules keep the input order in the list and their imports, all components imports after all client-slots imports", () => {
+    const lines = renderRegistry(
+      [
+        { name: "zeta", ...base, hasClientSlots: true, hasComponents: true },
+        { name: "alpha", ...base, hasClientSlots: true, hasComponents: true },
+      ],
+      ["pl"],
+      { hasGatoConfig: true },
+    ).client.split("\n");
+    const zetaClientSlots = lines.indexOf(
+      'import * as zetaClientSlots from "@/features/zeta/client-slots";',
+    );
+    expect(zetaClientSlots).toBeGreaterThan(0);
+    expect(lines.slice(zetaClientSlots, zetaClientSlots + 5)).toEqual([
+      'import * as zetaClientSlots from "@/features/zeta/client-slots";',
+      'import * as alphaClientSlots from "@/features/alpha/client-slots";',
+      'import * as zetaComponents from "@/features/zeta/components";',
+      'import * as alphaComponents from "@/features/alpha/components";',
+      "",
+    ]);
+    expect(lines).toContain(
+      'export const clientComponentOverrides = componentOverrideRegistry([{ module: "zeta", value: zetaComponents }, { module: "alpha", value: alphaComponents }], gatoConfig);',
+    );
+  });
+
+  it("a module enters clientComponentOverrides only when it has components.ts", () => {
+    const { client } = renderRegistry(
+      [
+        { name: "alpha", ...base, hasModuleTs: true },
+        { name: "beta", ...base, hasComponents: true },
+      ],
+      ["pl"],
+    );
+    expect(client.split("\n")).toContain(
+      'export const clientComponentOverrides = componentOverrideRegistry([{ module: "beta", value: betaComponents }], gatoConfig);',
+    );
+    expect(client).not.toContain("@/features/alpha/components");
+  });
+
+  it("a hyphenated module name gives a camelCase identifier and keeps the raw key", () => {
+    const lines = renderRegistry(
+      [{ name: "my-feature", ...base, hasComponents: true }],
+      ["pl"],
+    ).client.split("\n");
+    expect(lines).toContain(
+      'import * as myFeatureComponents from "@/features/my-feature/components";',
+    );
+    expect(lines).toContain(
+      'export const clientComponentOverrides = componentOverrideRegistry([{ module: "my-feature", value: myFeatureComponents }], gatoConfig);',
+    );
+  });
+
+  it("the client file imports componentOverrideRegistry once", () => {
+    const { client } = renderRegistry(
+      [invoices, { name: "beta", ...base, hasComponents: true }],
+      BOTH,
+    );
+    expect(
+      client
+        .split("\n")
+        .filter((line) =>
+          line.includes("@/shared/lib/modules/component-overrides"),
+        ),
+    ).toEqual([COMPONENT_REGISTRY_IMPORT]);
+    expect(
+      client
+        .split("\n")
+        .filter((line) =>
+          line.startsWith("export const clientComponentOverrides"),
+        ),
+    ).toHaveLength(1);
+  });
+
+  test.prop([
+    fc.array(
+      fc.record({
+        name: fc.stringMatching(/^[a-z][a-z0-9]*$/),
+        hasModuleTs: fc.boolean(),
+        hasEnv: fc.boolean(),
+        hasAuth: fc.boolean(),
+        hasAuthClient: fc.boolean(),
+        hasAuditSink: fc.boolean(),
+        hasEvents: fc.boolean(),
+        hasSubscribers: fc.boolean(),
+        hasSlots: fc.boolean(),
+        hasClientSlots: fc.boolean(),
+        hasComponents: fc.boolean(),
+        locales: fc.constant<string[]>([]),
+      }),
+      { maxLength: 4 },
+    ),
+    fc.boolean(),
+  ])(
+    "every client file declares clientComponentOverrides once, right after clientModuleSlots and before gatoBranding, and the server file never mentions it",
+    (modules, hasGatoConfig) => {
+      const { server, client } = renderRegistry(modules, BOTH, {
+        hasGatoConfig,
+      });
+      const lines = client.split("\n");
+      const slotsAt = lines.findIndex((line) =>
+        line.startsWith("export const clientModuleSlots"),
+      );
+      expect(lines[slotsAt + 1]).toMatch(
+        /^export const clientComponentOverrides = componentOverrideRegistry\(\[.*\], gatoConfig\);$/,
+      );
+      expect(lines[slotsAt + 2]).toBe(BRANDING_EXPORT);
+      expect(lines[4]).toBe(COMPONENT_REGISTRY_IMPORT);
+      expect(
+        lines.filter((line) =>
+          line.startsWith("export const clientComponentOverrides"),
+        ),
+      ).toHaveLength(1);
+      expect(server).not.toContain("componentOverrideRegistry");
+      expect(server).not.toContain("Components");
     },
   );
 });
