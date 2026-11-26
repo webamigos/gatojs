@@ -50,7 +50,9 @@
     "README.md",
     "docker/uploads.compose.yml",
     "docker/uploads.selfhost.compose.yml",
-    "ci/uploads.integration-steps.yml"
+    "ci/uploads.integration-steps.yml",
+    "deploy/helm/gatojs/Chart.yaml",
+    "deploy/helm/gatojs/values.yaml"
   ],
   "generatedFiles": [
     "src/modules.generated.ts",
