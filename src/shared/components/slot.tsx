@@ -1,21 +1,29 @@
-import type { ReactNode } from "react";
+import "server-only";
+import { Suspense, type ComponentType, type ReactNode } from "react";
 import { moduleSlots } from "@/modules.generated";
+import { SlotErrorBoundary } from "@/shared/components/slot-error-boundary";
 import type { AccessContext } from "@/shared/lib/auth/permissions";
+import { logger } from "@/shared/lib/logger";
 import { visibleContributions } from "@/shared/lib/modules/slot-access";
 import type {
+  ServerSlotId,
   SlotComponentProps,
   SlotContext,
-  SlotId,
 } from "@/shared/lib/modules/slots";
 
-export interface SlotProps<Id extends SlotId> {
+export interface SlotProps<Id extends ServerSlotId> {
   id: Id;
   context: SlotContext<Id>;
   viewer: AccessContext;
   fallback?: ReactNode;
 }
 
-export async function Slot<Id extends SlotId>({
+interface LoadedContribution {
+  id: string;
+  Component: ComponentType<SlotComponentProps>;
+}
+
+export async function Slot<Id extends ServerSlotId>({
   id,
   context,
   viewer,
@@ -26,16 +34,32 @@ export async function Slot<Id extends SlotId>({
     return fallback;
   }
   const props: SlotComponentProps = context;
-  const loaded = await Promise.all(
-    contributions.map(async (contribution) => ({
-      id: contribution.id,
-      Component: (await contribution.component()).default,
-    })),
+  const settled = await Promise.allSettled(
+    contributions.map((contribution) => contribution.component()),
   );
+  const loaded = settled.flatMap((result, index): LoadedContribution[] => {
+    const contributionId = contributions[index].id;
+    if (result.status === "rejected") {
+      logger.error("Slot contribution failed to load", {
+        slot: id,
+        contribution: contributionId,
+        error: result.reason,
+      });
+      return [];
+    }
+    return [{ id: contributionId, Component: result.value.default }];
+  });
+  if (loaded.length === 0) {
+    return fallback;
+  }
   return (
     <>
       {loaded.map(({ id: contributionId, Component }) => (
-        <Component key={contributionId} {...props} />
+        <SlotErrorBoundary key={contributionId} contributionId={contributionId}>
+          <Suspense fallback={null}>
+            <Component {...props} />
+          </Suspense>
+        </SlotErrorBoundary>
       ))}
     </>
   );

@@ -8,16 +8,17 @@ import {
   type ReactNode,
 } from "react";
 import { clientModuleSlots } from "@/modules.client.generated";
+import { SlotErrorBoundary } from "@/shared/components/slot-error-boundary";
 import type { AccessContext } from "@/shared/lib/auth/permissions";
 import { visibleContributions } from "@/shared/lib/modules/slot-access";
 import type {
+  ClientSlotId,
   RegisteredContribution,
   SlotComponentProps,
   SlotContext,
-  SlotId,
 } from "@/shared/lib/modules/slots";
 
-export interface ClientSlotProps<Id extends SlotId> {
+export interface ClientSlotProps<Id extends ClientSlotId> {
   id: Id;
   context: SlotContext<Id>;
   viewer: AccessContext;
@@ -40,7 +41,7 @@ function lazyComponentOf(
   return component;
 }
 
-export function ClientSlot<Id extends SlotId>({
+export function ClientSlot<Id extends ClientSlotId>({
   id,
   context,
   viewer,
@@ -55,7 +56,14 @@ export function ClientSlot<Id extends SlotId>({
     <Suspense fallback={null}>
       {contributions.map((contribution) => {
         const Component = lazyComponentOf(contribution);
-        return <Component key={contribution.id} {...props} />;
+        return (
+          <SlotErrorBoundary
+            key={contribution.id}
+            contributionId={contribution.id}
+          >
+            <Component {...props} />
+          </SlotErrorBoundary>
+        );
       })}
     </Suspense>
   );
