@@ -32,6 +32,7 @@ import {
   assertGlobalAdmin,
   requiresGlobalAdminInSingleOrg,
 } from "./single-org-guard";
+import { isInviteSignup } from "./invite-signup-scope";
 import { readSignupMembership } from "./signup-membership-context";
 
 export const auth = betterAuth({
@@ -95,6 +96,9 @@ export const auth = betterAuth({
             user.id,
             membership,
           );
+          if (isInviteSignup()) {
+            return;
+          }
           await emitEvent(
             { organizationId, actorUserId: user.id },
             "auth.signed-up",

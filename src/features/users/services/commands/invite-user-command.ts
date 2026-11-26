@@ -11,6 +11,7 @@ import { assertServiceModeConfirmed } from "@/shared/lib/auth/service-mode";
 import { emitEvent, eventOrigin } from "@/shared/lib/events";
 import { logger } from "@/shared/lib/logger";
 import { handleCommandError } from "@/shared/utils/error-handling";
+import { withInviteSignup } from "@/shared/lib/auth/invite-signup-scope";
 import { createWelcomeSetPasswordUrl } from "@/shared/lib/auth/welcome-set-password";
 import { sendWelcomeSetPasswordEmail } from "@/shared/lib/mailer";
 import { inviteUserSchema } from "../../contracts/user-account.schemas";
@@ -107,10 +108,9 @@ async function registerInvitedUser(
   };
 
   try {
-    const { user } = await auth.api.signUpEmail({
-      body,
-      headers: requestHeaders,
-    });
+    const { user } = await withInviteSignup(() =>
+      auth.api.signUpEmail({ body, headers: requestHeaders }),
+    );
     return user.id;
   } catch (error) {
     await discardInvitation(data.invitationId);

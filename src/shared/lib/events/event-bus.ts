@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import { z } from "zod";
 import { logger } from "@/shared/lib/logger";
 import type { ModuleEntry } from "@/shared/lib/modules/gato-config";
 import {
@@ -24,6 +26,8 @@ interface DeclaredEvent {
   name: string;
   schema: EventSchema;
 }
+
+const MAX_EVENT_DEPTH = 8;
 
 interface RegisteredSubscriber {
   module: string;
@@ -87,6 +91,33 @@ function registeredSubscribers(input: EventBusInput): RegisteredSubscriber[] {
   );
 }
 
+function schemaProblems(event: DeclaredEvent): string[] {
+  const schema: unknown = event.schema;
+  if (!(schema instanceof z.ZodObject)) {
+    return [`event ${event.name} must be a z.object() schema`];
+  }
+  return [
+    ...(schema.def.catchall === undefined
+      ? []
+      : [`event ${event.name} must be a z.object() that strips unknown keys`]),
+    ...(Object.hasOwn(schema.shape, "organizationId")
+      ? [
+          `event ${event.name} must not declare organizationId; emitEvent sets it`,
+        ]
+      : []),
+  ];
+}
+
+function deepFreeze<T>(value: T): Readonly<T> {
+  if (typeof value === "object" && value !== null) {
+    for (const nested of Object.values(value)) {
+      deepFreeze(nested);
+    }
+    Object.freeze(value);
+  }
+  return value;
+}
+
 function registryProblems(
   declared: readonly DeclaredEvent[],
   registered: readonly RegisteredSubscriber[],
@@ -105,12 +136,7 @@ function registryProblems(
     ...repeated(declared.map((event) => event.name)).map(
       (name) => `duplicate event: ${name}`,
     ),
-    ...declared
-      .filter((event) => Object.hasOwn(event.schema.shape, "organizationId"))
-      .map(
-        (event) =>
-          `event ${event.name} must not declare organizationId; emitEvent sets it`,
-      ),
+    ...declared.flatMap(schemaProblems),
     ...registered
       .filter(
         ({ module, subscriber }) => !subscriber.id.startsWith(`${module}.`),
@@ -150,6 +176,7 @@ export function createEventBus(input: EventBusInput): EventBus {
   }
   const schemas = new Map(declared.map((event) => [event.name, event.schema]));
   const subscribers = subscribersByEvent(registered);
+  const depthStorage = new AsyncLocalStorage<number>();
 
   return {
     async emit(origin, name, payload) {
@@ -167,11 +194,21 @@ export function createEventBus(input: EventBusInput): EventBus {
         name,
         organizationId: origin.organizationId,
         actorUserId: origin.actorUserId,
-        payload: Object.freeze(parsed.data),
+        payload: deepFreeze(parsed.data),
       });
+      const depth = depthStorage.getStore() ?? 0;
+      if (depth >= MAX_EVENT_DEPTH) {
+        logger.error("Event depth exceeded", {
+          event: name,
+          error: new EventError(
+            `event depth exceeded ${MAX_EVENT_DEPTH}: ${name}`,
+          ),
+        });
+        return;
+      }
       for (const subscriber of subscribers.get(name) ?? []) {
         try {
-          await subscriber.run(event);
+          await depthStorage.run(depth + 1, () => subscriber.run(event));
         } catch (error) {
           logger.error("Event subscriber failed", {
             event: name,
