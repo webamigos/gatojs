@@ -1,0 +1,99 @@
+{{- $secretName := include "gato.secretName" . -}}
+{{- $localStorage := include "gato.localStorage" . -}}
+{{- range $key := list "STORAGE_PROVIDER" "STORAGE_LOCAL_PATH" }}
+{{- if hasKey $.Values.env $key }}
+{{- fail (printf "set storage.provider instead of env.%s" $key) }}
+{{- end }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gato.fullname" . }}
+  labels:
+    {{- include "gato.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: {{ ternary "Recreate" "RollingUpdate" (eq $localStorage "true") }}
+  selector:
+    matchLabels:
+      {{- include "gato.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gato.selectorLabels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: app
+          image: {{ include "gato.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: {{ $secretName | quote }}
+          env:
+            {{- range $name, $value := .Values.env }}
+            {{- if not (kindIs "invalid" $value) }}
+            - name: {{ $name | quote }}
+              value: {{ toString $value | quote }}
+            {{- end }}
+            {{- end }}
+            - name: STORAGE_PROVIDER
+              value: {{ .Values.storage.provider | quote }}
+            {{- if eq $localStorage "true" }}
+            - name: STORAGE_LOCAL_PATH
+              value: {{ include "gato.uploadsPath" . | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /api/healthcheck
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/healthcheck
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if eq $localStorage "true" }}
+          volumeMounts:
+            - name: uploads
+              mountPath: {{ include "gato.uploadsPath" . }}
+          {{- end }}
+      {{- if eq $localStorage "true" }}
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: {{ include "gato.uploadsClaimName" . }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

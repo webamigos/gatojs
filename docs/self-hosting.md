@@ -56,6 +56,7 @@ The TLS examples and the upgrade path have not been run (not verified).
 | [TLS](#tls) | written, examples not run |
 | [Back up](#back-up) and [restore](#restore) | written; current scripts verified 2026-11-26 with stand-ins for `app` and `migrate` (MinIO path), the app on them not verified |
 | [Upgrade](#upgrade) | written |
+| [Kubernetes (Helm)](#kubernetes-helm) | written; chart lint, helm-unittest and kubeconform verified 2026-11-26, install on a cluster not verified |
 | [Prove nothing leaves the machine](#prove-nothing-leaves-the-machine) | placeholder until the egress check (self-hosting Task 7) |
 
 ## What runs
@@ -389,6 +390,119 @@ Run it in the same shell as the restore, or define `dc` and `WITH_MINIO` again f
    `migrate` runs first and `app` starts only after it exits 0. If `migrate` fails, `up` stops with an error: read
    `dc logs migrate`, do not run `prisma migrate reset`, and restore the backup if the database is half-migrated.
    Whether the old `app` container keeps serving meanwhile has not been checked (not verified).
+
+## Kubernetes (Helm)
+
+The chart in `deploy/helm/gatojs` runs the same image on a cluster: a Deployment of the app, a Service on port 3000,
+an optional Ingress, a PersistentVolumeClaim for uploads with local storage, and a Job that runs
+`prisma migrate deploy` as a `pre-install,pre-upgrade` hook. The chart is named after the project; its values are
+listed in `deploy/helm/gatojs/README.md`. PostgreSQL is not in the chart: use a managed database or one the cluster
+already runs.
+
+### 1. Build and push the image
+
+The cluster pulls the image from a registry it can reach:
+
+```bash
+docker build -t registry.example.com/my-app:1.0.0 .
+docker push registry.example.com/my-app:1.0.0
+```
+
+Build on the architecture of the nodes, or build both with `docker buildx build --platform linux/amd64,linux/arm64`.
+A private registry needs a pull secret (`kubectl create secret docker-registry`) named in `image.pullSecrets`.
+
+### 2. Create the Secret
+
+Everything secret goes into one Secret that you create; the chart only reads it (`existingSecret`), so a
+`helm upgrade` never rotates it. Generate the values with the commands in [Install](#install):
+
+```bash
+kubectl create namespace my-app
+kubectl -n my-app create secret generic my-app-env \
+  --from-literal=DATABASE_URL='postgresql://app:<password>@db.example.internal:5432/my_app' \
+  --from-literal=BETTER_AUTH_SECRET="$(openssl rand -base64 32)" \
+  --from-literal=SMTP_HOST=relay.example.internal
+```
+
+Add the mail credentials (`SMTP_USER` and `SMTP_PASS`, or `RESEND_API_KEY`) and the module secrets the project uses
+(`API_KEY_PEPPER`, `ENCRYPTION_MASTER_KEY`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`). Keep a copy of the Secret with
+your backups: losing `ENCRYPTION_MASTER_KEY` loses every encrypted value.
+
+### 3. Install
+
+Non-secret variables go in `env`, with the same names as in `.env.selfhost.example`. A values file keeps them in one
+place:
+
+```yaml
+# my-app.values.yaml
+image:
+  repository: registry.example.com/my-app
+  tag: "1.0.0"
+existingSecret: my-app-env
+env:
+  APP_URL: https://app.example.com
+  EMAIL_FROM: "My App <noreply@example.com>"
+  MAIL_PROVIDER: smtp
+  AUTH_PUBLIC_SIGNUP: "false"
+  MULTI_ORG: "false"
+  LOG_LEVEL: info
+ingress:
+  enabled: true
+  className: nginx
+  host: app.example.com
+  tls:
+    - secretName: app-example-com-tls
+      hosts: [app.example.com]
+```
+
+```bash
+helm install my-app deploy/helm/gatojs -n my-app -f my-app.values.yaml --wait
+```
+
+The migrate Job runs first; the Deployment is created only when it succeeds. A failed Job stays in the namespace
+(`kubectl -n my-app logs job/my-app-migrate`) and the release is marked failed.
+
+Storage:
+
+- `storage.provider: local` (default): uploads on a `ReadWriteOnce` PVC at `/app/volumes/uploads`, one replica, and the
+  Deployment uses the `Recreate` strategy, so an upgrade has a short gap. The chart refuses `replicaCount` above 1.
+  Helm keeps the PVC after `helm uninstall`.
+- `storage.provider: s3`: no PVC, any `replicaCount`, rolling updates. Set `S3_BUCKET`, `S3_ENDPOINT`, `S3_REGION`
+  and `S3_FORCE_PATH_STYLE` in `env` (the [preset table](15-modul-uploads.md#presety-s3)) and the keys in the Secret.
+
+The chart sets `STORAGE_PROVIDER` and `STORAGE_LOCAL_PATH` itself; do not put them in `env`. The pod runs as UID 1001
+(the `nextjs` user of the image), and `fsGroup: 1001` makes the PVC writable for it.
+
+### 4. First administrator
+
+The app image cannot run `admin:create` (no `tsx`, no `scripts/`). Run it from a checkout of the same commit with
+`DATABASE_URL` pointing at the cluster's database, through `kubectl port-forward` when the database runs in the
+cluster:
+
+```bash
+DATABASE_URL='postgresql://app:<password>@127.0.0.1:5432/my_app' npm run admin:create -- --email admin@example.com
+```
+
+### 5. Upgrade
+
+1. Back up the database and, with local storage, the PVC (or rely on the bucket's own versioning with `s3`).
+2. Update the project in a development checkout as in [Upgrade](#upgrade) steps 2 and 3, and add new variables to the
+   values file or the Secret.
+3. Build and push the new image with a new tag, then:
+
+   ```bash
+   helm upgrade my-app deploy/helm/gatojs -n my-app -f my-app.values.yaml --set image.tag=1.1.0 --wait
+   ```
+
+   The migrate Job runs with the new image before the Deployment changes. If it fails, the old pods keep serving
+   the old code on the migrated part of the schema: read the Job's log, do not run `prisma migrate reset`, and
+   restore the backup if the database is half-migrated. `helm rollback` rolls the Deployment back but not the
+   database.
+
+The chart is checked in CI by `.github/workflows/helm.yml`: `helm lint`, the helm-unittest cases in
+`deploy/helm/gatojs/tests/`, and `kubeconform` on three renders (defaults, `s3` with two replicas, Ingress on).
+Rendering and validation were verified 2026-11-26 with Helm 4.2.4, helm-unittest 1.2.1 and kubeconform 0.8.0
+against Kubernetes 1.31; an install on a live cluster has not been run (not verified).
 
 ## Prove nothing leaves the machine
 

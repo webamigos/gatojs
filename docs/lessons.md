@@ -23,6 +23,7 @@ After a nontrivial correction or a non-obvious gotcha:
 - [`next build` on Next.js 16.4.3 stops once with `SecurityFatalError`; the retry passes, and the fix is an upgrade](lessons/next-security-notice-stops-the-first-build.md)
 - [When GitHub Actions billing fails, every job fails in seconds with zero steps; it is not the PR](lessons/failed-actions-billing-looks-like-red-ci.md)
 - [A build that fetches its fonts fails on whatever Google answers; serve them from the repository with `next/font/local`](lessons/a-build-that-fetches-fonts-fails-on-googles-answer.md)
+- [On Helm 4, install helm-unittest by unpacking its checksum-verified release archive into the plugins directory; `helm plugin install` needs `--verify=false` and its hook fails on macOS](lessons/install-helm-unittest-from-the-verified-release-archive.md)
 
 ### process
 
@@ -40,6 +41,7 @@ After a nontrivial correction or a non-obvious gotcha:
 - [On a loaded machine, Stryker on the task files (CLI or root) needs a task-scoped Vitest config; `taskpolicy -b` and the full dry run never finish](lessons/scope-stryker-dry-runs-for-cli-tasks-under-load.md)
 - [macOS lists directory entries in sorted order, so a test on a real directory cannot see a missing sort; Linux CI can](lessons/macos-lists-directories-in-sorted-order.md)
 - [A new file outside an owned glob (a test in `src/__tests__/`, a file in `packages/<name>/`) needs a manifest entry, and only the CLI gate notices](lessons/a-new-file-needs-an-owner-only-the-cli-gate-checks.md)
+- [The "no placeholders left" check greps every file but `__tests__/` and `*.test.*`, so a test of another kind (helm-unittest `tests/*_test.yaml`) must not contain `wa-app`](lessons/a-test-outside-test-paths-must-not-hold-placeholders.md)
 - [Vitest runs test code that `tsc` rejects: a bigint literal passes `npm test` and fails `npm run typecheck` under the ES2017 target](lessons/vitest-runs-what-tsc-rejects.md)
 - [Stryker `--mutate` reads `[id]` in a Next.js path as a glob character class, so the file is silently skipped; match it with `*`](lessons/stryker-mutate-globs-treat-brackets-as-a-class.md)
 - [Stryker with the TypeScript checker crashes on `.mjs` files; mutate `packages/eslint-config` with `--checkers ""` and low concurrency](lessons/stryker-typescript-checker-cannot-mutate-mjs.md)

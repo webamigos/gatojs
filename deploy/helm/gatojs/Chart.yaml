@@ -1,0 +1,6 @@
+apiVersion: v2
+name: wa-app
+description: WA App on Kubernetes - the Next.js app, its database migrations and its uploads volume.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
