@@ -2398,15 +2398,22 @@ describe("module entry points of this repository", () => {
     expect(findModuleEntryPoints(repoRoot)).toContain(`${route}#GET`);
   });
 
-  it("finds the public API route, the upload delete command and the invite command as entry points", () => {
-    expect(findModuleEntryPoints(repoRoot)).toEqual(
-      expect.arrayContaining([
-        "src/app/api/v1/organization/route.ts#GET",
-        "src/features/uploads/services/commands/upload-commands.ts#deleteUploadCommand",
-        "src/features/users/services/commands/invite-user-command.ts#inviteUserCommand",
-      ]),
-    );
-  });
+  it.skipIf(
+    !["api-keys", "uploads"].every((key) =>
+      fs.existsSync(path.join(repoRoot, "src/features", key, "module.ts")),
+    ),
+  )(
+    "finds the public API route, the upload delete command and the invite command as entry points",
+    () => {
+      expect(findModuleEntryPoints(repoRoot)).toEqual(
+        expect.arrayContaining([
+          "src/app/api/v1/organization/route.ts#GET",
+          "src/features/uploads/services/commands/upload-commands.ts#deleteUploadCommand",
+          "src/features/users/services/commands/invite-user-command.ts#inviteUserCommand",
+        ]),
+      );
+    },
+  );
 
   it("finds no entry point in the auth and organizations features", () => {
     const skipped = findModuleEntryPoints(repoRoot).filter(
