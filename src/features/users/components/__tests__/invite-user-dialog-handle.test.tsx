@@ -2,15 +2,23 @@ import type { ComponentType } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import type { AccessContext } from "@/shared/lib/auth/permissions";
+import type { ModuleDef } from "@/shared/lib/modules/define-module";
 import { usersMessages } from "./messages";
 
 const { overrides } = vi.hoisted(() => ({
   overrides: new Map<string, unknown>(),
 }));
 
-vi.mock("@/modules.client.generated", () => ({
-  clientComponentOverrides: overrides,
-}));
+vi.mock("@/modules.client.generated", () => {
+  const modules: ModuleDef[] = [
+    { key: "crm", nav: [], routePrefixes: ["/crm"], roles: ["owner"] },
+  ];
+  return {
+    clientComponentOverrides: overrides,
+    clientModules: modules,
+  };
+});
 vi.mock("@/i18n/routing", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
@@ -25,23 +33,36 @@ import { InviteUserDialog, InviteUserDialogBase } from "../invite-user-dialog";
 
 const INVITE_BUTTON = { name: "Zaproś użytkownika" };
 
+const OWNER: AccessContext = {
+  userRole: "user",
+  orgRole: "owner",
+  multiOrg: false,
+};
+const MEMBER: AccessContext = {
+  userRole: "user",
+  orgRole: "member",
+  multiOrg: false,
+};
+
 function register(
   handle: string,
   mode: "replace" | "wrap",
   Component: ComponentType<never>,
 ) {
+  const component = vi.fn(() => Promise.resolve({ default: Component }));
   overrides.set(handle, {
     handle,
     mode,
-    component: () => Promise.resolve({ default: Component }),
+    component,
     source: "crm",
   });
+  return component;
 }
 
-function renderDialog() {
+function renderDialog(viewer: AccessContext = OWNER) {
   return render(
     <NextIntlClientProvider locale="pl" messages={usersMessages}>
-      <InviteUserDialog />
+      <InviteUserDialog viewer={viewer} />
     </NextIntlClientProvider>,
   );
 }
@@ -90,5 +111,38 @@ describe("InviteUserDialog behind the users.invite-dialog handle", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByRole("button", INVITE_BUTTON)).toHaveLength(1);
     expect(seenBase.mock.lastCall?.[0]).toBe(InviteUserDialogBase);
+  });
+
+  it("a replacement from a module limited to owners leaves the core invite button for a member", () => {
+    const loader = register("users.invite-dialog", "replace", () => (
+      <p>crm invite</p>
+    ));
+    renderDialog(MEMBER);
+    expect(screen.getByRole("button", INVITE_BUTTON)).toBeInTheDocument();
+    expect(screen.queryByText("crm invite")).not.toBeInTheDocument();
+    expect(loader).not.toHaveBeenCalled();
+  });
+
+  it("a replacement from a module limited to owners renders for an owner", async () => {
+    register("users.invite-dialog", "replace", () => <p>crm invite</p>);
+    renderDialog(OWNER);
+    expect(await screen.findByText("crm invite")).toBeInTheDocument();
+    expect(screen.queryByRole("button", INVITE_BUTTON)).not.toBeInTheDocument();
+  });
+
+  it("the replacement receives no props: viewer stays with the handle", async () => {
+    const seen = vi.fn();
+    function Replacement(props: Record<string, unknown>) {
+      seen(props);
+      return <p>crm invite</p>;
+    }
+    register(
+      "users.invite-dialog",
+      "replace",
+      Replacement as ComponentType<never>,
+    );
+    renderDialog(OWNER);
+    expect(await screen.findByText("crm invite")).toBeInTheDocument();
+    expect(seen.mock.lastCall?.[0]).toEqual({});
   });
 });

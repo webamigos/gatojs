@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
+import type { AccessContext } from "@/shared/lib/auth/permissions";
 import { usersMessages } from "./messages";
 
 const {
@@ -38,10 +39,16 @@ vi.mock("@/shared/lib/modules/overridable", () => ({
 import { ServiceModeProvider } from "@/shared/components/service-mode/service-mode-provider";
 import { InviteUserDialog } from "../invite-user-dialog";
 
+const OWNER: AccessContext = {
+  userRole: "user",
+  orgRole: "owner",
+  multiOrg: false,
+};
+
 function renderDialog() {
   return render(
     <NextIntlClientProvider locale="pl" messages={usersMessages}>
-      <InviteUserDialog />
+      <InviteUserDialog viewer={OWNER} />
     </NextIntlClientProvider>,
   );
 }
@@ -54,7 +61,7 @@ function renderDialogInServiceMode(active: boolean) {
         organizationId="org-7"
         organizationName="Acme Sp. z o.o."
       >
-        <InviteUserDialog />
+        <InviteUserDialog viewer={OWNER} />
       </ServiceModeProvider>
     </NextIntlClientProvider>,
   );
