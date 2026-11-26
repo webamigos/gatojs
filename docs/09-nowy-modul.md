@@ -260,7 +260,7 @@ Dopisz do słownika `projectModules` wpis `notes`. Manifest musi przejść schem
 
 | Pole | Znaczenie we wpisie `notes` |
 | --- | --- |
-| `files` | Generator czyta z tej listy tylko wzorce zaczynające się od `src/features/<nazwa>/`, tu `src/features/notes/**`. Ten wzorzec rejestruje feature. Pozostałe dwa wzorce w projekcie nic nie czyta: test własności plików z [D38](decyzje.md#d38) sprawdza tylko manifesty `kit/modules/*.json` w repozytorium kitu i do projektu nie trafia, więc służą tylko jako opis. Każdy feature potrzebuje osobnego wzorca bez nawiasów `{…}`; wzorzec z nawiasem generator pomija bez błędu. |
+| `files` | Generator czyta z tej listy tylko wzorce zaczynające się od `src/features/<nazwa>/`, tu `src/features/notes/**`. Ten wzorzec rejestruje feature. Pozostałe wzorce czyta test architektury `module-entry-points-check-enabled.test.ts`: plik w `src/app/` albo `src/shared/`, który do nich pasuje, należy do `notes`, więc jego punkty wejścia wołają guard z kluczem `notes` ([trasa API funkcji](#trasa-api)). Test własności plików z [D38](decyzje.md#d38) sprawdza tylko manifesty `kit/modules/*.json` w repozytorium kitu i do projektu nie trafia. Każdy feature potrzebuje osobnego wzorca bez nawiasów `{…}`; wzorzec z nawiasem generator pomija bez błędu. |
 | `schemaRelations` | Linia `notes Note[]` trafi do regionu `wa:relations` w modelu `Organization`. To jedyny sposób dodania relacji zwrotnej do modelu rdzenia. Generator obsługuje tylko modele `User` i `Organization`; relację z innym modelem pomija bez błędu ([Regiony](02b-rejestr-i-generator.md#regiony)). |
 | `env`, `compose`, `ciSteps` | Puste: feature nie ma własnych zmiennych, usług Dockera ani kroków CI przed testami integracyjnymi (`ciSteps` wskazuje plik z krokami do regionu `wa:ci-integration` w `.github/workflows/ci.yml`, [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#regiony)). |
 | `name` | Musi być równe kluczowi wpisu. Generator używa go też jako nagłówka bloku modułu w `.env.example`, gdy `env` nie jest puste. |
@@ -308,6 +308,15 @@ export const clientModules = applyGatoConfig([accountModule, authModule, dashboa
 - **Wpis przed plikiem schematu** (kolejność z tego tutorialu). Region odwołuje się do modelu `Note`, którego przed krokiem 4 nie ma, więc komendy Prismy, które wczytują schemat (w przebiegu `npx prisma validate`), kończą się błędem `Type "Note" is neither a built-in type, nor refers to another model, composite type, or enum.` (kod `P1012`, `prisma/schema/organizations.prisma:14`). Nie uruchamiaj Prismy, dopóki nie zapiszesz pliku schematu z kroku 4.
 - **Plik schematu przed wpisem.** Prisma zgłasza brak relacji zwrotnej i proponuje ``Either run `prisma format` or add it manually.`` Nie rób żadnego z tych dwóch: dodaj `schemaRelations` i uruchom generator.
 - **Po `prisma format` albo ręcznym dopisaniu.** `prisma format` dopisuje `notes Note[]` pod linią `// wa:relations:end`, czyli w pliku rdzenia poza regionem. Następny przebieg generatora wstawia tę samą linię w region i schemat kończy się błędem `Field "notes" is already defined on model "Organization".` (sprawdzone na kopii schematu). Usuń linię spoza regionu.
+
+<a id="trasa-api"></a>
+
+**Trasa API funkcji musi pasować do wzorca z `files`.** Test architektury `src/__tests__/architecture/module-entry-points-check-enabled.test.ts` (część `npm test`, wykrywanie w `scripts/lib/architecture/module-entry-points.ts`) sprawdza każdy `route.ts` i każdy plik z `"use server"` w `src/app/`. Modułem pliku jest moduł, którego wzorzec z `files` w `.wa/kit.json` (`modules` albo `projectModules`, bez `core`) pasuje do ścieżki. Plik, którego nie obejmuje żaden wzorzec, nie ma modułu, więc żaden guard go nie chroni: test wypisuje jako naruszenie każdą metodę HTTP trasy i każdy eksport pliku z `"use server"`, także we własnej trasie projektu. Przykład: `src/app/api/notes/export/route.ts` przy wpisie `notes` z samymi wzorcami z kroku 3 daje `src/app/api/notes/export/route.ts#GET`. Naprawa to wzorzec we wpisie funkcji, nie wyjątek:
+
+1. Dopisz do `files` wpisu katalog trasy, na przykład `src/app/api/notes/**`.
+2. Każda metoda trasy zaczyna od `if (!isModuleEnabled("notes")) { return new Response(null, { status: 404 }); }` (`isModuleEnabled` z `@/shared/lib/modules/require-module-enabled`) albo od `await requireModuleAccess("notes")`, przed Prismą ([Guard włączonego modułu](06-wzorce-kodu.md#guard-wlaczonego-modulu)).
+
+Mapa wyjątków `ALLOWED` leży w teście rdzenia, którego projekt nie zmienia, i obejmuje tylko trasy rdzenia (healthcheck, handler better-auth).
 
 Testy rdzenia nie zmieniają się: porównują rejestr tylko z modułami rdzenia, a spójność całego rejestru (unikalne klucze i adresy, etykiety menu w każdym języku, zgodność menu z `canAccessModule`) sprawdza `src/shared/lib/modules/__tests__/registry-consistency.test.ts`, który obejmuje też `notes` ([krok 8](09b-implementacja-i-bramki.md#testy-rdzenia)).
 

@@ -74,13 +74,13 @@ Priorytet „wysoki” dostają pozycje, które dotyczą domyślnej ścieżki st
 
 ### Railway nie czyta `railway.toml`, a wdrożenie bez migracji się udaje
 
-**Skutek.** Nowa usługa na Railway nie korzysta z `railway.toml`: nie uruchomi komendy przed wdrożeniem (`npx prisma migrate deploy`), nie zastosuje healthchecku ani polityki restartu z pliku. Obraz zbuduje się z `Dockerfile` i wystartuje `node server.js`, więc wdrożenie wygląda na udane, ale baza nie ma tabel, a każde logowanie kończy się błędem. Ten sam skutek ma projekt, który nie zacommitował migracji: `prisma migrate deploy` bez katalogu `prisma/migrations` kończy się kodem 0 (`No migration found in prisma/migrations`), a `/api/healthcheck` (`SELECT 1`) przechodzi także na pustej bazie.
+**Skutek.** Nowa usługa na Railway nie korzysta z `railway.toml`: nie uruchomi komendy przed wdrożeniem (`node_modules/.bin/prisma migrate deploy`), nie zastosuje healthchecku ani polityki restartu z pliku. Obraz zbuduje się z `Dockerfile` i wystartuje `node server.js`, więc wdrożenie wygląda na udane, ale baza nie ma tabel, a każde logowanie kończy się błędem. Ten sam skutek ma projekt, który nie zacommitował migracji: `prisma migrate deploy` bez katalogu `prisma/migrations` kończy się kodem 0 (`No migration found in prisma/migrations`), a `/api/healthcheck` (`SELECT 1`) przechodzi także na pustej bazie.
 
 **Gdzie.** `railway.toml` (format „Config as Code”), `Dockerfile` (`CMD ["node", "server.js"]`), `src/app/api/healthcheck/route.ts`.
 
 **Obejście.** Wpisz wartości z `railway.toml` ręcznie w ustawieniach usługi i sprawdź log migracji po pierwszym wdrożeniu ([10-wdrozenie.md](10-wdrozenie.md#config-as-code), [krok po kroku](10-wdrozenie.md#pierwsze-wdrozenie)). Migracje projektu klienta commitujesz, w przeciwieństwie do kitu ([03b-schemat-i-migracje.md](03b-schemat-i-migracje.md#migracje-w-projekcie)).
 
-**Kierunek zmiany.** Przenieść konfigurację do Infrastructure as Code (`.railway/railway.ts`) albo opisać ręczne ustawienia w `README.md`. Komenda przed wdrożeniem mogłaby kończyć się błędem przy braku migracji (na przykład `test -f prisma/migrations/migration_lock.toml && npx prisma migrate deploy`), a healthcheck mógłby odpytywać tabelę rdzenia (zob. [healthcheck](#serwer-male)).
+**Kierunek zmiany.** Przenieść konfigurację do Infrastructure as Code (`.railway/railway.ts`) albo opisać ręczne ustawienia w `README.md`. Komenda przed wdrożeniem mogłaby kończyć się błędem przy braku migracji (na przykład `test -f prisma/migrations/migration_lock.toml && node_modules/.bin/prisma migrate deploy`), a healthcheck mógłby odpytywać tabelę rdzenia (zob. [healthcheck](#serwer-male)).
 
 **Sprawdzono.** Z dokumentacji Railway (2026-10-28): Config as Code jest wycofywany, nowe usługi nie mogą z niego korzystać, a istniejące pliki przestają być czytane 2026-12-01. Zachowanie `migrate deploy` bez migracji uruchomiono lokalnie (Prisma 7.10.1); wdrożenia na Railway nie uruchamiano.
 
