@@ -114,10 +114,10 @@ Rules, following Compose:
 
 - The file is parsed with YAML merge keys resolved (`parse(text, { merge: true })`), as Compose does, so a service
   built from `<<: *anchor` is checked with the merged keys.
-- A service is a one-shot service when it has `restart: "no"` (as before) or when another service waits for it with
-  `service_completed_successfully`: Compose then expects it to exit, whatever its restart policy. This covers a
-  service without `restart`, whose Compose default is `"no"`; a service without `restart` that nobody waits to
-  complete is taken as long-running, like `db`.
+- A service without `restart` has Compose's default `restart: "no"`. It is a one-shot service when at least one other
+  service waits for it with `service_completed_successfully` (a service nobody waits to complete is taken as
+  long-running, like `db`). A service with `restart: "no"` is a one-shot service as before. A service with another
+  restart policy is not, even when a service waits for it to complete: the issue text names `restart: "no"`.
 - Compose starts a service when any of its profiles is active. The `tools` profile is started only by hand
   (`dc --profile tools run`), so it is left out of the profiles a one-shot service is checked under; a one-shot service
   whose only profile is `tools` is not checked, one with `["tools", "s3"]` is checked under `s3`.
@@ -139,6 +139,8 @@ Rules, following Compose:
 10. One-shot `seed` (`restart: "no"`) with `profiles: ["s3", "full"]`, one waiter `worker` with
     `profiles: ["s3", "full"]` waiting for it to complete → `[]`.
 11. A service without `restart` named `migrate` stays exempt: the repository stack still passes.
+12. `seed` with `restart: "unless-stopped"`, the only waiter `worker` (`profiles: ["s3"]`) waits for it to complete →
+    `[]` (only `"no"` or no `restart` makes a completion dependency one-shot).
 
 ### Mutations to kill
 
@@ -146,6 +148,7 @@ Rules, following Compose:
 - Treating every service without `restart` as one-shot → behaviour 7 (and the repository stack: `db` has
   `restart`, but fixtures' `db` has none).
 - Counting a `service_started` waiter as making a service one-shot → behaviour 6.
+- Making a completion dependency one-shot whatever its restart policy → behaviour 12.
 - Keeping the whole-service `tools` exemption → behaviour 8; reporting `tools` itself → behaviours 8, 9.
 - Requiring a waiter's profiles to equal the one-shot service's → behaviour 10 still passes; covered by Fix 1's
   behaviour 4.
