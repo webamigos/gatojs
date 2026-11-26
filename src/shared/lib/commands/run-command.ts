@@ -2,7 +2,6 @@ import { moduleCommandHooks } from "@/modules.generated";
 import { getAdminUserOrNull } from "@/shared/lib/auth/helpers";
 import { getOrgContext, type OrgContext } from "@/shared/lib/auth/org-context";
 import { can, moduleByKey } from "@/shared/lib/auth/permissions";
-import { requireModuleAccess } from "@/shared/lib/auth/require-module-access";
 import { assertServiceModeConfirmed } from "@/shared/lib/auth/service-mode";
 import { emitEvent, eventOrigin } from "@/shared/lib/events";
 import type { EventName } from "@/shared/lib/events/define-events";
@@ -67,6 +66,10 @@ function assertDeclared(command: AnyCommand): void {
 
 async function sessionContext(command: AnyCommand): Promise<OrgContext> {
   if (command.access === "module") {
+    // WHY: require-module-access pulls in the next-intl router; loading it only for module
+    // commands keeps global-admin and member commands free of the routing stack.
+    const { requireModuleAccess } =
+      await import("@/shared/lib/auth/require-module-access");
     return requireModuleAccess(command.module);
   }
   if (command.access === "global-admin" && !(await getAdminUserOrNull())) {
@@ -137,7 +140,11 @@ async function execute(
   assertServiceModeConfirmed(sessionCtx, confirmation);
   const parsed = command.input.safeParse(input);
   if (!parsed.success) {
-    return { success: false, error: command.failureMessage };
+    return {
+      success: false,
+      error:
+        command.invalidInputMessage?.(parsed.error) ?? command.failureMessage,
+    };
   }
   if (
     command.permission !== undefined &&
