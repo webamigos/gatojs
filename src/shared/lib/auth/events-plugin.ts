@@ -20,18 +20,6 @@ function readBodyMemberId(body: unknown): string | null {
   return typeof memberId === "string" ? memberId : null;
 }
 
-function readPreviousMemberRole(
-  context: unknown,
-): PreviousMemberRole | undefined {
-  if (typeof context !== "object" || context === null) {
-    return undefined;
-  }
-  const { previousMemberRole } = context as { previousMemberRole?: unknown };
-  return typeof previousMemberRole === "object" && previousMemberRole !== null
-    ? (previousMemberRole as PreviousMemberRole)
-    : undefined;
-}
-
 async function emitLogged(
   path: string,
   emit: OrganizationEventEmit,
@@ -82,7 +70,9 @@ export const eventsPlugin = {
     ],
     after: [
       {
-        matcher: (context) => ORGANIZATION_EVENT_PATHS.has(context.path ?? ""),
+        matcher: (context) =>
+          context.path !== undefined &&
+          ORGANIZATION_EVENT_PATHS.has(context.path),
         handler: createAuthMiddleware(async (ctx) => {
           const session = await getSessionFromCtx(ctx);
           const returned = ctx.context.returned;
@@ -90,7 +80,8 @@ export const eventsPlugin = {
             path: ctx.path,
             actorUserId: session?.user.id ?? null,
             returned,
-            previousRole: readPreviousMemberRole(ctx),
+            previousRole: (ctx as { previousMemberRole?: PreviousMemberRole })
+              .previousMemberRole,
           });
           if (emits.length === 0) {
             logSkippedRoleChange(ctx.path, returned);
