@@ -647,13 +647,94 @@ export const slots = [
 - `id` zaczyna się od klucza modułu i kropki; dwa wkłady o tym samym `id`, wkład do nieznanego slotu albo `id` bez przedrostka kończą import rejestru błędem `SlotError`, który wymienia moduły.
 - Wkłady jednego slotu stoją według `priority` rosnąco, a przy równych według `id`.
 - `roles: ["owner", "admin"]` ukrywa wkład przed pozostałymi rolami w organizacji (admin i superadmin globalny widzą go zawsze). Wkład modułu, do którego użytkownik nie ma dostępu (`roles`, `adminOnly` w `module.ts`), albo modułu wyłączonego w `src/gato.config.ts` też się nie pokaże. To ukrywanie interfejsu, nie zabezpieczenie: komponent, który czyta dane, woła query zaczynające się od `getOrgContext()`.
-- Komponent dostaje kontekst slotu jako propsy, a TypeScript sprawdza je z typem slotu. W `slots.ts` może to być asynchroniczny komponent serwerowy, bo plik trafia tylko do rejestru serwerowego. Wkłady do slotów klienckich (pierwsze przyjdą z tabelą użytkowników) idą do `client-slots.ts` (eksport `clientSlots`), który trafia do paczki przeglądarki, więc nie może importować kodu serwerowego.
+- Komponent dostaje kontekst slotu jako propsy, a TypeScript sprawdza je z typem slotu. W `slots.ts` może to być asynchroniczny komponent serwerowy, bo plik trafia tylko do rejestru serwerowego. Wkłady do slotów klienckich (tabela użytkowników, niżej) idą do `client-slots.ts` (eksport `clientSlots`), który trafia do paczki przeglądarki, więc nie może importować kodu serwerowego.
 - Wkład, którego komponent rzuca błąd przy renderowaniu albo którego `import()` się nie powiedzie, znika ze strony, a reszta strony i pozostałe wkłady się renderują; błąd ląduje w logu serwera (ładowanie) albo w konsoli przeglądarki (renderowanie).
 - Każdy plik leniwie importowany z `client-slots.ts` zaczyna się od `"use client"`, a `client-slots.ts` i komponenty klienckie nie importują `slots.ts` ani `services/` poza `services/commands/` (także ścieżką względną); pilnuje tego `client-bundles-stay-server-free.test.ts`.
 - Po dodaniu albo usunięciu `slots.ts` lub `client-slots.ts` uruchom `npm run wa -- generate`.
 - Ukrycie wkładu w projekcie: `modules: { dashboard: { slots: { "dashboard.sections": { "notes.summary-card": null } } } }`, a zmiana kolejności: `{ priority: 5 }` zamiast `null`.
 
+### Sloty tabeli użytkowników
+
+Tabela kont na stronie `/users` (widok admina globalnego, `UsersManager`) ma dwa sloty klienckie. Widok członków organizacji (`OrganizationMembers`) slotów nie ma.
+
+| Slot | Gdzie | Kontekst (propsy komponentu) | Konfiguracja w `src/gato.config.ts` |
+| --- | --- | --- | --- |
+| `users.table.row-actions` | kolumna akcji każdego wiersza, za przyciskiem „Zaloguj jako” | `{ userId, organizationId }` | `modules.users.slots` |
+| `users.table.columns` | własna kolumna za wbudowanymi kolumnami, przed kolumną akcji | `{ row, organizationId }` (komórka) | `modules.users.slots` |
+
+Kolumna to nie komponent, więc do `users.table.columns` wkład zapisujesz przez `defineColumnContribution` z `src/shared/lib/modules/column-slots.ts`: `header` to klucz etykiety w przestrzeni i18n twojego modułu, `cell` to komponent komórki. Wkład zapisany przez `defineContribution` (bez `header`) tabela pomija i loguje w konsoli. Oba wkłady w `client-slots.ts`:
+
+```ts
+import { defineContribution } from "@/shared/lib/modules/slots";
+import { defineColumnContribution } from "@/shared/lib/modules/column-slots";
+
+export const clientSlots = [
+  defineContribution("users.table.row-actions", {
+    id: "crm.open-contact",
+    priority: 10,
+    component: () => import("./components/open-contact-action"),
+  }),
+  defineColumnContribution("users.table.columns", {
+    id: "crm.score",
+    priority: 10,
+    header: "col-score",
+    cell: () => import("./components/score-cell"),
+  }),
+];
+```
+
+- Wkład dostaje tylko wiersz, który renderuje (akcja: `userId`, komórka: `row`), i `organizationId` aktywnej organizacji; nie dostaje listy użytkowników ani sesji. Dane spoza wiersza czyta przez query, które samo woła `getOrgContext()` i filtruje po `organizationId`; nie czyta niczego z innych organizacji.
+- Ukryty przycisk to nie zabezpieczenie. Akcja, która zmienia dane, woła komendę z `services/commands/` (`"use server"`), a komenda sama sprawdza uprawnienia (`getOrgContext()` albo `requireModuleAccess()`, potem `assertServiceModeConfirmed`), jak każda inna; UI wywołuje ją przez `useServiceModeAction().run`. Pilnują tego `client-bundles-stay-server-free.test.ts` (plik kliencki importuje z `services/` tylko `services/commands/`) i `server-entrypoints-guard.test.ts` (każda akcja serwerowa woła strażnika sesji przed Prismą).
+- Wkład wyłączonego modułu nie dodaje ani kolumny, ani akcji. Komórka albo akcja, która rzuca błąd lub nie może się załadować, zostaje pusta, a reszta tabeli się renderuje.
+- Typ kontekstu slotu klienckiego zapisz jako `type`, nie `interface`: `ClientSlot` przekazuje kontekst jako `Record<string, unknown>`, a interfejs nie ma sygnatury indeksu.
+
 Własny slot na stronie swojego modułu deklaruje moduł w swoim `slots.ts` (`export const slotDefinitions = [defineSlot("<x>.<nazwa>", { kind: "server" })]` i typ kontekstu w `declare module "@/shared/lib/modules/slots" { interface SlotContextMap { … } }`, jak `src/features/dashboard/slots.ts`; slot kliencki, `{ kind: "client" }`, rozszerza zamiast tego `ClientSlotContextMap` i renderuje się przez `<ClientSlot>` z `src/shared/components/client-slot.tsx`), a strona renderuje `<Slot id="<x>.<nazwa>" context={…} viewer={…} />` z `src/shared/components/slot.tsx`.
+
+<a id="nadpisanie-komponentu"></a>
+
+## Nadpisanie komponentu przez uchwyt
+
+Niektóre komponenty klienckie GatoJS mają uchwyt (handle): moduł projektu może je zastąpić albo owinąć bez edycji pliku GatoJS ([ADR-69](adrs/69-component-overrides-resolve-in-the-client-registry-and-fall-back-to-the-core.md)). Pierwszy uchwyt:
+
+| Uchwyt | Komponent | Propsy | Konfiguracja w `src/gato.config.ts` |
+| --- | --- | --- | --- |
+| `users.invite-dialog` | `InviteUserDialog` (przycisk „Zaproś” i okno zaproszenia na `/users`), `src/features/users/components/invite-user-dialog.tsx` | brak (`InviteUserDialogProps`) | `modules.users.components` |
+
+Nadpisanie zapisujesz w `src/features/<x>/components.ts`. Szkielet `notes` w repozytorium kitu owija okno zaproszenia (`packages/gato-cli/src/__tests__/fixtures/project-module/src/features/notes/components.ts`):
+
+```ts
+import { defineComponentOverride } from "@/shared/lib/modules/component-overrides";
+
+export const componentOverrides = [
+  defineComponentOverride("users.invite-dialog", {
+    wrap: () => import("./components/invite-dialog-with-notes"),
+  }),
+];
+```
+
+```tsx
+"use client";
+
+import type { WrapperProps } from "@/shared/lib/modules/component-overrides";
+import type { InviteUserDialogProps } from "@/features/users/components/invite-user-dialog";
+
+export default function InviteDialogWithNotes({ Base, ...props }: WrapperProps<InviteUserDialogProps>) {
+  return (
+    <span data-notes-invite="" className="contents">
+      <Base {...props} />
+    </span>
+  );
+}
+```
+
+- `replace: () => import(…)` zastępuje komponent; zamiennik dostaje te same propsy co komponent GatoJS. `wrap: () => import(…)` owija go; opakowanie dostaje te propsy i dodatkowo `Base`, czyli komponent GatoJS, który renderuje w środku (zmiana propsów to też `wrap`). W `defineComponentOverride` TypeScript sprawdza propsy zamiennika i opakowania z typem uchwytu; nadpisania z `src/gato.config.ts` (`{ replace }`, `{ wrap }`) nie są sprawdzane z typem uchwytu, więc tam typ propsów (`WrapperProps<InviteUserDialogProps>` itp.) wpisujesz sam w komponencie. Nadpisanie nie dostaje niczego ponad to, co widzi komponent GatoJS; dane czyta tak jak każdy komponent kliencki, przez akcje serwerowe z własnym sprawdzeniem uprawnień, a komendy woła przez `useServiceModeAction().run` (jak komponent GatoJS), żeby w trybie serwisowym pokazać okno potwierdzenia.
+- `components.ts` i wszystko, co leniwie importuje, trafia do paczki przeglądarki: każdy taki plik zaczyna się od `"use client"`, a `components.ts` nie importuje kodu serwerowego. Pilnuje tego `client-bundles-stay-server-free.test.ts` (to samo dotyczy komponentów leniwie importowanych w `src/gato.config.ts`).
+- Nadpisanie modułu wyłączonego w `src/gato.config.ts` (`enabled: false`) nie działa; wtedy renderuje się komponent GatoJS. Tak samo dla użytkownika, którego rola nie ma dostępu do modułu z nadpisaniem (ta sama reguła co w slotach: `roles`, `adminOnly`, `multiOrgRoles`): widzi komponent GatoJS, a nadpisanie się nie ładuje. Nadpisanie z `src/gato.config.ts` widzi każdy. To ukrywa tylko UI; komendy za nim i tak sprawdzają uprawnienia same.
+- Dwa włączone moduły nadpisujące ten sam uchwyt kończą import rejestru błędem `ComponentOverrideError`: `users.invite-dialog is overridden by both crm and invoices; choose one under modules.users.components in src/gato.config.ts`. Rozstrzygasz to w konfiguracji pod kluczem modułu, który ma uchwyt: `modules: { users: { components: { "users.invite-dialog": { module: "crm" } } } }` wybiera nadpisanie `crm`, `{ replace: () => import(…) }` albo `{ wrap: () => import(…) }` daje własne nadpisanie projektu (wygrywa z nadpisaniami modułów), a `null` przywraca komponent GatoJS. Nieznany uchwyt, uchwyt pod kluczem innego modułu, wpis bez dokładnie jednego z `replace`, `wrap`, `module` albo `module` bez włączonego nadpisania kończą import błędem `GatoConfigError`; listę pokazuje też `gato-config-keys-exist.test.ts`.
+- Nadpisanie, które rzuca błąd przy renderowaniu albo którego `import()` się nie powiedzie, zostaje zastąpione komponentem GatoJS, a w konsoli przeglądarki pojawia się `Component override failed to render:` z uchwytem i źródłem. Przy renderowaniu na serwerze (SSR) błąd łapie wewnętrzny `Suspense`: w jego miejscu nic się nie renderuje, błąd trafia też do logu serwera, a przeglądarka renderuje ten fragment sama i pokazuje komponent GatoJS. Do czasu załadowania nadpisania w jego miejscu nic się nie renderuje.
+- Po dodaniu albo usunięciu `components.ts` uruchom `npm run wa -- generate`.
+- Uchwyt ma tylko wybrany komponent; nowy dodaje GatoJS na prośbę (issue w `webamigos/gatojs`). Moduł GatoJS deklaruje swój uchwyt w `components.ts` (`export const componentHandles = [defineComponentHandle("<x>.<nazwa>")]` i typ propsów w `declare module "@/shared/lib/modules/component-overrides" { interface ComponentHandleMap { … } }`, jak `src/features/users/components.ts`), a komponent eksportuje jako `overridable("<x>.<nazwa>", KomponentBase)` z `src/shared/lib/modules/overridable.tsx`. Zwrócony komponent przyjmuje propsy uchwytu i dodatkowo `viewer` (`{ userRole, orgRole, multiOrg }`, jak `ClientSlot`), np. `<InviteUserDialog viewer={viewer} />` w `UsersManager`; `viewer` nie trafia ani do komponentu GatoJS, ani do nadpisania.
+- Testy rdzenia, które sprawdzają komponent GatoJS z uchwytem, przypinają go mockiem `vi.mock("@/shared/lib/modules/overridable", () => ({ overridable: (_handle, Base) => Base }))`, więc przechodzą także w projekcie, który ten uchwyt nadpisuje.
 
 <a id="dalej"></a>
 

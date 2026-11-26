@@ -16,12 +16,15 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { useRouter } from "@/i18n/routing";
+import { clientModuleSlots } from "@/modules.client.generated";
 import { authClient } from "@/shared/lib/auth/client";
-import type { UserRole } from "@/shared/lib/auth/roles";
+import type { OrgRole, UserRole } from "@/shared/lib/auth/roles";
+import { visibleContributions } from "@/shared/lib/modules/slot-access";
 import { logImpersonationStartCommand } from "../services/commands/impersonation-commands";
 import { InviteUserDialog } from "./invite-user-dialog";
 import type { UserAccountListItem } from "../contracts/user-account.types";
 import { buildUserAccountColumns } from "./user-account-columns";
+import { buildContributedUserColumns } from "./user-table-slot-columns";
 
 const DATE_FNS_LOCALES: Record<string, DateFnsLocale> = { pl, en: enUS };
 
@@ -30,6 +33,9 @@ interface UsersManagerProps {
   currentUserId: string;
   currentUserRole: UserRole;
   adminImpersonation: boolean;
+  organizationId: string;
+  currentOrgRole: OrgRole | null;
+  multiOrg: boolean;
 }
 
 export function UsersManager({
@@ -37,11 +43,23 @@ export function UsersManager({
   currentUserId,
   currentUserRole,
   adminImpersonation,
+  organizationId,
+  currentOrgRole,
+  multiOrg,
 }: UsersManagerProps) {
   const t = useTranslations("users");
+  const translateAny = useTranslations();
   const router = useRouter();
   const dateLocale = DATE_FNS_LOCALES[useLocale()] ?? pl;
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const viewer = useMemo(
+    () => ({
+      userRole: currentUserRole,
+      orgRole: currentOrgRole,
+      multiOrg,
+    }),
+    [currentUserRole, currentOrgRole, multiOrg],
+  );
 
   const handleImpersonate = useCallback(
     async (userId: string) => {
@@ -69,25 +87,41 @@ export function UsersManager({
     [t, router],
   );
 
-  const columns = useMemo(
-    () =>
-      buildUserAccountColumns(
-        t,
-        dateLocale,
-        { userId: currentUserId, role: currentUserRole, adminImpersonation },
-        pendingId,
-        handleImpersonate,
-      ),
-    [
+  const columns = useMemo(() => {
+    const contributed = buildContributedUserColumns(
+      visibleContributions(clientModuleSlots, "users.table.columns", viewer),
+      (key) => translateAny(key),
+      organizationId,
+    );
+    return buildUserAccountColumns(
       t,
       dateLocale,
-      currentUserId,
-      currentUserRole,
-      adminImpersonation,
+      {
+        userId: currentUserId,
+        role: currentUserRole,
+        adminImpersonation,
+        organizationId,
+        orgRole: currentOrgRole,
+        multiOrg,
+      },
       pendingId,
       handleImpersonate,
-    ],
-  );
+      contributed,
+    );
+  }, [
+    t,
+    translateAny,
+    dateLocale,
+    viewer,
+    currentUserId,
+    currentUserRole,
+    currentOrgRole,
+    multiOrg,
+    organizationId,
+    adminImpersonation,
+    pendingId,
+    handleImpersonate,
+  ]);
 
   return (
     <Card>
@@ -102,7 +136,7 @@ export function UsersManager({
           </div>
         </div>
         <CardAction>
-          <InviteUserDialog />
+          <InviteUserDialog viewer={viewer} />
         </CardAction>
       </CardHeader>
       <CardContent className="space-y-4 pt-6">

@@ -2,6 +2,7 @@
 import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";
 import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";
 import { clientSlotRegistry } from "@/shared/lib/modules/slots";
+import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";
 import accountModule from "@/features/account/module";
 import authModule from "@/features/auth/module";
 import dashboardModule from "@/features/dashboard/module";
@@ -11,8 +12,10 @@ import apiKeysModule from "@/features/api-keys/module";
 import auditLogsModule from "@/features/audit-logs/module";
 import encryptionModule from "@/features/encryption/module";
 import uploadsModule from "@/features/uploads/module";
+import * as usersComponents from "@/features/users/components";
 
 export const authClientPlugins: never[] = [];
 export const clientModules = applyGatoConfig([accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, encryptionModule, uploadsModule], gatoConfig);
 export const clientModuleSlots = clientSlotRegistry([], gatoConfig);
+export const clientComponentOverrides = componentOverrideRegistry([{ module: "users", value: usersComponents }], gatoConfig);
 export const gatoBranding = gatoBrandingOf(gatoConfig);

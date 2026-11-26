@@ -23,6 +23,7 @@ import { events as uploadsEvents } from "@/features/uploads/events";
 import { subscribers as auditLogsSubscribers } from "@/features/audit-logs/subscribers";
 import * as accountSlots from "@/features/account/slots";
 import * as dashboardSlots from "@/features/dashboard/slots";
+import * as usersSlots from "@/features/users/slots";
 
 export const modules = applyGatoConfig([accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, encryptionModule, uploadsModule], gatoConfig);
 export const moduleEnvSchemas = enabledEntries([{ module: "api-keys", value: apiKeysEnvSchema }, { module: "encryption", value: encryptionEnvSchema }, { module: "uploads", value: uploadsEnvSchema }], gatoConfig);
@@ -31,7 +32,7 @@ export const auditSinks = enabledEntries([{ module: "audit-logs", value: auditLo
 export const moduleEvents = [{ module: "api-keys", value: apiKeysEvents }, { module: "uploads", value: uploadsEvents }];
 export const moduleSubscribers = enabledModuleEntries([{ module: "audit-logs", value: auditLogsSubscribers }], gatoConfig);
 export const moduleCommandHooks = commandHookRegistry({ modules: [accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, encryptionModule, uploadsModule], hooks: [] }, gatoConfig);
-export const moduleSlots = slotRegistry({ slots: [{ module: "account", value: accountSlots }, { module: "dashboard", value: dashboardSlots }], clientSlots: [] }, gatoConfig);
+export const moduleSlots = slotRegistry({ slots: [{ module: "account", value: accountSlots }, { module: "dashboard", value: dashboardSlots }, { module: "users", value: usersSlots }], clientSlots: [] }, gatoConfig);
 export const env = createEnv(moduleEnvSchemas);
 
 export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };

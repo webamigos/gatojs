@@ -39,6 +39,7 @@ export interface CommandDefinition<
   input: S;
   failureMessage: string;
   deniedMessage?: string;
+  invalidInputMessage?: (error: z.ZodError) => string;
   permission?: string;
   events?: readonly E[];
   run(
