@@ -29,6 +29,12 @@ function parseSetupArgs(argv: string[]): SetupOrganizationsArgs {
       check: { type: "boolean", default: false },
     },
   });
+  if (values.organization === "") {
+    throw new Error("--organization needs a non-empty organization id");
+  }
+  if (values.module === "") {
+    throw new Error("--module needs a non-empty module key");
+  }
   return {
     check: values.check,
     filter: {

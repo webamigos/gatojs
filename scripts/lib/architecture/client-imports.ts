@@ -31,7 +31,7 @@ const SERVER_MODULES = [
 ];
 
 const MODULE_SERVER_FILE =
-  /^@\/features\/[^/]+\/(events|subscribers|slots|command-hooks)$/;
+  /^@\/features\/[^/]+\/(events|subscribers|slots|command-hooks|setup)$/;
 const FEATURE_SERVICES = /^@\/features\/[^/]+\/services(\/|$)/;
 const FEATURE_COMMANDS = /^@\/features\/[^/]+\/services\/commands(\/|$)/;
 const RELATIVE_SPECIFIER = /^\.\.?\//;

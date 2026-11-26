@@ -155,11 +155,11 @@ function candidateEntries(options: MissingSetupOptions): ModuleSetupEntry[] {
 
 async function organizationIds(organizationId?: string): Promise<string[]> {
   const organizations = await prisma.organization.findMany({
-    where: organizationId ? { id: organizationId } : {},
+    where: organizationId === undefined ? {} : { id: organizationId },
     select: { id: true },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
-  if (organizationId && organizations.length === 0) {
+  if (organizationId !== undefined && organizations.length === 0) {
     throw new OrganizationSetupError(
       `Organization ${organizationId} not found`,
     );

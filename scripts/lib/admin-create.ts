@@ -189,7 +189,9 @@ export async function adminCreate(
       options.orgName ?? project.name,
     );
     await emitOrganizationCreated(user.userId, organization);
-    await runOrganizationSetup(organization.organizationId, { hook: "seed" });
+    if (organization.created) {
+      await runOrganizationSetup(organization.organizationId, { hook: "seed" });
+    }
     return {
       userId: user.userId,
       organizationId: organization.organizationId,
