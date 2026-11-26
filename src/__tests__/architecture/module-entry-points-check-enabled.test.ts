@@ -1617,6 +1617,91 @@ describe("module entry point detector on fixtures", () => {
 
       expect(unguarded()).toEqual(["src/app/x/actions.ts#archive"]);
     });
+
+    it("reports a command built by another define-command export aliased to defineCommand", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\nimport { defineCommandHooks as defineCommand } from "@/shared/lib/commands/define-command";\n${BILLING_CMD}`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports a command defined by defineCommand called without arguments", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\nconst cmd = defineCommand();`,
+          "  return runCommand(cmd, input, confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports runCommand called without arguments", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(`${R}\n${D}\n${BILLING_CMD}`, "  return runCommand();"),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it.each([
+      [
+        "no module property",
+        'const cmd = defineCommand({ key: "x.archive", access: "member" });',
+      ],
+      [
+        "a module held in a let",
+        'let MODULE_KEY = "x";\nconst cmd = defineCommand({ key: "x.archive", module: MODULE_KEY, access: "member" });',
+      ],
+      [
+        "a template literal module",
+        'const cmd = defineCommand({ key: "x.archive", module: `x`, access: "member" });',
+      ],
+    ])(
+      "reports runCommand in a use server file under src/app that no module owns, for a command with %s",
+      (_case, declaration) => {
+        write(
+          "src/app/x/actions.ts",
+          commandFile(
+            `${R}\n${D}\n${declaration}`,
+            "  return runCommand(cmd, input, confirmation);",
+          ),
+        );
+
+        expect(unguarded()).toEqual(["src/app/x/actions.ts#archive"]);
+      },
+    );
+
+    it("reports a Prisma call inside runCommand's second argument", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${P}\n${R}\n${D}\n${BILLING_CMD}`,
+          "  return runCommand(cmd, await prisma.item.findFirst(), confirmation);",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports a Prisma call inside runCommand's third argument only", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${P}\n${R}\n${D}\n${BILLING_CMD}`,
+          "  return runCommand(cmd, input, await prisma.item.findFirst());",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
   });
 
   describe("server action files", () => {
