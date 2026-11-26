@@ -141,16 +141,6 @@ function subscribersByEvent(
   return byEvent;
 }
 
-function invalidPayload(
-  name: string,
-  issues: readonly { path: readonly PropertyKey[]; message: string }[],
-): EventError {
-  const details = issues
-    .map((issue) => `${issue.path.map(String).join(".")}: ${issue.message}`)
-    .join("; ");
-  return new EventError(`invalid payload for ${name}: ${details}`);
-}
-
 export function createEventBus(input: EventBusInput): EventBus {
   const declared = declaredEvents(input);
   const registered = registeredSubscribers(input);
@@ -169,7 +159,9 @@ export function createEventBus(input: EventBusInput): EventBus {
       }
       const parsed = schema.safeParse(payload);
       if (!parsed.success) {
-        throw invalidPayload(name, parsed.error.issues);
+        throw new EventError(`invalid payload for ${name}`, {
+          cause: parsed.error,
+        });
       }
       const event = Object.freeze({
         name,
