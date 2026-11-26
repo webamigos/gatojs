@@ -106,14 +106,19 @@ function runsUnderProfile(
   return runsAlways(service) || effectiveProfiles(service).includes(profile);
 }
 
-function isOneShot(
-  name: string,
-  service: ComposeService | null | undefined,
-): boolean {
+function startsOnlyByHand(service: ComposeService | null | undefined): boolean {
+  const profiles = effectiveProfiles(service);
   return (
-    name !== "migrate" &&
-    service?.restart === "no" &&
-    !effectiveProfiles(service).includes(TOOLS_PROFILE)
+    profiles.length > 0 &&
+    profiles.every((profile) => profile === TOOLS_PROFILE)
+  );
+}
+
+function profilesStartedByUp(
+  service: ComposeService | null | undefined,
+): string[] {
+  return effectiveProfiles(service).filter(
+    (profile) => profile !== TOOLS_PROFILE,
   );
 }
 
@@ -124,6 +129,19 @@ function waitersToComplete(
   return Object.values(services).filter(
     (service) =>
       dependencyCondition(service, name) === "service_completed_successfully",
+  );
+}
+
+function isOneShot(
+  services: Record<string, ComposeService | null>,
+  name: string,
+  service: ComposeService | null | undefined,
+): boolean {
+  if (name === "migrate" || startsOnlyByHand(service)) {
+    return false;
+  }
+  return (
+    service?.restart === "no" || waitersToComplete(services, name).length > 0
   );
 }
 
@@ -140,7 +158,7 @@ function oneShotIssues(
           `${COMPOSE_FILE}: ${name} runs once (restart: "no"), so another service must wait for it to complete (service_completed_successfully) or up --wait fails`,
         ];
   }
-  return effectiveProfiles(service)
+  return profilesStartedByUp(service)
     .filter(
       (profile) => !waiters.some((waiter) => runsUnderProfile(waiter, profile)),
     )
@@ -169,7 +187,7 @@ function developmentCredentialIn(
 }
 
 export function checkSelfhostCompose(root: string): string[] {
-  const compose = (parse(readRepoFile(root, COMPOSE_FILE)) ??
+  const compose = (parse(readRepoFile(root, COMPOSE_FILE), { merge: true }) ??
     {}) as ComposeFile;
   const services = compose.services ?? {};
   const entries = Object.entries(services);
@@ -205,7 +223,7 @@ export function checkSelfhostCompose(root: string): string[] {
     }
   }
   for (const [name, service] of entries) {
-    if (isOneShot(name, service)) {
+    if (isOneShot(services, name, service)) {
       issues.push(...oneShotIssues(services, name, service));
     }
   }
