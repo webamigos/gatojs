@@ -37,6 +37,8 @@ New core library `src/shared/lib/commands/` (in `mutation-gate.json` `critical`)
 - `access: "module"` turns the `notFound()` of `requireModuleAccess` into the command's failure result, like any other thrown error.
 - Events of a command are emitted only after `run` returned success, so a veto or a failed write never emits.
 - A hook that throws something other than a `DomainError`, or returns input the schema rejects, ends the command with `failureMessage` and is logged with `logger.error`.
+- The input is parsed twice, before and after the hooks, also when no hook is installed, so a command's schema must accept its own output: a `.transform()` that changes a field's type (a string parsed to a number) fails the second parse. Keep conversions in `run`.
+- An event that fails `emitEvent` (an undeclared name or an invalid payload, both bugs in the command) turns an already-written success into the failure result. The command tests catch it, because they run the emit.
 
 ## Enforcement
 
