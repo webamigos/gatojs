@@ -45,8 +45,10 @@ spec:
                 name: {{ $secretName | quote }}
           env:
             {{- range $name, $value := .Values.env }}
+            {{- if not (kindIs "invalid" $value) }}
             - name: {{ $name | quote }}
               value: {{ toString $value | quote }}
+            {{- end }}
             {{- end }}
             - name: STORAGE_PROVIDER
               value: {{ .Values.storage.provider | quote }}
