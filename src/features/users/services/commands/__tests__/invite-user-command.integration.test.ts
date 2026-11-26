@@ -3,11 +3,13 @@ import { serializeSignedCookie } from "better-call";
 import type { AuditEvent } from "@/shared/lib/audit";
 import type { DomainEvent } from "@/shared/lib/events";
 
-const { recordedEvents, currentHeaders, domainEvents } = vi.hoisted(() => ({
-  recordedEvents: [] as AuditEvent[],
-  currentHeaders: { value: new Headers() },
-  domainEvents: [] as DomainEvent[],
-}));
+const { recordedEvents, currentHeaders, domainEvents, subscriberEntries } =
+  vi.hoisted(() => ({
+    recordedEvents: [] as AuditEvent[],
+    currentHeaders: { value: new Headers() },
+    domainEvents: [] as DomainEvent[],
+    subscriberEntries: [] as { module: string; value: unknown }[],
+  }));
 
 vi.mock("@/modules.generated", async () => ({
   env: (await import("@gatojs/env")).createEnv([]),
@@ -18,25 +20,7 @@ vi.mock("@/modules.generated", async () => ({
       recordedEvents.push(event);
     },
   ],
-  moduleSubscribers: [
-    {
-      module: "probe",
-      value: {
-        "auth.signed-up": {
-          id: "probe.signed-up",
-          run: (event: DomainEvent) => {
-            domainEvents.push(event);
-          },
-        },
-        "users.invited": {
-          id: "probe.invited",
-          run: (event: DomainEvent) => {
-            domainEvents.push(event);
-          },
-        },
-      },
-    },
-  ],
+  moduleSubscribers: subscriberEntries,
 }));
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => currentHeaders.value),
@@ -61,6 +45,7 @@ vi.mock("@/shared/lib/mailer", () => ({
 // auditSinks, jeśli pierwszy załaduje się modules.generated; import audit.ts jako pierwszy
 // wiąże go z podmienionym auditSinks.
 import "@/shared/lib/audit";
+import { organizationAuditSubscribers } from "@/features/audit-logs/services/organization-audit-subscribers";
 import { prisma } from "@/shared/lib/prisma";
 import { inviteUserCommand } from "../invite-user-command";
 import {
@@ -70,6 +55,29 @@ import {
   createUser,
   resetDatabase,
 } from "@/test/integration/database";
+
+// WHY: the mock factory must not import the subscribers (ADR-61: emit-event.ts would bind to the
+// original registry); the bus reads this list on the first emit, after this line ran.
+subscriberEntries.push(
+  { module: "audit-logs", value: organizationAuditSubscribers },
+  {
+    module: "probe",
+    value: {
+      "auth.signed-up": {
+        id: "probe.signed-up",
+        run: (event: DomainEvent) => {
+          domainEvents.push(event);
+        },
+      },
+      "users.invited": {
+        id: "probe.invited",
+        run: (event: DomainEvent) => {
+          domainEvents.push(event);
+        },
+      },
+    },
+  },
+);
 
 let world: {
   admin: { id: string };
@@ -198,6 +206,43 @@ describe("inviteUserCommand na prawdziwym better-auth: dziennik zdarzeń", () =>
     });
   });
 
+  it("two invitations by the admin write exactly one member.invited each, through the audit-logs subscriber", async () => {
+    await signInAs(world.admin.id, world.orgA.id);
+
+    await inviteUserCommand({
+      name: "Pierwszy",
+      email: "pierwszy@a.example",
+      role: "member",
+    });
+    await inviteUserCommand({
+      name: "Drugi",
+      email: "drugi@a.example",
+      role: "admin",
+    });
+
+    const first = await prisma.invitation.findFirstOrThrow({
+      where: { email: "pierwszy@a.example" },
+      select: { id: true },
+    });
+    const second = await prisma.invitation.findFirstOrThrow({
+      where: { email: "drugi@a.example" },
+      select: { id: true },
+    });
+    const invited = recordedEvents.filter(
+      (event) => event.action === "member.invited",
+    );
+    expect(invited).toHaveLength(2);
+    expect(invited.map((event) => event.entityId)).toEqual([
+      first.id,
+      second.id,
+    ]);
+    expect(invited.map((event) => event.newData)).toEqual([
+      { email: "pierwszy@a.example", role: "member" },
+      { email: "drugi@a.example", role: "admin" },
+    ]);
+    expect(invited.map((event) => event.serviceMode)).toEqual([false, false]);
+  });
+
   it("superadmin w trybie serwisowym bez potwierdzenia nie tworzy zaproszenia ani wpisu", async () => {
     await signInAs(world.superadmin.id, world.orgA.id);
 
@@ -236,6 +281,7 @@ describe("inviteUserCommand na prawdziwym better-auth: zdarzenia domenowe", () =
       name: "users.invited",
       organizationId: world.orgA.id,
       actorUserId: world.admin.id,
+      serviceMode: false,
       payload: {
         invitationId: invitation.id,
         email: "nowy@a.example",
@@ -279,6 +325,7 @@ describe("inviteUserCommand na prawdziwym better-auth: zdarzenia domenowe", () =
     expect(domainEvents[0]).toMatchObject({
       organizationId: world.orgA.id,
       actorUserId: world.superadmin.id,
+      serviceMode: true,
     });
   });
 
@@ -310,6 +357,7 @@ describe("inviteUserCommand na prawdziwym better-auth: zdarzenia domenowe", () =
       name: "auth.signed-up",
       organizationId: world.orgA.id,
       actorUserId: newUser.id,
+      serviceMode: false,
       payload: { userId: newUser.id, email: "gosc@a.example" },
     });
   });

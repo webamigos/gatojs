@@ -63,8 +63,8 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe("plugin audit-logs na prawdziwym better-auth", () => {
-  it("zaproszenie wysłane w organizacji A tworzy member.invited w A, nie w B", async () => {
+describe("audit-logs rows from core organization events on real better-auth", () => {
+  it("an invitation sent in organization A writes member.invited in A, not in B", async () => {
     const invitation = await auth.api.createInvitation({
       headers: world.headersA,
       body: { email: "nowy@a.example", role: "member" },
@@ -87,7 +87,7 @@ describe("plugin audit-logs na prawdziwym better-auth", () => {
     });
   });
 
-  it("odrzucone zaproszenie (zła rola) nie tworzy wpisu", async () => {
+  it("a rejected invitation (invalid role) writes no row", async () => {
     await expect(
       auth.api.createInvitation({
         headers: world.headersA,
@@ -99,7 +99,7 @@ describe("plugin audit-logs na prawdziwym better-auth", () => {
     ).toBe(0);
   });
 
-  it("zmiana roli zapisuje poprzednią rolę odczytaną przed zmianą", async () => {
+  it("a role change writes the previous role read before the change", async () => {
     const carol = await createUser({ email: "carol@a.example" });
     const memberRow = await prisma.member.create({
       data: { organizationId: world.orgA.id, userId: carol.id, role: "member" },
@@ -119,7 +119,7 @@ describe("plugin audit-logs na prawdziwym better-auth", () => {
     });
   });
 
-  it("usunięcie członka tworzy member.removed w A, a B pozostaje puste", async () => {
+  it("removing a member writes member.removed in A and B stays empty", async () => {
     const carol = await createUser({ email: "carol@a.example" });
     const memberRow = await prisma.member.create({
       data: { organizationId: world.orgA.id, userId: carol.id, role: "member" },
@@ -140,7 +140,7 @@ describe("plugin audit-logs na prawdziwym better-auth", () => {
     });
   });
 
-  it("anulowanie zaproszenia tworzy invitation.canceled w organizacji zaproszenia", async () => {
+  it("canceling an invitation writes invitation.canceled in the invitation's organization", async () => {
     const invitation = await createInvitation({
       organizationId: world.orgA.id,
       inviterId: world.alice.id,
@@ -164,7 +164,7 @@ describe("plugin audit-logs na prawdziwym better-auth", () => {
     });
   });
 
-  it("przyjęcie zaproszenia tworzy invitation.accepted z aktorem przyjmującym", async () => {
+  it("accepting an invitation writes invitation.accepted with the accepting user as actor", async () => {
     const dave = await createUser({ email: "dave@a.example" });
     const invitation = await createInvitation({
       organizationId: world.orgA.id,
@@ -193,10 +193,92 @@ describe("plugin audit-logs na prawdziwym better-auth", () => {
     });
   });
 
-  it("inne endpointy organizacji nie tworzą wpisów", async () => {
+  it("other organization endpoints write no rows", async () => {
     await auth.api.listOrganizations({ headers: world.headersA });
     await auth.api.getFullOrganization({ headers: world.headersA });
     await auth.api.listInvitations({ headers: world.headersA });
+    expect(
+      await withoutTenantScope("test assertion", () => prisma.auditLog.count()),
+    ).toBe(0);
+  });
+
+  it("two invitations through better-auth write exactly one member.invited row each, without service mode", async () => {
+    const first = await auth.api.createInvitation({
+      headers: world.headersA,
+      body: { email: "pierwszy@a.example", role: "member" },
+    });
+    const second = await auth.api.createInvitation({
+      headers: world.headersA,
+      body: { email: "drugi@a.example", role: "admin" },
+    });
+
+    const rows = await withoutTenantScope("test assertion", () =>
+      prisma.auditLog.findMany({ where: { action: "member.invited" } }),
+    );
+    expect(rows).toHaveLength(2);
+    expect(
+      rows.map((row) => ({
+        organizationId: row.organizationId,
+        userId: row.userId,
+        entityType: row.entityType,
+        entityId: row.entityId,
+        newData: row.newData,
+        serviceMode: row.serviceMode,
+      })),
+    ).toEqual(
+      expect.arrayContaining([
+        {
+          organizationId: world.orgA.id,
+          userId: world.alice.id,
+          entityType: "invitation",
+          entityId: first.id,
+          newData: { email: "pierwszy@a.example", role: "member" },
+          serviceMode: false,
+        },
+        {
+          organizationId: world.orgA.id,
+          userId: world.alice.id,
+          entityType: "invitation",
+          entityId: second.id,
+          newData: { email: "drugi@a.example", role: "admin" },
+          serviceMode: false,
+        },
+      ]),
+    );
+  });
+
+  it("accepting an invitation writes no row for organizations.member-added", async () => {
+    const dave = await createUser({ email: "dave@a.example" });
+    const invitation = await createInvitation({
+      organizationId: world.orgA.id,
+      inviterId: world.alice.id,
+      email: "dave@a.example",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+    const daveSession = await createSession({
+      userId: dave.id,
+      activeOrganizationId: null,
+    });
+
+    await auth.api.acceptInvitation({
+      headers: await headersFor(daveSession.id),
+      body: { invitationId: invitation.id },
+    });
+
+    const actions = await withoutTenantScope("test assertion", () =>
+      prisma.auditLog.findMany({ select: { action: true } }),
+    );
+    expect(actions).toEqual([{ action: "invitation.accepted" }]);
+  });
+
+  it("updating the role of an unknown member writes no row", async () => {
+    await expect(
+      auth.api.updateMemberRole({
+        headers: world.headersA,
+        body: { memberId: "member-that-does-not-exist", role: "admin" },
+      }),
+    ).rejects.toThrow();
+
     expect(
       await withoutTenantScope("test assertion", () => prisma.auditLog.count()),
     ).toBe(0);

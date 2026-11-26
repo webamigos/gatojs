@@ -52,7 +52,7 @@ beforeEach(() => {
 });
 
 describe("eventOrigin", () => {
-  it("maps the context organization and user to the origin", () => {
+  it("maps the context organization, user and serviceMode false to the origin", () => {
     expect(
       eventOrigin({
         organizationId: "org-a",
@@ -61,10 +61,14 @@ describe("eventOrigin", () => {
         userRole: "user",
         serviceMode: false,
       }),
-    ).toStrictEqual({ organizationId: "org-a", actorUserId: "u1" });
+    ).toStrictEqual({
+      organizationId: "org-a",
+      actorUserId: "u1",
+      serviceMode: false,
+    });
   });
 
-  it("in service mode the superadmin is the actor of the entered organization", () => {
+  it("in service mode the superadmin is the actor of the entered organization and serviceMode is true", () => {
     expect(
       eventOrigin({
         organizationId: "org-b",
@@ -73,7 +77,11 @@ describe("eventOrigin", () => {
         userRole: "superadmin",
         serviceMode: true,
       }),
-    ).toStrictEqual({ organizationId: "org-b", actorUserId: "super-1" });
+    ).toStrictEqual({
+      organizationId: "org-b",
+      actorUserId: "super-1",
+      serviceMode: true,
+    });
   });
 });
 
@@ -90,6 +98,7 @@ describe("emitEvent", () => {
         name: "users.invited",
         organizationId: "org-a",
         actorUserId: "u1",
+        serviceMode: false,
         payload: { invitationId: "i1", email: "a@b.c", role: "member" },
       },
     ]);
@@ -120,7 +129,32 @@ describe("emitEvent", () => {
         name: "users.invited",
         organizationId: "org-a",
         actorUserId: "u1",
+        serviceMode: false,
         payload: { invitationId: "i1", email: "a@b.c", role: "member" },
+      },
+    ]);
+  });
+
+  it("an origin from eventOrigin of a service-mode context delivers serviceMode true", async () => {
+    await emitEvent(
+      eventOrigin({
+        organizationId: "org-b",
+        userId: "super-1",
+        orgRole: "owner",
+        userRole: "superadmin",
+        serviceMode: true,
+      }),
+      "users.invited",
+      { invitationId: "i3", email: "g@h.i", role: "member" },
+    );
+
+    expect(received).toEqual([
+      {
+        name: "users.invited",
+        organizationId: "org-b",
+        actorUserId: "super-1",
+        serviceMode: true,
+        payload: { invitationId: "i3", email: "g@h.i", role: "member" },
       },
     ]);
   });
@@ -168,12 +202,14 @@ describe("emitEvent", () => {
         name: "users.invited",
         organizationId: "org-a",
         actorUserId: "u1",
+        serviceMode: false,
         payload: { invitationId: "i1", email: "a@b.c", role: "member" },
       },
       {
         name: "users.invited",
         organizationId: "org-b",
         actorUserId: null,
+        serviceMode: false,
         payload: { invitationId: "i2", email: "d@e.f", role: "admin" },
       },
     ]);
