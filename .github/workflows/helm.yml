@@ -1,0 +1,97 @@
+name: Helm
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "deploy/**"
+      - .github/workflows/helm.yml
+  push:
+    branches: [main]
+    paths:
+      - "deploy/**"
+      - .github/workflows/helm.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: helm-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CHART: deploy/helm/gatojs
+  KUBERNETES_VERSION: 1.31.0
+
+jobs:
+  chart:
+    name: Lint, test and validate the chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: azure/setup-helm@v5
+        with:
+          version: v4.2.4
+
+      # WHY: the archive is checked against a pinned SHA-256 before it is unpacked, so a replaced
+      # release asset fails the job instead of running.
+      - name: Install helm-unittest
+        env:
+          HELM_UNITTEST_VERSION: 1.2.1
+          HELM_UNITTEST_SHA256: 48e86ecc1467b009630e5954375e5d8494139f73b466df5fe8c04fa45b634939
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/helm-unittest.tgz"
+          curl -fsSL -o "$archive" \
+            "https://github.com/helm-unittest/helm-unittest/releases/download/v${HELM_UNITTEST_VERSION}/helm-unittest-linux-amd64-${HELM_UNITTEST_VERSION}.tgz"
+          echo "${HELM_UNITTEST_SHA256}  $archive" | sha256sum -c -
+          plugin_dir="$(helm env HELM_PLUGINS)/helm-unittest"
+          mkdir -p "$plugin_dir"
+          tar -xzf "$archive" -C "$plugin_dir"
+          helm unittest --help > /dev/null
+
+      - name: Install kubeconform
+        env:
+          KUBECONFORM_VERSION: 0.8.0
+          KUBECONFORM_SHA256: 9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/kubeconform.tar.gz"
+          curl -fsSL -o "$archive" \
+            "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          echo "${KUBECONFORM_SHA256}  $archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/bin" kubeconform
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: helm lint
+        run: helm lint "$CHART" --strict --set existingSecret=app-env
+
+      - name: helm unittest
+        run: helm unittest "$CHART"
+
+      - name: Validate default values (local storage)
+        run: |
+          set -euo pipefail
+          helm template app "$CHART" --set existingSecret=app-env \
+            | kubeconform -strict -summary -kubernetes-version "$KUBERNETES_VERSION"
+
+      - name: Validate s3 storage with more replicas
+        run: |
+          set -euo pipefail
+          helm template app "$CHART" --set existingSecret=app-env \
+            --set storage.provider=s3 --set replicaCount=2 \
+            | kubeconform -strict -summary -kubernetes-version "$KUBERNETES_VERSION"
+
+      - name: Validate with the Ingress on
+        run: |
+          set -euo pipefail
+          helm template app "$CHART" --set existingSecret=app-env \
+            --set ingress.enabled=true --set ingress.host=app.example.com \
+            --set ingress.className=nginx \
+            --set "ingress.tls[0].secretName=app-tls" --set "ingress.tls[0].hosts[0]=app.example.com" \
+            | kubeconform -strict -summary -kubernetes-version "$KUBERNETES_VERSION"
