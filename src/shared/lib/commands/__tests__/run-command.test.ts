@@ -82,6 +82,7 @@ vi.mock("@/modules.client.generated", () => ({
         "probe.workspace",
         "probe.trim",
         "probe.silent",
+        "probe.both",
       ],
       permissions: {
         "probe.manage": {
@@ -104,7 +105,7 @@ vi.mock("@/modules.client.generated", () => ({
 
 import { NoOrganizationError } from "@/shared/lib/auth/org-context";
 import { DomainError } from "@/shared/utils/error-handling";
-import { defineCommand } from "../define-command";
+import { CommandError, defineCommand } from "../define-command";
 import { runCommand } from "../run-command";
 
 const FAILURE = "Probe failed";
@@ -1350,5 +1351,159 @@ describe("runCommand: result and events", () => {
     await runCommand(probeCommand(), { id: ID }, undefined);
 
     expect(received).toEqual([]);
+  });
+});
+
+describe("runCommand: the logged command errors", () => {
+  const BOTH_INPUT: CommandSchema = z.object({
+    id: z.uuid(),
+    organizationId: z.string().optional(),
+    workspaceId: z.string().meta({ organizationScoped: true }).optional(),
+  });
+
+  function loggedCommandError(): Error {
+    expect(mockLogger.error).toHaveBeenCalledTimes(1);
+    expect(mockLogger.error).toHaveBeenCalledWith(FAILURE, {
+      err: expect.any(CommandError),
+    });
+    const [, details] = mockLogger.error.mock.calls[0] as [
+      string,
+      { err: Error },
+    ];
+    expect(details.err.name).toBe("CommandError");
+    return details.err;
+  }
+
+  it("an undeclared key logs the not-declared CommandError", async () => {
+    const result = await runCommand(
+      probeCommand({ key: "probe.undeclared" }),
+      { id: ID },
+      undefined,
+    );
+
+    expect(result).toEqual(FAILURE_RESULT);
+    expect(loggedCommandError().message).toBe(
+      "command not declared by module probe: probe.undeclared",
+    );
+  });
+
+  it("a module without a commands field logs the not-declared CommandError, not a TypeError", async () => {
+    const result = await runCommand(
+      probeCommand({ key: "bare.delete", module: "bare" }),
+      { id: ID },
+      undefined,
+    );
+
+    expect(result).toEqual(FAILURE_RESULT);
+    expect(loggedCommandError().message).toBe(
+      "command not declared by module bare: bare.delete",
+    );
+  });
+
+  it("a key declared only by another module logs the not-declared CommandError of the command's module", async () => {
+    await runCommand(
+      probeCommand({ key: "probe.borrowed" }),
+      { id: ID },
+      undefined,
+    );
+
+    expect(loggedCommandError().message).toBe(
+      "command not declared by module probe: probe.borrowed",
+    );
+  });
+
+  it("a hook returning invalid input logs the invalid-input CommandError with the command key", async () => {
+    registerHooks(hookEntry("probe", "probe.broken", () => ({ id: 42 })));
+
+    const result = await runCommand(probeCommand(), { id: ID }, undefined);
+
+    expect(result).toEqual(FAILURE_RESULT);
+    expect(loggedCommandError().message).toBe(
+      "before hooks returned invalid input for probe.delete",
+    );
+  });
+
+  it("a hook output failing the schema after its transform logs the invalid-input CommandError", async () => {
+    registerHooks(
+      hookEntry("probe", "probe.blank", () => ({ name: "   " }), "probe.trim"),
+    );
+
+    await runCommand(
+      probeCommand({ key: "probe.trim", input: TRIM_INPUT }),
+      { name: "first" },
+      undefined,
+    );
+
+    expect(loggedCommandError().message).toBe(
+      "before hooks returned invalid input for probe.trim",
+    );
+  });
+
+  it("a hook adding a foreign organizationId logs the organization-scoped CommandError naming the field", async () => {
+    registerHooks(
+      hookEntry(
+        "probe",
+        "probe.foreign",
+        () => ({ id: ID, organizationId: "org-b" }),
+        "probe.scoped",
+      ),
+    );
+
+    const result = await runCommand(
+      probeCommand({ key: "probe.scoped", input: ORG_INPUT }),
+      { id: ID },
+      undefined,
+    );
+
+    expect(result).toEqual(FAILURE_RESULT);
+    expect(loggedCommandError().message).toBe(
+      "organization-scoped field rejected for probe.scoped: organizationId",
+    );
+  });
+
+  it("a caller's foreign organizationId without hooks logs the organization-scoped CommandError", async () => {
+    await runCommand(
+      probeCommand({ key: "probe.scoped", input: ORG_INPUT }),
+      { id: ID, organizationId: "org-b" },
+      undefined,
+    );
+
+    expect(loggedCommandError().message).toBe(
+      "organization-scoped field rejected for probe.scoped: organizationId",
+    );
+  });
+
+  it("a changed marked field logs the organization-scoped CommandError naming that field", async () => {
+    registerHooks(
+      hookEntry(
+        "probe",
+        "probe.workspace-swap",
+        () => ({ id: ID, workspaceId: "org-b" }),
+        "probe.workspace",
+      ),
+    );
+
+    await runCommand(
+      probeCommand({ key: "probe.workspace", input: WORKSPACE_INPUT }),
+      { id: ID, workspaceId: "org-a" },
+      undefined,
+    );
+
+    expect(loggedCommandError().message).toBe(
+      "organization-scoped field rejected for probe.workspace: workspaceId",
+    );
+  });
+
+  it("with two scoped fields the error names the one that was rejected", async () => {
+    await runCommand(
+      probeCommand({ key: "probe.both", input: BOTH_INPUT }),
+      { id: ID, organizationId: "org-a", workspaceId: "org-b" },
+      undefined,
+    );
+
+    expect(loggedCommandError().message).toBe(
+      "organization-scoped field rejected for probe.both: workspaceId",
+    );
+    expect(runSpy).not.toHaveBeenCalled();
   });
 });

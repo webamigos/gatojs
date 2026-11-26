@@ -110,6 +110,43 @@ describe("defineCommand", () => {
   );
 });
 
+describe("defineCommand: the key prefix rule", () => {
+  const moduleKey = fc.stringMatching(/^[a-z][a-z0-9-]{0,10}$/);
+  const suffix = fc.stringMatching(/^[a-z0-9.-]{1,12}$/);
+
+  test.prop([moduleKey, suffix])(
+    "accepts <module>.<anything non-empty> for any module",
+    (module, rest) => {
+      const key = `${module}.${rest}`;
+
+      expect(defineCommand(definition(key, module)).key).toBe(key);
+    },
+  );
+
+  test.prop([moduleKey, moduleKey, suffix])(
+    "rejects a key that starts with another module's prefix",
+    (module, other, rest) => {
+      fc.pre(module !== other);
+      const key = `${other}.${rest}`;
+
+      expect(thrown(() => defineCommand(definition(key, module))).message).toBe(
+        `command keys must start with "${module}.": ${key}`,
+      );
+    },
+  );
+
+  test.prop([moduleKey])(
+    "rejects the bare module key and the module key with only a dot",
+    (module) => {
+      for (const key of [module, `${module}.`]) {
+        expect(
+          thrown(() => defineCommand(definition(key, module))).message,
+        ).toBe(`command keys must start with "${module}.": ${key}`);
+      }
+    },
+  );
+});
+
 describe("CommandError", () => {
   it("is an Error named CommandError", () => {
     const error = new CommandError("boom");
