@@ -2344,6 +2344,39 @@ describe("module entry point detector on fixtures", () => {
 
       expect(unguarded()).toEqual([]);
     });
+
+    it("accepts a server action whose guard sits in a catch with Prisma after it in the same catch", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${P}\n${E}`,
+          '  try {\n    JSON.parse("{}");\n  } catch (error) {\n    requireModuleEnabled("billing");\n    await prisma.invoice.deleteMany({});\n    throw error;\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a server action whose guard sits in a finally with Prisma after it in the same finally", () => {
+      write(
+        BILLING_COMMAND,
+        serverAction(
+          `${P}\n${E}`,
+          '  try {\n    JSON.parse("{}");\n  } finally {\n    requireModuleEnabled("billing");\n    await prisma.invoice.findMany();\n  }',
+        ),
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a server action whose catch calls a bodyless declared function before rethrowing", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${E}\ndeclare function log(): void;\nexport async function doIt() {\n  try {\n    requireModuleEnabled("billing");\n  } catch (error) {\n    log();\n    throw error;\n  }\n  return { success: true };\n}\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
   });
 });
 
