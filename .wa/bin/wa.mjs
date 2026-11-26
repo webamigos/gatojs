@@ -935,7 +935,16 @@ import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile2 } from 
 import { dirname as dirname2, join as join3 } from "node:path";
 
 // src/kit/kit-format.ts
-var SUPPORTED_KIT_FORMATS = [1, 2, 3, 4, 5, 6, 7];
+var SUPPORTED_KIT_FORMATS = [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8
+];
 function assertSupportedKitFormat(format) {
   if (!SUPPORTED_KIT_FORMATS.includes(format)) {
     throw new Error(
@@ -20822,6 +20831,7 @@ var GATO_CONFIG_MODULE = "@/shared/lib/modules/gato-config";
 var PROJECT_CONFIG_IMPORT = 'import gatoConfig from "@/gato.config";';
 var EMPTY_CONFIG_IMPORT = `import { emptyGatoConfig as gatoConfig } from "${GATO_CONFIG_MODULE}";`;
 var SLOTS_MODULE = "@/shared/lib/modules/slots";
+var COMPONENT_OVERRIDES_MODULE = "@/shared/lib/modules/component-overrides";
 function entry(module, value) {
   return `{ module: "${module.name}", value: ${value} }`;
 }
@@ -20849,7 +20859,10 @@ function slotsImport(module) {
 function clientSlotsImport(module) {
   return `import * as ${identifier(module.name, "ClientSlots")} from "@/features/${module.name}/client-slots";`;
 }
-function slotEntries(modules, suffix) {
+function componentsImport(module) {
+  return `import * as ${identifier(module.name, "Components")} from "@/features/${module.name}/components";`;
+}
+function namespaceEntries(modules, suffix) {
   return array2(modules.map((m) => entry(m, identifier(m.name, suffix))));
 }
 function usedHelpers(uses) {
@@ -20876,6 +20889,7 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
   const withSubscribers = modules.filter((m) => m.hasSubscribers);
   const withSlots = modules.filter((m) => m.hasSlots);
   const withClientSlots = modules.filter((m) => m.hasClientSlots);
+  const withComponents = modules.filter((m) => m.hasComponents);
   const loadersByLocale = locales.map((locale) => ({
     locale,
     loaders: modules.filter((m) => m.locales.includes(locale)).map(
@@ -20946,7 +20960,7 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
       "moduleSubscribers",
       withSubscribers.map((m) => entry(m, identifier(m.name, "Subscribers")))
     ),
-    `export const moduleSlots = slotRegistry({ slots: ${slotEntries(withSlots, "Slots")}, clientSlots: ${slotEntries(withClientSlots, "ClientSlots")} }, gatoConfig);`,
+    `export const moduleSlots = slotRegistry({ slots: ${namespaceEntries(withSlots, "Slots")}, clientSlots: ${namespaceEntries(withClientSlots, "ClientSlots")} }, gatoConfig);`,
     "export const env = createEnv(moduleEnvSchemas);",
     "",
     "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -20976,6 +20990,7 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
     clientImports.config,
     ...clientImports.helpers,
     `import { clientSlotRegistry } from "${SLOTS_MODULE}";`,
+    `import { componentOverrideRegistry } from "${COMPONENT_OVERRIDES_MODULE}";`,
     ...withAuthClient.map(
       (m) => `import { authClientPlugin as ${identifier(m.name, "AuthClientPlugin")} } from "@/features/${m.name}/auth-client";`
     ),
@@ -20983,6 +20998,7 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
       (m) => `import ${identifier(m.name, "Module")} from "@/features/${m.name}/module";`
     ),
     ...withClientSlots.map(clientSlotsImport),
+    ...withComponents.map(componentsImport),
     "",
     enabledList(
       "authClientPlugins",
@@ -20994,7 +21010,8 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
       "clientModules",
       withModule.map((m) => identifier(m.name, "Module"))
     ),
-    `export const clientModuleSlots = clientSlotRegistry(${slotEntries(withClientSlots, "ClientSlots")}, gatoConfig);`,
+    `export const clientModuleSlots = clientSlotRegistry(${namespaceEntries(withClientSlots, "ClientSlots")}, gatoConfig);`,
+    `export const clientComponentOverrides = componentOverrideRegistry(${namespaceEntries(withComponents, "Components")}, gatoConfig);`,
     "export const gatoBranding = gatoBrandingOf(gatoConfig);",
     ""
   ].join("\n");
@@ -21039,6 +21056,7 @@ async function detectFeature(projectDir, name, configuredLocales) {
     hasSubscribers: await exists(join4(base, "subscribers.ts")),
     hasSlots: await exists(join4(base, "slots.ts")),
     hasClientSlots: await exists(join4(base, "client-slots.ts")),
+    hasComponents: await exists(join4(base, "components.ts")),
     locales
   };
 }
@@ -24936,7 +24954,7 @@ function cliDependency(input2) {
 }
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.10.0" };
+var identity = { name: "wa", version: "0.11.0" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);
