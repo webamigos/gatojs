@@ -532,7 +532,7 @@ Strona `/sign-up` przy wyłączonej rejestracji i bez `invitationId` przekierowu
 
 **Status:** obowiązuje · **Data:** 2026-10-26 (ignorowanie plikiem tylko w kicie od 2026-10-28) · **Kto zdecydował:** autor design doc (§5 i §9); wykonawca planu 1 (rulingi R2 i R22); Jakub (decyzja D8 planu 2: ignorowanie zagnieżdżonym `.gitignore` zamiast linii w root `.gitignore`)
 
-**Kontekst.** Schemat bazy projektu zależy od wybranych modułów: każdy moduł dodaje własny plik schematu i relacje w regionach ([D03](#d03), [D14](#d14)). Źródła nie zapisują uzasadnienia wprost, ale z modelu składania wynika, że historia migracji kitu nie pasowałaby do projektu z innym zestawem modułów. Projekt na produkcji stosuje natomiast migracje komendą `npx prisma migrate deploy` (`preDeployCommand` w `railway.toml` albo w ustawieniach usługi, bo nowa usługa Railway nie czyta `railway.toml`, [10-wdrozenie.md](10-wdrozenie.md#config-as-code)), która bierze tylko migracje zapisane w repozytorium.
+**Kontekst.** Schemat bazy projektu zależy od wybranych modułów: każdy moduł dodaje własny plik schematu i relacje w regionach ([D03](#d03), [D14](#d14)). Źródła nie zapisują uzasadnienia wprost, ale z modelu składania wynika, że historia migracji kitu nie pasowałaby do projektu z innym zestawem modułów. Projekt na produkcji stosuje natomiast migracje komendą `node_modules/.bin/prisma migrate deploy` (`preDeployCommand` w `railway.toml` albo w ustawieniach usługi, bo nowa usługa Railway nie czyta `railway.toml`, [10-wdrozenie.md](10-wdrozenie.md#config-as-code)), która bierze tylko migracje zapisane w repozytorium.
 
 **Decyzja.** Kit nie dostarcza katalogu `prisma/migrations/` i ignoruje go plikiem `prisma/migrations/.gitignore` (treść: `*` i `!.gitignore`). Plik jest na liście `kitOnly` w `kit/kit.json`, więc `wa create` go nie kopiuje i ignorowanie migracji działa tylko w repozytorium kitu. Każda kopia repozytorium kitu tworzy własną migrację (`npx prisma migrate dev --name init`). Projekt klienta commituje swoje migracje.
 
@@ -1352,7 +1352,7 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 **Jak egzekwowana.**
 
 - `npm run typecheck`: typ `ModuleDef` i pliki generowane, które importują `module.ts`.
-- Testy modułów: `src/features/audit-logs/services/__tests__/audit-action-labels.test.ts`, `src/features/api-keys/services/__tests__/api-scopes.test.ts` i `api-scope-labels.test.ts`, `src/features/uploads/services/__tests__/upload-purposes.test.ts` (duplikaty i typy zabronione).
+- Testy modułów: `src/features/audit-logs/components/__tests__/audit-action-labels.test.ts`, `src/features/api-keys/services/__tests__/api-scopes.test.ts`, `src/features/api-keys/components/__tests__/api-scope-labels.test.ts`, `src/features/uploads/services/__tests__/upload-purposes.test.ts` (duplikaty i typy zabronione).
 - Brak paczek kitu w zależnościach aplikacji i to, że moduł nie edytuje plików rdzenia: tylko konwencja.
 
 **Źródło.** [Spec planu 3](superpowers/specs/2026-10-28-wa-kit-plan-3-modules-design.md) §2, §5–§8 i §10; [plan 3](superpowers/plans/2026-10-29-wa-kit-plan-3-modules.md), „Architecture”; commity `c8a0ffd` i `2199cea`; [design doc](superpowers/specs/2026-10-26-wa-kit-design.md) §1, §2 i §9.

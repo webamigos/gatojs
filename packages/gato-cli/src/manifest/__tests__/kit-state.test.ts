@@ -362,6 +362,62 @@ const UNSUPPORTED_FORMAT_99 =
 const LOGIN_EJECTED = { reason: "custom login", ejectedAt: "2026-11-23" };
 const BUTTON_EJECTED = { reason: "brand button", ejectedAt: "2026-11-24" };
 
+describe("kit state: the reserved project module key app", () => {
+  it("readKitState rejects a project module keyed app", async () => {
+    await writeRawState({
+      modules: {},
+      projectModules: {
+        app: {
+          manifest: {
+            ...NOTES_MANIFEST,
+            name: "app",
+            files: ["src/features/app/**"],
+          },
+        },
+      },
+    });
+    await expect(readKitState(tmp)).rejects.toThrow(
+      'projectModules.app: "app" is reserved for core-hosted slot config (modules.app)',
+    );
+  });
+
+  it("readKitState accepts a project module keyed apps", async () => {
+    await writeRawState({
+      modules: {},
+      projectModules: {
+        apps: {
+          manifest: {
+            ...NOTES_MANIFEST,
+            name: "apps",
+            files: ["src/features/apps/**"],
+          },
+        },
+      },
+    });
+    expect(Object.keys((await readKitState(tmp)).projectModules)).toEqual([
+      "apps",
+    ]);
+  });
+
+  it("readKitState accepts a project module keyed app-store", async () => {
+    await writeRawState({
+      modules: {},
+      projectModules: {
+        "app-store": {
+          manifest: {
+            ...NOTES_MANIFEST,
+            name: "app-store",
+            files: ["src/features/app-store/**"],
+          },
+        },
+      },
+    });
+    expect(Object.keys((await readKitState(tmp)).projectModules)).toEqual([
+      "app-store",
+    ]);
+  });
+});
+
 describe("kit state: kitFormat and ejected", () => {
   it("readKitState of a file without kitFormat and ejected gives format 1 and no ejected files", async () => {
     await writeRawState({ modules: {} });
@@ -402,10 +458,16 @@ describe("kit state: kitFormat and ejected", () => {
     expect(state.kitFormat).toBe(6);
   });
 
-  it("readKitState of kitFormat 7 rejects with the update gato-cli message", async () => {
+  it("readKitState keeps kitFormat 7", async () => {
     await writeRawState({ kitFormat: 7, modules: {} });
+    const state = await readKitState(tmp);
+    expect(state.kitFormat).toBe(7);
+  });
+
+  it("readKitState of kitFormat 8 rejects with the update gato-cli message", async () => {
+    await writeRawState({ kitFormat: 8, modules: {} });
     await expect(readKitState(tmp)).rejects.toThrow(
-      "This project uses kit format 7; update gato-cli (npm i -D gato-cli@latest)",
+      "This project uses kit format 8; update gato-cli (npm i -D gato-cli@latest)",
     );
   });
 

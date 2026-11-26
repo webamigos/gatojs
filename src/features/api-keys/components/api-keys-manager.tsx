@@ -30,7 +30,7 @@ import {
   deleteApiKeyCommand,
   revokeApiKeyCommand,
 } from "../services/commands/api-key-commands";
-import { findApiScopeLabel } from "../services/api-scope-labels";
+import { findApiScopeLabel } from "./api-scope-labels";
 import { buildApiKeyColumns } from "./api-key-columns";
 
 const DATE_FNS_LOCALES: Record<string, DateFnsLocale> = { pl, en: enUS };

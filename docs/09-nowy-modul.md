@@ -260,7 +260,7 @@ Dopisz do słownika `projectModules` wpis `notes`. Manifest musi przejść schem
 
 | Pole | Znaczenie we wpisie `notes` |
 | --- | --- |
-| `files` | Generator czyta z tej listy tylko wzorce zaczynające się od `src/features/<nazwa>/`, tu `src/features/notes/**`. Ten wzorzec rejestruje feature. Pozostałe dwa wzorce w projekcie nic nie czyta: test własności plików z [D38](decyzje.md#d38) sprawdza tylko manifesty `kit/modules/*.json` w repozytorium kitu i do projektu nie trafia, więc służą tylko jako opis. Każdy feature potrzebuje osobnego wzorca bez nawiasów `{…}`; wzorzec z nawiasem generator pomija bez błędu. |
+| `files` | Generator czyta z tej listy tylko wzorce zaczynające się od `src/features/<nazwa>/`, tu `src/features/notes/**`. Ten wzorzec rejestruje feature. Pozostałe wzorce czyta test architektury `module-entry-points-check-enabled.test.ts`: plik w `src/app/` albo `src/shared/`, który do nich pasuje, należy do `notes`, więc jego punkty wejścia wołają guard z kluczem `notes` ([trasa API funkcji](#trasa-api)). Test własności plików z [D38](decyzje.md#d38) sprawdza tylko manifesty `kit/modules/*.json` w repozytorium kitu i do projektu nie trafia. Każdy feature potrzebuje osobnego wzorca bez nawiasów `{…}`; wzorzec z nawiasem generator pomija bez błędu. |
 | `schemaRelations` | Linia `notes Note[]` trafi do regionu `wa:relations` w modelu `Organization`. To jedyny sposób dodania relacji zwrotnej do modelu rdzenia. Generator obsługuje tylko modele `User` i `Organization`; relację z innym modelem pomija bez błędu ([Regiony](02b-rejestr-i-generator.md#regiony)). |
 | `env`, `compose`, `ciSteps` | Puste: feature nie ma własnych zmiennych, usług Dockera ani kroków CI przed testami integracyjnymi (`ciSteps` wskazuje plik z krokami do regionu `wa:ci-integration` w `.github/workflows/ci.yml`, [02b-rejestr-i-generator.md](02b-rejestr-i-generator.md#regiony)). |
 | `name` | Musi być równe kluczowi wpisu. Generator używa go też jako nagłówka bloku modułu w `.env.example`, gdy `env` nie jest puste. |
@@ -308,6 +308,15 @@ export const clientModules = applyGatoConfig([accountModule, authModule, dashboa
 - **Wpis przed plikiem schematu** (kolejność z tego tutorialu). Region odwołuje się do modelu `Note`, którego przed krokiem 4 nie ma, więc komendy Prismy, które wczytują schemat (w przebiegu `npx prisma validate`), kończą się błędem `Type "Note" is neither a built-in type, nor refers to another model, composite type, or enum.` (kod `P1012`, `prisma/schema/organizations.prisma:14`). Nie uruchamiaj Prismy, dopóki nie zapiszesz pliku schematu z kroku 4.
 - **Plik schematu przed wpisem.** Prisma zgłasza brak relacji zwrotnej i proponuje ``Either run `prisma format` or add it manually.`` Nie rób żadnego z tych dwóch: dodaj `schemaRelations` i uruchom generator.
 - **Po `prisma format` albo ręcznym dopisaniu.** `prisma format` dopisuje `notes Note[]` pod linią `// wa:relations:end`, czyli w pliku rdzenia poza regionem. Następny przebieg generatora wstawia tę samą linię w region i schemat kończy się błędem `Field "notes" is already defined on model "Organization".` (sprawdzone na kopii schematu). Usuń linię spoza regionu.
+
+<a id="trasa-api"></a>
+
+**Trasa API funkcji musi pasować do wzorca z `files`.** Test architektury `src/__tests__/architecture/module-entry-points-check-enabled.test.ts` (część `npm test`, wykrywanie w `scripts/lib/architecture/module-entry-points.ts`) sprawdza każdy `route.ts` i każdy plik z `"use server"` w `src/app/`. Modułem pliku jest moduł, którego wzorzec z `files` w `.wa/kit.json` (`modules` albo `projectModules`, bez `core`) pasuje do ścieżki. Plik, którego nie obejmuje żaden wzorzec, nie ma modułu, więc żaden guard go nie chroni: test wypisuje jako naruszenie każdą metodę HTTP trasy i każdy eksport pliku z `"use server"`, także we własnej trasie projektu. Przykład: `src/app/api/notes/export/route.ts` przy wpisie `notes` z samymi wzorcami z kroku 3 daje `src/app/api/notes/export/route.ts#GET`. Naprawa to wzorzec we wpisie funkcji, nie wyjątek:
+
+1. Dopisz do `files` wpisu katalog trasy, na przykład `src/app/api/notes/**`.
+2. Każda metoda trasy zaczyna od `if (!isModuleEnabled("notes")) { return new Response(null, { status: 404 }); }` (`isModuleEnabled` z `@/shared/lib/modules/require-module-enabled`) albo od `await requireModuleAccess("notes")`, przed Prismą ([Guard włączonego modułu](06-wzorce-kodu.md#guard-wlaczonego-modulu)).
+
+Mapa wyjątków `ALLOWED` leży w teście rdzenia, którego projekt nie zmienia, i obejmuje tylko trasy rdzenia (healthcheck, handler better-auth).
 
 Testy rdzenia nie zmieniają się: porównują rejestr tylko z modułami rdzenia, a spójność całego rejestru (unikalne klucze i adresy, etykiety menu w każdym języku, zgodność menu z `canAccessModule`) sprawdza `src/shared/lib/modules/__tests__/registry-consistency.test.ts`, który obejmuje też `notes` ([krok 8](09b-implementacja-i-bramki.md#testy-rdzenia)).
 
@@ -608,6 +617,43 @@ INTEGRATION_DATABASE_URL=postgresql://postgres:postgres@localhost:5439/wa_app_tu
 Bez `INTEGRATION_DATABASE_URL` komenda integracyjna łączy się z `postgresql://postgres:postgres@localhost:5432/wa_app_test`, więc przy bazie w kontenerze na porcie 5432 wystarczy `npm run test:integration -- src/features/notes/services/__tests__/notes-isolation.integration.test.ts`. Zmienną ustawiasz w powłoce, bo wpis w `.env` nie działa ([Uruchomienie](08-testy.md#integracyjne)).
 
 Przed implementacją oba przebiegi są czerwone z powodu `TypeError: … is not a function`. Komenda integracyjna wypisuje na początku linię `Datasource "db": PostgreSQL database "<baza>", schema "public" at "<host>:<port>"` (w przebiegu `wa_app_tutorial_test` i `localhost:5439`): sprawdź w niej nazwę bazy i port. Bazę testową zakłada `globalSetup`, gdy jej nie ma.
+
+<a id="wklad-do-slotu"></a>
+
+## Wkład do slotu UI
+
+Strony GatoJS mają sloty: miejsca, w które moduł projektu wstawia własny komponent bez edycji pliku GatoJS ([ADR-68](adrs/68-ui-slots-split-server-and-client-contributions.md)). Pierwsze trzy to sloty serwerowe:
+
+| Slot | Gdzie | Kontekst (propsy komponentu) | Konfiguracja w `src/gato.config.ts` |
+| --- | --- | --- | --- |
+| `dashboard.sections` | strona `/dashboard` pod nagłówkiem; bez wkładów widać kartę powitalną | `{ organizationId }` | `modules.dashboard.slots` |
+| `app.header.actions` | wiersz z przełącznikiem organizacji nad treścią każdej strony aplikacji | `{ organizationId }` | `modules.app.slots` |
+| `account.sections` | strona `/account` pod formularzem zmiany hasła | `{ userId }` | `modules.account.slots` |
+
+Wkład do slotu serwerowego zapisujesz w `src/features/<x>/slots.ts`. Szkielet `notes` w repozytorium kitu ma taki plik (`packages/gato-cli/src/__tests__/fixtures/project-module/src/features/notes/slots.ts`):
+
+```ts
+import { defineContribution } from "@/shared/lib/modules/slots";
+
+export const slots = [
+  defineContribution("dashboard.sections", {
+    id: "notes.summary-card",
+    priority: 10,
+    component: () => import("./components/notes-summary-card"),
+  }),
+];
+```
+
+- `id` zaczyna się od klucza modułu i kropki; dwa wkłady o tym samym `id`, wkład do nieznanego slotu albo `id` bez przedrostka kończą import rejestru błędem `SlotError`, który wymienia moduły.
+- Wkłady jednego slotu stoją według `priority` rosnąco, a przy równych według `id`.
+- `roles: ["owner", "admin"]` ukrywa wkład przed pozostałymi rolami w organizacji (admin i superadmin globalny widzą go zawsze). Wkład modułu, do którego użytkownik nie ma dostępu (`roles`, `adminOnly` w `module.ts`), albo modułu wyłączonego w `src/gato.config.ts` też się nie pokaże. To ukrywanie interfejsu, nie zabezpieczenie: komponent, który czyta dane, woła query zaczynające się od `getOrgContext()`.
+- Komponent dostaje kontekst slotu jako propsy, a TypeScript sprawdza je z typem slotu. W `slots.ts` może to być asynchroniczny komponent serwerowy, bo plik trafia tylko do rejestru serwerowego. Wkłady do slotów klienckich (pierwsze przyjdą z tabelą użytkowników) idą do `client-slots.ts` (eksport `clientSlots`), który trafia do paczki przeglądarki, więc nie może importować kodu serwerowego.
+- Wkład, którego komponent rzuca błąd przy renderowaniu albo którego `import()` się nie powiedzie, znika ze strony, a reszta strony i pozostałe wkłady się renderują; błąd ląduje w logu serwera (ładowanie) albo w konsoli przeglądarki (renderowanie).
+- Każdy plik leniwie importowany z `client-slots.ts` zaczyna się od `"use client"`, a `client-slots.ts` i komponenty klienckie nie importują `slots.ts` ani `services/` poza `services/commands/` (także ścieżką względną); pilnuje tego `client-bundles-stay-server-free.test.ts`.
+- Po dodaniu albo usunięciu `slots.ts` lub `client-slots.ts` uruchom `npm run wa -- generate`.
+- Ukrycie wkładu w projekcie: `modules: { dashboard: { slots: { "dashboard.sections": { "notes.summary-card": null } } } }`, a zmiana kolejności: `{ priority: 5 }` zamiast `null`.
+
+Własny slot na stronie swojego modułu deklaruje moduł w swoim `slots.ts` (`export const slotDefinitions = [defineSlot("<x>.<nazwa>", { kind: "server" })]` i typ kontekstu w `declare module "@/shared/lib/modules/slots" { interface SlotContextMap { … } }`, jak `src/features/dashboard/slots.ts`; slot kliencki, `{ kind: "client" }`, rozszerza zamiast tego `ClientSlotContextMap` i renderuje się przez `<ClientSlot>` z `src/shared/components/client-slot.tsx`), a strona renderuje `<Slot id="<x>.<nazwa>" context={…} viewer={…} />` z `src/shared/components/slot.tsx`.
 
 <a id="dalej"></a>
 

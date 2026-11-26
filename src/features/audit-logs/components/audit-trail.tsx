@@ -1,7 +1,7 @@
 import { format } from "date-fns";
 import { getTranslations } from "next-intl/server";
 import { modules } from "@/modules.generated";
-import { findAuditActionLabel } from "../services/audit-action-labels";
+import { findAuditActionLabel } from "./audit-action-labels";
 import { getEntityAuditTrailQuery } from "../services/queries/audit-trail-query";
 
 interface AuditTrailProps {

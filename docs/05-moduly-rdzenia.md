@@ -80,7 +80,7 @@ Strony leżą w `src/app/[locale]/`, a nie w katalogu feature, bo trasy App Rout
 | --- | --- | --- |
 | Layout `(app)`, wspólny dla `/dashboard`, `/users` i `/account` oraz stron modułów kitu, na przykład `/api-keys` i `/audit-log` | `src/app/[locale]/(app)/layout.tsx` | `organizations`: `OrgSwitcher`, `getSwitchableOrganizationsQuery`. `users`: `ImpersonationBanner`, `logImpersonationStopCommand`. Do tego wspólne `AppSidebar`, `MobileHeader`, `SidebarProvider`, `ServiceModeProvider` i `ServiceModeBanner`. |
 | `/users` | `src/app/[locale]/(app)/users/page.tsx` | `users`: `UsersManager`, `getUserAccountsQuery`. `organizations`: `OrganizationMembers`, `getOrganizationMembersQuery`. |
-| `/account` | `src/app/[locale]/(app)/account/page.tsx` | `account`: `AccountDetails`. `auth`: `ChangePasswordForm`. |
+| `/account` | `src/app/[locale]/(app)/account/page.tsx` | `account`: `AccountDetails`. `auth`: `ChangePasswordForm`. Pod nimi slot `account.sections`. |
 | Konfiguracja better-auth | `src/shared/lib/auth/index.ts` | `auth`: `enforceSignupPolicy`, `readBodyString`. `organizations`: `resolveSignupMembership`, `applySignupMembership`, `getDefaultActiveOrganizationId`. |
 
 Żaden feature rdzenia nie importuje kodu innego feature. Łączą je tylko strony, layout `(app)` i konfiguracja better-auth z tabeli wyżej. Złożenie layoutu `(app)` (przekierowania, role dla menu, przełącznik, pasek trybu serwisowego i baner impersonacji) sprawdza `src/app/[locale]/(app)/__tests__/layout.test.tsx`.
@@ -341,7 +341,7 @@ Strona konta zalogowanego użytkownika. Feature ma tylko komponent, który wyśw
 
 | Adres | Plik | Zawartość |
 | --- | --- | --- |
-| `/account` | `src/app/[locale]/(app)/account/page.tsx` | `requireModuleAccess("account")`, potem `requireUser()` (użytkownik z sesji z cookie cache), `AccountDetails` z imieniem i adresem oraz `ChangePasswordForm`. |
+| `/account` | `src/app/[locale]/(app)/account/page.tsx` | `requireModuleAccess("account")`, potem `requireUser()` (użytkownik z sesji z cookie cache), `AccountDetails` z imieniem i adresem, `ChangePasswordForm` i pod nim slot `account.sections` (kontekst `{ userId }`). |
 
 Do `/account` prowadzi też link „Konto” w oknie użytkownika na dole menu bocznego. Jest wpisany na stałe w `app-sidebar.tsx` i nie zależy od definicji modułu ([Menu boczne](#app-sidebar)).
 
@@ -378,7 +378,7 @@ Strona startowa po zalogowaniu z treścią zastępczą, którą projekt klienta 
 
 | Adres | Plik | Zawartość |
 | --- | --- | --- |
-| `/dashboard` | `src/app/[locale]/(app)/dashboard/page.tsx` | `requireModuleAccess("dashboard")`, potem `requireUser()` i `DashboardPlaceholder` z imieniem użytkownika albo jego adresem, gdy imię jest puste. |
+| `/dashboard` | `src/app/[locale]/(app)/dashboard/page.tsx` | `requireModuleAccess("dashboard")`, potem `requireUser()`, nagłówek „Dashboard” i slot `dashboard.sections` (`<Slot>` z kontekstem `{ organizationId }`, [ADR-68](adrs/68-ui-slots-split-server-and-client-contributions.md)). Gdy żaden wkład do slotu nie jest widoczny dla użytkownika, slot pokazuje `DashboardPlaceholder` z imieniem użytkownika albo jego adresem, gdy imię jest puste. |
 
 Adres `/dashboard` jest wpisany na stałe jako cel przejścia w sześciu miejscach. Kto zmieni adres strony startowej, musi poprawić każde z nich:
 
@@ -393,7 +393,7 @@ Adres `/dashboard` jest wpisany na stałe jako cel przejścia w sześciu miejsca
 
 | Komponent | Plik | Działanie |
 | --- | --- | --- |
-| `DashboardPlaceholder({ userName })` | `src/features/dashboard/components/dashboard-placeholder.tsx` | Wyświetla nagłówek „Dashboard”, powitanie „Witaj, `<imię>`” i tekst „Tutaj pojawi się zawartość Twojej aplikacji.”, a renderuje się na serwerze, bo plik nie ma `"use client"`. |
+| `DashboardPlaceholder({ userName })` | `src/features/dashboard/components/dashboard-placeholder.tsx` | Kartę z powitaniem „Witaj, `<imię>`” i tekstem „Tutaj pojawi się zawartość Twojej aplikacji.”, zastępczą treść slotu `dashboard.sections`; renderuje się na serwerze, bo plik nie ma `"use client"`. |
 
 Feature nie ma kontraktów ani kodu w `services/`.
 

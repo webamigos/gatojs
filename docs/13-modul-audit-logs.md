@@ -79,7 +79,7 @@ Pierwsza migracja projektu (`npx prisma migrate dev --name init`) tworzy od razu
 2. Jeśli dodałeś moduł z `--no-install`, wygeneruj klienta Prismy: `npm install` (skrypt `postinstall`) albo `npm run db:generate`. W Prisma 7 `migrate dev` nie uruchamia generatora ([03b](03b-schemat-i-migracje.md#schemat)); bez tego `prisma.auditLog` nie istnieje w typach i w czasie działania.
 3. Nic więcej: bez zmiennych, usług i zmian w CI.
 
-**Wdrożenie.** Migrację zastosuje `npx prisma migrate deploy` przy wdrożeniu ([10](10-wdrozenie.md#migracje)). Zdarzenia zaczynają się zapisywać od pierwszego żądania obsłużonego przez nową wersję; wcześniejszych nie da się odtworzyć.
+**Wdrożenie.** Migrację zastosuje `node_modules/.bin/prisma migrate deploy` przy wdrożeniu ([10](10-wdrozenie.md#migracje)). Zdarzenia zaczynają się zapisywać od pierwszego żądania obsłużonego przez nową wersję; wcześniejszych nie da się odtworzyć.
 
 <a id="usuniecie"></a>
 
@@ -202,7 +202,7 @@ Moduł nie ma akcji serwerowych (plików `"use server"`): nie da się z przeglą
 | `services/redact.ts` | `redactSensitive(value)` | Redakcja kluczy wrażliwych ([Redakcja](#redakcja)). |
 | `subscribers.ts` | `subscribers` | `organizationAuditSubscribers` jako subskrybenci, których generator dopisuje do `moduleSubscribers`. |
 | `services/organization-audit-subscribers.ts` | `organizationAuditSubscribers` | Subskrybenci pięciu zdarzeń organizacji; każdy woła `trackAudit` raz ([Zdarzenia](#zdarzenia)). |
-| `services/audit-action-labels.ts` | `findAuditActionLabel(action, modules)` | Szuka deklaracji akcji w rejestrze. |
+| `components/audit-action-labels.ts` | `findAuditActionLabel(action, modules)` | Szuka deklaracji akcji w rejestrze. |
 | `contracts/audit-log.schemas.ts` | `auditLogFiltersSchema` | Parsowanie parametrów adresu. |
 
 <a id="dostep"></a>

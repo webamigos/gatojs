@@ -42,7 +42,9 @@ committed `init` migration, each in a fresh clone with its own `COMPOSE_PROJECT_
   - after `down -v` and removing `volumes/` and `.env.selfhost`, the restore brought the stack back the same way.
 
   The app itself (sign-in, `migrate` on the restored database, downloading the file) was not run against the
-  current scripts (not verified).
+  current scripts (not verified). Three changes came after that run and have not been run (not verified): the backup
+  folder named to the second with a plain `mkdir "$B"`, the restore's `APP_IMAGE` branch (`dc pull` and
+  `--no-build`), and the restore's last start, which stops `app` and exits 1 when `up --wait` fails.
 
 The TLS examples and the upgrade path have not been run (not verified).
 
@@ -54,7 +56,7 @@ The TLS examples and the upgrade path have not been run (not verified).
 | [Mail](#mail) | written |
 | [Files (`uploads`)](#files-uploads) | written, local volume and `s3` profile verified 2026-11-25 |
 | [TLS](#tls) | written, examples not run |
-| [Back up](#back-up) and [restore](#restore) | written; current scripts verified 2026-11-26 with stand-ins for `app` and `migrate` (MinIO path), the app on them not verified |
+| [Back up](#back-up) and [restore](#restore) | written; scripts verified 2026-11-26 with stand-ins for `app` and `migrate` (MinIO path), the app on them not verified; the later folder name, `APP_IMAGE` branch and failed-start handling not run |
 | [Upgrade](#upgrade) | written |
 | [Published images](#published-images) | written, not run (the first publish happens on `main` after merge) |
 | [Railway](#railway) | written, not deployed |
@@ -250,8 +252,9 @@ dc() {
   if [ "$WITH_MINIO" = yes ]; then set -- --profile s3 "$@"; fi
   docker compose -f docker-compose.selfhost.yml --env-file .env.selfhost "$@"
 }
-B=/var/backups/app/$(date +%Y%m%d-%H%M)
-mkdir -p "$B"
+mkdir -p /var/backups/app
+B=/var/backups/app/$(date +%Y%m%d-%H%M%S)
+mkdir "$B"
 
 dc stop app
 trap 'dc start app' EXIT
@@ -266,6 +269,8 @@ cp .env.selfhost "$B/"
 git rev-parse HEAD > "$B/commit"
 ```
 
+The set's folder is named after the time to the second, and `mkdir "$B"` (without `-p`) fails when it already exists,
+so a second run in the same second stops before `app` is stopped instead of writing into the first set.
 The `trap` starts `app` (and `minio`) again when the script ends, also when a step fails, so a failed backup never
 leaves the app offline. MinIO is copied in the same window as the database, so the files and the database come from
 the same moment. MinIO runs as root, so its files belong to root and need `sudo`.
@@ -310,6 +315,12 @@ fi
 
 if [ -f .env.selfhost ]; then cp .env.selfhost .env.selfhost.before-restore; fi
 cp "$B/.env.selfhost" .
+if grep -q '^APP_IMAGE=.' .env.selfhost; then
+  dc pull migrate app
+  START=--no-build
+else
+  START=--build
+fi
 dc stop app
 dc up -d --wait db
 
@@ -337,7 +348,10 @@ if [ "$WITH_MINIO" = yes ]; then
   sudo mv volumes/minio.restore-new volumes/minio
 fi
 
-dc up -d --build --wait
+if ! dc up -d "$START" --wait; then
+  dc stop app
+  exit 1
+fi
 ```
 
 - The checks stop the script before anything changes when a part of the set is missing or empty: the dump,
@@ -353,11 +367,20 @@ dc up -d --build --wait
 - `chown` gives the files to the `nextjs` user (UID 1001) the app runs as. The `uploads` volume is created by the
   first run when it is new.
 - `POSTGRES_PASSWORD` comes from the saved `.env.selfhost`; a new `postgres-data` volume is initialised with it.
+- When the saved `.env.selfhost` pins `APP_IMAGE` ([Deploying a published image](#deploying-a-published-image-in-the-self-hosted-stack)),
+  the script pulls that image before it stops `app` and starts with `--no-build`. `migrate` and `app` have both
+  `build: .` and `image: ${APP_IMAGE:-wa-app:local}`, so `--build` (or a `dc run` of a missing image) would build the
+  checkout and tag the result with the pinned name. Without `APP_IMAGE` the stack builds from the checkout as at install.
+- When the last start fails (`migrate` exits non-zero or `app` does not become healthy), the script stops `app` and
+  exits 1, so a half-started app does not serve the restored data. Read `dc logs migrate app`; the data set aside stays
+  where it is.
 - With an external S3 store, restore the bucket with the store's own tools to the moment of the database dump before
   the last `dc up`.
 
-If a step fails, `app` stays stopped and the live data is where it was or set aside as above: fix the cause and run
-the restore again from the start.
+If a step fails after `dc stop app`, `app` stays stopped and the live data is where it was or set aside as above.
+A failed `dc pull` stops the script earlier, with `app` still running on the previous image. Either way the run
+leaves `.env.selfhost.before-restore`, which stops the next run: put it back as `.env.selfhost` or remove it, fix the
+cause and run the restore again from the start.
 
 When the app is up, sign in and open a file uploaded before the backup. Then remove what the restore set aside:
 

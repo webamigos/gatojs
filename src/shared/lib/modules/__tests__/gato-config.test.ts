@@ -656,6 +656,56 @@ describe("gatoConfigProblems", () => {
   });
 });
 
+describe("gatoConfigProblems: the reserved key app", () => {
+  function moduleKeyed(key: string): ModuleDef {
+    return { key, nav: [], routePrefixes: [] };
+  }
+
+  it("a module keyed app is reported as reserved for core-hosted slots", () => {
+    expect(gatoConfigProblems([moduleKeyed("app")], {})).toEqual([
+      "modules.app: the key app is reserved for core-hosted slots and cannot be a module key",
+    ]);
+  });
+
+  it("a module keyed app next to other modules is reported", () => {
+    expect(
+      gatoConfigProblems(
+        [dashboardModule(), moduleKeyed("app"), usersModule()],
+        emptyGatoConfig,
+      ),
+    ).toEqual([
+      "modules.app: the key app is reserved for core-hosted slots and cannot be a module key",
+    ]);
+  });
+
+  it("a module keyed apps is not reserved", () => {
+    expect(gatoConfigProblems([moduleKeyed("apps")], {})).toEqual([]);
+  });
+
+  it("a module keyed app-store is not reserved", () => {
+    expect(gatoConfigProblems([moduleKeyed("app-store")], {})).toEqual([]);
+  });
+
+  it("applyGatoConfig with a module keyed app throws GatoConfigError naming the reserved key", () => {
+    let caught: unknown;
+    try {
+      applyGatoConfig([moduleKeyed("app")], {});
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(GatoConfigError);
+    expect((caught as GatoConfigError).problems).toEqual([
+      "modules.app: the key app is reserved for core-hosted slots and cannot be a module key",
+    ]);
+  });
+
+  it("applyGatoConfig with a module keyed apps returns it", () => {
+    expect(applyGatoConfig([moduleKeyed("apps")], {})).toEqual([
+      moduleKeyed("apps"),
+    ]);
+  });
+});
+
 describe("applyGatoConfig: identity and immutability", () => {
   it("emptyGatoConfig gives a list deep-equal to the input, same order", () => {
     const modules = allModules();

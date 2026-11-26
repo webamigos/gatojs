@@ -11,6 +11,7 @@ const {
   sidebarProps,
   bannerProps,
   switcherProps,
+  slotProps,
   mockGetSwitchableOrganizations,
 } = vi.hoisted(() => ({
   mockGetOrgContext: vi.fn(),
@@ -22,6 +23,7 @@ const {
   sidebarProps: vi.fn(),
   bannerProps: vi.fn(),
   switcherProps: vi.fn(),
+  slotProps: vi.fn(),
   mockGetSwitchableOrganizations: vi.fn(),
 }));
 
@@ -55,6 +57,12 @@ vi.mock("@/features/organizations/components/org-switcher", () => ({
   OrgSwitcher: (props: unknown) => {
     switcherProps(props);
     return <div>switcher</div>;
+  },
+}));
+vi.mock("@/shared/components/slot", () => ({
+  Slot: (props: unknown) => {
+    slotProps(props);
+    return <div>header actions</div>;
   },
 }));
 vi.mock(
@@ -305,6 +313,70 @@ describe("(app) layout", () => {
       const banner = screen.getByText(/^Tryb serwisowy:/);
       expect(banner.textContent?.trim()).toBe("Tryb serwisowy:");
       expect(screen.queryByText(/Pierwsza/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("app.header.actions slot", () => {
+    it("renders the slot with the active organization and the member's viewer", async () => {
+      renderLayout(await AppLayout({ children: null, params }));
+
+      expect(slotProps).toHaveBeenCalledTimes(1);
+      expect(slotProps).toHaveBeenCalledWith({
+        id: "app.header.actions",
+        context: { organizationId: "org-1" },
+        viewer: { userRole: "user", orgRole: "member", multiOrg: false },
+      });
+    });
+
+    it("the viewer follows the org role and MULTI_ORG", async () => {
+      mockEnv.MULTI_ORG = true;
+      mockGetOrgContext.mockResolvedValue({
+        ...MEMBER_CONTEXT,
+        organizationId: "org-2",
+        orgRole: "owner",
+      });
+
+      renderLayout(await AppLayout({ children: null, params }));
+
+      expect(slotProps).toHaveBeenCalledWith({
+        id: "app.header.actions",
+        context: { organizationId: "org-2" },
+        viewer: { userRole: "user", orgRole: "owner", multiOrg: true },
+      });
+    });
+
+    it("a superadmin in service mode gets the serviced organization and the superadmin role", async () => {
+      mockGetOrgContext.mockResolvedValue(SERVICE_CONTEXT);
+
+      renderLayout(await AppLayout({ children: null, params }));
+
+      expect(slotProps).toHaveBeenCalledWith({
+        id: "app.header.actions",
+        context: { organizationId: "org-9" },
+        viewer: { userRole: "superadmin", orgRole: "owner", multiOrg: false },
+      });
+    });
+
+    it("the slot sits in one row with the org switcher at the top of main, before the page", async () => {
+      renderLayout(await AppLayout({ children: <p>treść</p>, params }));
+
+      const main = screen.getByRole("main");
+      const slot = screen.getByText("header actions");
+      const switcher = screen.getByText("switcher");
+      const row = slot.parentElement?.parentElement;
+      expect(row?.parentElement).toBe(main);
+      expect(row).toBe(switcher.parentElement);
+      expect(main.firstElementChild).toBe(row);
+      expect(main.contains(screen.getByText("treść"))).toBe(true);
+      expect(row?.contains(screen.getByText("treść"))).toBe(false);
+    });
+
+    it("the slot is wrapped in its own container pushed to the end of the row", async () => {
+      renderLayout(await AppLayout({ children: null, params }));
+
+      const wrapper = screen.getByText("header actions").parentElement;
+      expect(wrapper).toHaveClass("ml-auto");
+      expect(wrapper?.parentElement).toHaveClass("flex");
     });
   });
 });

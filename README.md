@@ -83,7 +83,7 @@ npm run test:e2e
 1. Utwórz projekt z usługą PostgreSQL i usługą aplikacji z tego repozytorium. Build: `Dockerfile` (`railway.toml`).
 2. Ustaw zmienne: `DATABASE_URL` (referencja do Postgresa), `BETTER_AUTH_SECRET`, `APP_URL`
    (publiczny adres), `RESEND_API_KEY`, `EMAIL_FROM`, `AUTH_PUBLIC_SIGNUP`, `MULTI_ORG`.
-3. Zacommituj katalog `prisma/migrations` — przed każdym wdrożeniem Railway uruchamia `npx prisma migrate deploy`.
+3. Zacommituj katalog `prisma/migrations` — przed każdym wdrożeniem Railway uruchamia `node_modules/.bin/prisma migrate deploy`.
    Healthcheck: `/api/healthcheck`.
 4. Po pierwszym wdrożeniu utwórz administratora:
 
