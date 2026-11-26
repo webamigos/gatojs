@@ -61,7 +61,7 @@ Przebieg każdego wdrożenia:
 ```mermaid
 flowchart TD
     push["push do gałęzi połączonej z usługą"] --> build["Railway buduje obraz z Dockerfile"]
-    build --> pre["komenda przed wdrożeniem:<br/>npx prisma migrate deploy<br/>w osobnym kontenerze z tego obrazu"]
+    build --> pre["komenda przed wdrożeniem:<br/>node_modules/.bin/prisma migrate deploy<br/>w osobnym kontenerze z tego obrazu"]
     pre -->|"kod wyjścia różny od 0"| stop["wdrożenie nie idzie dalej"]
     pre -->|"kod wyjścia 0"| start["start kontenera: node server.js"]
     start --> hc{"/api/healthcheck<br/>odpowiada 2xx w ciągu 10 s?"}
@@ -102,7 +102,7 @@ ENV HOSTNAME="0.0.0.0"
 
 ### Prisma CLI w obrazie
 
-Komenda przed wdrożeniem (`npx prisma migrate deploy`) działa w kontenerze z tego obrazu i czyta `prisma.config.ts`, który importuje pakiety `dotenv` i `prisma`. Wynik `next build` nie zawiera pakietów `prisma` ani `dotenv`, tylko `@prisma/client` (sprawdzone w `.next/standalone/node_modules`). Dlatego etap `runner` instaluje je osobno:
+Komenda przed wdrożeniem (`node_modules/.bin/prisma migrate deploy`) działa w kontenerze z tego obrazu i czyta `prisma.config.ts`, który importuje pakiety `dotenv` i `prisma`. Wynik `next build` nie zawiera pakietów `prisma` ani `dotenv`, tylko `@prisma/client` (sprawdzone w `.next/standalone/node_modules`). Dlatego etap `runner` instaluje je osobno:
 
 `Dockerfile`
 
@@ -118,6 +118,8 @@ RUN cd /tmp && npm init -y > /dev/null 2>&1 \
     && rm -rf /tmp/node_modules /tmp/package.json /tmp/package-lock.json \
     && chown -R nextjs:nodejs /app/node_modules
 ```
+
+Komenda przed wdrożeniem woła `node_modules/.bin/prisma` wprost, a nie przez `npx`. Dowiązanie z ostatniego `RUN` wskazuje Prisma CLI zainstalowane w obrazie, więc wdrożenie niczego nie pobiera z sieci, a brak pliku zatrzymuje je błędem. `npx prisma` przy brakującym pliku pobrałby według dokumentacji npm pakiet `prisma` z rejestru bez pytania (bez terminala npm przyjmuje `--yes`), czyli inną wersję niż w obrazie. Tę samą ścieżkę mają usługa `migrate` w `docker-compose.selfhost.yml` i Job migracji w charcie Helm ([ADR-67](adrs/67-projects-publish-their-own-multi-arch-image.md)).
 
 Wersje 7.10.1 i 17.4.2 to te same, które zapisuje `package-lock.json`. Po aktualizacji `prisma` albo `dotenv` w `package.json` zmień je też w `Dockerfile`, bo nic nie porównuje tych dwóch miejsc.
 
@@ -167,7 +169,7 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-preDeployCommand = "npx prisma migrate deploy"
+preDeployCommand = "node_modules/.bin/prisma migrate deploy"
 startCommand = "node server.js"
 
 healthcheckPath = "/api/healthcheck"
@@ -180,7 +182,7 @@ restartPolicyMaxRetries = 3
 | Pole | Działanie według dokumentacji Railway | Co z tego wynika |
 | --- | --- | --- |
 | `builder`, `dockerfilePath` | Budowanie z `Dockerfile` w katalogu głównym. | Railway buduje z `Dockerfile` także bez tego pola, gdy go znajdzie. |
-| `preDeployCommand` | Komenda między budowaniem a startem, w osobnym kontenerze, w sieci prywatnej projektu i ze zmiennymi usługi. Zmiany w systemie plików nie zostają. Kod wyjścia różny od 0 zatrzymuje wdrożenie bez ponawiania. | Migracje stosuje `npx prisma migrate deploy` z adresem `DATABASE_URL` (adres prywatny bazy działa, bo komenda jest w sieci projektu). Wyniki i błędy: [Pierwsze wdrożenie](#migracje-w-logu). |
+| `preDeployCommand` | Komenda między budowaniem a startem, w osobnym kontenerze, w sieci prywatnej projektu i ze zmiennymi usługi. Zmiany w systemie plików nie zostają. Kod wyjścia różny od 0 zatrzymuje wdrożenie bez ponawiania. | Migracje stosuje `node_modules/.bin/prisma migrate deploy` z adresem `DATABASE_URL` (adres prywatny bazy działa, bo komenda jest w sieci projektu). Wyniki i błędy: [Pierwsze wdrożenie](#migracje-w-logu). |
 | `startCommand` | Komenda startu kontenera. | To samo co `CMD` w `Dockerfile`. |
 | `healthcheckPath`, `healthcheckTimeout` | Po starcie Railway odpytuje ścieżkę, aż dostanie odpowiedź 2xx, najwyżej przez podaną liczbę sekund (domyślnie 300). Bez 2xx wdrożenie jest nieudane, a ruch przełącza się na nową wersję dopiero po udanym healthchecku. Działa tylko przy wdrożeniu, a nie jako stały monitoring. | Nowa wersja ma 10 sekund na odpowiedź 200 z `/api/healthcheck`. Gdy host bazy nie odpowiada, samo połączenie czeka do 10 sekund (`connectionTimeoutMillis` w `src/shared/lib/prisma.ts`). |
 | `restartPolicyType`, `restartPolicyMaxRetries` | Restart kontenera, gdy proces zakończy się błędem, najwyżej 3 razy. | Błędne zmienne środowiskowe kończą proces przy starcie kodem 1 ([kiedy zobaczysz błąd](#blad-env)). Restart ich nie naprawi, bo każdy kolejny start kończy się tym samym raportem. |
@@ -335,7 +337,7 @@ Wymagania: repozytorium projektu na GitHub, konto Resend z kluczem API i domeną
 3. **Domena i zmienne.** W ustawieniach sieci usługi aplikacji wygeneruj domenę albo podepnij własną. Potem ustaw zmienne z [tabeli](#zmienne), a `APP_URL` na adres tej domeny z `https://`. W projekcie z modułem `uploads` przygotuj też miejsce na pliki: bucket albo wolumen ([Pliki modułu `uploads`](#pliki-uploads)). `AUTH_PUBLIC_SIGNUP` zostaw `false` (albo jej nie ustawiaj) do czasu założenia kont w kroku 7, bo inaczej obca osoba może zostać właścicielem organizacji klienta ([dlaczego](#krok-konta)). Docelowe flagi uzgodnione z klientem ustawisz przy przekazaniu ([krok 5](#przekazanie-start)).
 
    <a id="krok-ustawienia"></a>
-4. **Ustawienia wdrożenia.** Wpisz w ustawieniach usługi wartości z `railway.toml`, bo nowa usługa nie czyta tego pliku ([dlaczego](#config-as-code)): komenda przed wdrożeniem `npx prisma migrate deploy`, ścieżka healthchecku `/api/healthcheck` z limitem czasu (w pliku 10 sekund), restart przy błędzie z najwyżej 3 próbami. Komendę startu możesz zostawić pustą, bo obraz ma `CMD ["node", "server.js"]`.
+4. **Ustawienia wdrożenia.** Wpisz w ustawieniach usługi wartości z `railway.toml`, bo nowa usługa nie czyta tego pliku ([dlaczego](#config-as-code)): komenda przed wdrożeniem `node_modules/.bin/prisma migrate deploy`, ścieżka healthchecku `/api/healthcheck` z limitem czasu (w pliku 10 sekund), restart przy błędzie z najwyżej 3 próbami. Komendę startu możesz zostawić pustą, bo obraz ma `CMD ["node", "server.js"]`.
 5. **Wdrożenie.** Uruchom wdrożenie albo zrób push do połączonej gałęzi.
 
    <a id="migracje-w-logu"></a>

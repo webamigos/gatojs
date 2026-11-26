@@ -106,7 +106,7 @@ Testy nie potrzebują migracji. Testy integracyjne tworzą schemat przez `prisma
 
 ### Migracje w projekcie klienta
 
-Projekt klienta commituje migracje, bo produkcja stosuje tylko migracje zapisane w repozytorium. Przed każdym wdrożeniem Railway uruchamia `npx prisma migrate deploy` (`preDeployCommand` w `railway.toml` albo w ustawieniach usługi, bo nowa usługa nie czyta `railway.toml`, [10-wdrozenie.md](10-wdrozenie.md#config-as-code)). Ta komenda nie tworzy migracji ze schematu. Bez zacommitowanego katalogu nie ma czego zastosować i baza produkcyjna nie dostanie tabel.
+Projekt klienta commituje migracje, bo produkcja stosuje tylko migracje zapisane w repozytorium. Przed każdym wdrożeniem Railway uruchamia `node_modules/.bin/prisma migrate deploy` (`preDeployCommand` w `railway.toml` albo w ustawieniach usługi, bo nowa usługa nie czyta `railway.toml`, [10-wdrozenie.md](10-wdrozenie.md#config-as-code)). Ta komenda nie tworzy migracji ze schematu. Bez zacommitowanego katalogu nie ma czego zastosować i baza produkcyjna nie dostanie tabel.
 
 Root `.gitignore` nie ignoruje `prisma/migrations/`, więc w projekcie złożonym przez `wa create` migracje trafiają do repozytorium bez dodatkowych kroków.
 
@@ -224,7 +224,7 @@ W projekcie klienta uruchom samo `npx prisma migrate dev`. Komenda nic nie tworz
 | `npm run db:generate` (`prisma generate`) | Generuje klienta do `src/generated/prisma`. | nie dotyka bazy | `postinstall`, ręcznie po zmianie schematu |
 | `npx prisma migrate dev --name <nazwa>` | Stosuje niezastosowane migracje, tworzy migrację ze zmian schematu i ją stosuje. Przy rozjeździe historii albo dryfie kończy się kodem 130. | zostają; zmiana, która może usunąć dane albo się nie udać, wymaga potwierdzenia | pierwsze uruchomienie, każda zmiana schematu, job w `.github/workflows/e2e.yml` |
 | `npx prisma migrate status` | Pokazuje stan migracji. Niezastosowane migracje i rozjazd w środku historii (`The migrations from the database are not found locally in prisma/migrations: …`) zgłasza kodem 1. W Prisma 7.10.1 nie zgłasza niczego, gdy w katalogu brakuje migracji z końca historii albo całego katalogu: wypisuje wtedy `Database schema is up to date!`. Nie sprawdza też dryfu schematu (nie używa bazy tymczasowej, shadow database), więc po `prisma db push` przy zgodnej historii wypisuje to samo. | tylko odczyt | diagnoza |
-| `npx prisma migrate deploy` | Stosuje migracje z katalogu, niczego nie tworzy. | zostają | `preDeployCommand` w `railway.toml` albo w ustawieniach usługi Railway ([10-wdrozenie.md](10-wdrozenie.md#config-as-code)) |
+| `npx prisma migrate deploy` | Stosuje migracje z katalogu, niczego nie tworzy. | zostają | `preDeployCommand` w `railway.toml` albo w ustawieniach usługi Railway, w obrazie jako `node_modules/.bin/prisma migrate deploy` ([10-wdrozenie.md](10-wdrozenie.md#prisma-cli)) |
 | `npx prisma migrate reset` | Kasuje dane i stosuje migracje z katalogu. Pyta o zgodę, z `--force` bez pytania. | kasuje wszystkie | `e2e/global-setup.ts` z `--force`, gdy są migracje |
 | `npx prisma db push` | Dopasowuje schemat bazy do plików w `prisma/schema/` bez migracji i bez historii. | zostają; z `--force-reset` kasuje wszystkie | `src/test/integration/global-setup.ts`; `e2e/global-setup.ts` z `--force-reset`, gdy nie ma migracji |
 

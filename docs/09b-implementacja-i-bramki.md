@@ -379,7 +379,7 @@ M  src/modules.generated.ts
 
 Znacznik czasu w nazwie migracji będzie u Ciebie inny. Jeśli `next dev` uruchamiał agent AI, na liście jest też `M  AGENTS.md`: cofnij go przez `git restore --staged --worktree AGENTS.md` (pułapka wyżej).
 
-Zacommituj wszystko razem: pliki generowane i migracja należą do zmiany, która je wywołała ([D04](decyzje.md#d04)). Temat commita według Conventional Commits, małymi literami, na przykład `feat(notes): organization notes`. Przy commicie lint-staged uruchamia `eslint --fix` i Prettiera, a commitlint sprawdza temat. Przy wdrożeniu Railway zastosuje migrację `add-notes` przez `npx prisma migrate deploy` ([10-wdrozenie.md](10-wdrozenie.md)).
+Zacommituj wszystko razem: pliki generowane i migracja należą do zmiany, która je wywołała ([D04](decyzje.md#d04)). Temat commita według Conventional Commits, małymi literami, na przykład `feat(notes): organization notes`. Przy commicie lint-staged uruchamia `eslint --fix` i Prettiera, a commitlint sprawdza temat. Przy wdrożeniu Railway zastosuje migrację `add-notes` przez `node_modules/.bin/prisma migrate deploy` ([10-wdrozenie.md](10-wdrozenie.md)).
 
 <a id="dziennik-zdarzen"></a>
 
