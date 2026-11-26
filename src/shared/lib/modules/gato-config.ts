@@ -16,11 +16,16 @@ export interface GatoModuleAccess {
   multiOrgRoles?: OrgRole[];
 }
 
+export interface GatoSlotOverride {
+  priority: number;
+}
+
 export interface GatoModuleConfig {
   enabled?: boolean;
   nav?: Record<string, GatoNavOverride>;
   access?: GatoModuleAccess;
   permissions?: Record<string, OrgRole[]>;
+  slots?: Record<string, Record<string, GatoSlotOverride | null>>;
 }
 
 export interface GatoLogo {
@@ -45,6 +50,8 @@ export interface ModuleEntry<T> {
 }
 
 export const emptyGatoConfig: GatoConfig = {};
+
+export const CORE_SLOTS_CONFIG_KEY = "app";
 
 export const UNDISABLEABLE_MODULES: readonly string[] = [
   "auth",
@@ -141,12 +148,24 @@ export function gatoBrandingOf(config: GatoConfig): GatoBranding {
   return config.branding ?? {};
 }
 
+function coreSlotsConfigProblems(moduleConfig: GatoModuleConfig): string[] {
+  return Object.keys(moduleConfig)
+    .filter((field) => field !== "slots")
+    .map(
+      (field) =>
+        `modules.${CORE_SLOTS_CONFIG_KEY}.${field}: ${CORE_SLOTS_CONFIG_KEY} is reserved for core-hosted slots; only slots is allowed`,
+    );
+}
+
 export function gatoConfigProblems(
   modules: readonly ModuleDef[],
   config: GatoConfig,
 ): string[] {
   const problems = Object.entries(config.modules ?? {}).flatMap(
     ([key, moduleConfig]) => {
+      if (key === CORE_SLOTS_CONFIG_KEY) {
+        return coreSlotsConfigProblems(moduleConfig);
+      }
       const moduleDef = modules.find((candidate) => candidate.key === key);
       if (moduleDef === undefined) {
         return [`modules.${key}: unknown module: ${key}`];

@@ -22,7 +22,8 @@ const SERVER_MODULES = [
   "server-only",
 ];
 
-const MODULE_SERVER_FILE = /^@\/features\/[^/]+\/(events|subscribers)$/;
+const MODULE_SERVER_FILE = /^@\/features\/[^/]+\/(events|subscribers|slots)$/;
+const FEATURE_CLIENT_SLOTS_FILE = /^src\/features\/[^/]+\/client-slots\.ts$/;
 const SOURCE_FILE = /\.tsx?$/;
 const GENERATED_DIRECTORY = "src/generated/";
 
@@ -106,7 +107,10 @@ export function findServerImportsInClient(source: string): string[] {
 }
 
 function isClientEntryFile(file: string): boolean {
-  return (CLIENT_ENTRY_FILES as readonly string[]).includes(file);
+  return (
+    (CLIENT_ENTRY_FILES as readonly string[]).includes(file) ||
+    FEATURE_CLIENT_SLOTS_FILE.test(file)
+  );
 }
 
 function serverImportsOf(root: string, file: string): string[] {
