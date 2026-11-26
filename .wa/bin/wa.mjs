@@ -935,7 +935,16 @@ import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile2 } from 
 import { dirname as dirname2, join as join3 } from "node:path";
 
 // src/kit/kit-format.ts
-var SUPPORTED_KIT_FORMATS = [1, 2, 3, 4, 5, 6, 7, 8];
+var SUPPORTED_KIT_FORMATS = [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8
+];
 function assertSupportedKitFormat(format) {
   if (!SUPPORTED_KIT_FORMATS.includes(format)) {
     throw new Error(
