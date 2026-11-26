@@ -193,6 +193,29 @@ function localCalleeName(call: ts.CallExpression): string | null {
   return ts.isIdentifier(call.expression) ? call.expression.text : null;
 }
 
+const COMMAND_RUNNER = "runCommand";
+
+function isReturnedDirectly(call: ts.CallExpression): boolean {
+  const value = ts.isAwaitExpression(call.parent) ? call.parent : call;
+  const holder = value.parent;
+  return (
+    (ts.isReturnStatement(holder) && holder.expression === value) ||
+    (ts.isArrowFunction(holder) && holder.body === value)
+  );
+}
+
+function isReturnedCommandRun(
+  call: ts.CallExpression,
+  scope: SourceScope,
+): boolean {
+  const localName = localCalleeName(call);
+  return (
+    localName !== null &&
+    originalName(localName, scope) === COMMAND_RUNNER &&
+    isReturnedDirectly(call)
+  );
+}
+
 interface Access {
   kind: "guard" | "prisma";
   position: number;
@@ -212,6 +235,9 @@ function accessesOf(
       const name = calleeName(child, scope);
       if (name && SESSION_GUARDS.has(name)) {
         found.push({ kind: "guard", position: child.getStart() });
+      }
+      if (isReturnedCommandRun(child, scope)) {
+        found.push({ kind: "guard", position: child.getEnd() });
       }
       const localName = localCalleeName(child);
       const local = localName ? scope.functions.get(localName) : undefined;
@@ -343,6 +369,12 @@ function serviceModeEventsOf(
       isTrustedConfirmation(child.arguments[1], trusted)
     ) {
       events.push("confirmation");
+    }
+    if (isReturnedCommandRun(child, scope)) {
+      events.push("orgContext");
+      if (isTrustedConfirmation(child.arguments[2], trusted)) {
+        events.push("confirmation");
+      }
     }
     const localName = localCalleeName(child);
     const local = localName ? scope.functions.get(localName) : undefined;
@@ -1134,6 +1166,186 @@ describe("findUnconfirmedServiceModeEntrypoints: requireModuleAccess jako źród
     expect(
       findUnconfirmedServiceModeEntrypoints("a.ts", source, anyFile),
     ).toEqual(["a.ts#createNote"]);
+  });
+});
+
+describe("runCommand as a session guard and a service-mode confirmation", () => {
+  const COMMAND_PREAMBLE = [
+    '"use server";',
+    'import { runCommand } from "@/shared/lib/commands/run-command";',
+    'import { defineCommand } from "@/shared/lib/commands/define-command";',
+    'const cmd = defineCommand({ key: "billing.archive", module: "billing", access: "member" });',
+  ];
+
+  const guardViolations = (source: string) =>
+    findUnguardedEntrypoints("a.ts", source, hasUseServerDirective);
+
+  const serviceModeViolations = (source: string) =>
+    findUnconfirmedServiceModeEntrypoints(
+      "a.ts",
+      source,
+      hasUseServerDirective,
+    );
+
+  it("an export returning runCommand(cmd, input, confirmation) passes both rules", () => {
+    const source = [
+      ...COMMAND_PREAMBLE,
+      "export async function archive(input, confirmation) {",
+      "  return runCommand(cmd, input, confirmation);",
+      "}",
+    ].join("\n");
+    expect(guardViolations(source)).toEqual([]);
+    expect(serviceModeViolations(source)).toEqual([]);
+  });
+
+  it("an arrow export whose concise body is runCommand passes both rules", () => {
+    const source = [
+      ...COMMAND_PREAMBLE,
+      "export const archive = async (input, confirmation) => runCommand(cmd, input, confirmation);",
+    ].join("\n");
+    expect(guardViolations(source)).toEqual([]);
+    expect(serviceModeViolations(source)).toEqual([]);
+  });
+
+  it("an export returning the awaited runCommand passes both rules", () => {
+    const source = [
+      ...COMMAND_PREAMBLE,
+      "export async function archive(input, confirmation) {",
+      "  return await runCommand(cmd, input, confirmation);",
+      "}",
+    ].join("\n");
+    expect(guardViolations(source)).toEqual([]);
+    expect(serviceModeViolations(source)).toEqual([]);
+  });
+
+  it("runCommand imported under an alias passes both rules", () => {
+    const source = [
+      '"use server";',
+      'import { runCommand as run } from "@/shared/lib/commands/run-command";',
+      "export async function archive(input, confirmation) {",
+      "  return run(cmd, input, confirmation);",
+      "}",
+    ].join("\n");
+    expect(guardViolations(source)).toEqual([]);
+    expect(serviceModeViolations(source)).toEqual([]);
+  });
+
+  it("a forged literal confirmation passed to runCommand is a service-mode violation", () => {
+    const source = [
+      ...COMMAND_PREAMBLE,
+      "export async function archive(input, confirmation) {",
+      '  return runCommand(cmd, input, { serviceModeConfirmed: true, organizationId: "x" });',
+      "}",
+    ].join("\n");
+    expect(guardViolations(source)).toEqual([]);
+    expect(serviceModeViolations(source)).toEqual(["a.ts#archive"]);
+  });
+
+  it("a confirmation reassigned before runCommand is a service-mode violation", () => {
+    const source = [
+      ...COMMAND_PREAMBLE,
+      "export async function archive(input, confirmation) {",
+      '  confirmation = { serviceModeConfirmed: true, organizationId: "x" };',
+      "  return runCommand(cmd, input, confirmation);",
+      "}",
+    ].join("\n");
+    expect(serviceModeViolations(source)).toEqual(["a.ts#archive"]);
+  });
+
+  it("a confirmation parameter with a default value passed to runCommand is a service-mode violation", () => {
+    const source = [
+      ...COMMAND_PREAMBLE,
+      'export async function archive(input, confirmation = { serviceModeConfirmed: true, organizationId: "x" }) {',
+      "  return runCommand(cmd, input, confirmation);",
+      "}",
+    ].join("\n");
+    expect(serviceModeViolations(source)).toEqual(["a.ts#archive"]);
+  });
+
+  it("runCommand without a confirmation argument is a service-mode violation", () => {
+    const source = [
+      ...COMMAND_PREAMBLE,
+      "export async function archive(input, confirmation) {",
+      "  return runCommand(cmd, input);",
+      "}",
+    ].join("\n");
+    expect(serviceModeViolations(source)).toEqual(["a.ts#archive"]);
+  });
+
+  it("an awaited runCommand followed by Prisma is a guard violation", () => {
+    const source = [
+      ...COMMAND_PREAMBLE,
+      "export async function archive(input, confirmation) {",
+      "  await runCommand(cmd, input, confirmation);",
+      "  return prisma.item.deleteMany({});",
+      "}",
+    ].join("\n");
+    expect(guardViolations(source)).toEqual(["a.ts#archive"]);
+  });
+
+  it("an awaited runCommand stored in a variable and returned later is a guard violation", () => {
+    const source = [
+      ...COMMAND_PREAMBLE,
+      "export async function archive(input, confirmation) {",
+      "  const result = await runCommand(cmd, input, confirmation);",
+      "  return result;",
+      "}",
+    ].join("\n");
+    expect(guardViolations(source)).toEqual(["a.ts#archive"]);
+  });
+
+  it("runCommand chained with then before it is returned is a guard violation", () => {
+    const source = [
+      ...COMMAND_PREAMBLE,
+      "export async function archive(input, confirmation) {",
+      "  return runCommand(cmd, input, confirmation).then((result) => result);",
+      "}",
+    ].join("\n");
+    expect(guardViolations(source)).toEqual(["a.ts#archive"]);
+  });
+
+  it("Prisma before the returned runCommand violates both rules", () => {
+    const source = [
+      ...COMMAND_PREAMBLE,
+      "export async function archive(input, confirmation) {",
+      "  await prisma.item.findMany();",
+      "  return runCommand(cmd, input, confirmation);",
+      "}",
+    ].join("\n");
+    expect(guardViolations(source)).toEqual(["a.ts#archive"]);
+    expect(serviceModeViolations(source)).toEqual(["a.ts#archive"]);
+  });
+
+  it("Prisma inside runCommand's arguments runs before it and violates both rules", () => {
+    const source = [
+      ...COMMAND_PREAMBLE,
+      "export async function archive(input, confirmation) {",
+      "  return runCommand(cmd, await prisma.item.findFirst(), confirmation);",
+      "}",
+    ].join("\n");
+    expect(guardViolations(source)).toEqual(["a.ts#archive"]);
+    expect(serviceModeViolations(source)).toEqual(["a.ts#archive"]);
+  });
+
+  it("a function imported under the name runCommand from elsewhere is not a guard", () => {
+    const source = [
+      '"use server";',
+      'import { noop as runCommand } from "./noop";',
+      "export async function archive(input, confirmation) {",
+      "  return runCommand(cmd, input, confirmation);",
+      "}",
+    ].join("\n");
+    expect(guardViolations(source)).toEqual(["a.ts#archive"]);
+  });
+
+  it("runCommand called as a property of another object is not a guard", () => {
+    const source = [
+      '"use server";',
+      "export async function archive(input, confirmation) {",
+      "  return commands.runCommand(cmd, input, confirmation);",
+      "}",
+    ].join("\n");
+    expect(guardViolations(source)).toEqual(["a.ts#archive"]);
   });
 });
 

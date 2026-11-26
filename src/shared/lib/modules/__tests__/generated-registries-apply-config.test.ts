@@ -107,6 +107,16 @@ describe.skipIf(!hasKitModules || !hasOptionalModules)(
       expect(owners).not.toContain("audit-logs");
     });
 
+    it("moduleCommandHooks constructs and has no hook of a disabled module", async () => {
+      const { moduleCommandHooks } = await import("@/modules.generated");
+      expect(Array.isArray(moduleCommandHooks)).toBe(true);
+      const owners = moduleCommandHooks.map(
+        (entry: { module: string }) => entry.module,
+      );
+      expect(owners).not.toContain("api-keys");
+      expect(owners).not.toContain("audit-logs");
+    });
+
     it("clientModuleSlots constructs and has no contribution of a disabled module", async () => {
       const { clientModuleSlots } = await import("@/modules.client.generated");
       expect(Array.isArray(clientModuleSlots)).toBe(true);
