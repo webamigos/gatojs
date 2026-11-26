@@ -427,8 +427,17 @@ describe("inviteUserCommand na prawdziwym better-auth: zdarzenia domenowe", () =
   });
 });
 
+type AuditLogReader = {
+  auditLog: {
+    findMany(
+      args: unknown,
+    ): Promise<{ organizationId: string; newData: unknown }[]>;
+  };
+};
+
 async function invitedAuditRows(organizationId: string) {
-  return prisma.auditLog.findMany({
+  // WHY: the auditLog model exists only with the audit-logs module; projects without it still type-check.
+  return (prisma as unknown as AuditLogReader).auditLog.findMany({
     where: { organizationId, action: "member.invited" },
     select: { organizationId: true, newData: true },
     orderBy: { createdAt: "asc" },
