@@ -4,7 +4,6 @@ import { randomBytes } from "node:crypto";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/lib/prisma";
-import { auditActor, trackAudit } from "@/shared/lib/audit";
 import { getAdminUserOrNull } from "@/shared/lib/auth/helpers";
 import { getOrgContext } from "@/shared/lib/auth/org-context";
 import { assertServiceModeConfirmed } from "@/shared/lib/auth/service-mode";
@@ -72,13 +71,6 @@ export async function inviteUserCommand(
       { name, email, invitationId: invitation.id },
       requestHeaders,
     );
-    await trackAudit({
-      ...auditActor(context),
-      action: "member.invited",
-      entityType: "invitation",
-      entityId: invitation.id,
-      newData: { email, role },
-    });
     await emitEvent(eventOrigin(context), "users.invited", {
       invitationId: invitation.id,
       email,
