@@ -194,6 +194,7 @@ export function createEventBus(input: EventBusInput): EventBus {
         name,
         organizationId: origin.organizationId,
         actorUserId: origin.actorUserId,
+        serviceMode: origin.serviceMode === true,
         payload: deepFreeze(parsed.data),
       });
       const depth = depthStorage.getStore() ?? 0;

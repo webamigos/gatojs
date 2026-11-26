@@ -13,12 +13,14 @@ export type EventMap = Record<string, EventSchema>;
 export interface EventOrigin {
   organizationId: string;
   actorUserId: string | null;
+  serviceMode?: boolean;
 }
 
 export interface DomainEvent<N extends string = string, P = unknown> {
   readonly name: N;
   readonly organizationId: string;
   readonly actorUserId: string | null;
+  readonly serviceMode: boolean;
   readonly payload: Readonly<P>;
 }
 
@@ -73,5 +75,6 @@ export function eventOrigin(context: OrgContext): EventOrigin {
   return {
     organizationId: context.organizationId,
     actorUserId: context.userId,
+    serviceMode: context.serviceMode,
   };
 }

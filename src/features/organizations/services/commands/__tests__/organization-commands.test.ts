@@ -65,6 +65,7 @@ describe("createOrganizationWithOwnerCommand", () => {
         name: "organizations.created",
         organizationId: "org-1",
         actorUserId: "u1",
+        serviceMode: false,
         payload: { name: "Acme", slug: "acme", ownerUserId: "u1" },
       },
     ]);
@@ -83,6 +84,7 @@ describe("createOrganizationWithOwnerCommand", () => {
         name: "organizations.created",
         organizationId: "org-2",
         actorUserId: "u7",
+        serviceMode: false,
         payload: { name: "Beta", slug: "beta-12345678", ownerUserId: "u7" },
       },
     ]);

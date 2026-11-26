@@ -18,6 +18,7 @@ export const coreEvents = defineEvents({
   "organizations.member-removed": z.object({
     memberId: z.string(),
     userId: z.string(),
+    role: orgRole,
   }),
   "organizations.member-role-changed": z.object({
     memberId: z.string(),

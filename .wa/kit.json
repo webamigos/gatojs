@@ -53,10 +53,10 @@
       "files": {}
     },
     "audit-logs": {
-      "version": "0.1.4",
+      "version": "0.2.0",
       "manifest": {
         "name": "audit-logs",
-        "version": "0.1.4",
+        "version": "0.2.0",
         "description": "Organization audit log: AuditLog model, sink and redaction of sensitive data",
         "requires": [],
         "files": [
@@ -87,10 +87,10 @@
       "files": {}
     },
     "core": {
-      "version": "0.28.1",
+      "version": "0.29.0",
       "manifest": {
         "name": "core",
-        "version": "0.28.1",
+        "version": "0.29.0",
         "description": "GatoJS core: auth, organizations, users, account, dashboard",
         "requires": [],
         "files": [

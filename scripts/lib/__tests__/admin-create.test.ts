@@ -132,8 +132,7 @@ const { emitted, transaction } = vi.hoisted(() => ({
   transaction: { open: false },
 }));
 
-vi.mock("@/modules.generated", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/modules.generated")>()),
+vi.mock("@/modules.generated", () => ({
   moduleEvents: [],
   moduleSubscribers: [
     {
@@ -767,6 +766,7 @@ describe("adminCreate: organizations.created", () => {
         name: "organizations.created",
         organizationId: "org-2",
         actorUserId: "user-1",
+        serviceMode: false,
         payload: {
           name: "Acme Corp",
           slug: "acme-corp",
@@ -793,6 +793,7 @@ describe("adminCreate: organizations.created", () => {
         name: "organizations.created",
         organizationId: "org-2",
         actorUserId: "user-1",
+        serviceMode: false,
         payload: { name: "!!!", slug: "test-projekt", ownerUserId: "user-1" },
       },
     ]);

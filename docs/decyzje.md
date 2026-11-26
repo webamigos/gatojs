@@ -130,7 +130,7 @@ Pełny słownik jest w [README.md](README.md). W rejestrze najczęściej pojawia
 | [D39](#d39) | Moduł wpina się przez deklaracje w `defineModule` i punkty wejścia rdzenia | Model kitu | obowiązuje (zastępuje [D01](#d01)) |
 | [D40](#d40) | `trackAudit` w rdzeniu działa bez modułu; ujścia `auditSinks` | Moduły kitu | obowiązuje |
 | [D41](#d41) | Redakcja danych wrażliwych przed zapisem; bez retencji | Moduły kitu | obowiązuje |
-| [D42](#d42) | Zdarzenia organizacji łapane hookami better-auth | Moduły kitu | obowiązuje |
+| [D42](#d42) | Zdarzenia organizacji łapane hookami better-auth | Moduły kitu | obowiązuje częściowo ([ADR-61](adrs/61-domain-events-run-subscribers-after-success.md)) |
 | [D43](#d43) | Klucze API: HMAC z pepperem, zakresy, limit, bez `OrgContext` | Moduły kitu | obowiązuje |
 | [D44](#d44) | Uploads: magazyn plików, cele uploadu, widoczność i `Cache-Control`, cofnięcie obiektu | Moduły kitu | obowiązuje |
 | [D45](#d45) | Region `wa:ci-integration` i pole `ciSteps`; pusty region bez markerów pomijany | CLI i składanie projektu | obowiązuje |
@@ -1426,6 +1426,8 @@ Dopiero potem usuwa pliki i puste katalogi, zależności ([D30](#d30)), wpis w `
 <a id="d42"></a>
 
 ## D42 · Zdarzenia organizacji (zaproszenia, role, członkowie) łapane hookami better-auth
+
+**Częściowo zastąpiona przez [ADR-61](adrs/61-domain-events-run-subscribers-after-success.md) (plan rozszerzalności, zadanie 10):** hooki better-auth są teraz w rdzeniu (`eventsPlugin` w `src/shared/lib/auth/events-plugin.ts`, mapowanie w `src/shared/lib/auth/organization-events.ts`) i emitują zdarzenia domenowe, a `audit-logs` zapisuje te same wpisy przez subskrybentów (`src/features/audit-logs/services/organization-audit-subscribers.ts`) i nie ma już `auth.ts`. `inviteUserCommand` nie woła `trackAudit`, tylko emituje `users.invited`, więc bez modułu nikt nie zapisuje `member.invited`. Reszta decyzji (zakres pięciu wpisów, poprzednia rola czytana przed zmianą, organizacja z odpowiedzi endpointu) obowiązuje.
 
 **Status:** obowiązuje · **Data:** 2026-10-29 · **Kto zdecydował:** Jakub (spec planu 3, §5, „Ustalone”: lista zdarzeń rdzenia logowanych od razu); autor specu planu 3 („Moje decyzje”: hooki better-auth zamiast komend kitu, wejście superadmina do organizacji); wykonawca planu 3 (wybór hooków, §10)
 

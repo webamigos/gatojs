@@ -26,6 +26,7 @@ const INVITED_EVENT = {
   name: "users.invited",
   organizationId: "org-a",
   actorUserId: "u1",
+  serviceMode: false,
   payload: { invitationId: "i1", email: "a@b.c", role: "member" },
 };
 
@@ -151,6 +152,7 @@ describe("createEventBus: delivery", () => {
         name: "auth.signed-up",
         organizationId: "org-z",
         actorUserId: null,
+        serviceMode: false,
         payload: { userId: "u9", email: "x@y.z" },
       },
     ]);
@@ -221,6 +223,7 @@ describe("createEventBus: delivery", () => {
         name: "invoices.issued",
         organizationId: "org-a",
         actorUserId: "u1",
+        serviceMode: false,
         payload: { invoiceId: "inv-7" },
       },
     ]);
@@ -1249,6 +1252,7 @@ describe("createEventBus: event schemas must be strip-mode z.object()", () => {
         name: "m.x",
         organizationId: "org-a",
         actorUserId: "u1",
+        serviceMode: false,
         payload: { a: "v" },
       },
     ]);
@@ -1473,5 +1477,132 @@ describe("createEventBus: nested emits are capped at depth 8", () => {
     expect(runs.count).toBe(8);
     expect(otherLog).toEqual(["m.on-b"]);
     expect(mockLogger.error).not.toHaveBeenCalled();
+  });
+});
+
+describe("createEventBus: service mode comes only from the origin", () => {
+  function receivingBus(received: DomainEvent[]) {
+    return busWith([
+      {
+        module: "probe",
+        value: {
+          "users.invited": subscriber("probe.a", (event) => {
+            received.push(event);
+          }),
+        },
+      },
+    ]);
+  }
+
+  it("an origin with serviceMode true delivers serviceMode true", async () => {
+    const received: DomainEvent[] = [];
+
+    await receivingBus(received).emit(
+      { organizationId: "org-a", actorUserId: "u1", serviceMode: true },
+      "users.invited",
+      INVITED_PAYLOAD,
+    );
+
+    expect(received).toEqual([
+      {
+        name: "users.invited",
+        organizationId: "org-a",
+        actorUserId: "u1",
+        serviceMode: true,
+        payload: { invitationId: "i1", email: "a@b.c", role: "member" },
+      },
+    ]);
+  });
+
+  it("an origin with serviceMode false delivers serviceMode false", async () => {
+    const received: DomainEvent[] = [];
+
+    await receivingBus(received).emit(
+      { organizationId: "org-a", actorUserId: "u1", serviceMode: false },
+      "users.invited",
+      INVITED_PAYLOAD,
+    );
+
+    expect(received).toHaveLength(1);
+    expect(received[0].serviceMode).toBe(false);
+  });
+
+  it("an origin without serviceMode delivers serviceMode false, not undefined", async () => {
+    const received: DomainEvent[] = [];
+
+    await receivingBus(received).emit(ORIGIN, "users.invited", INVITED_PAYLOAD);
+
+    expect(received).toHaveLength(1);
+    expect(received[0].serviceMode).toBe(false);
+    expect(received[0]).toHaveProperty("serviceMode", false);
+  });
+
+  it("a truthy non-boolean serviceMode on the origin delivers serviceMode false", async () => {
+    const received: DomainEvent[] = [];
+
+    await receivingBus(received).emit(
+      {
+        organizationId: "org-a",
+        actorUserId: "u1",
+        serviceMode: "true" as unknown as boolean,
+      },
+      "users.invited",
+      INVITED_PAYLOAD,
+    );
+
+    expect(received).toHaveLength(1);
+    expect(received[0].serviceMode).toBe(false);
+  });
+
+  it("serviceMode true smuggled into the payload reaches neither event.serviceMode nor the payload", async () => {
+    const received: DomainEvent[] = [];
+
+    await receivingBus(received).emit(ORIGIN, "users.invited", {
+      ...INVITED_PAYLOAD,
+      serviceMode: true,
+    } as typeof INVITED_PAYLOAD);
+
+    expect(received).toHaveLength(1);
+    expect(received[0].serviceMode).toBe(false);
+    expect(received[0].payload).not.toHaveProperty("serviceMode");
+    expect(received[0]).toEqual(INVITED_EVENT);
+  });
+
+  it("serviceMode false in the payload does not clear serviceMode true of the origin", async () => {
+    const received: DomainEvent[] = [];
+
+    await receivingBus(received).emit(
+      { organizationId: "org-a", actorUserId: "u1", serviceMode: true },
+      "users.invited",
+      { ...INVITED_PAYLOAD, serviceMode: false } as typeof INVITED_PAYLOAD,
+    );
+
+    expect(received).toHaveLength(1);
+    expect(received[0].serviceMode).toBe(true);
+    expect(received[0].payload).not.toHaveProperty("serviceMode");
+  });
+
+  it("a subscriber assigning event.serviceMode fails and the next one still sees the origin value", async () => {
+    const seen: boolean[] = [];
+    const bus = busWith([
+      {
+        module: "probe",
+        value: {
+          "users.invited": [
+            subscriber("probe.a", (event) => {
+              (event as { serviceMode: boolean }).serviceMode = true;
+            }),
+            subscriber("probe.b", (event) => {
+              seen.push(event.serviceMode);
+            }),
+          ],
+        },
+      },
+    ]);
+
+    await bus.emit(ORIGIN, "users.invited", INVITED_PAYLOAD);
+
+    expect(seen).toEqual([false]);
+    expect(mockLogger.error).toHaveBeenCalledTimes(1);
   });
 });

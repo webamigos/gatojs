@@ -135,6 +135,7 @@ describe("databaseHooks.user.create.after: auth.signed-up", () => {
         name: "auth.signed-up",
         organizationId: "org-only",
         actorUserId: "user-new",
+        serviceMode: false,
         payload: { userId: "user-new", email: "jan@example.com" },
       },
     ]);
@@ -158,6 +159,7 @@ describe("databaseHooks.user.create.after: auth.signed-up", () => {
         name: "auth.signed-up",
         organizationId: "org-invited",
         actorUserId: "user-new",
+        serviceMode: false,
         payload: { userId: "user-new", email: "jan@example.com" },
       },
     ]);
@@ -173,6 +175,7 @@ describe("databaseHooks.user.create.after: auth.signed-up", () => {
         name: "auth.signed-up",
         organizationId: "org-new",
         actorUserId: "user-new",
+        serviceMode: false,
         payload: { userId: "user-new", email: "jan@example.com" },
       },
     ]);
@@ -181,6 +184,7 @@ describe("databaseHooks.user.create.after: auth.signed-up", () => {
         name: "organizations.created",
         organizationId: "org-new",
         actorUserId: "user-new",
+        serviceMode: false,
         payload: {
           name: "Jan — organizacja",
           slug: "jan-organizacja-abcd1234",
@@ -260,6 +264,7 @@ describe("databaseHooks.user.create.after: auth.signed-up", () => {
         name: "auth.signed-up",
         organizationId: "org-7",
         actorUserId: "user-direct",
+        serviceMode: false,
         payload: { userId: "user-direct", email: "direct@example.com" },
       },
     ]);
@@ -356,6 +361,7 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
         name: "auth.signed-up",
         organizationId: "org-invited",
         actorUserId: "user-new",
+        serviceMode: false,
         payload: { userId: "user-new", email: "ewa@example.com" },
       },
     ]);
@@ -387,6 +393,7 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
         name: "auth.signed-up",
         organizationId: "org-only",
         actorUserId: "user-ewa",
+        serviceMode: false,
         payload: { userId: "user-ewa", email: "ewa@example.com" },
       },
     ]);
@@ -409,6 +416,7 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
         name: "auth.signed-up",
         organizationId: "org-only",
         actorUserId: "user-new",
+        serviceMode: false,
         payload: { userId: "user-new", email: "jan@example.com" },
       },
     ]);
@@ -433,6 +441,7 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
         name: "auth.signed-up",
         organizationId: "org-invited",
         actorUserId: "user-new",
+        serviceMode: false,
         payload: { userId: "user-new", email: "jan@example.com" },
       },
     ]);
@@ -455,6 +464,7 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
         name: "auth.signed-up",
         organizationId: "org-only",
         actorUserId: "user-new",
+        serviceMode: false,
         payload: { userId: "user-new", email: "jan@example.com" },
       },
     ]);
