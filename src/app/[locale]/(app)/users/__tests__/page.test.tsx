@@ -14,7 +14,7 @@ const {
   mockGetOrganizationMembersQuery: vi.fn(),
   usersManagerProps: vi.fn(),
   organizationMembersProps: vi.fn(),
-  mockEnv: { ADMIN_IMPERSONATION: false },
+  mockEnv: { ADMIN_IMPERSONATION: false, MULTI_ORG: false },
 }));
 
 vi.mock("next-intl/server", () => ({ setRequestLocale: vi.fn() }));
@@ -66,6 +66,7 @@ function contextFor(userRole: string, orgRole: string | null = "member") {
 describe("/users", () => {
   beforeEach(() => {
     mockEnv.ADMIN_IMPERSONATION = false;
+    mockEnv.MULTI_ORG = false;
     mockGetUserAccountsQuery.mockResolvedValue(ACCOUNTS);
     mockGetOrganizationMembersQuery.mockResolvedValue(MEMBERS_DATA);
   });
@@ -118,6 +119,56 @@ describe("/users", () => {
       );
     },
   );
+
+  it("global admin with MULTI_ORG on → UsersManager gets the organization, the organization role and multiOrg", async () => {
+    mockEnv.MULTI_ORG = true;
+    mockRequireModuleAccess.mockResolvedValue(contextFor("admin", "member"));
+
+    render(await UsersPage({ params }));
+
+    expect(usersManagerProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        currentOrgRole: "member",
+        multiOrg: true,
+      }),
+    );
+  });
+
+  it("superadmin without membership and MULTI_ORG off → UsersManager gets currentOrgRole null and multiOrg false", async () => {
+    mockRequireModuleAccess.mockResolvedValue({
+      ...contextFor("superadmin", null),
+      organizationId: "org-2",
+    });
+
+    render(await UsersPage({ params }));
+
+    expect(usersManagerProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-2",
+        currentOrgRole: null,
+        multiOrg: false,
+      }),
+    );
+  });
+
+  it("UsersManager gets exactly the users, the viewer and the organization props", async () => {
+    mockRequireModuleAccess.mockResolvedValue(contextFor("admin"));
+
+    render(await UsersPage({ params }));
+
+    expect(
+      Object.keys(usersManagerProps.mock.calls[0][0] as object).sort(),
+    ).toEqual([
+      "adminImpersonation",
+      "currentOrgRole",
+      "currentUserId",
+      "currentUserRole",
+      "multiOrg",
+      "organizationId",
+      "users",
+    ]);
+  });
 
   it.each([["owner"], ["admin"]])(
     "owner/admin organizacji (%s) bez roli globalnej → członkowie organizacji, bez listy kont",
