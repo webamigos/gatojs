@@ -108,6 +108,37 @@ async function addMember(
   return { userId: user.id, memberId: member.id };
 }
 
+async function postToAuth(
+  path: string,
+  headers: Headers,
+  body: unknown,
+): Promise<Response> {
+  const requestHeaders = new Headers(headers);
+  requestHeaders.set("content-type", "application/json");
+  requestHeaders.set("origin", "http://localhost:3000");
+  return auth.handler(
+    new Request(`http://localhost:3000/api/auth${path}`, {
+      method: "POST",
+      headers: requestHeaders,
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+async function storedRole(memberId: string): Promise<string> {
+  const member = await prisma.member.findUniqueOrThrow({
+    where: { id: memberId },
+    select: { role: true },
+  });
+  return member.role;
+}
+
+const MULTI_VALUED_ROLES: Array<[string, string | string[]]> = [
+  ["the list admin+member", ["admin", "member"]],
+  ["the comma string member,member", "member,member"],
+  ["the comma string admin,member", "admin,member"],
+];
+
 function inOrganization(organizationId: string): DomainEvent[] {
   return received.filter((event) => event.organizationId === organizationId);
 }
@@ -416,5 +447,230 @@ describe("core auth events plugin on real better-auth, without audit-logs", () =
     expect(await prisma.organization.count({ where: { slug: "org-c" } })).toBe(
       0,
     );
+  });
+});
+
+describe("organization role guard on real better-auth", () => {
+  it.each(MULTI_VALUED_ROLES)(
+    "an invitation with %s is rejected with 400, stores no invitation and emits nothing",
+    async (_label, role) => {
+      await expect(
+        auth.api.createInvitation({
+          headers: world.headersA,
+          body: { email: "nowy@a.example", role: role as "member" },
+        }),
+      ).rejects.toMatchObject({ statusCode: 400 });
+
+      expect(await prisma.invitation.count()).toBe(0);
+      expect(received).toEqual([]);
+    },
+  );
+
+  it.each(MULTI_VALUED_ROLES)(
+    "a role change to %s is rejected with 400, keeps the stored role member and emits nothing",
+    async (_label, role) => {
+      const carol = await addMember(world.orgA.id, "carol@a.example", "member");
+
+      await expect(
+        auth.api.updateMemberRole({
+          headers: world.headersA,
+          body: { memberId: carol.memberId, role: role as "admin" },
+        }),
+      ).rejects.toMatchObject({ statusCode: 400 });
+
+      expect(await storedRole(carol.memberId)).toBe("member");
+      expect(received).toEqual([]);
+    },
+  );
+
+  it("an HTTP invitation with the role admin,member gets status 400 and stores nothing", async () => {
+    const response = await postToAuth(
+      "/organization/invite-member",
+      world.headersA,
+      { email: "nowy@a.example", role: "admin,member" },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await prisma.invitation.count()).toBe(0);
+    expect(received).toEqual([]);
+  });
+
+  it("an HTTP role change to the list admin+member gets status 400 and keeps the stored role", async () => {
+    const carol = await addMember(world.orgA.id, "carol@a.example", "member");
+
+    const response = await postToAuth(
+      "/organization/update-member-role",
+      world.headersA,
+      { memberId: carol.memberId, role: ["admin", "member"] },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await storedRole(carol.memberId)).toBe("member");
+    expect(received).toEqual([]);
+  });
+
+  it("an HTTP invitation with the role admin still succeeds", async () => {
+    const response = await postToAuth(
+      "/organization/invite-member",
+      world.headersA,
+      { email: "nowy@a.example", role: "admin" },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await prisma.invitation.count()).toBe(1);
+  });
+
+  it("an invitation with the role admin still succeeds and emits users.invited with role admin", async () => {
+    const invitation = await auth.api.createInvitation({
+      headers: world.headersA,
+      body: { email: "nowy@a.example", role: "admin" },
+    });
+
+    const stored = await prisma.invitation.findUniqueOrThrow({
+      where: { id: invitation.id },
+      select: { role: true },
+    });
+    expect(stored.role).toBe("admin");
+    expect(received).toEqual([
+      {
+        name: "users.invited",
+        organizationId: world.orgA.id,
+        actorUserId: world.alice.id,
+        serviceMode: false,
+        payload: {
+          invitationId: invitation.id,
+          email: "nowy@a.example",
+          role: "admin",
+        },
+      },
+    ]);
+  });
+
+  it("a role change to admin still succeeds and stores admin", async () => {
+    const carol = await addMember(world.orgA.id, "carol@a.example", "member");
+
+    await auth.api.updateMemberRole({
+      headers: world.headersA,
+      body: { memberId: carol.memberId, role: "admin" },
+    });
+
+    expect(await storedRole(carol.memberId)).toBe("admin");
+    expect(received.map((event) => event.name)).toEqual([
+      "organizations.member-role-changed",
+    ]);
+  });
+});
+
+describe("leaving and deleting an organization on real better-auth", () => {
+  it("a member of A and B who leaves B with A active emits one organizations.member-removed in B and keeps the membership in A", async () => {
+    const erinInA = await addMember(world.orgA.id, "erin@a.example", "member");
+    const erinInB = await prisma.member.create({
+      data: {
+        organizationId: world.orgB.id,
+        userId: erinInA.userId,
+        role: "member",
+      },
+      select: { id: true },
+    });
+    const erinSession = await createSession({
+      userId: erinInA.userId,
+      activeOrganizationId: world.orgA.id,
+    });
+
+    await auth.api.leaveOrganization({
+      headers: await headersFor(erinSession.id),
+      body: { organizationId: world.orgB.id },
+    });
+
+    expect(received).toEqual([
+      {
+        name: "organizations.member-removed",
+        organizationId: world.orgB.id,
+        actorUserId: erinInA.userId,
+        serviceMode: false,
+        payload: {
+          memberId: erinInB.id,
+          userId: erinInA.userId,
+          role: "member",
+        },
+      },
+    ]);
+    expect(inOrganization(world.orgA.id)).toEqual([]);
+    expect(await prisma.member.count({ where: { id: erinInA.memberId } })).toBe(
+      1,
+    );
+    expect(await prisma.member.count({ where: { id: erinInB.id } })).toBe(0);
+  });
+
+  it("an admin who leaves the active organization emits organizations.member-removed with role admin", async () => {
+    const frank = await addMember(world.orgA.id, "frank@a.example", "admin");
+    const frankSession = await createSession({
+      userId: frank.userId,
+      activeOrganizationId: world.orgA.id,
+    });
+
+    await auth.api.leaveOrganization({
+      headers: await headersFor(frankSession.id),
+      body: { organizationId: world.orgA.id },
+    });
+
+    expect(received).toEqual([
+      {
+        name: "organizations.member-removed",
+        organizationId: world.orgA.id,
+        actorUserId: frank.userId,
+        serviceMode: false,
+        payload: {
+          memberId: frank.memberId,
+          userId: frank.userId,
+          role: "admin",
+        },
+      },
+    ]);
+    expect(inOrganization(world.orgB.id)).toEqual([]);
+  });
+
+  it("the only owner leaving is rejected, emits nothing and keeps the membership", async () => {
+    const bobSession = await createSession({
+      userId: world.bob.id,
+      activeOrganizationId: world.orgB.id,
+    });
+
+    await expect(
+      auth.api.leaveOrganization({
+        headers: await headersFor(bobSession.id),
+        body: { organizationId: world.orgB.id },
+      }),
+    ).rejects.toThrow();
+
+    expect(received).toEqual([]);
+    expect(
+      await prisma.member.count({
+        where: { organizationId: world.orgB.id, userId: world.bob.id },
+      }),
+    ).toBe(1);
+  });
+
+  it("leaving an organization the user is not a member of is rejected and emits nothing", async () => {
+    await expect(
+      auth.api.leaveOrganization({
+        headers: world.headersA,
+        body: { organizationId: world.orgB.id },
+      }),
+    ).rejects.toThrow();
+
+    expect(received).toEqual([]);
+  });
+
+  it("deleting an organization by its owner emits nothing", async () => {
+    await auth.api.deleteOrganization({
+      headers: world.headersA,
+      body: { organizationId: world.orgA.id },
+    });
+
+    expect(
+      await prisma.organization.count({ where: { id: world.orgA.id } }),
+    ).toBe(0);
+    expect(received).toEqual([]);
   });
 });

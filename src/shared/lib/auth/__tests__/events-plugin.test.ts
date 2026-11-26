@@ -186,6 +186,7 @@ describe("eventsPlugin: identity and matchers", () => {
     "/organization/cancel-invitation",
     "/organization/accept-invitation",
     "/organization/remove-member",
+    "/organization/leave",
     "/organization/set-active",
     "/sign-up/email",
     undefined,
@@ -200,6 +201,7 @@ describe("eventsPlugin: identity and matchers", () => {
     "/organization/accept-invitation",
     UPDATE_ROLE,
     "/organization/remove-member",
+    "/organization/leave",
   ])("has exactly one after hook for %s", (path) => {
     expect(matching("after", path)).toHaveLength(1);
   });
@@ -207,7 +209,6 @@ describe("eventsPlugin: identity and matchers", () => {
   it.each([
     "/organization/update",
     "/organization/delete",
-    "/organization/leave",
     "/organization/set-active",
     "/organization/reject-invitation",
     "/organization/list-members",
@@ -422,6 +423,70 @@ describe("eventsPlugin: after hooks emit core events", () => {
     ]);
   });
 
+  it("/organization/leave emits organizations.member-removed in the row's organization, not the active or body one, with the session user as actor", async () => {
+    const results = await runAfter({
+      path: "/organization/leave",
+      returned: {
+        id: "mem-b",
+        organizationId: "org-b",
+        userId: "user-leaving",
+        role: "member",
+      },
+      session: {
+        user: { id: "user-leaving", email: "leaving@a.example" },
+        session: { id: "session-2", activeOrganizationId: "org-active" },
+      },
+      merged: { body: { organizationId: "org-body" } },
+    });
+
+    expect(emitted()).toEqual([
+      {
+        organizationId: "org-b",
+        actorUserId: "user-leaving",
+        serviceMode: false,
+        name: "organizations.member-removed",
+        payload: { memberId: "mem-b", userId: "user-leaving", role: "member" },
+      },
+    ]);
+    expect(results).toEqual([undefined]);
+    expect(mockLogger.error).not.toHaveBeenCalled();
+  });
+
+  it("/organization/leave takes the actor from the session even when the row's userId differs", async () => {
+    await runAfter({
+      path: "/organization/leave",
+      returned: {
+        id: "mem-b",
+        organizationId: "org-b",
+        userId: "user-leaving",
+        role: "admin",
+      },
+      session: SESSION,
+    });
+
+    expect(emitted()).toEqual([
+      {
+        organizationId: "org-b",
+        actorUserId: "user-actor",
+        serviceMode: false,
+        name: "organizations.member-removed",
+        payload: { memberId: "mem-b", userId: "user-leaving", role: "admin" },
+      },
+    ]);
+  });
+
+  it("/organization/leave with the row wrapped in { member } emits nothing and logs nothing", async () => {
+    const results = await runAfter({
+      path: "/organization/leave",
+      returned: { member },
+      session: SESSION,
+    });
+
+    expect(emitEvent).not.toHaveBeenCalled();
+    expect(mockLogger.error).not.toHaveBeenCalled();
+    expect(results).toEqual([undefined]);
+  });
+
   it("without a session the actor is null", async () => {
     await runAfter({
       path: "/organization/remove-member",
@@ -471,6 +536,7 @@ describe("eventsPlugin: after hooks emit core events", () => {
     "/organization/accept-invitation",
     UPDATE_ROLE,
     "/organization/remove-member",
+    "/organization/leave",
   ])(
     "%s with an APIError as the returned value emits nothing and logs nothing",
     async (path) => {

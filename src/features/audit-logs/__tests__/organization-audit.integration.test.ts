@@ -38,6 +38,16 @@ async function headersFor(sessionId: string): Promise<Headers> {
   return new Headers({ cookie: cookie.split(";")[0] ?? "" });
 }
 
+const MULTI_VALUED_ROLES: Array<[string, string | string[]]> = [
+  ["the list admin+member", ["admin", "member"]],
+  ["the comma string member,member", "member,member"],
+  ["the comma string admin,member", "admin,member"],
+];
+
+function countAllAuditRows(): Promise<number> {
+  return withoutTenantScope("test assertion", () => prisma.auditLog.count());
+}
+
 beforeEach(async () => {
   await resetDatabase();
   const alice = await createUser({ email: "alice@a.example", role: "admin" });
@@ -282,5 +292,121 @@ describe("audit-logs rows from core organization events on real better-auth", ()
     expect(
       await withoutTenantScope("test assertion", () => prisma.auditLog.count()),
     ).toBe(0);
+  });
+});
+
+describe("audit-logs rows for multi-valued roles and leaving an organization", () => {
+  it.each(MULTI_VALUED_ROLES)(
+    "an invitation with %s is rejected and writes no row",
+    async (_label, role) => {
+      await expect(
+        auth.api.createInvitation({
+          headers: world.headersA,
+          body: { email: "nowy@a.example", role: role as "member" },
+        }),
+      ).rejects.toMatchObject({ statusCode: 400 });
+
+      expect(await prisma.invitation.count()).toBe(0);
+      expect(await countAllAuditRows()).toBe(0);
+    },
+  );
+
+  it.each(MULTI_VALUED_ROLES)(
+    "a role change to %s is rejected, keeps the role member and writes no row",
+    async (_label, role) => {
+      const carol = await createUser({ email: "carol@a.example" });
+      const memberRow = await prisma.member.create({
+        data: {
+          organizationId: world.orgA.id,
+          userId: carol.id,
+          role: "member",
+        },
+      });
+
+      await expect(
+        auth.api.updateMemberRole({
+          headers: world.headersA,
+          body: { memberId: memberRow.id, role: role as "admin" },
+        }),
+      ).rejects.toMatchObject({ statusCode: 400 });
+
+      const stored = await prisma.member.findUniqueOrThrow({
+        where: { id: memberRow.id },
+        select: { role: true },
+      });
+      expect(stored.role).toBe("member");
+      expect(await countAllAuditRows()).toBe(0);
+    },
+  );
+
+  it("an invitation with the role admin still writes one member.invited row", async () => {
+    const invitation = await auth.api.createInvitation({
+      headers: world.headersA,
+      body: { email: "nowy@a.example", role: "admin" },
+    });
+
+    const rows = await withoutTenantScope("test assertion", () =>
+      prisma.auditLog.findMany(),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      organizationId: world.orgA.id,
+      action: "member.invited",
+      entityId: invitation.id,
+      userId: world.alice.id,
+      newData: { email: "nowy@a.example", role: "admin" },
+    });
+  });
+
+  it("leaving organization B with A active writes one member.removed row in B and none in A", async () => {
+    const erin = await createUser({ email: "erin@a.example" });
+    const erinInA = await prisma.member.create({
+      data: { organizationId: world.orgA.id, userId: erin.id, role: "member" },
+    });
+    const erinInB = await prisma.member.create({
+      data: { organizationId: world.orgB.id, userId: erin.id, role: "member" },
+    });
+    const erinSession = await createSession({
+      userId: erin.id,
+      activeOrganizationId: world.orgA.id,
+    });
+
+    await auth.api.leaveOrganization({
+      headers: await headersFor(erinSession.id),
+      body: { organizationId: world.orgB.id },
+    });
+
+    const rowsB = await prisma.auditLog.findMany({
+      where: { organizationId: world.orgB.id },
+    });
+    const rowsA = await prisma.auditLog.findMany({
+      where: { organizationId: world.orgA.id },
+    });
+    expect(rowsA).toHaveLength(0);
+    expect(rowsB).toHaveLength(1);
+    expect(rowsB[0]).toMatchObject({
+      action: "member.removed",
+      userId: erin.id,
+      entityId: erinInB.id,
+      oldData: { userId: erin.id, role: "member" },
+    });
+    expect(await countAllAuditRows()).toBe(1);
+    expect(await prisma.member.count({ where: { id: erinInA.id } })).toBe(1);
+  });
+
+  it("the only owner leaving is rejected and writes no row", async () => {
+    const bobSession = await createSession({
+      userId: world.bob.id,
+      activeOrganizationId: world.orgB.id,
+    });
+
+    await expect(
+      auth.api.leaveOrganization({
+        headers: await headersFor(bobSession.id),
+        body: { organizationId: world.orgB.id },
+      }),
+    ).rejects.toThrow();
+
+    expect(await countAllAuditRows()).toBe(0);
   });
 });

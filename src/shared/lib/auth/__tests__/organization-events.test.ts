@@ -5,13 +5,14 @@ import {
   organizationEvents,
 } from "../organization-events";
 
-const SIX_PATHS = [
+const EVENT_PATHS = [
   "/organization/create",
   "/organization/invite-member",
   "/organization/cancel-invitation",
   "/organization/accept-invitation",
   "/organization/update-member-role",
   "/organization/remove-member",
+  "/organization/leave",
 ] as const;
 
 const createdOrganization = {
@@ -56,21 +57,25 @@ const member = {
 };
 
 describe("ORGANIZATION_EVENT_PATHS", () => {
-  it("holds exactly the six organization paths that emit core events", () => {
+  it("holds exactly the seven organization paths that emit core events", () => {
     expect([...ORGANIZATION_EVENT_PATHS].sort()).toEqual([
       "/organization/accept-invitation",
       "/organization/cancel-invitation",
       "/organization/create",
       "/organization/invite-member",
+      "/organization/leave",
       "/organization/remove-member",
       "/organization/update-member-role",
     ]);
   });
 
+  it("holds /organization/leave", () => {
+    expect(ORGANIZATION_EVENT_PATHS.has("/organization/leave")).toBe(true);
+  });
+
   it.each([
     "/organization/update",
     "/organization/delete",
-    "/organization/leave",
     "/organization/set-active",
     "/organization/reject-invitation",
     "/sign-up/email",
@@ -433,8 +438,112 @@ describe("organizationEvents: /organization/remove-member", () => {
   });
 });
 
+describe("organizationEvents: /organization/leave", () => {
+  const leftMember = {
+    id: "mem-1",
+    organizationId: "org-b",
+    userId: "user-leaving",
+    role: "member",
+    createdAt: new Date("2026-11-26T00:00:00.000Z"),
+  };
+
+  it("emits organizations.member-removed from the returned member row itself, with the session user as actor", () => {
+    expect(
+      organizationEvents({
+        path: "/organization/leave",
+        actorUserId: "user-leaving",
+        returned: {
+          id: "mem-1",
+          organizationId: "org-b",
+          userId: "user-leaving",
+          role: "member",
+        },
+      }),
+    ).toStrictEqual([
+      {
+        origin: { organizationId: "org-b", actorUserId: "user-leaving" },
+        name: "organizations.member-removed",
+        payload: { memberId: "mem-1", userId: "user-leaving", role: "member" },
+      },
+    ]);
+  });
+
+  it("takes the actor from the session and the userId from the row when they differ", () => {
+    expect(
+      organizationEvents({
+        path: "/organization/leave",
+        actorUserId: "user-actor",
+        returned: leftMember,
+      }),
+    ).toStrictEqual([
+      {
+        origin: { organizationId: "org-b", actorUserId: "user-actor" },
+        name: "organizations.member-removed",
+        payload: { memberId: "mem-1", userId: "user-leaving", role: "member" },
+      },
+    ]);
+  });
+
+  it("keeps the admin role of the leaving member", () => {
+    expect(
+      organizationEvents({
+        path: "/organization/leave",
+        actorUserId: "user-leaving",
+        returned: { ...leftMember, role: "admin" },
+      }),
+    ).toStrictEqual([
+      {
+        origin: { organizationId: "org-b", actorUserId: "user-leaving" },
+        name: "organizations.member-removed",
+        payload: { memberId: "mem-1", userId: "user-leaving", role: "admin" },
+      },
+    ]);
+  });
+
+  it("keeps a null actor", () => {
+    expect(
+      organizationEvents({
+        path: "/organization/leave",
+        actorUserId: null,
+        returned: leftMember,
+      }),
+    ).toStrictEqual([
+      {
+        origin: { organizationId: "org-b", actorUserId: null },
+        name: "organizations.member-removed",
+        payload: { memberId: "mem-1", userId: "user-leaving", role: "member" },
+      },
+    ]);
+  });
+
+  it.each([
+    ["null", null],
+    ["the member wrapped in { member }", { member: leftMember }],
+    [
+      "a row without organizationId",
+      { ...leftMember, organizationId: undefined },
+    ],
+    [
+      "a row with a numeric organizationId",
+      { ...leftMember, organizationId: 5 },
+    ],
+    ["a row without id", { ...leftMember, id: undefined }],
+    ["a row without userId", { ...leftMember, userId: undefined }],
+    ["a row without role", { ...leftMember, role: undefined }],
+    ["a row with a numeric id", { ...leftMember, id: 9 }],
+  ])("returns [] for %s", (_label, returned) => {
+    expect(
+      organizationEvents({
+        path: "/organization/leave",
+        actorUserId: "user-leaving",
+        returned,
+      }),
+    ).toEqual([]);
+  });
+});
+
 describe("organizationEvents: failed calls and other paths", () => {
-  it.each(SIX_PATHS)(
+  it.each(EVENT_PATHS)(
     "%s returns [] for undefined, null, an error body, an Error and a string",
     (path) => {
       for (const returned of [
@@ -461,7 +570,7 @@ describe("organizationEvents: failed calls and other paths", () => {
   it.each([
     "/organization/set-active",
     "/organization/update",
-    "/organization/leave",
+    "/organization/delete",
     "/organization/reject-invitation",
   ])("%s returns [] even for a well-formed row", (path) => {
     for (const returned of [invitation, member, { invitation, member }]) {
@@ -481,9 +590,9 @@ describe("organizationEvents: invariants", () => {
   test.prop([
     fc
       .string()
-      .filter((path) => !(SIX_PATHS as readonly string[]).includes(path)),
+      .filter((path) => !(EVENT_PATHS as readonly string[]).includes(path)),
     fc.anything(),
-  ])("a path outside the six never emits", (path, returned) => {
+  ])("a path outside the seven never emits", (path, returned) => {
     expect(
       organizationEvents({
         path,
@@ -495,7 +604,7 @@ describe("organizationEvents: invariants", () => {
   });
 
   test.prop([
-    fc.constantFrom(...SIX_PATHS),
+    fc.constantFrom(...EVENT_PATHS),
     fc.oneof(
       fc.string(),
       fc.integer(),
@@ -558,4 +667,31 @@ describe("organizationEvents: invariants", () => {
     expect(events).toHaveLength(1);
     expect(events[0].origin.organizationId).toBe(row.organizationId);
   });
+
+  test.prop([
+    fc.record({
+      id: fc.string(),
+      organizationId: fc.string(),
+      userId: fc.string(),
+      role: fc.string(),
+    }),
+    fc.option(fc.string(), { nil: null }),
+  ])(
+    "a member who left always emits in the row's organization with the given actor",
+    (row, actorUserId) => {
+      expect(
+        organizationEvents({
+          path: "/organization/leave",
+          actorUserId,
+          returned: row,
+        }),
+      ).toStrictEqual([
+        {
+          origin: { organizationId: row.organizationId, actorUserId },
+          name: "organizations.member-removed",
+          payload: { memberId: row.id, userId: row.userId, role: row.role },
+        },
+      ]);
+    },
+  );
 });
