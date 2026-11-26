@@ -300,6 +300,7 @@ Definicja modułu (`src/features/uploads/module.ts`):
 | `nav`, `routePrefixes` | `[]` | Brak strony i pozycji menu. |
 | `roles` | brak | Moduł nie ogranicza ról; trasy i komenda sprawdzają dostęp same ([Dostęp](#dostep)). |
 | `auditActions` | `upload.created`, `upload.deleted` | Etykiety zdarzeń plików w dzienniku ([Zdarzenia](#zdarzenia)). |
+| `permissions` | `uploads.delete-others`: `defaultRoles: ["owner", "admin"]`, `labelKey: "permission-delete-others"` | Kto usuwa cudze pliki ([Usuwanie](#usuwanie), [Uprawnienia](15b-modul-uploads-uzycie.md#uprawnienia)). |
 | `uploadPurposes` | `editor-image`: `image/jpeg`, `image/png`, `image/webp`, `maxBytes: 5 * 1024 * 1024`, `visibility: "public"`, `resizeImage: { maxWidth: 1200 }` | Cel kitu dla obrazów w edytorach ([Kontrakt celu](#cel-uploadu)). |
 
 <a id="model"></a>
@@ -401,7 +402,7 @@ Odpowiedzi z przebiegu (sprawdzone): plik `editor-image` bez sesji 200 z `cache-
 
 1. `getOrgContext()` i `assertServiceModeConfirmed(context, confirmation)`.
 2. `id` musi być UUID; plik szuka się z filtrem `organizationId` aktywnej organizacji. Nieprawidłowe `id`, plik innej organizacji i plik nieistniejący dają ten sam błąd „Nie udało się usunąć pliku”.
-3. Usunąć może autor (`uploadedById` równe użytkownikowi), owner i admin organizacji oraz admin i superadmin globalny; pozostali dostają „Brak uprawnień do usunięcia pliku” i nic nie jest usuwane.
+3. Usunąć może autor (`uploadedById` równe użytkownikowi) albo ten, komu `can(context, "uploads.delete-others")` daje `true`: domyślnie owner i admin organizacji, zawsze admin i superadmin globalny ([Uprawnienia](15b-modul-uploads-uzycie.md#uprawnienia)); pozostali dostają „Brak uprawnień do usunięcia pliku” i nic nie jest usuwane.
 4. Komenda usuwa obiekt z magazynu, potem rekord (z warunkiem `{ id, organizationId }`), potem woła `trackAudit` z `upload.deleted`. **Błąd usunięcia obiektu nie zatrzymuje komendy**: trafia do logu jako `upload deleteObject failed` z kluczem, rekord znika, a obiekt zostaje osierocony ([Osierocone obiekty](#osierocone)).
 5. Drugie wywołanie dla tego samego `id` zwraca błąd i nie woła magazynu.
 
@@ -456,7 +457,7 @@ Moduł nie ma query w `services/queries/`: listę plików organizacji, jeśli je
 
 ### Dostęp według ról
 
-Wgrać plik może każdy członek aktywnej organizacji, także `member` (test „pozwala wgrać plik zwykłemu członkowi”), oraz superadmin w trybie serwisowym z potwierdzeniem. Usunąć: autor, owner i admin organizacji, admin i superadmin globalny ([Usuwanie](#usuwanie)). Czytać: plik `public` każdy, plik `organization` każda sesja z aktywną organizacją pliku, bez względu na rolę. Moduł nie ma `roles` ani strony, więc nie dotyczy go `requireModuleAccess`; pełna macierz rdzenia: [04-auth-i-role.md](04-auth-i-role.md#macierz-dostepu).
+Wgrać plik może każdy członek aktywnej organizacji, także `member` (test „pozwala wgrać plik zwykłemu członkowi”), oraz superadmin w trybie serwisowym z potwierdzeniem. Usunąć: autor, role z uprawnieniem `uploads.delete-others` (domyślnie owner i admin organizacji), admin i superadmin globalny ([Usuwanie](#usuwanie)). Czytać: plik `public` każdy, plik `organization` każda sesja z aktywną organizacją pliku, bez względu na rolę. Moduł nie ma `roles` ani strony, więc nie dotyczy go `requireModuleAccess`; pełna macierz rdzenia: [04-auth-i-role.md](04-auth-i-role.md#macierz-dostepu).
 
 Teksty modułu leżą pod namespace `uploads` w `src/features/uploads/i18n/pl.json` i `en.json`: etykiety akcji, etykieta pola „Wybierz plik” i trzy komunikaty błędów `<FileUpload>`.
 

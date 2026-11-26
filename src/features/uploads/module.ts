@@ -8,6 +8,12 @@ export default defineModule({
     { action: "upload.created", labelKey: "action-upload-created" },
     { action: "upload.deleted", labelKey: "action-upload-deleted" },
   ],
+  permissions: {
+    "uploads.delete-others": {
+      defaultRoles: ["owner", "admin"],
+      labelKey: "permission-delete-others",
+    },
+  },
   uploadPurposes: [
     {
       key: "editor-image",

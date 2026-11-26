@@ -135,6 +135,42 @@ describe("findGatoConfigKeyProblems", () => {
     ]);
   });
 
+  it("reports a permission the module does not declare", async () => {
+    write(
+      "src/features/uploads/module.ts",
+      'export default { key: "uploads", nav: [], routePrefixes: [], permissions: { "uploads.delete-others": { defaultRoles: ["owner", "admin"], labelKey: "permission-delete-others" } } };\n',
+    );
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { uploads: { permissions: { "uploads.nope": ["owner"] } } } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([
+      "modules.uploads.permissions.uploads.nope: unknown permission: uploads.nope",
+    ]);
+  });
+
+  it("returns an empty list for a config that overrides a declared permission", async () => {
+    write(
+      "src/features/uploads/module.ts",
+      'export default { key: "uploads", nav: [], routePrefixes: [], permissions: { "uploads.delete-others": { defaultRoles: ["owner", "admin"], labelKey: "permission-delete-others" } } };\n',
+    );
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { uploads: { permissions: { "uploads.delete-others": ["owner"] } } } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([]);
+  });
+
+  it("reports a permission for a module that declares none", async () => {
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { dashboard: { permissions: { "dashboard.export": ["owner"] } } } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([
+      "modules.dashboard.permissions.dashboard.export: unknown permission: dashboard.export",
+    ]);
+  });
+
   it("a module from every feature directory is known", async () => {
     write(
       "src/features/zeta/module.ts",
