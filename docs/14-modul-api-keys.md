@@ -231,9 +231,10 @@ Sukces zwraca 200 i `{ id, name, slug }` organizacji klucza; błędy mają kody 
 | --- | --- | --- |
 | `components/api-keys-manager.tsx` | `ApiKeysManager` | Widok strony `/api-keys`: lista, formularz, dialog sekretu (komponent kliencki). |
 | `components/api-key-columns.tsx` | `buildApiKeyColumns`, `resolveApiKeyStatus` | Kolumny tabeli i status `active`, `revoked`, `expired`. |
-| `services/commands/api-key-commands.ts` | `createApiKeyCommand(input, confirmation?)` | Tworzy klucz, zwraca `{ id, plaintext }`. |
-| | `revokeApiKeyCommand(input, confirmation?)` | Unieważnia klucz `{ id }` aktywnej organizacji. |
-| | `deleteApiKeyCommand(input, confirmation?)` | Usuwa klucz `{ id }` aktywnej organizacji. |
+| `services/commands/api-key-commands.ts` | `createApiKeyCommand(input, confirmation?)` | Komenda `api-keys.create`: tworzy klucz, zwraca `{ id, plaintext }`. |
+| | `revokeApiKeyCommand(input, confirmation?)` | Komenda `api-keys.revoke`: unieważnia klucz `{ id }` aktywnej organizacji. |
+| | `deleteApiKeyCommand(input, confirmation?)` | Komenda `api-keys.delete`: usuwa klucz `{ id }` aktywnej organizacji. |
+| `events.ts` | `events` | Zdarzenia domenowe `api-keys.created`, `api-keys.revoked`, `api-keys.deleted` ([Zdarzenia domenowe](#zdarzenia-domenowe)). |
 | `services/queries/api-key-queries.ts` | `listApiKeysQuery()` | Klucze aktywnej organizacji od najnowszego, z autorem, bez `hashedKey`; guard `requireModuleAccess("api-keys")`. |
 | `services/authenticate-api-key.ts` | `authenticateApiKey`, `ApiKeyContext`, `ApiKeyAuthResult` | Uwierzytelnienie trasy kluczem ([kontrakt](#authenticate)). |
 | `services/api-scopes.ts` | `knownApiScopes()` | Zakresy zadeklarowane w `apiScopes` wszystkich modułów rejestru, bez powtórzeń. |
@@ -244,13 +245,15 @@ Sukces zwraca 200 i `{ id, name, slug }` organizacji klucza; błędy mają kody 
 | `contracts/api-key.schemas.ts` | `createApiKeySchema()`, `apiKeyIdSchema`, `API_KEY_EXPIRY_DAYS` | Walidacja wejścia komend. |
 | `env.ts` | `envSchema` | Schemat `API_KEY_PEPPER` ([Konfiguracja peppera](#pepper)). |
 
+Trzy komendy to obiekty `defineCommand` z `access: "module"`, uruchamiane przez `runCommand` ([ADR-62](adrs/62-gato-commands-run-through-define-command-with-before-hooks-only.md), [06](06-wzorce-kodu.md)); moduł deklaruje ich klucze w `commands` w `module.ts`. Inny moduł może je zatrzymać albo zmienić ich wejście hookiem `before` w swoim `command-hooks.ts`. Hook działa po sprawdzeniu dostępu, potwierdzeniu trybu serwisowego i walidacji; zmienione `id` to inny klucz tej samej organizacji, bo `run` szuka go z filtrem `organizationId` z kontekstu.
+
 Komendy zwracają przy błędzie walidacji ogólny komunikat („Nie udało się utworzyć klucza”, „Nie udało się unieważnić klucza”, „Nie udało się usunąć klucza”), bo `handleCommandError` przepisuje treść tylko dla `DomainError`; dosłownie przechodzą komunikat limitu, „Nie znaleziono klucza” i „Potwierdź zmianę w trybie serwisowym”.
 
 <a id="dostep"></a>
 
 ### Dostęp według ról
 
-Stronę, `listApiKeysQuery` i trzy komendy obsłuży owner i admin aktywnej organizacji oraz konto z rolą globalną `admin` albo `superadmin` (`canAccessModule`); `member` dostaje 404 na stronie, a komendy rzucają `notFound()` i niczego nie zapisują. Superadmin bez członkostwa działa w trybie serwisowym i musi potwierdzić każdą komendę; zdarzenie dostaje wtedy `serviceMode: true`. Pełna macierz: [04-auth-i-role.md](04-auth-i-role.md#macierz-dostepu). Role nie dotyczą tras z kluczem: tam decyduje zakres klucza.
+Stronę, `listApiKeysQuery` i trzy komendy obsłuży owner i admin aktywnej organizacji oraz konto z rolą globalną `admin` albo `superadmin` (`canAccessModule`); `member` dostaje 404 na stronie, a komendy zwracają ogólny komunikat komendy (np. „Nie udało się utworzyć klucza”) i niczego nie zapisują, bo `runCommand` zamienia `notFound()` z `requireModuleAccess` w wynik błędu (ADR-62). Tak samo kończy się komenda przy wyłączonym module `api-keys`; trasa `GET /api/v1/organization` nie jest komendą i przy wyłączonym module dalej odpowiada 404. Superadmin bez członkostwa działa w trybie serwisowym i musi potwierdzić każdą komendę; zdarzenie dostaje wtedy `serviceMode: true`. Pełna macierz: [04-auth-i-role.md](04-auth-i-role.md#macierz-dostepu). Role nie dotyczą tras z kluczem: tam decyduje zakres klucza.
 
 Teksty modułu leżą pod namespace `api-keys` w `src/features/api-keys/i18n/pl.json` i `en.json`.
 
@@ -357,6 +360,18 @@ Komendy wołają `trackAudit` z `...auditActor(context)` po udanym zapisie ([kon
 | `api_key.deleted` | `api_key`, id klucza | `oldData: { name, displayPrefix }` | Tylko gdy zapis usunął wiersz. |
 
 Zdarzenia nie zawierają klucza ani hasha (testy „zapisuje dokładnie jeden wpis audytu api_key.created bez klucza i hasha” i „revoke zwraca sukces, ustawia revokedAt i zapisuje jeden audyt bez klucza i hasha”). Mają kanał `WEB`, bo wykonuje je człowiek na stronie `/api-keys`; superadmin w trybie serwisowym zostawia wpis z `serviceMode: true`. Bez `audit-logs` wywołania nic nie zapisują.
+
+<a id="zdarzenia-domenowe"></a>
+
+**Zdarzenia domenowe.** Po udanym zapisie i po `trackAudit` komendy emitują zdarzenia domenowe ([ADR-61](adrs/61-domain-events-run-subscribers-after-success.md)), na które moduły reagują subskrybentem:
+
+| Zdarzenie | Dane | Kiedy |
+| --- | --- | --- |
+| `api-keys.created` | `{ apiKeyId, name, scopes }` | Po utworzeniu klucza. |
+| `api-keys.revoked` | `{ apiKeyId }` | Tylko gdy zapis zmienił wiersz, tak jak wpis dziennika. |
+| `api-keys.deleted` | `{ apiKeyId }` | Tylko gdy zapis usunął wiersz. |
+
+Żadne zdarzenie nie niesie klucza, jego hasha ani `displayPrefix`. Odmowa, błąd transakcji (także limit) i weto hooka nie emitują niczego.
 
 **Kanał `API`.** Żaden kod kitu nie zapisuje zdarzeń z kanałem `API` ani z `credentialId`: trasa `GET /api/v1/organization` tylko czyta. `auditActor` przyjmuje `OrgContext`, którego trasa z kluczem nie ma, więc zdarzenie zapisu wykonanego kluczem składa kod projektu: `organizationId` i `credentialId` z `ApiKeyContext`, `actorUserId: null`, `channel: "API"` ([przykład](14b-modul-api-keys-uzycie.md#kanal-api)). Strona `/audit-log` pokazuje wtedy znaczek „API” i autora „System”. Pilnuje tego tylko konwencja ([D43](decyzje.md#d43)).
 
