@@ -709,20 +709,25 @@ export const setup = defineSetup({
     });
   },
   async seed({ organizationId }) {
-    await prisma.note.createMany({
-      data: [{ organizationId, title: "Pierwsza notatka" }],
-      skipDuplicates: true,
+    const notes = await prisma.note.count({ where: { organizationId } });
+    if (notes > 0) {
+      return;
+    }
+    await prisma.note.create({
+      data: { organizationId, title: "Pierwsza notatka" },
     });
   },
 });
 ```
 
 - `onOrganizationCreated` woła subskrybent rdzenia `organizations.module-setup` po zdarzeniu `organizations.created` (nowa organizacja przy rejestracji, w panelu albo w `npm run admin:create`). Po sukcesie rdzeń zapisuje wiersz `OrganizationModuleSetup` (organizacja, moduł, wersja manifestu), a organizacja z takim wierszem nie uruchamia hooka drugi raz.
-- `seed` (dane demonstracyjne albo początkowe) woła tylko `npm run admin:create`, po `organizations.created`, dla utworzonej albo dołączonej organizacji, przy każdym uruchomieniu skryptu. `seed` nie zapisuje wiersza.
-- **Oba hooki muszą być idempotentne**: hook może przerwać się w połowie i uruchomić ponownie, a `seed` działa przy każdym `admin:create`. Używaj `upsert`, `createMany({ skipDuplicates: true })` albo sprawdzenia przed zapisem.
+- **Hook działa w żądaniu, które tworzy organizację** (rejestracja, utworzenie organizacji w panelu): użytkownik czeka na wszystkie hooki, więc wolny hook spowalnia rejestrację. Trzymaj w nim krótkie zapisy startowe; dłuższą pracę zrób później (na przykład przy pierwszym wejściu na stronę modułu).
+- `seed` (dane demonstracyjne albo początkowe) woła tylko `npm run admin:create`, po `organizations.created`, i tylko wtedy, gdy ten przebieg skryptu **utworzył** organizację. Kolejny admin dołączany do istniejącej organizacji (na przykład produkcyjnej) i ponowne uruchomienie skryptu nie wołają `seed`. `seed` nie zapisuje wiersza.
+- **Oba hooki muszą być idempotentne**: hook może przerwać się w połowie i uruchomić ponownie (`setup:organizations` powtarza `onOrganizationCreated` bez wiersza). Używaj `upsert` po unikalnym kluczu zadeklarowanym w schemacie (`@@unique([organizationId, name])`, jak w przykładzie) albo sprawdzenia przed zapisem (jak `seed` w przykładzie). `createMany({ skipDuplicates: true })` jest idempotentne tylko wtedy, gdy dane powtarzają wartość unikalnego klucza: przy samym generowanym `id` (`cuid()`) każde uruchomienie dopisze nowe wiersze.
 - **Błędy nie przerywają tworzenia organizacji.** Hook, który rzuci błąd, albo nieudany zapis wiersza trafia do logu (`Organization setup failed` z `organizationId`, `module` i `hook`), wiersz nie powstaje, a hooki pozostałych modułów i tak się wykonują. Nie ma ponowień ([ADR-61](adrs/61-domain-events-run-subscribers-after-success.md)): organizację bez wiersza naprawia `npm run setup:organizations`.
 - Hook dostaje tylko `{ organizationId }`, bez sesji, i działa poza akcją serwerową: każde zapytanie filtruje po tym `organizationId`.
 - Po dodaniu albo usunięciu `setup.ts` uruchom `npm run wa -- generate` (lista `moduleSetups` w `src/modules.generated.ts`). Hook modułu wyłączonego w `src/gato.config.ts` się nie wykonuje.
+- **Istniejące organizacje nie dostają hooka same.** Gdy włączysz moduł później (w `src/gato.config.ts`) albo aktualizacja modułu (`wa update`) doda mu `setup.ts`, nic nie przypomni o konfiguracji: uruchom `npm run setup:organizations -- --module <moduł>` po migracji. Podpowiedź wypisuje tylko `wa add`.
 
 Organizacje, które istniały przed dodaniem modułu (albo których hook się nie udał), nie mają wiersza. `npm run setup:organizations` uruchamia brakujące `onOrganizationCreated`, organizacja po organizacji (najstarsze pierwsze):
 
@@ -732,7 +737,7 @@ npm run setup:organizations -- --organization <id> --module notes
 npm run setup:organizations -- --check
 ```
 
-Skrypt wypisuje `ran <organizacja> <moduł>` i `failed <organizacja> <moduł>` (albo `Nothing to set up`) i kończy się kodem 1, gdy coś się nie udało. `--check` niczego nie uruchamia: wypisuje brakujące pary `<organizacja> <moduł>` z kodem 1 albo `All organizations are set up` z kodem 0. Nieznany moduł (bez `onOrganizationCreated` albo wyłączony) i nieznana organizacja kończą się błędem i kodem 1. `wa add` przypomina o tej komendzie dla dodanego modułu z `setup.ts` ([16-cli-wa.md](16-cli-wa.md#add-po)).
+Skrypt wypisuje `ran <organizacja> <moduł>` i `failed <organizacja> <moduł>` (albo `Nothing to set up`) i kończy się kodem 1, gdy coś się nie udało. `--check` niczego nie uruchamia: wypisuje brakujące pary `<organizacja> <moduł>` z kodem 1 albo `All organizations are set up` z kodem 0. Nieznany moduł (bez `onOrganizationCreated` albo wyłączony) i nieznana organizacja kończą się błędem i kodem 1, a pusta wartość (`--organization ""`, `--organization=`, `--module ""`) kończy się błędem `--organization needs a non-empty organization id` albo `--module needs a non-empty module key` z kodem 1, zanim skrypt czegokolwiek dotknie. `wa add` przypomina o tej komendzie dla dodanego modułu z `setup.ts` ([16-cli-wa.md](16-cli-wa.md#add-po)).
 <a id="nadpisanie-komponentu"></a>
 
 ## Nadpisanie komponentu przez uchwyt
