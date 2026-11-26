@@ -9,9 +9,12 @@ export const CLIENT_SAFE_AUTH_MODULES = [
   "@/shared/lib/auth/permissions",
 ] as const;
 
+const GATO_CONFIG_FILE = "src/gato.config.ts";
+
 export const CLIENT_ENTRY_FILES = [
-  "src/gato.config.ts",
+  GATO_CONFIG_FILE,
   "src/shared/lib/modules/gato-config.ts",
+  "src/shared/lib/modules/component-overrides.ts",
 ] as const;
 
 const SERVER_MODULES = [
@@ -34,7 +37,8 @@ const SOURCE_EXTENSION = /\.tsx?$/;
 const SOURCE_ROOT = "src/";
 const ALIAS_ROOT = "@/";
 const LAZY_TARGET_SUFFIXES = ["", ".tsx", ".ts", "/index.tsx", "/index.ts"];
-const FEATURE_CLIENT_SLOTS_FILE = /^src\/features\/[^/]+\/client-slots\.ts$/;
+const FEATURE_LAZY_ENTRY_FILE =
+  /^src\/features\/[^/]+\/(client-slots|components)\.ts$/;
 const SOURCE_FILE = /\.tsx?$/;
 const GENERATED_DIRECTORY = "src/generated/";
 
@@ -195,13 +199,17 @@ export function findServerImportsInClient(source: string): string[] {
 function isClientEntryFile(file: string): boolean {
   return (
     (CLIENT_ENTRY_FILES as readonly string[]).includes(file) ||
-    FEATURE_CLIENT_SLOTS_FILE.test(file)
+    FEATURE_LAZY_ENTRY_FILE.test(file)
   );
+}
+
+function hasLazyClientTargets(file: string): boolean {
+  return file === GATO_CONFIG_FILE || FEATURE_LAZY_ENTRY_FILE.test(file);
 }
 
 function serverImportsOf(root: string, file: string): string[] {
   const sourceFile = parse(readRepoFile(root, file));
-  if (FEATURE_CLIENT_SLOTS_FILE.test(file)) {
+  if (hasLazyClientTargets(file)) {
     return [
       ...serverImportsOfFile(sourceFile, file),
       ...lazyTargetsWithoutDirective(root, file, sourceFile),

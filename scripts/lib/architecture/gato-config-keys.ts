@@ -8,6 +8,10 @@ import {
   type ModuleEntry,
 } from "../../../src/shared/lib/modules/gato-config";
 import {
+  componentConfigProblems,
+  type ComponentsModule,
+} from "../../../src/shared/lib/modules/component-overrides";
+import {
   slotConfigProblems,
   type ClientSlotModule,
   type SlotModule,
@@ -101,6 +105,10 @@ export async function findGatoConfigKeyProblems(
   return [
     ...gatoConfigProblems(await loadFeatureModules(root), config),
     ...slotConfigProblems(await loadSlotInput(root), config),
+    ...componentConfigProblems(
+      await loadEntries<ComponentsModule>(root, "components.ts"),
+      config,
+    ),
   ];
 }
 
