@@ -609,6 +609,41 @@ Bez `INTEGRATION_DATABASE_URL` komenda integracyjna łączy się z `postgresql:/
 
 Przed implementacją oba przebiegi są czerwone z powodu `TypeError: … is not a function`. Komenda integracyjna wypisuje na początku linię `Datasource "db": PostgreSQL database "<baza>", schema "public" at "<host>:<port>"` (w przebiegu `wa_app_tutorial_test` i `localhost:5439`): sprawdź w niej nazwę bazy i port. Bazę testową zakłada `globalSetup`, gdy jej nie ma.
 
+<a id="wklad-do-slotu"></a>
+
+## Wkład do slotu UI
+
+Strony GatoJS mają sloty: miejsca, w które moduł projektu wstawia własny komponent bez edycji pliku GatoJS ([ADR-66](adrs/66-ui-slots-split-server-and-client-contributions.md)). Pierwsze trzy to sloty serwerowe:
+
+| Slot | Gdzie | Kontekst (propsy komponentu) | Konfiguracja w `src/gato.config.ts` |
+| --- | --- | --- | --- |
+| `dashboard.sections` | strona `/dashboard` pod nagłówkiem; bez wkładów widać kartę powitalną | `{ organizationId }` | `modules.dashboard.slots` |
+| `app.header.actions` | wiersz z przełącznikiem organizacji nad treścią każdej strony aplikacji | `{ organizationId }` | `modules.app.slots` |
+| `account.sections` | strona `/account` pod formularzem zmiany hasła | `{ userId }` | `modules.account.slots` |
+
+Wkład do slotu serwerowego zapisujesz w `src/features/<x>/slots.ts`. Szkielet `notes` w repozytorium kitu ma taki plik (`packages/gato-cli/src/__tests__/fixtures/project-module/src/features/notes/slots.ts`):
+
+```ts
+import { defineContribution } from "@/shared/lib/modules/slots";
+
+export const slots = [
+  defineContribution("dashboard.sections", {
+    id: "notes.summary-card",
+    priority: 10,
+    component: () => import("./components/notes-summary-card"),
+  }),
+];
+```
+
+- `id` zaczyna się od klucza modułu i kropki; dwa wkłady o tym samym `id`, wkład do nieznanego slotu albo `id` bez przedrostka kończą import rejestru błędem `SlotError`, który wymienia moduły.
+- Wkłady jednego slotu stoją według `priority` rosnąco, a przy równych według `id`.
+- `roles: ["owner", "admin"]` ukrywa wkład przed pozostałymi rolami w organizacji (admin i superadmin globalny widzą go zawsze). Wkład modułu, do którego użytkownik nie ma dostępu (`roles`, `adminOnly` w `module.ts`), albo modułu wyłączonego w `src/gato.config.ts` też się nie pokaże. To ukrywanie interfejsu, nie zabezpieczenie: komponent, który czyta dane, woła query zaczynające się od `getOrgContext()`.
+- Komponent dostaje kontekst slotu jako propsy, a TypeScript sprawdza je z typem slotu. W `slots.ts` może to być asynchroniczny komponent serwerowy, bo plik trafia tylko do rejestru serwerowego. Wkłady do slotów klienckich (pierwsze przyjdą z tabelą użytkowników) idą do `client-slots.ts` (eksport `clientSlots`), który trafia do paczki przeglądarki, więc nie może importować kodu serwerowego.
+- Po dodaniu albo usunięciu `slots.ts` lub `client-slots.ts` uruchom `npm run wa -- generate`.
+- Ukrycie wkładu w projekcie: `modules: { dashboard: { slots: { "dashboard.sections": { "notes.summary-card": null } } } }`, a zmiana kolejności: `{ priority: 5 }` zamiast `null`.
+
+Własny slot na stronie swojego modułu deklaruje moduł w swoim `slots.ts` (`export const slotDefinitions = [defineSlot("<x>.<nazwa>", { kind: "server" })]` i typ kontekstu w `declare module "@/shared/lib/modules/slots" { interface SlotContextMap { … } }`, jak `src/features/dashboard/slots.ts`), a strona renderuje `<Slot id="<x>.<nazwa>" context={…} viewer={…} />` z `src/shared/components/slot.tsx`.
+
 <a id="dalej"></a>
 
 ## Dalej

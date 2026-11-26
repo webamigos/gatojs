@@ -41,3 +41,4 @@ An ADR is not edited after it is accepted, except to fix a mistake or to add "Su
 | [61](61-domain-events-run-subscribers-after-success.md) | Domain events carry the organization of their origin and run subscribers one at a time after the operation succeeded | Accepted |
 | [64](64-production-mail-needs-a-configured-provider-or-explicit-console.md) | Production mail needs a configured provider or an explicit `console`, not Resend specifically | Accepted (supersedes the production `RESEND_API_KEY` rule of D17 and the note in D18) |
 | [65](65-the-self-hosted-stack-is-a-core-compose-file-with-module-regions.md) | The self-hosted stack is a core Compose file with module regions, and it has no mail relay | Accepted |
+| [66](66-ui-slots-split-server-and-client-contributions.md) | UI slots keep server contributions out of the client registry, and core-hosted slots are configured under `modules.app` | Accepted |
