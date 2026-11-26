@@ -6,6 +6,7 @@ export const MODULE_GUARD_SOURCES: Readonly<Record<string, string>> = {
   requireModuleAccess: "@/shared/lib/auth/require-module-access",
   requireModuleEnabled: "@/shared/lib/modules/require-module-enabled",
   isModuleEnabled: "@/shared/lib/modules/require-module-enabled",
+  runCommand: "@/shared/lib/commands/run-command",
 };
 
 export const MODULE_GUARDS: readonly string[] =
@@ -25,6 +26,10 @@ const AWAITED_GUARDS: readonly string[] = ["requireModuleAccess"];
 
 const EXPORT_ALL = "*";
 const IS_MODULE_ENABLED = "isModuleEnabled";
+const RUN_COMMAND = "runCommand";
+const DEFINE_COMMAND = "defineCommand";
+const DEFINE_COMMAND_SOURCE = "@/shared/lib/commands/define-command";
+const MODULE_PROPERTY = "module";
 const PRISMA = "prisma";
 const PRISMA_SOURCE = "@/shared/lib/prisma";
 const ERROR_HANDLER = "handleCommandError";
@@ -75,6 +80,8 @@ interface FileFacts {
   errorHandlers: Set<string>;
   constants: Map<string, string>;
   functions: Map<string, LocalFunction>;
+  commandDefiners: Set<string>;
+  commands: Map<string, ts.CallExpression>;
 }
 
 interface Scope {
@@ -194,6 +201,34 @@ function localFunctions(sourceFile: ts.SourceFile): Map<string, LocalFunction> {
   return functions;
 }
 
+function commandDefinitions(
+  sourceFile: ts.SourceFile,
+  definers: ReadonlySet<string>,
+): Map<string, ts.CallExpression> {
+  const commands = new Map<string, ts.CallExpression>();
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isVariableStatement(statement) ||
+      (statement.declarationList.flags & ts.NodeFlags.Const) === 0
+    ) {
+      continue;
+    }
+    for (const declaration of statement.declarationList.declarations) {
+      const initializer = declaration.initializer;
+      if (
+        ts.isIdentifier(declaration.name) &&
+        initializer !== undefined &&
+        ts.isCallExpression(initializer) &&
+        ts.isIdentifier(initializer.expression) &&
+        definers.has(initializer.expression.text)
+      ) {
+        commands.set(declaration.name.text, initializer);
+      }
+    }
+  }
+  return commands;
+}
+
 function fileFacts(
   sourceFile: ts.SourceFile,
   owner: string | undefined,
@@ -205,6 +240,8 @@ function fileFacts(
     errorHandlers: new Set(),
     constants: stringConstants(sourceFile),
     functions: localFunctions(sourceFile),
+    commandDefiners: new Set(),
+    commands: new Map(),
   };
   for (const { source, imported, local } of sourceFile.statements.flatMap(
     namedImports,
@@ -218,7 +255,11 @@ function fileFacts(
     if (source === ERROR_HANDLER_SOURCE && imported === ERROR_HANDLER) {
       facts.errorHandlers.add(local);
     }
+    if (source === DEFINE_COMMAND_SOURCE && imported === DEFINE_COMMAND) {
+      facts.commandDefiners.add(local);
+    }
   }
+  facts.commands = commandDefinitions(sourceFile, facts.commandDefiners);
   return facts;
 }
 
@@ -316,6 +357,68 @@ function literalValue(
 function namesOwner(call: ts.CallExpression, facts: FileFacts): boolean {
   const key = literalValue(call.arguments[0], facts.constants);
   return key !== undefined && key === facts.owner;
+}
+
+function propertyName(name: ts.PropertyName): string | undefined {
+  return ts.isIdentifier(name) || ts.isStringLiteral(name)
+    ? name.text
+    : undefined;
+}
+
+function commandModule(
+  definition: ts.CallExpression,
+  facts: FileFacts,
+): string | undefined {
+  const options = definition.arguments[0];
+  if (options === undefined || !ts.isObjectLiteralExpression(options)) {
+    return undefined;
+  }
+  const property = options.properties.find(
+    (candidate): candidate is ts.PropertyAssignment =>
+      ts.isPropertyAssignment(candidate) &&
+      propertyName(candidate.name) === MODULE_PROPERTY,
+  );
+  return property === undefined
+    ? undefined
+    : literalValue(property.initializer, facts.constants);
+}
+
+function runsOwnCommand(call: ts.CallExpression, facts: FileFacts): boolean {
+  const command = call.arguments[0];
+  const definition =
+    command !== undefined && ts.isIdentifier(command)
+      ? facts.commands.get(command.text)
+      : undefined;
+  return (
+    definition !== undefined &&
+    facts.owner !== undefined &&
+    commandModule(definition, facts) === facts.owner
+  );
+}
+
+function isReturnedDirectly(call: ts.CallExpression): boolean {
+  const value = ts.isAwaitExpression(call.parent) ? call.parent : call;
+  const parent = value.parent;
+  return (
+    ts.isReturnStatement(parent) ||
+    (ts.isArrowFunction(parent) && parent.body === value)
+  );
+}
+
+function runCommandEvent(
+  call: ts.CallExpression,
+  scope: Scope,
+): EventKind | undefined {
+  if (
+    !scope.returnExits ||
+    !runsOwnCommand(call, scope.facts) ||
+    !isReturnedDirectly(call)
+  ) {
+    return undefined;
+  }
+  return call.arguments.some((argument) => touchesPrisma(argument, scope))
+    ? "prisma"
+    : guardEvent(call, scope, []);
 }
 
 function exits(statement: ts.Statement, returnExits: boolean): boolean {
@@ -439,6 +542,9 @@ function guardCallEvent(
   guard: string,
   scope: Scope,
 ): EventKind | undefined {
+  if (guard === RUN_COMMAND) {
+    return runCommandEvent(call, scope);
+  }
   if (
     !namesOwner(call, scope.facts) ||
     !isSettled(call, AWAITED_GUARDS.includes(guard))
