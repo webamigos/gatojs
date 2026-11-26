@@ -44,6 +44,7 @@ export interface ModuleDef {
   apiScopes?: ModuleApiScope[];
   uploadPurposes?: ModuleUploadPurpose[];
   permissions?: Record<string, ModulePermission>;
+  commands?: readonly string[];
 }
 
 export function defineModule<T extends ModuleDef>(definition: T): T {

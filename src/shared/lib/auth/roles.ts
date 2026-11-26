@@ -14,10 +14,14 @@ export const ORG_ROLES = {
 
 export type OrgRole = (typeof ORG_ROLES)[keyof typeof ORG_ROLES];
 
-const ORG_ROLE_VALUES: readonly string[] = Object.values(ORG_ROLES);
+const ORG_ROLE_VALUES: readonly unknown[] = Object.values(ORG_ROLES);
+
+export function isOrgRole(value: unknown): value is OrgRole {
+  return ORG_ROLE_VALUES.includes(value);
+}
 
 export function toOrgRole(role: string): OrgRole {
-  return ORG_ROLE_VALUES.includes(role) ? (role as OrgRole) : ORG_ROLES.MEMBER;
+  return isOrgRole(role) ? role : ORG_ROLES.MEMBER;
 }
 
 const USER_ROLE_VALUES: readonly unknown[] = Object.values(USER_ROLES);

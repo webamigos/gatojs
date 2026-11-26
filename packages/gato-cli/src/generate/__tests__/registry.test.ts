@@ -28,6 +28,7 @@ const base = {
   hasSubscribers: false,
   hasSlots: false,
   hasClientSlots: false,
+  hasCommandHooks: false,
   locales: [],
 };
 
@@ -46,6 +47,7 @@ describe("renderRegistry", () => {
           hasSubscribers: false,
           hasSlots: false,
           hasClientSlots: false,
+          hasCommandHooks: false,
           locales: ["pl", "en"],
         },
       ],
@@ -157,6 +159,7 @@ describe("renderRegistry", () => {
     hasSubscribers: false,
     hasSlots: false,
     hasClientSlots: false,
+    hasCommandHooks: false,
     locales: ["pl", "en"],
   };
 
@@ -169,6 +172,7 @@ describe("renderRegistry", () => {
         'import { createEnv } from "@gatojs/env";',
         'import { applyGatoConfig, enabledEntries } from "@/shared/lib/modules/gato-config";',
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         'import demoModule from "@/features/demo/module";',
         'import { envSchema as demoEnvSchema } from "@/features/demo/env";',
         'import { authPlugin as demoAuthPlugin } from "@/features/demo/auth";',
@@ -179,6 +183,7 @@ describe("renderRegistry", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [demoModule], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -231,6 +236,7 @@ describe("renderRegistry", () => {
           hasSubscribers: false,
           hasSlots: false,
           hasClientSlots: false,
+          hasCommandHooks: false,
           locales: [],
         },
       ],
@@ -278,6 +284,7 @@ describe("renderRegistry", () => {
         'import { createEnv } from "@gatojs/env";',
         BOTH_HELPERS_IMPORT,
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         'import demoModule from "@/features/demo/module";',
         'import { envSchema as demoEnvSchema } from "@/features/demo/env";',
         'import { authPlugin as demoAuthPlugin } from "@/features/demo/auth";',
@@ -288,6 +295,7 @@ describe("renderRegistry", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [demoModule], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -443,6 +451,7 @@ describe("renderRegistry: env binding from @gatojs/env", () => {
         'import type { Locale } from "@/i18n/config";',
         'import { createEnv } from "@gatojs/env";',
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         "",
         "export const modules: never[] = [];",
         "export const moduleEnvSchemas: never[] = [];",
@@ -450,6 +459,7 @@ describe("renderRegistry: env binding from @gatojs/env", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -463,7 +473,7 @@ describe("renderRegistry: env binding from @gatojs/env", () => {
     );
   });
 
-  it("with an env module the createEnv import follows the Locale import and env follows moduleSlots", () => {
+  it("with an env module the createEnv import follows the Locale import and env follows moduleCommandHooks and moduleSlots", () => {
     const lines = renderRegistry(
       [
         {
@@ -476,6 +486,7 @@ describe("renderRegistry: env binding from @gatojs/env", () => {
           hasSubscribers: false,
           hasSlots: false,
           hasClientSlots: false,
+          hasCommandHooks: false,
         },
       ],
       BOTH,
@@ -490,13 +501,14 @@ describe("renderRegistry: env binding from @gatojs/env", () => {
       "export const modules = applyGatoConfig([demoModule], gatoConfig);",
     );
 
-    expect(lines.slice(modulesLine, modulesLine + 9)).toEqual([
+    expect(lines.slice(modulesLine, modulesLine + 10)).toEqual([
       "export const modules = applyGatoConfig([demoModule], gatoConfig);",
       'export const moduleEnvSchemas = enabledEntries([{ module: "demo", value: demoEnvSchema }], gatoConfig);',
       "export const authPlugins: never[] = [];",
       'export const auditSinks = enabledEntries([{ module: "demo", value: demoAuditSink }], gatoConfig);',
       "export const moduleEvents: never[] = [];",
       "export const moduleSubscribers: never[] = [];",
+      "export const moduleCommandHooks = commandHookRegistry({ modules: [demoModule], hooks: [] }, gatoConfig);",
       "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
       "export const env = createEnv(moduleEnvSchemas);",
       "",
@@ -543,6 +555,7 @@ describe("renderRegistry: gato.config", () => {
     hasSubscribers: false,
     hasSlots: false,
     hasClientSlots: false,
+    hasCommandHooks: false,
     locales: ["pl", "en"],
   };
 
@@ -557,6 +570,7 @@ describe("renderRegistry: gato.config", () => {
         'import { createEnv } from "@gatojs/env";',
         'import { applyGatoConfig, enabledEntries } from "@/shared/lib/modules/gato-config";',
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         'import demoModule from "@/features/demo/module";',
         'import { envSchema as demoEnvSchema } from "@/features/demo/env";',
         'import { authPlugin as demoAuthPlugin } from "@/features/demo/auth";',
@@ -568,6 +582,7 @@ describe("renderRegistry: gato.config", () => {
         'export const auditSinks = enabledEntries([{ module: "demo", value: demoAuditSink }], gatoConfig);',
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [demoModule], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -597,6 +612,7 @@ describe("renderRegistry: gato.config", () => {
         'import { createEnv } from "@gatojs/env";',
         'import { applyGatoConfig, enabledEntries } from "@/shared/lib/modules/gato-config";',
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         'import demoModule from "@/features/demo/module";',
         'import { envSchema as demoEnvSchema } from "@/features/demo/env";',
         'import { authPlugin as demoAuthPlugin } from "@/features/demo/auth";',
@@ -608,6 +624,7 @@ describe("renderRegistry: gato.config", () => {
         'export const auditSinks = enabledEntries([{ module: "demo", value: demoAuditSink }], gatoConfig);',
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [demoModule], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -696,6 +713,7 @@ describe("renderRegistry: gato.config", () => {
         'import type { Locale } from "@/i18n/config";',
         'import { createEnv } from "@gatojs/env";',
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         "",
         "export const modules: never[] = [];",
         "export const moduleEnvSchemas: never[] = [];",
@@ -703,6 +721,7 @@ describe("renderRegistry: gato.config", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -762,6 +781,7 @@ describe("renderRegistry: gato.config", () => {
         'import { createEnv } from "@gatojs/env";',
         'import { enabledEntries } from "@/shared/lib/modules/gato-config";',
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         "",
         "export const modules: never[] = [];",
         "export const moduleEnvSchemas: never[] = [];",
@@ -769,6 +789,7 @@ describe("renderRegistry: gato.config", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -804,13 +825,14 @@ describe("renderRegistry: gato.config", () => {
       ["pl"],
       { hasGatoConfig: true },
     );
-    expect(server.split("\n").slice(0, 8)).toEqual([
+    expect(server.split("\n").slice(0, 9)).toEqual([
       HEADER,
       CONFIG_IMPORT,
       'import type { Locale } from "@/i18n/config";',
       'import { createEnv } from "@gatojs/env";',
       'import { applyGatoConfig } from "@/shared/lib/modules/gato-config";',
       'import { slotRegistry } from "@/shared/lib/modules/slots";',
+      'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
       'import alphaModule from "@/features/alpha/module";',
       "",
     ]);
@@ -870,6 +892,7 @@ describe("renderRegistry: gato.config", () => {
         'import { createEnv } from "@gatojs/env";',
         'import { applyGatoConfig, enabledEntries } from "@/shared/lib/modules/gato-config";',
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         'import alphaModule from "@/features/alpha/module";',
         'import { authPlugin as alphaAuthPlugin } from "@/features/alpha/auth";',
         "",
@@ -879,6 +902,7 @@ describe("renderRegistry: gato.config", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [alphaModule], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -907,6 +931,7 @@ describe("renderRegistry: gato.config", () => {
         'import { createEnv } from "@gatojs/env";',
         'import { applyGatoConfig, enabledEntries } from "@/shared/lib/modules/gato-config";',
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         'import alphaModule from "@/features/alpha/module";',
         'import { auditSink as alphaAuditSink } from "@/features/alpha/audit-sink";',
         "",
@@ -916,6 +941,7 @@ describe("renderRegistry: gato.config", () => {
         'export const auditSinks = enabledEntries([{ module: "alpha", value: alphaAuditSink }], gatoConfig);',
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [alphaModule], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -942,6 +968,7 @@ describe("renderRegistry: gato.config", () => {
         'import { createEnv } from "@gatojs/env";',
         'import { enabledEntries } from "@/shared/lib/modules/gato-config";',
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         "",
         "export const modules: never[] = [];",
         "export const moduleEnvSchemas: never[] = [];",
@@ -949,6 +976,7 @@ describe("renderRegistry: gato.config", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -1082,6 +1110,7 @@ describe("renderRegistry: gatoBranding in the client file", () => {
     hasSubscribers: false,
     hasSlots: false,
     hasClientSlots: false,
+    hasCommandHooks: false,
     locales: ["pl", "en"],
   };
 
@@ -1143,6 +1172,7 @@ describe("renderRegistry: gatoBranding in the client file", () => {
         hasSubscribers: fc.boolean(),
         hasSlots: fc.boolean(),
         hasClientSlots: fc.boolean(),
+        hasCommandHooks: fc.boolean(),
         locales: fc.constant<string[]>([]),
       }),
       { maxLength: 4 },
@@ -1188,6 +1218,7 @@ describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
         'import { createEnv } from "@gatojs/env";',
         SERVER_HELPERS_WITH_EVENTS_IMPORT,
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         'import invoicesModule from "@/features/invoices/module";',
         'import { auditSink as invoicesAuditSink } from "@/features/invoices/audit-sink";',
         'import { events as invoicesEvents } from "@/features/invoices/events";',
@@ -1199,6 +1230,7 @@ describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
         'export const auditSinks = enabledEntries([{ module: "invoices", value: invoicesAuditSink }], gatoConfig);',
         'export const moduleEvents = [{ module: "invoices", value: invoicesEvents }];',
         'export const moduleSubscribers = enabledModuleEntries([{ module: "invoices", value: invoicesSubscribers }], gatoConfig);',
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [invoicesModule], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -1224,6 +1256,7 @@ describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
         'import type { Locale } from "@/i18n/config";',
         'import { createEnv } from "@gatojs/env";',
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         'import { events as alphaEvents } from "@/features/alpha/events";',
         "",
         "export const modules: never[] = [];",
@@ -1232,6 +1265,7 @@ describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
         "export const auditSinks: never[] = [];",
         'export const moduleEvents = [{ module: "alpha", value: alphaEvents }];',
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -1260,6 +1294,7 @@ describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
         'import { createEnv } from "@gatojs/env";',
         'import { enabledModuleEntries } from "@/shared/lib/modules/gato-config";',
         'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         'import { subscribers as betaSubscribers } from "@/features/beta/subscribers";',
         "",
         "export const modules: never[] = [];",
@@ -1268,6 +1303,7 @@ describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         'export const moduleSubscribers = enabledModuleEntries([{ module: "beta", value: betaSubscribers }], gatoConfig);',
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -1438,13 +1474,14 @@ describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
         hasSubscribers: fc.boolean(),
         hasSlots: fc.boolean(),
         hasClientSlots: fc.boolean(),
+        hasCommandHooks: fc.boolean(),
         locales: fc.constant<string[]>([]),
       }),
       { maxLength: 4 },
     ),
     fc.boolean(),
   ])(
-    "every server file declares moduleEvents, moduleSubscribers and moduleSlots once, between auditSinks and env",
+    "every server file declares moduleEvents, moduleSubscribers, moduleCommandHooks and moduleSlots once, between auditSinks and env",
     (modules, hasGatoConfig) => {
       const lines = renderRegistry(modules, BOTH, {
         hasGatoConfig,
@@ -1456,8 +1493,11 @@ describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
       expect(lines[auditSinksAt + 2]).toMatch(
         /^export const moduleSubscribers\b/,
       );
-      expect(lines[auditSinksAt + 3]).toMatch(/^export const moduleSlots\b/);
-      expect(lines[auditSinksAt + 4]).toBe(
+      expect(lines[auditSinksAt + 3]).toMatch(
+        /^export const moduleCommandHooks\b/,
+      );
+      expect(lines[auditSinksAt + 4]).toMatch(/^export const moduleSlots\b/);
+      expect(lines[auditSinksAt + 5]).toBe(
         "export const env = createEnv(moduleEnvSchemas);",
       );
       expect(
@@ -1501,6 +1541,7 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
         'import { createEnv } from "@gatojs/env";',
         'import { applyGatoConfig, enabledModuleEntries } from "@/shared/lib/modules/gato-config";',
         SLOT_REGISTRY_IMPORT,
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         'import invoicesModule from "@/features/invoices/module";',
         'import { subscribers as invoicesSubscribers } from "@/features/invoices/subscribers";',
         'import * as invoicesSlots from "@/features/invoices/slots";',
@@ -1512,6 +1553,7 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         'export const moduleSubscribers = enabledModuleEntries([{ module: "invoices", value: invoicesSubscribers }], gatoConfig);',
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [invoicesModule], hooks: [] }, gatoConfig);",
         'export const moduleSlots = slotRegistry({ slots: [{ module: "invoices", value: invoicesSlots }], clientSlots: [{ module: "invoices", value: invoicesClientSlots }] }, gatoConfig);',
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -1558,6 +1600,7 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
         'import type { Locale } from "@/i18n/config";',
         'import { createEnv } from "@gatojs/env";',
         SLOT_REGISTRY_IMPORT,
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
         'import * as alphaSlots from "@/features/alpha/slots";',
         "",
         "export const modules: never[] = [];",
@@ -1566,6 +1609,7 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
         "export const auditSinks: never[] = [];",
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
         'export const moduleSlots = slotRegistry({ slots: [{ module: "alpha", value: alphaSlots }], clientSlots: [] }, gatoConfig);',
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -1762,13 +1806,14 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
         hasSubscribers: fc.boolean(),
         hasSlots: fc.boolean(),
         hasClientSlots: fc.boolean(),
+        hasCommandHooks: fc.boolean(),
         locales: fc.constant<string[]>([]),
       }),
       { maxLength: 4 },
     ),
     fc.boolean(),
   ])(
-    "every pair of files declares moduleSlots right after moduleSubscribers and clientModuleSlots right after clientModules, and imports the config on line 2",
+    "every pair of files declares moduleSlots right after moduleCommandHooks and clientModuleSlots right after clientModules, and imports the config on line 2",
     (modules, hasGatoConfig) => {
       const { server, client } = renderRegistry(modules, BOTH, {
         hasGatoConfig,
@@ -1782,6 +1827,9 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
         line.startsWith("export const moduleSubscribers"),
       );
       expect(serverLines[subscribersAt + 1]).toMatch(
+        /^export const moduleCommandHooks = commandHookRegistry\(\{ modules: \[.*\], hooks: \[.*\] \}, gatoConfig\);$/,
+      );
+      expect(serverLines[subscribersAt + 2]).toMatch(
         /^export const moduleSlots = slotRegistry\(\{ slots: \[.*\], clientSlots: \[.*\] \}, gatoConfig\);$/,
       );
       expect(
@@ -1797,6 +1845,316 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
       );
       expect(clientLines[clientModulesAt + 2]).toBe(BRANDING_EXPORT);
       expect(clientLines[3]).toBe(CLIENT_SLOT_REGISTRY_IMPORT);
+    },
+  );
+});
+
+describe("renderRegistry: moduleCommandHooks", () => {
+  const COMMAND_HOOK_REGISTRY_IMPORT =
+    'import { commandHookRegistry } from "@/shared/lib/commands/define-command";';
+  const EMPTY_COMMAND_HOOKS =
+    "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);";
+
+  it("a module with module.ts and command-hooks.ts gets the hooks import after the module imports and enters both lists of moduleCommandHooks", () => {
+    expect(
+      renderRegistry(
+        [
+          {
+            name: "invoices",
+            ...base,
+            hasModuleTs: true,
+            hasCommandHooks: true,
+          },
+        ],
+        ["pl"],
+        { hasGatoConfig: true },
+      ).server,
+    ).toBe(
+      [
+        HEADER,
+        CONFIG_IMPORT,
+        'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
+        'import { applyGatoConfig } from "@/shared/lib/modules/gato-config";',
+        'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        COMMAND_HOOK_REGISTRY_IMPORT,
+        'import invoicesModule from "@/features/invoices/module";',
+        'import { commandHooks as invoicesCommandHooks } from "@/features/invoices/command-hooks";',
+        "",
+        "export const modules = applyGatoConfig([invoicesModule], gatoConfig);",
+        "export const moduleEnvSchemas: never[] = [];",
+        "export const authPlugins: never[] = [];",
+        "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
+        'export const moduleCommandHooks = commandHookRegistry({ modules: [invoicesModule], hooks: [{ module: "invoices", value: invoicesCommandHooks }] }, gatoConfig);',
+        "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
+        "export const env = createEnv(moduleEnvSchemas);",
+        "",
+        "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
+        "",
+        "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
+        "  pl: [],",
+        "};",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("a module with only command-hooks.ts enters hooks but not modules and imports no config helper", () => {
+    expect(
+      renderRegistry(
+        [{ name: "alpha", ...base, hasCommandHooks: true }],
+        ["pl"],
+        { hasGatoConfig: false },
+      ).server,
+    ).toBe(
+      [
+        HEADER,
+        EMPTY_CONFIG_IMPORT,
+        'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
+        'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        COMMAND_HOOK_REGISTRY_IMPORT,
+        'import { commandHooks as alphaCommandHooks } from "@/features/alpha/command-hooks";',
+        "",
+        "export const modules: never[] = [];",
+        "export const moduleEnvSchemas: never[] = [];",
+        "export const authPlugins: never[] = [];",
+        "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
+        'export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [{ module: "alpha", value: alphaCommandHooks }] }, gatoConfig);',
+        "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
+        "export const env = createEnv(moduleEnvSchemas);",
+        "",
+        "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
+        "",
+        "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
+        "  pl: [],",
+        "};",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("with no modules moduleCommandHooks is still emitted with two empty lists", () => {
+    const lines = renderRegistry([], ["pl"]).server.split("\n");
+    expect(lines).toContain(COMMAND_HOOK_REGISTRY_IMPORT);
+    expect(lines).toContain(EMPTY_COMMAND_HOOKS);
+  });
+
+  it("a module with module.ts and no command-hooks.ts enters modules but leaves hooks empty and imports no hooks file", () => {
+    const { server } = renderRegistry(
+      [{ name: "alpha", ...base, hasModuleTs: true, hasSubscribers: true }],
+      ["pl"],
+    );
+    expect(server.split("\n")).toContain(
+      "export const moduleCommandHooks = commandHookRegistry({ modules: [alphaModule], hooks: [] }, gatoConfig);",
+    );
+    expect(server).not.toContain("command-hooks");
+    expect(server).not.toContain("alphaCommandHooks");
+  });
+
+  it("modules lists every module.ts identifier in input order and hooks only the modules with command-hooks.ts", () => {
+    const { server } = renderRegistry(
+      [
+        { name: "zeta", ...base, hasModuleTs: true, hasCommandHooks: true },
+        { name: "mid", ...base, hasModuleTs: true },
+        { name: "alpha", ...base, hasCommandHooks: true },
+        { name: "beta", ...base, hasModuleTs: true, hasCommandHooks: true },
+      ],
+      ["pl"],
+      { hasGatoConfig: true },
+    );
+    const lines = server.split("\n");
+    expect(lines).toContain(
+      'export const moduleCommandHooks = commandHookRegistry({ modules: [zetaModule, midModule, betaModule], hooks: [{ module: "zeta", value: zetaCommandHooks }, { module: "alpha", value: alphaCommandHooks }, { module: "beta", value: betaCommandHooks }] }, gatoConfig);',
+    );
+    const zetaAt = lines.indexOf(
+      'import { commandHooks as zetaCommandHooks } from "@/features/zeta/command-hooks";',
+    );
+    expect(zetaAt).toBeGreaterThan(0);
+    expect(lines.slice(zetaAt, zetaAt + 4)).toEqual([
+      'import { commandHooks as zetaCommandHooks } from "@/features/zeta/command-hooks";',
+      'import { commandHooks as alphaCommandHooks } from "@/features/alpha/command-hooks";',
+      'import { commandHooks as betaCommandHooks } from "@/features/beta/command-hooks";',
+      "",
+    ]);
+    expect(server).not.toContain("@/features/mid/command-hooks");
+  });
+
+  it("the command hooks imports follow the subscribers imports and precede the slot imports", () => {
+    const lines = renderRegistry(
+      [
+        {
+          name: "alpha",
+          ...base,
+          hasEvents: true,
+          hasSubscribers: true,
+          hasCommandHooks: true,
+          hasSlots: true,
+          hasClientSlots: true,
+        },
+      ],
+      ["pl"],
+    ).server.split("\n");
+    const eventsAt = lines.indexOf(
+      'import { events as alphaEvents } from "@/features/alpha/events";',
+    );
+    expect(lines.slice(eventsAt, eventsAt + 6)).toEqual([
+      'import { events as alphaEvents } from "@/features/alpha/events";',
+      'import { subscribers as alphaSubscribers } from "@/features/alpha/subscribers";',
+      'import { commandHooks as alphaCommandHooks } from "@/features/alpha/command-hooks";',
+      'import * as alphaSlots from "@/features/alpha/slots";',
+      'import * as alphaClientSlots from "@/features/alpha/client-slots";',
+      "",
+    ]);
+  });
+
+  it("the commandHookRegistry import sits right after the slotRegistry import, whatever the helper import", () => {
+    const lines = renderRegistry(
+      [
+        {
+          name: "alpha",
+          ...base,
+          hasModuleTs: true,
+          hasEnv: true,
+          hasSubscribers: true,
+          hasCommandHooks: true,
+        },
+      ],
+      BOTH,
+    ).server.split("\n");
+    expect(lines.slice(4, 8)).toEqual([
+      'import { applyGatoConfig, enabledEntries, enabledModuleEntries } from "@/shared/lib/modules/gato-config";',
+      'import { slotRegistry } from "@/shared/lib/modules/slots";',
+      COMMAND_HOOK_REGISTRY_IMPORT,
+      'import alphaModule from "@/features/alpha/module";',
+    ]);
+  });
+
+  it("a hyphenated module name gives a camelCase identifier and keeps the raw key", () => {
+    const lines = renderRegistry(
+      [
+        {
+          name: "my-feature",
+          ...base,
+          hasModuleTs: true,
+          hasCommandHooks: true,
+        },
+      ],
+      ["pl"],
+    ).server.split("\n");
+    expect(lines).toContain(
+      'import { commandHooks as myFeatureCommandHooks } from "@/features/my-feature/command-hooks";',
+    );
+    expect(lines).toContain(
+      'export const moduleCommandHooks = commandHookRegistry({ modules: [myFeatureModule], hooks: [{ module: "my-feature", value: myFeatureCommandHooks }] }, gatoConfig);',
+    );
+  });
+
+  it("the server file imports commandHookRegistry once, from define-command, and never run-command", () => {
+    const { server } = renderRegistry(
+      [
+        { name: "alpha", ...base, hasModuleTs: true, hasCommandHooks: true },
+        { name: "beta", ...base, hasModuleTs: true, hasCommandHooks: true },
+      ],
+      BOTH,
+    );
+    expect(
+      server
+        .split("\n")
+        .filter((line) => line.includes("@/shared/lib/commands")),
+    ).toEqual([COMMAND_HOOK_REGISTRY_IMPORT]);
+    expect(server).not.toContain("run-command");
+    expect(
+      server
+        .split("\n")
+        .filter((line) => line.startsWith("export const moduleCommandHooks")),
+    ).toHaveLength(1);
+  });
+
+  it("the client file says nothing about command hooks", () => {
+    const withHooks = renderRegistry(
+      [
+        {
+          name: "invoices",
+          ...base,
+          hasModuleTs: true,
+          hasAuthClient: true,
+          hasCommandHooks: true,
+        },
+      ],
+      BOTH,
+      { hasGatoConfig: true },
+    ).client;
+    const withoutHooks = renderRegistry(
+      [
+        {
+          name: "invoices",
+          ...base,
+          hasModuleTs: true,
+          hasAuthClient: true,
+        },
+      ],
+      BOTH,
+      { hasGatoConfig: true },
+    ).client;
+    expect(withHooks).toBe(withoutHooks);
+    expect(withHooks).not.toContain("command-hooks");
+    expect(withHooks).not.toContain("CommandHooks");
+    expect(withHooks).not.toContain("commandHookRegistry");
+    expect(withHooks).not.toContain("@/shared/lib/commands");
+  });
+
+  test.prop([
+    fc.uniqueArray(
+      fc.record({
+        name: fc.stringMatching(/^[a-z][a-z0-9]*$/),
+        hasModuleTs: fc.boolean(),
+        hasEnv: fc.boolean(),
+        hasAuth: fc.boolean(),
+        hasAuthClient: fc.boolean(),
+        hasAuditSink: fc.boolean(),
+        hasEvents: fc.boolean(),
+        hasSubscribers: fc.boolean(),
+        hasSlots: fc.boolean(),
+        hasClientSlots: fc.boolean(),
+        hasCommandHooks: fc.boolean(),
+        locales: fc.constant<string[]>([]),
+      }),
+      { maxLength: 4, selector: (module) => module.name },
+    ),
+    fc.boolean(),
+  ])(
+    "every server file passes moduleCommandHooks the same module identifiers as modules, and one hook entry per imported hooks file",
+    (modules, hasGatoConfig) => {
+      const lines = renderRegistry(modules, BOTH, {
+        hasGatoConfig,
+      }).server.split("\n");
+      const modulesLine =
+        lines.find((line) => line.startsWith("export const modules")) ?? "";
+      const listed =
+        /^export const modules = applyGatoConfig\(\[(.*)\], gatoConfig\);$/.exec(
+          modulesLine,
+        )?.[1] ?? "";
+      const hooksLine =
+        lines.find((line) =>
+          line.startsWith("export const moduleCommandHooks"),
+        ) ?? "";
+      expect(
+        hooksLine.startsWith(
+          `export const moduleCommandHooks = commandHookRegistry({ modules: [${listed}], hooks: [`,
+        ),
+      ).toBe(true);
+      expect(hooksLine.endsWith("] }, gatoConfig);")).toBe(true);
+      const imported = lines.filter((line) =>
+        /^import \{ commandHooks as [A-Za-z0-9]+CommandHooks \} from "@\/features\/[a-z0-9]+\/command-hooks";$/.test(
+          line,
+        ),
+      );
+      expect(hooksLine.split("{ module: ").length - 1).toBe(imported.length);
     },
   );
 });

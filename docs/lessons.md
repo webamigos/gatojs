@@ -45,6 +45,7 @@ After a nontrivial correction or a non-obvious gotcha:
 - [The "no placeholders left" check greps every file but `__tests__/` and `*.test.*`, so a test of another kind (helm-unittest `tests/*_test.yaml`) must not contain `wa-app`](lessons/a-test-outside-test-paths-must-not-hold-placeholders.md)
 - [Vitest runs test code that `tsc` rejects: a bigint literal passes `npm test` and fails `npm run typecheck` under the ES2017 target](lessons/vitest-runs-what-tsc-rejects.md)
 - [Stryker `--mutate` reads `[id]` in a Next.js path as a glob character class, so the file is silently skipped; match it with `*`](lessons/stryker-mutate-globs-treat-brackets-as-a-class.md)
+- [Stryker rewrites the literals a syntactic repo-scan test reads, so a mutation run that mutates a guarded entry point and runs the scan fails its initial test run](lessons/stryker-instrumentation-hides-guard-literals-from-repo-scans.md)
 - [Stryker with the TypeScript checker crashes on `.mjs` files; mutate `packages/eslint-config` with `--checkers ""` and low concurrency](lessons/stryker-typescript-checker-cannot-mutate-mjs.md)
 - [A Zod 4 intersection throws `Unmergable intersection` when one side keeps raw values the other side parses; use `.overwrite(() => ({}))` on the rule side](lessons/a-zod-intersection-throws-when-a-refined-side-keeps-raw-values.md)
 
