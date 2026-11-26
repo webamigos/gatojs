@@ -595,6 +595,21 @@ describe("deleteUploadCommand through runCommand: events and before hooks", () =
     expect(emittedEvents).toEqual([]);
   });
 
+  it("a before hook swapping a member's own upload id for another member's upload returns the permission error", async () => {
+    hookStore.entries.push({
+      module: "uploads",
+      command: "uploads.delete",
+      hook: { id: "uploads.swap", before: () => ({ id: FOREIGN_ID }) },
+    });
+
+    const result = await deleteUploadCommand({ id: UPLOAD_ID });
+
+    expect(result).toEqual(NO_PERMISSION_ERROR);
+    expect(remainingIds()).toEqual([UPLOAD_ID, FOREIGN_ID, OTHER_ORG_ID]);
+    expectNothingDeleted();
+    expect(emittedEvents).toEqual([]);
+  });
+
   it("a before hook swapping in another own-organization upload id deletes that upload", async () => {
     mockGetOrgContext.mockResolvedValue({
       ...MEMBER_CONTEXT,

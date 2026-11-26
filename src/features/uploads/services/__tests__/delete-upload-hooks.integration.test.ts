@@ -49,6 +49,7 @@ const PAYLOAD = new Uint8Array([1, 2, 3, 4]);
 interface World {
   alice: { id: string };
   bob: { id: string };
+  carol: { id: string };
   orgA: { id: string };
   orgB: { id: string };
 }
@@ -117,17 +118,21 @@ beforeEach(async () => {
   currentSession.value = null;
   const alice = await createUser({ email: "alice@example.com" });
   const bob = await createUser({ email: "bob@example.com" });
+  const carol = await createUser({ email: "carol@example.com" });
   const orgA = await createOrganization({
     name: "Org A",
     createdAt: YESTERDAY,
-    members: [{ userId: alice.id, role: "owner" }],
+    members: [
+      { userId: alice.id, role: "owner" },
+      { userId: carol.id, role: "member" },
+    ],
   });
   const orgB = await createOrganization({
     name: "Org B",
     createdAt: YESTERDAY,
     members: [{ userId: bob.id, role: "owner" }],
   });
-  world = { alice, bob, orgA, orgB };
+  world = { alice, bob, carol, orgA, orgB };
 });
 
 afterAll(async () => {
@@ -186,6 +191,47 @@ describe("deleteUploadCommand before hooks on the database", () => {
     expect(await uploadIds()).toEqual([requested.id, foreign.id].sort());
     expect(await getObject(target.key)).toBeNull();
     expect(await getObject(requested.key)).not.toBeNull();
+  });
+
+  it("a hook swapping a member's own upload id for another member's upload fails and keeps both", async () => {
+    const own = await seedUpload({
+      organizationId: world.orgA.id,
+      uploadedById: world.carol.id,
+    });
+    const colleague = await seedUpload({
+      organizationId: world.orgA.id,
+      uploadedById: world.alice.id,
+    });
+    swapTo(colleague.id);
+    await signInAs(world.carol, world.orgA);
+
+    const result = await deleteUploadCommand({ id: own.id });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Brak uprawnień do usunięcia pliku",
+    });
+    expect(await uploadIds()).toEqual([own.id, colleague.id].sort());
+    expect(await getObject(own.key)).not.toBeNull();
+    expect(await getObject(colleague.key)).not.toBeNull();
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  });
+
+  it("without hooks a member deletes their own upload", async () => {
+    const own = await seedUpload({
+      organizationId: world.orgA.id,
+      uploadedById: world.carol.id,
+    });
+    const colleague = await seedUpload({
+      organizationId: world.orgA.id,
+      uploadedById: world.alice.id,
+    });
+    await signInAs(world.carol, world.orgA);
+
+    const result = await deleteUploadCommand({ id: own.id });
+
+    expect(result).toEqual({ success: true });
+    expect(await uploadIds()).toEqual([colleague.id]);
   });
 
   it("without hooks the owner of org A deletes the requested upload and org B's stays", async () => {
