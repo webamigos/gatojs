@@ -21,4 +21,5 @@ export default defineModule({
     { action: "api_key.revoked", labelKey: "action-api-key-revoked" },
     { action: "api_key.deleted", labelKey: "action-api-key-deleted" },
   ],
+  commands: ["api-keys.create", "api-keys.revoke", "api-keys.delete"],
 });
