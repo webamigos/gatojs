@@ -6,6 +6,7 @@ Po przeczytaniu będziesz wiedzieć:
 - jak przebiegają logowanie, rejestracja, oba rodzaje zaproszeń i ustawianie hasła oraz jakie komunikaty widzi użytkownik;
 - czym różni się rola globalna od roli w organizacji i dlaczego konto z rolą zapisaną jako `admin,superadmin` działa w różnych miejscach inaczej;
 - kto wchodzi na którą stronę przy każdej kombinacji ról i `MULTI_ORG` (macierz dostępu z testu);
+- jak moduł deklaruje uprawnienie, jak projekt zmienia jego role i co zwraca `can`;
 - który guard chroni które miejsce i co wynika z roli odczytanej z cookie cache;
 - co robi `npm run admin:create` z nowym i z istniejącym kontem.
 
@@ -406,6 +407,49 @@ Menu boczne pokazuje dokładnie pozycje definicji, do których `canAccessModule`
 
 Etykiety: Dashboard (`dashboard.nav`), Użytkownicy (`users.nav`), Członkowie (`users.nav-members`), Konto (`account.nav`). Kolejność wynika z pola `order`. Osobny test sprawdza, że „Członkowie” nie pojawia się dla roli globalnej `admin` i `superadmin` w żadnej kombinacji.
 
+<a id="uprawnienia"></a>
+
+## Uprawnienia: `can`
+
+`canAccessModule` odpowiada, czy ktoś wchodzi do modułu. Pojedynczą operację wewnątrz modułu, na przykład usunięcie cudzego pliku, sprawdza `can(context, key)` z `src/shared/lib/auth/permissions.ts`. Zastępuje porównania ról wpisane w komendę (`orgRole === "owner" || orgRole === "admin"`), więc projekt może zmienić, kto dostaje operację, bez edycji kodu modułu.
+
+Moduł deklaruje uprawnienie w `module.ts`. Klucz zaczyna się od klucza modułu i kropki, a `labelKey` wskazuje etykietę w `i18n/{pl,en}.json` modułu:
+
+```ts
+export default defineModule({
+  key: "uploads",
+  permissions: {
+    "uploads.delete-others": {
+      defaultRoles: ["owner", "admin"],
+      labelKey: "permission-delete-others",
+    },
+  },
+});
+```
+
+Komenda pyta o uprawnienie kontekstem z `getOrgContext()`; wystarczą pola `userRole` i `orgRole`:
+
+```ts
+const allowed =
+  upload.uploadedById === context.userId ||
+  can(context, "uploads.delete-others");
+```
+
+Reguły `can`, w tej kolejności:
+
+1. Klucz, którego żaden moduł nie deklaruje, rzuca `UnknownPermissionError` z komunikatem `unknown permission: <klucz>`, dla każdej roli, także superadmina. Literówka w kluczu nie może wyglądać jak „brak uprawnień”. Liczą się tylko własne klucze `permissions`, więc `constructor` czy `toString` też są nieznane.
+2. Admin i superadmin globalny dostają `true`, jak w `canAccessModule`.
+3. Konto bez członkostwa w organizacji (`orgRole: null`) dostaje `false`.
+4. Pozostali: `true`, gdy `defaultRoles` uprawnienia zawiera ich rolę w organizacji.
+
+`can` czyta uprawnienia z `clientModules`, czyli już po zastosowaniu `src/gato.config.ts`. Wpis `modules.<moduł>.permissions.<klucz>: ["owner"]` zastępuje `defaultRoles` tą listą (nie dopisuje ról do domyślnych) i zostawia `labelKey` oraz pozostałe uprawnienia modułu ([11-praca-z-kitem.md](11-praca-z-kitem.md#gato-config)). Uprawnienie, którego moduł nie deklaruje, kończy import konfiguracji błędem `GatoConfigError`. Test `src/__tests__/architecture/permission-keys-are-namespaced.test.ts` pilnuje, że każdy klucz uprawnienia w `src/features/*/module.ts` zaczyna się od `<moduł>.`.
+
+Uprawnienia modułów GatoJS:
+
+| Uprawnienie | Moduł | `defaultRoles` | Co daje |
+| --- | --- | --- | --- |
+| `uploads.delete-others` | `uploads` | `owner`, `admin` | usunięcie pliku wgranego przez inną osobę ([15b-modul-uploads-uzycie.md](15b-modul-uploads-uzycie.md#uprawnienia)) |
+
 <a id="guardy"></a>
 
 ## Guardy
@@ -417,6 +461,7 @@ Każde miejsce, przez które przeglądarka może dotknąć danych, sprawdza upra
 | `getOrgContext()` | `org-context.ts` | layout `(app)`, strony, query, komendy | kontekst organizacji ([03-dane-i-organizacje.md](03-dane-i-organizacje.md#kontekst-organizacji)) | `/sign-in` albo `NoOrganizationError` | z bazy |
 | `requireModuleAccess(key)` | `require-module-access.ts` | `page.tsx` w `(app)`: `dashboard`, `users`, `account` | stronę feature | `/sign-in`, `/no-organization` albo 404 | przez `getOrgContext()` |
 | `canAccessModule` | `permissions.ts` | `requireModuleAccess`, `getNavEntries` | decyzję z [macierzy](#macierz-dostepu) | `false` | nie czyta |
+| `can(context, key)` | `permissions.ts` | `deleteUploadCommand` | pojedynczą operację modułu ([uprawnienia](#uprawnienia)) | `false`; nieznany klucz rzuca `UnknownPermissionError` | nie czyta |
 | `canAccessPath`, `moduleForPath` | `permissions.ts` | tylko testy | nic: kod produkcyjny ich nie wywołuje | — | — |
 | `requireUser`, `getAdminUserOrNull` | `helpers.ts` | `inviteUserCommand`, `getUserAccountsQuery` | operacje admina globalnego | `/sign-in`, potem `null` („Brak uprawnień” albo 404) | cookie cache |
 | hook `before`, gałąź `/admin/*` | `admin-guard.ts`, `admin-access.ts` | endpointy pluginu `admin` | konta superadmina, rolę `superadmin`, impersonację ([04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md#ochrona-kont)) | 403 | z bazy |

@@ -7,7 +7,7 @@ Po przeczytaniu będziesz wiedzieć:
 - po co są dwa pliki instrukcji dla agentów AI, `CLAUDE.md` i `AGENTS.md`, i co zrobić, gdy `next dev` dopisze blok do `AGENTS.md`;
 - co blokują hooki Claude Code z `.claude/settings.json`, na które komendy agent nie pyta o zgodę, do czego służą agenci z `.claude/agents/` i skille z `.claude/skills/`;
 - czym jest Task Router w `AGENTS.md`;
-- jak plik `src/gato.config.ts` wyłącza moduł GatoJS, zmienia menu i dostęp oraz kiedy zamiast niego użyć `wa remove`;
+- jak plik `src/gato.config.ts` wyłącza moduł GatoJS, zmienia menu, dostęp i role uprawnień oraz kiedy zamiast niego użyć `wa remove`;
 - jak przebiega praca według procesu superpowers i gdzie leżą jej dokumenty;
 - których plików nie edytuje się ręcznie i co uruchomić po zmianie, od której zależą.
 
@@ -319,7 +319,7 @@ Plik `seed` (`seedFiles` w `kit/kit.json`) `wa create` kopiuje raz, z wypełnion
 
 ### Konfiguracja projektu: `src/gato.config.ts`
 
-Decyzje „wyłącz, przestaw, zmień dostęp” dla modułów GatoJS projekt zapisuje w jednym pliku `src/gato.config.ts`, zamiast edytować `module.ts` modułu ([ADR-60](adrs/60-project-configuration-is-applied-by-the-generated-registries.md)). To plik projektu: nie należy do żadnego modułu, `wa update` go nie czyta, a projekt bez niego działa jak dotąd.
+Decyzje „wyłącz, przestaw, zmień dostęp, zmień role uprawnienia” dla modułów GatoJS projekt zapisuje w jednym pliku `src/gato.config.ts`, zamiast edytować `module.ts` modułu ([ADR-60](adrs/60-project-configuration-is-applied-by-the-generated-registries.md)). To plik projektu: nie należy do żadnego modułu, `wa update` go nie czyta, a projekt bez niego działa jak dotąd.
 
 ```ts
 import { defineGatoConfig } from "@/shared/lib/modules/gato-config";
@@ -328,6 +328,7 @@ export default defineGatoConfig({
   modules: {
     dashboard: { nav: { "dashboard.home": { order: 5 } } },
     users: { access: { roles: ["owner"] } },
+    uploads: { permissions: { "uploads.delete-others": ["owner"] } },
     "api-keys": { enabled: false },
   },
   branding: {
@@ -342,13 +343,14 @@ export default defineGatoConfig({
 | `modules.<klucz>.nav.<id>.order` | Zmienia `order` pozycji menu o tym `id`; pozostałe pola pozycji zostają. Identyfikatory modułów GatoJS: `dashboard.home`, `users.list`, `account.home`, `api-keys.list`, `audit-logs.list`. |
 | `modules.<klucz>.nav.<id>.hidden: true` | Usuwa pozycję z menu; strony modułu nadal działają. |
 | `modules.<klucz>.access` | Zastępuje całą politykę dostępu modułu polami `roles`, `adminOnly` i `multiOrgRoles`; pole, którego nie podasz, znika. Zastępuje, a nie scala, bo `adminOnly` wygrywa z `roles`: `{ roles: ["owner"] }` dopisane do `users` (`adminOnly: true`) niczego by nie zmieniło. Musi ustawić co najmniej jedno z trzech pól. |
+| `modules.<klucz>.permissions.<uprawnienie>` | Zastępuje `defaultRoles` uprawnienia zadeklarowanego w `module.ts` modułu podaną listą ról w organizacji; nie dopisuje ich do domyślnych, a pusta lista odbiera uprawnienie wszystkim rolom organizacji. `labelKey` i pozostałe uprawnienia modułu zostają. Admin i superadmin globalny przechodzą zawsze. Sprawdza to `can` ([04-auth-i-role.md](04-auth-i-role.md#uprawnienia)). |
 | `branding.logo` | Logo zamiast nazwy projektu (`project.name`) w nagłówku menu bocznego i w nagłówku mobilnym; na stronach logowania i rejestracji logo stoi nad formularzem. `src` to ścieżka pliku z `public/` zaczynająca się od jednego `/` (`/logo.svg`), `alt` nie może być pusty, `width` i `height` to dodatnie liczby całkowite w pikselach. Bez `branding` wszystko wygląda jak dotąd. |
 
 Kiedy zmiana działa:
 
 - Plik importują oba wygenerowane rejestry, więc konfiguracja działa raz, przy pierwszym imporcie, i od razu w menu, guardzie stron i na serwerze ([Rejestr modułów](02b-rejestr-i-generator.md#rejestr-modulow)).
 - Po utworzeniu albo usunięciu pliku uruchom `npm run wa -- generate`: od istnienia pliku zależy import w rejestrach. Zmiana treści pliku nie wymaga generatora.
-- Nieznany klucz modułu albo `id` pozycji menu, puste `access`, wyłączenie `auth` lub `organizations` i błędne pole `branding.logo` kończą import błędem `GatoConfigError` z listą wszystkich problemów naraz, więc padają `next build`, `npm run dev` i testy. Test `src/__tests__/architecture/gato-config-keys-exist.test.ts` wypisuje te same problemy w `npm run verify`.
+- Nieznany klucz modułu, `id` pozycji menu albo uprawnienie, którego moduł nie deklaruje, puste `access`, wyłączenie `auth` lub `organizations` i błędne pole `branding.logo` kończą import błędem `GatoConfigError` z listą wszystkich problemów naraz, więc padają `next build`, `npm run dev` i testy. Test `src/__tests__/architecture/gato-config-keys-exist.test.ts` wypisuje te same problemy w `npm run verify`.
 - Rejestry trafiają też do paczki przeglądarki, więc plik musi być czystymi danymi: bez importów serwerowych (`@/shared/lib/prisma`, `@/env`, `server-only`). Pilnuje tego `src/__tests__/architecture/client-bundles-stay-server-free.test.ts`.
 
 Branding: logo ustawiasz w `branding.logo`, a kolory i fonty w `src/theme.css` (plik `seed`, [Pliki towarzyszące](#pliki-towarzyszace)). Fonty nie trafiają do konfiguracji, bo `next/font` trzeba wywołać w czasie budowania w zasięgu modułu, czego zwykłe dane konfiguracji nie potrafią.
