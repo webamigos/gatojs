@@ -639,4 +639,29 @@ describe("eventsPlugin: update-member-role without a known previous role", () =>
       }),
     );
   });
+
+  it.each([
+    "/organization/create",
+    "/organization/invite-member",
+    "/organization/accept-invitation",
+    "/organization/remove-member",
+  ])(
+    "%s with a bare member row as the returned value emits nothing and logs no skip",
+    async (path) => {
+      const results = await runAfter({
+        path,
+        returned: {
+          id: "mem-1",
+          organizationId: "org-member",
+          userId: "user-member",
+          role: "admin",
+        },
+        session: SESSION,
+      });
+
+      expect(emitEvent).not.toHaveBeenCalled();
+      expect(mockLogger.error).not.toHaveBeenCalled();
+      expect(results).toEqual([undefined]);
+    },
+  );
 });
