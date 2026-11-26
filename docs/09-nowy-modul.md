@@ -647,11 +647,46 @@ export const slots = [
 - `id` zaczyna się od klucza modułu i kropki; dwa wkłady o tym samym `id`, wkład do nieznanego slotu albo `id` bez przedrostka kończą import rejestru błędem `SlotError`, który wymienia moduły.
 - Wkłady jednego slotu stoją według `priority` rosnąco, a przy równych według `id`.
 - `roles: ["owner", "admin"]` ukrywa wkład przed pozostałymi rolami w organizacji (admin i superadmin globalny widzą go zawsze). Wkład modułu, do którego użytkownik nie ma dostępu (`roles`, `adminOnly` w `module.ts`), albo modułu wyłączonego w `src/gato.config.ts` też się nie pokaże. To ukrywanie interfejsu, nie zabezpieczenie: komponent, który czyta dane, woła query zaczynające się od `getOrgContext()`.
-- Komponent dostaje kontekst slotu jako propsy, a TypeScript sprawdza je z typem slotu. W `slots.ts` może to być asynchroniczny komponent serwerowy, bo plik trafia tylko do rejestru serwerowego. Wkłady do slotów klienckich (pierwsze przyjdą z tabelą użytkowników) idą do `client-slots.ts` (eksport `clientSlots`), który trafia do paczki przeglądarki, więc nie może importować kodu serwerowego.
+- Komponent dostaje kontekst slotu jako propsy, a TypeScript sprawdza je z typem slotu. W `slots.ts` może to być asynchroniczny komponent serwerowy, bo plik trafia tylko do rejestru serwerowego. Wkłady do slotów klienckich (tabela użytkowników, niżej) idą do `client-slots.ts` (eksport `clientSlots`), który trafia do paczki przeglądarki, więc nie może importować kodu serwerowego.
 - Wkład, którego komponent rzuca błąd przy renderowaniu albo którego `import()` się nie powiedzie, znika ze strony, a reszta strony i pozostałe wkłady się renderują; błąd ląduje w logu serwera (ładowanie) albo w konsoli przeglądarki (renderowanie).
 - Każdy plik leniwie importowany z `client-slots.ts` zaczyna się od `"use client"`, a `client-slots.ts` i komponenty klienckie nie importują `slots.ts` ani `services/` poza `services/commands/` (także ścieżką względną); pilnuje tego `client-bundles-stay-server-free.test.ts`.
 - Po dodaniu albo usunięciu `slots.ts` lub `client-slots.ts` uruchom `npm run wa -- generate`.
 - Ukrycie wkładu w projekcie: `modules: { dashboard: { slots: { "dashboard.sections": { "notes.summary-card": null } } } }`, a zmiana kolejności: `{ priority: 5 }` zamiast `null`.
+
+### Sloty tabeli użytkowników
+
+Tabela kont na stronie `/users` (widok admina globalnego, `UsersManager`) ma dwa sloty klienckie. Widok członków organizacji (`OrganizationMembers`) slotów nie ma.
+
+| Slot | Gdzie | Kontekst (propsy komponentu) | Konfiguracja w `src/gato.config.ts` |
+| --- | --- | --- | --- |
+| `users.table.row-actions` | kolumna akcji każdego wiersza, za przyciskiem „Zaloguj jako” | `{ userId, organizationId }` | `modules.users.slots` |
+| `users.table.columns` | własna kolumna za wbudowanymi kolumnami, przed kolumną akcji | `{ row, organizationId }` (komórka) | `modules.users.slots` |
+
+Kolumna to nie komponent, więc do `users.table.columns` wkład zapisujesz przez `defineColumnContribution` z `src/shared/lib/modules/column-slots.ts`: `header` to klucz etykiety w przestrzeni i18n twojego modułu, `cell` to komponent komórki. Wkład zapisany przez `defineContribution` (bez `header`) tabela pomija i loguje w konsoli. Oba wkłady w `client-slots.ts`:
+
+```ts
+import { defineContribution } from "@/shared/lib/modules/slots";
+import { defineColumnContribution } from "@/shared/lib/modules/column-slots";
+
+export const clientSlots = [
+  defineContribution("users.table.row-actions", {
+    id: "crm.open-contact",
+    priority: 10,
+    component: () => import("./components/open-contact-action"),
+  }),
+  defineColumnContribution("users.table.columns", {
+    id: "crm.score",
+    priority: 10,
+    header: "col-score",
+    cell: () => import("./components/score-cell"),
+  }),
+];
+```
+
+- Wkład dostaje tylko wiersz, który renderuje (akcja: `userId`, komórka: `row`), i `organizationId` aktywnej organizacji; nie dostaje listy użytkowników ani sesji. Dane spoza wiersza czyta przez query, które samo woła `getOrgContext()` i filtruje po `organizationId`; nie czyta niczego z innych organizacji.
+- Ukryty przycisk to nie zabezpieczenie. Akcja, która zmienia dane, woła komendę z `services/commands/` (`"use server"`), a komenda sama sprawdza uprawnienia (`getOrgContext()` albo `requireModuleAccess()`, potem `assertServiceModeConfirmed`), jak każda inna; UI wywołuje ją przez `useServiceModeAction().run`. Pilnują tego `client-bundles-stay-server-free.test.ts` (plik kliencki importuje z `services/` tylko `services/commands/`) i `server-entrypoints-guard.test.ts` (każda akcja serwerowa woła strażnika sesji przed Prismą).
+- Wkład wyłączonego modułu nie dodaje ani kolumny, ani akcji. Komórka albo akcja, która rzuca błąd lub nie może się załadować, zostaje pusta, a reszta tabeli się renderuje.
+- Typ kontekstu slotu klienckiego zapisz jako `type`, nie `interface`: `ClientSlot` przekazuje kontekst jako `Record<string, unknown>`, a interfejs nie ma sygnatury indeksu.
 
 Własny slot na stronie swojego modułu deklaruje moduł w swoim `slots.ts` (`export const slotDefinitions = [defineSlot("<x>.<nazwa>", { kind: "server" })]` i typ kontekstu w `declare module "@/shared/lib/modules/slots" { interface SlotContextMap { … } }`, jak `src/features/dashboard/slots.ts`; slot kliencki, `{ kind: "client" }`, rozszerza zamiast tego `ClientSlotContextMap` i renderuje się przez `<ClientSlot>` z `src/shared/components/client-slot.tsx`), a strona renderuje `<Slot id="<x>.<nazwa>" context={…} viewer={…} />` z `src/shared/components/slot.tsx`.
 
