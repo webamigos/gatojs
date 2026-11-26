@@ -5,23 +5,33 @@ import { serializeSignedCookie } from "better-call";
 import type { AuditEvent } from "@/shared/lib/audit";
 import type { DomainEvent } from "@/shared/lib/events";
 
-const { recordedEvents, currentHeaders, domainEvents, subscriberEntries } =
-  vi.hoisted(() => ({
-    recordedEvents: [] as AuditEvent[],
+const {
+  recordedEvents,
+  currentHeaders,
+  domainEvents,
+  subscriberEntries,
+  sinkEntries,
+} = vi.hoisted(() => {
+  const recorded = [] as AuditEvent[];
+  return {
+    recordedEvents: recorded,
     currentHeaders: { value: new Headers() },
     domainEvents: [] as DomainEvent[],
     subscriberEntries: [] as { module: string; value: unknown }[],
-  }));
+    sinkEntries: [
+      async (event: AuditEvent) => {
+        recorded.push(event);
+      },
+    ] as ((event: AuditEvent) => Promise<void>)[],
+  };
+});
 
 vi.mock("@/modules.generated", async () => ({
   env: (await import("@gatojs/env")).createEnv([]),
   authPlugins: [],
+  moduleCommandHooks: [],
   moduleEvents: [],
-  auditSinks: [
-    async (event: AuditEvent) => {
-      recordedEvents.push(event);
-    },
-  ],
+  auditSinks: sinkEntries,
   moduleSubscribers: subscriberEntries,
 }));
 vi.mock("next/headers", () => ({
@@ -71,6 +81,10 @@ if (hasAuditLogs) {
     module: "audit-logs",
     value: organizationAuditSubscribers,
   });
+  const { auditSink } = await vi.importActual<{
+    auditSink: (event: AuditEvent) => Promise<void>;
+  }>("@/features/audit-logs/audit-sink");
+  sinkEntries.push(auditSink);
 }
 
 subscriberEntries.push({
@@ -410,5 +424,197 @@ describe("inviteUserCommand na prawdziwym better-auth: zdarzenia domenowe", () =
       organizationId: world.orgA.id,
       actorUserId: newUser.id,
     });
+  });
+});
+
+type AuditLogReader = {
+  auditLog: {
+    findMany(
+      args: unknown,
+    ): Promise<{ organizationId: string; newData: unknown }[]>;
+  };
+};
+
+async function invitedAuditRows(organizationId: string) {
+  // WHY: the auditLog model exists only with the audit-logs module; projects without it still type-check.
+  return (prisma as unknown as AuditLogReader).auditLog.findMany({
+    where: { organizationId, action: "member.invited" },
+    select: { organizationId: true, newData: true },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+describe.skipIf(!hasAuditLogs)(
+  "inviteUserCommand na prawdziwym better-auth: weryfikacja emaila i wpis member.invited",
+  () => {
+    it("zaproszony przez admina A ma zweryfikowany email, członkostwo w A i dokładnie jeden wiersz member.invited w A", async () => {
+      await signInAs(world.admin.id, world.orgA.id);
+
+      const result = await inviteUserCommand({
+        name: "Nowy Użytkownik",
+        email: "nowy@example.com",
+        role: "member",
+      });
+
+      expect(result.success).toBe(true);
+      const invitedUser = await prisma.user.findUniqueOrThrow({
+        where: { email: "nowy@example.com" },
+        select: { id: true, emailVerified: true },
+      });
+      expect(invitedUser.emailVerified).toBe(true);
+      expect(await invitedAuditRows(world.orgA.id)).toEqual([
+        {
+          organizationId: world.orgA.id,
+          newData: { email: "nowy@example.com", role: "member" },
+        },
+      ]);
+      expect(await invitedAuditRows(world.orgB.id)).toEqual([]);
+      const memberships = await prisma.member.findMany({
+        where: { userId: invitedUser.id },
+        select: { organizationId: true, role: true },
+      });
+      expect(memberships).toEqual([
+        { organizationId: world.orgA.id, role: "member" },
+      ]);
+    });
+
+    it("po serii zaproszeń w A i B każde członkostwo zaproszonego ma swój wiersz member.invited z jego emailem", async () => {
+      const adminB = await createUser({
+        email: "admin@b.example",
+        role: "admin",
+      });
+      await prisma.member.create({
+        data: {
+          organizationId: world.orgB.id,
+          userId: adminB.id,
+          role: "owner",
+        },
+      });
+      await signInAs(world.admin.id, world.orgA.id);
+      await inviteUserCommand({
+        name: "Pierwszy",
+        email: "pierwszy@example.com",
+        role: "member",
+      });
+      await inviteUserCommand({
+        name: "Drugi",
+        email: "drugi@example.com",
+        role: "admin",
+      });
+      await signInAs(adminB.id, world.orgB.id);
+      await inviteUserCommand({
+        name: "Trzeci",
+        email: "trzeci@example.com",
+        role: "member",
+      });
+
+      const invitedUsers = await prisma.user.findMany({
+        where: {
+          email: {
+            in: [
+              "pierwszy@example.com",
+              "drugi@example.com",
+              "trzeci@example.com",
+            ],
+          },
+        },
+        select: {
+          email: true,
+          emailVerified: true,
+          members: { select: { organizationId: true } },
+        },
+        orderBy: { email: "asc" },
+      });
+      expect(invitedUsers).toEqual([
+        {
+          email: "drugi@example.com",
+          emailVerified: true,
+          members: [{ organizationId: world.orgA.id }],
+        },
+        {
+          email: "pierwszy@example.com",
+          emailVerified: true,
+          members: [{ organizationId: world.orgA.id }],
+        },
+        {
+          email: "trzeci@example.com",
+          emailVerified: true,
+          members: [{ organizationId: world.orgB.id }],
+        },
+      ]);
+      expect(await invitedAuditRows(world.orgA.id)).toEqual([
+        {
+          organizationId: world.orgA.id,
+          newData: { email: "pierwszy@example.com", role: "member" },
+        },
+        {
+          organizationId: world.orgA.id,
+          newData: { email: "drugi@example.com", role: "admin" },
+        },
+      ]);
+      expect(await invitedAuditRows(world.orgB.id)).toEqual([
+        {
+          organizationId: world.orgB.id,
+          newData: { email: "trzeci@example.com", role: "member" },
+        },
+      ]);
+    });
+  },
+);
+
+describe("publiczna rejestracja na prawdziwym better-auth: email niezweryfikowany", () => {
+  it("publiczna rejestracja z zaproszeniem do A tworzy użytkownika z emailVerified: false", async () => {
+    const invitation = await createInvitation({
+      organizationId: world.orgA.id,
+      inviterId: world.admin.id,
+      email: "gosc@a.example",
+      role: "member",
+      expiresAt: IN_A_DAY,
+    });
+    const { auth } = await import("@/shared/lib/auth");
+
+    await auth.api.signUpEmail({
+      body: {
+        name: "Gość",
+        email: "gosc@a.example",
+        password: "password-123456",
+        invitationId: invitation.id,
+      } as { name: string; email: string; password: string },
+    });
+
+    const newUser = await prisma.user.findUniqueOrThrow({
+      where: { email: "gosc@a.example" },
+      select: { emailVerified: true },
+    });
+    expect(newUser).toEqual({ emailVerified: false });
+  });
+
+  it("publiczna rejestracja z podrobionymi emailVerified i isInviteSignup w body oraz nagłówkiem x-invite-signup tworzy użytkownika z emailVerified: false", async () => {
+    const invitation = await createInvitation({
+      organizationId: world.orgA.id,
+      inviterId: world.admin.id,
+      email: "gosc@a.example",
+      role: "member",
+      expiresAt: IN_A_DAY,
+    });
+    const { auth } = await import("@/shared/lib/auth");
+
+    await auth.api.signUpEmail({
+      body: {
+        name: "Gość",
+        email: "gosc@a.example",
+        password: "password-123456",
+        invitationId: invitation.id,
+        emailVerified: true,
+        isInviteSignup: true,
+      } as { name: string; email: string; password: string },
+      headers: new Headers({ "x-invite-signup": "1" }),
+    });
+
+    const newUser = await prisma.user.findUniqueOrThrow({
+      where: { email: "gosc@a.example" },
+      select: { emailVerified: true },
+    });
+    expect(newUser).toEqual({ emailVerified: false });
   });
 });

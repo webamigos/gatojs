@@ -545,6 +545,38 @@ When a slot frees up, the next task of its lane starts if its dependencies have 
 
 **Done when:** `verify`, `test:integration`, `test:mutation:gate` green.
 
+**Contract fixed before the tests (2026-11-26):**
+- Branch `feat/users-commands`. Scope: `inviteUserCommand` only. `logImpersonationStartCommand`, `logImpersonationStopCommand` (no input, no organization data), `changePasswordCommand` and `enterOrganizationCommand` (not in `users`, not organization data) stay manual and are not hookable; T18's catalog lists them so.
+- Gap in T12 found while planning: today an invalid invite returns the schema message of the first issue (`"Invalid email address"`, pinned by an existing test), and `runCommand` returns only `failureMessage`. `src/shared/lib/commands/define-command.ts`: `CommandDefinition` gains `invalidInputMessage?: (error: z.ZodError) => string`. `run-command.ts` step 5: a failed first parse returns `{ success: false, error: command.invalidInputMessage?.(parsed.error) ?? command.failureMessage }`. The re-parse after the hooks (step 9) is unchanged: it still throws `CommandError("before hooks returned invalid input for <key>")`, so the user sees `failureMessage`.
+- `src/features/users/module.ts`: `commands: ["users.invite"]`.
+- `src/features/users/services/commands/invite-user-command.ts`: a module-level `const inviteUser = defineCommand({ key: "users.invite", module: "users", access: "global-admin", input: inviteUserSchema, failureMessage: "Nie udało się zaprosić użytkownika", deniedMessage: "Brak uprawnień", invalidInputMessage: (error) => error.issues[0]?.message ?? "Nieprawidłowe dane", events: ["users.invited"], run })`. `run({ name, email, role }, context, emit)` keeps today's body: existing user by `email` → `{ success: false, error: "Użytkownik z tym adresem już istnieje" }`; `prisma.invitation.create` with `organizationId: context.organizationId`, `inviterId: context.userId` (the admin the guard checked; the same session user); `registerInvitedUser` inside `withInviteSignup` (ADR-61 invite marker) and the invitation discarded on failure; then `emit("users.invited", { invitationId, email, role })` in place of the direct `emitEvent`; `markEmailVerified`; best-effort welcome mail; `revalidatePath("/users")`; `{ success: true, data: { userId } }` plus `warning: "mail-failed"` when the mail failed. `export async function inviteUserCommand(input: unknown, confirmation?: unknown): Promise<InviteUserResult> { return runCommand(inviteUser, input, confirmation); }` with `type InviteUserResult = OperationResult<{ userId: string }> & { warning?: "mail-failed" }`.
+- Behaviour changes for callers, all from the fixed `runCommand` order (ADR-62): input is validated after the session and the service-mode confirmation (service mode without confirmation and invalid input → the service-mode error, before: the field message); `users.invited` is emitted after `run` returned success, so after the welcome mail instead of right after the account registration (a `markEmailVerified` failure now emits nothing; before, the event and its `member.invited` row were written and the command failed). Messages, audit rows (one `member.invited`, `serviceMode` kept), permissions and the mail warning are unchanged.
+- Deviation from the behaviours above: the schema allows `admin` and `member` only, so a hook returning `role: "owner"` fails the re-parse (failure message, no invitation) instead of writing an `owner` row; a hook raising `member` to `admin` is the allowed-change case.
+- `core` minor.
+
+**Behaviours (fixed):**
+- Existing `invite-user-command.test.ts`, `invite-user-command-module-disabled.test.ts` and `invite-user-command.integration.test.ts` keep every assertion; they only gain a `moduleCommandHooks` export in their `@/modules.generated` mocks.
+- `runCommand` with `invalidInputMessage: (e) => "first: " + e.issues[0].path.join(".")` and input `{ id: 1 }` for `z.object({ id: z.string() })` → `{ success: false, error: "first: id" }`, no hook, no `run`; without `invalidInputMessage` → `failureMessage`; a hook returning input the schema rejects, on a command with `invalidInputMessage` → `failureMessage` (not the custom message), `run` not called.
+- Unit, `users.invite` with a registered hook (`moduleCommandHooks` mocked with literal entries):
+  - hook returning `{ ...input, role: "admin" }` for a `member` invite → `invitation.create` with `role: "admin"`; `users.invited` payload role `admin`;
+  - hook returning `{ ...input, role: "owner" }` → `{ success: false, error: "Nie udało się zaprosić użytkownika" }`, no `user.findUnique`, no `invitation.create`, no sign-up, no event;
+  - hook throwing `DomainError("Zaproszenia są wstrzymane")` → `{ success: false, error: "Zaproszenia są wstrzymane" }`, no database access, no event;
+  - hook returning `{ ...input, organizationId: "org-2" }` → invitation created with `organizationId: "org-1"`, event origin `org-1`;
+  - hook returning another email that already exists → `{ success: false, error: "Użytkownik z tym adresem już istnieje" }`, no invitation, no event;
+  - the hook receives the parsed input (`email: "jan@firma.pl"` for `"  Jan@Firma.PL "`, `role: "member"` default when omitted) and a frozen context with `organizationId: "org-1"`, `userId: "admin-1"`;
+  - non-admin (`getAdminUserOrNull` → `null`) → `{ success: false, error: "Brak uprawnień" }`, hook not called, `getOrgContext` not called;
+  - `getOrgContext` throws `NoOrganizationError` → `{ success: false, error: "Nie udało się zaprosić użytkownika" }`, hook not called;
+  - service mode without confirmation → `"Potwierdź zmianę w trybie serwisowym"`, hook not called; with the active organization's confirmation → hook called once, invitation created;
+  - invalid input → `"Invalid email address"`, hook not called;
+  - users module disabled → `"Nie udało się zaprosić użytkownika"`, hook not called;
+  - a hook registered for a module that is disabled at call time (`isModuleEnabled` false) → not called, invitation created.
+- Integration (real Postgres, two organizations A and B, `moduleCommandHooks` mocked):
+  - a hook returning `{ ...input, organizationId: <B id> }` with A's admin context → the invitation and the new member are in A; B has no invitation and no new member;
+  - a hook raising the role to `admin` → the invitation row in A has `role: "admin"`;
+  - a hook vetoing with a `DomainError` → no invitation, no user with that email, no `member.invited` audit row (with `audit-logs` present), in either organization.
+
+**Mutations to kill (fixed):** admin check moved after the hooks; event emitted when the email exists or the hook vetoes; `invalidInputMessage` ignored or used for the re-parse; `organizationId` or `inviterId` taken from the input; `commands` declaration dropped from `users/module.ts`.
+
 ---
 
 ### Task 14: API key commands through `defineCommand`

@@ -15,4 +15,5 @@ export default defineModule({
   routePrefixes: ["/users"],
   adminOnly: true,
   multiOrgRoles: ["owner", "admin"],
+  commands: ["users.invite"],
 });
