@@ -20731,8 +20731,14 @@ async function readKitState(projectDir) {
   validateProjectModules(state);
   return state;
 }
+var RESERVED_MODULE_KEY = "app";
 function validateProjectModules(state) {
   for (const [key, { manifest }] of Object.entries(state.projectModules)) {
+    if (key === RESERVED_MODULE_KEY) {
+      throw new Error(
+        `projectModules.${key}: "${key}" is reserved for core-hosted slot config (modules.${key})`
+      );
+    }
     if (manifest.name !== key) {
       throw new Error(
         `projectModules.${key}: name "${manifest.name}" does not match the key`
