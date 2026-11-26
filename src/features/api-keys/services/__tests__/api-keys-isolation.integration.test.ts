@@ -360,12 +360,14 @@ describe("klucze API na prawdziwej bazie", () => {
     const key = await seedKey(world.orgA.id);
     await signInAs(world.carol, world.orgA);
 
-    await expect(revokeApiKeyCommand({ id: key.id })).rejects.toThrow(
-      "NEXT_NOT_FOUND",
-    );
-    await expect(deleteApiKeyCommand({ id: key.id })).rejects.toThrow(
-      "NEXT_NOT_FOUND",
-    );
+    expect(await revokeApiKeyCommand({ id: key.id })).toEqual({
+      success: false,
+      error: "Nie udało się unieważnić klucza",
+    });
+    expect(await deleteApiKeyCommand({ id: key.id })).toEqual({
+      success: false,
+      error: "Nie udało się usunąć klucza",
+    });
 
     const row = await prisma.apiKey.findUniqueOrThrow({
       where: { id: key.id, organizationId: world.orgA.id },
@@ -376,9 +378,10 @@ describe("klucze API na prawdziwej bazie", () => {
   it("member nie tworzy ani nie listuje kluczy", async () => {
     await signInAs(world.carol, world.orgA);
 
-    await expect(createApiKeyCommand(VALID_INPUT)).rejects.toThrow(
-      "NEXT_NOT_FOUND",
-    );
+    expect(await createApiKeyCommand(VALID_INPUT)).toEqual({
+      success: false,
+      error: "Nie udało się utworzyć klucza",
+    });
     await expect(listApiKeysQuery()).rejects.toThrow("NEXT_NOT_FOUND");
 
     expect(
