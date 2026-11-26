@@ -332,6 +332,95 @@ describe("findServerImportsInClient", () => {
     ).toEqual([]);
   });
 
+  it("a feature's services and anything below them are server modules for a client file, in order", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import { list } from "@/features/invoices/services/queries/list";\nimport { service } from "@/features/invoices/services/invoice-service";',
+        ),
+      ),
+    ).toEqual([
+      "@/features/invoices/services/queries/list",
+      "@/features/invoices/services/invoice-service",
+    ]);
+  });
+
+  it("a feature's services root itself is a server module for a client file", () => {
+    expect(
+      findServerImportsInClient(
+        client('import { all } from "@/features/invoices/services";'),
+      ),
+    ).toEqual(["@/features/invoices/services"]);
+  });
+
+  it("a feature's services/commands and below are allowed in a client file", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import { create } from "@/features/invoices/services/commands/create";\nimport { commands } from "@/features/invoices/services/commands";',
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("names that only start like services or commands are not exempt or forbidden by the prefix", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import { a } from "@/features/invoices/services-list";\nimport { b } from "@/features/invoices/components/services";\nimport { c } from "@/features/invoices/services/commands-helpers";',
+        ),
+      ),
+    ).toEqual(["@/features/invoices/services/commands-helpers"]);
+  });
+
+  it("a dynamic import of a feature's query in a client file is a violation", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'export const load = () => import("@/features/invoices/services/queries/list");',
+        ),
+      ),
+    ).toEqual(["@/features/invoices/services/queries/list"]);
+  });
+
+  it("the server slot host and the server module registry are server modules for a client file", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import { Slot } from "@/shared/components/slot";\nimport { moduleSlots } from "@/modules.generated";',
+        ),
+      ),
+    ).toEqual(["@/shared/components/slot", "@/modules.generated"]);
+  });
+
+  it("subpaths of the server slot host are server modules for a client file", () => {
+    expect(
+      findServerImportsInClient(
+        client('import { Slot } from "@/shared/components/slot/index";'),
+      ),
+    ).toEqual(["@/shared/components/slot/index"]);
+  });
+
+  it("the slot error boundary, the client slot and the client registry are allowed in a client file", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import { SlotErrorBoundary } from "@/shared/components/slot-error-boundary";\nimport { ClientSlot } from "@/shared/components/client-slot";\nimport { clientModuleSlots } from "@/modules.client.generated";',
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("relative specifiers are ignored: the source has no path to resolve them against", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import { slots } from "./slots";\nimport { q } from "../services/queries/q";',
+        ),
+      ),
+    ).toEqual([]);
+  });
+
   it("zwraca naruszenia w kolejności wystąpienia", () => {
     expect(
       findServerImportsInClient(
@@ -587,6 +676,286 @@ describe("checkClientBundles", () => {
     );
     expect(checkClientBundles(root)).toEqual([
       "src/features/invoices/components/widget.tsx: @/features/invoices/slots",
+    ]);
+  });
+
+  it("reports a relative ./slots in a feature's client-slots.ts as written", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'import { slots } from "./slots";\nexport const clientSlots = slots;',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/x/client-slots.ts: ./slots",
+    ]);
+  });
+
+  it("reports a lazy ../invoices/slots in a feature's client-slots.ts as written", () => {
+    write(
+      "src/features/notes/client-slots.ts",
+      'export const clientSlots = [{ component: () => import("../invoices/slots") }];',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/notes/client-slots.ts: ../invoices/slots",
+    ]);
+  });
+
+  it("reports ./slots.ts with the extension as written", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'import { slots } from "./slots.ts";\nexport const clientSlots = slots;',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/x/client-slots.ts: ./slots.ts",
+    ]);
+  });
+
+  it("reports ./slots.tsx with the extension as written", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'import { slots } from "./slots.tsx";\nexport const clientSlots = slots;',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/x/client-slots.ts: ./slots.tsx",
+    ]);
+  });
+
+  it("reports a relative query import in a use client component", () => {
+    write(
+      "src/features/x/components/w.tsx",
+      client('import { q } from "../services/queries/q";'),
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/x/components/w.tsx: ../services/queries/q",
+    ]);
+  });
+
+  it("a relative command import in a use client component passes", () => {
+    write(
+      "src/features/x/components/w.tsx",
+      client('import { c } from "../services/commands/c";'),
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("reports a relative ./slot in a use client component next to the server slot host", () => {
+    write(
+      "src/shared/components/widget.tsx",
+      client('import { Slot } from "./slot";'),
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/shared/components/widget.tsx: ./slot",
+    ]);
+  });
+
+  it("reports a relative path to prisma from src/gato.config.ts", () => {
+    write(
+      "src/gato.config.ts",
+      'import { prisma } from "./shared/lib/prisma";\nexport default {};',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/gato.config.ts: ./shared/lib/prisma",
+    ]);
+  });
+
+  it("relative names that only start like slots or point to client-slots pass", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'import { a } from "./slots-list";\nimport { b } from "./components/slots";\nimport { c } from "../x/client-slots";\nexport const clientSlots = [];',
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("a relative ./slots in a component without use client is not checked", () => {
+    write(
+      "src/features/x/components/card.tsx",
+      'import { slots } from "./slots";\nexport const Card = () => null;',
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("reports a lazy target of client-slots.ts without use client", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'export const clientSlots = [{ component: () => import("./components/card") }];',
+    );
+    write(
+      "src/features/x/components/card.tsx",
+      "export default function Card() {\n  return null;\n}",
+    );
+    expect(checkClientBundles(root)).toEqual([
+      'src/features/x/client-slots.ts: ./components/card (missing "use client")',
+    ]);
+  });
+
+  it("a lazy target of client-slots.ts with use client as its first statement passes", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'export const clientSlots = [{ component: () => import("./components/card") }];',
+    );
+    write(
+      "src/features/x/components/card.tsx",
+      client("export default function Card() {\n  return null;\n}"),
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("a lazy target with use client later in the file is reported", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'export const clientSlots = [{ component: () => import("./components/card") }];',
+    );
+    write(
+      "src/features/x/components/card.tsx",
+      'import { a } from "./a";\n"use client";\nexport default function Card() {\n  return a;\n}',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      'src/features/x/client-slots.ts: ./components/card (missing "use client")',
+    ]);
+  });
+
+  it("reports a lazy @/ target without use client with the specifier as written", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'export const clientSlots = [{ component: () => import("@/features/x/components/card") }];',
+    );
+    write(
+      "src/features/x/components/card.tsx",
+      "export default function Card() {\n  return null;\n}",
+    );
+    expect(checkClientBundles(root)).toEqual([
+      'src/features/x/client-slots.ts: @/features/x/components/card (missing "use client")',
+    ]);
+  });
+
+  it("reports a lazy .ts target without use client", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'export const clientSlots = [{ component: () => import("./components/card") }];',
+    );
+    write(
+      "src/features/x/components/card.ts",
+      "export default function Card() {\n  return null;\n}",
+    );
+    expect(checkClientBundles(root)).toEqual([
+      'src/features/x/client-slots.ts: ./components/card (missing "use client")',
+    ]);
+  });
+
+  it("reports a lazy target resolved to index.tsx without use client", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'export const clientSlots = [{ component: () => import("./components/card") }];',
+    );
+    write(
+      "src/features/x/components/card/index.tsx",
+      "export default function Card() {\n  return null;\n}",
+    );
+    expect(checkClientBundles(root)).toEqual([
+      'src/features/x/client-slots.ts: ./components/card (missing "use client")',
+    ]);
+  });
+
+  it("reports a lazy target resolved to index.ts without use client", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'export const clientSlots = [{ component: () => import("./components/card") }];',
+    );
+    write(
+      "src/features/x/components/card/index.ts",
+      "export default function Card() {\n  return null;\n}",
+    );
+    expect(checkClientBundles(root)).toEqual([
+      'src/features/x/client-slots.ts: ./components/card (missing "use client")',
+    ]);
+  });
+
+  it("a lazy target resolved to index.tsx with use client passes", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'export const clientSlots = [{ component: () => import("./components/card") }];',
+    );
+    write(
+      "src/features/x/components/card/index.tsx",
+      client("export default function Card() {\n  return null;\n}"),
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("reports a lazy target named with its extension without use client", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'export const clientSlots = [{ component: () => import("./components/card.tsx") }];',
+    );
+    write(
+      "src/features/x/components/card.tsx",
+      "export default function Card() {\n  return null;\n}",
+    );
+    expect(checkClientBundles(root)).toEqual([
+      'src/features/x/client-slots.ts: ./components/card.tsx (missing "use client")',
+    ]);
+  });
+
+  it("a missing lazy target and a package lazy target are not reported", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'export const clientSlots = [\n  { component: () => import("./components/nope") },\n  { component: () => import("some-lib") },\n];',
+    );
+    write("node_modules/some-lib/index.ts", "export default 1;");
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("a static import of a target without use client in client-slots.ts is not reported", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'import "./components/card";\nexport const clientSlots = [];',
+    );
+    write(
+      "src/features/x/components/card.tsx",
+      "export default function Card() {\n  return null;\n}",
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("a lazy target without use client of a use client component is not reported", () => {
+    write(
+      "src/features/x/components/w.tsx",
+      client('export const load = () => import("./card");'),
+    );
+    write(
+      "src/features/x/components/card.tsx",
+      "export default function Card() {\n  return null;\n}",
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("a use client lazy target is checked as a client file: its prisma import is reported", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'export const clientSlots = [{ component: () => import("./components/card") }];',
+    );
+    write(
+      "src/features/x/components/card.tsx",
+      client(
+        'import { prisma } from "@/shared/lib/prisma";\nexport default function Card() {\n  return null;\n}',
+      ),
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/x/components/card.tsx: @/shared/lib/prisma",
+    ]);
+  });
+
+  it("lists import violations in order, then missing directives in order", () => {
+    write(
+      "src/features/x/client-slots.ts",
+      'export const clientSlots = [\n  { component: () => import("./components/b") },\n  { component: () => import("./slots") },\n  { component: () => import("./components/a") },\n  { component: () => import("@/env") },\n];',
+    );
+    write("src/features/x/components/b.tsx", "export default () => null;");
+    write("src/features/x/components/a.tsx", "export default () => null;");
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/x/client-slots.ts: ./slots",
+      "src/features/x/client-slots.ts: @/env",
+      'src/features/x/client-slots.ts: ./components/b (missing "use client")',
+      'src/features/x/client-slots.ts: ./components/a (missing "use client")',
     ]);
   });
 

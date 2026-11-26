@@ -6,6 +6,7 @@ import {
   CORE_SLOTS_CONFIG_KEY,
   GatoConfigError,
   type GatoConfig,
+  type GatoSlotOverride,
   type ModuleEntry,
 } from "../gato-config";
 import {
@@ -89,11 +90,10 @@ describe("defineSlot", () => {
     });
   });
 
-  it("returns the id and the kind of a client slot", () => {
-    expect(defineSlot("account.sections", { kind: "client" })).toEqual({
-      id: "account.sections",
-      kind: "client",
-    });
+  it("a server slot id declared as client is a type error and still returns the given kind", () => {
+    // @ts-expect-error dashboard.sections is in SlotContextMap, not in ClientSlotContextMap
+    const definition = defineSlot("dashboard.sections", { kind: "client" });
+    expect(definition).toEqual({ id: "dashboard.sections", kind: "client" });
   });
 });
 
@@ -1247,6 +1247,157 @@ describe("slotConfigProblems", () => {
         },
       }),
     ).not.toThrow();
+  });
+});
+
+describe("slotConfigProblems: priority", () => {
+  const input = {
+    slots: [
+      dashboardHost,
+      slotsEntry("notes", {
+        slots: [
+          contribution("dashboard.sections", "notes.card", 1),
+          contribution("app.header.actions", "notes.action", 1),
+        ],
+      }),
+    ],
+    clientSlots: [],
+  };
+
+  function withOverride(override: unknown): GatoConfig {
+    return {
+      modules: {
+        dashboard: {
+          slots: {
+            "dashboard.sections": {
+              "notes.card": override as GatoSlotOverride | null,
+            },
+          },
+        },
+      },
+    };
+  }
+
+  it.each([
+    [
+      Number.NaN,
+      "modules.dashboard.slots.dashboard.sections.notes.card.priority: must be a finite number: NaN",
+    ],
+    [
+      Number.POSITIVE_INFINITY,
+      "modules.dashboard.slots.dashboard.sections.notes.card.priority: must be a finite number: Infinity",
+    ],
+    [
+      Number.NEGATIVE_INFINITY,
+      "modules.dashboard.slots.dashboard.sections.notes.card.priority: must be a finite number: -Infinity",
+    ],
+    [
+      "5",
+      "modules.dashboard.slots.dashboard.sections.notes.card.priority: must be a finite number: 5",
+    ],
+  ])("priority %s on a known contribution is reported", (priority, problem) => {
+    expect(slotConfigProblems(input, withOverride({ priority }))).toEqual([
+      problem,
+    ]);
+  });
+
+  it("an override without a priority is reported as undefined", () => {
+    expect(slotConfigProblems(input, withOverride({}))).toEqual([
+      "modules.dashboard.slots.dashboard.sections.notes.card.priority: must be a finite number: undefined",
+    ]);
+  });
+
+  it("priority 0 is valid", () => {
+    expect(slotConfigProblems(input, withOverride({ priority: 0 }))).toEqual(
+      [],
+    );
+  });
+
+  it("priority -3.5 is valid", () => {
+    expect(slotConfigProblems(input, withOverride({ priority: -3.5 }))).toEqual(
+      [],
+    );
+  });
+
+  it("null removes the contribution and is valid", () => {
+    expect(slotConfigProblems(input, withOverride(null))).toEqual([]);
+  });
+
+  test.prop([fc.double({ noNaN: true, noDefaultInfinity: true })])(
+    "every finite priority is valid",
+    (priority) => {
+      expect(slotConfigProblems(input, withOverride({ priority }))).toEqual([]);
+    },
+  );
+
+  it("a bad priority on a core slot contribution under modules.app is reported", () => {
+    expect(
+      slotConfigProblems(input, {
+        modules: {
+          app: {
+            slots: {
+              "app.header.actions": {
+                "notes.action": { priority: Number.NaN },
+              },
+            },
+          },
+        },
+      }),
+    ).toEqual([
+      "modules.app.slots.app.header.actions.notes.action.priority: must be a finite number: NaN",
+    ]);
+  });
+
+  it("a bad priority on an unknown contribution is reported only as unknown", () => {
+    expect(
+      slotConfigProblems(input, {
+        modules: {
+          dashboard: {
+            slots: {
+              "dashboard.sections": { "x.nope": { priority: Number.NaN } },
+            },
+          },
+        },
+      }),
+    ).toEqual([
+      "modules.dashboard.slots.dashboard.sections.x.nope: unknown contribution: x.nope",
+    ]);
+  });
+
+  it("a bad priority under an unknown slot is reported only as an unknown slot", () => {
+    expect(
+      slotConfigProblems(input, {
+        modules: {
+          dashboard: {
+            slots: {
+              "dashboard.nope": { "notes.card": { priority: Number.NaN } },
+            },
+          },
+        },
+      }),
+    ).toEqual([
+      "modules.dashboard.slots.dashboard.nope: unknown slot: dashboard.nope",
+    ]);
+  });
+
+  it("slotRegistry with priority NaN throws GatoConfigError listing the problem", () => {
+    const error = thrownBy(() =>
+      slotRegistry(input, withOverride({ priority: Number.NaN })),
+    );
+    expect(error).toBeInstanceOf(GatoConfigError);
+    expect((error as GatoConfigError).problems).toEqual([
+      "modules.dashboard.slots.dashboard.sections.notes.card.priority: must be a finite number: NaN",
+    ]);
+  });
+
+  it("slotRegistry with priority Infinity throws GatoConfigError", () => {
+    expect(() =>
+      slotRegistry(input, withOverride({ priority: Number.POSITIVE_INFINITY })),
+    ).toThrow(GatoConfigError);
+  });
+
+  it("slotRegistry with a null override does not throw", () => {
+    expect(() => slotRegistry(input, withOverride(null))).not.toThrow();
   });
 });
 

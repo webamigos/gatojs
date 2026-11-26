@@ -362,6 +362,62 @@ const UNSUPPORTED_FORMAT_99 =
 const LOGIN_EJECTED = { reason: "custom login", ejectedAt: "2026-11-23" };
 const BUTTON_EJECTED = { reason: "brand button", ejectedAt: "2026-11-24" };
 
+describe("kit state: the reserved project module key app", () => {
+  it("readKitState rejects a project module keyed app", async () => {
+    await writeRawState({
+      modules: {},
+      projectModules: {
+        app: {
+          manifest: {
+            ...NOTES_MANIFEST,
+            name: "app",
+            files: ["src/features/app/**"],
+          },
+        },
+      },
+    });
+    await expect(readKitState(tmp)).rejects.toThrow(
+      'projectModules.app: "app" is reserved for core-hosted slot config (modules.app)',
+    );
+  });
+
+  it("readKitState accepts a project module keyed apps", async () => {
+    await writeRawState({
+      modules: {},
+      projectModules: {
+        apps: {
+          manifest: {
+            ...NOTES_MANIFEST,
+            name: "apps",
+            files: ["src/features/apps/**"],
+          },
+        },
+      },
+    });
+    expect(Object.keys((await readKitState(tmp)).projectModules)).toEqual([
+      "apps",
+    ]);
+  });
+
+  it("readKitState accepts a project module keyed app-store", async () => {
+    await writeRawState({
+      modules: {},
+      projectModules: {
+        "app-store": {
+          manifest: {
+            ...NOTES_MANIFEST,
+            name: "app-store",
+            files: ["src/features/app-store/**"],
+          },
+        },
+      },
+    });
+    expect(Object.keys((await readKitState(tmp)).projectModules)).toEqual([
+      "app-store",
+    ]);
+  });
+});
+
 describe("kit state: kitFormat and ejected", () => {
   it("readKitState of a file without kitFormat and ejected gives format 1 and no ejected files", async () => {
     await writeRawState({ modules: {} });
