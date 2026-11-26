@@ -5,8 +5,13 @@ import type { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type ColumnDef } from "@/components/ui/data-table";
+import { ClientSlot } from "@/shared/components/client-slot";
 import { canImpersonate } from "@/shared/lib/auth/impersonation-policy";
-import { USER_ROLES, type UserRole } from "@/shared/lib/auth/roles";
+import {
+  USER_ROLES,
+  type OrgRole,
+  type UserRole,
+} from "@/shared/lib/auth/roles";
 import type { UserAccountListItem } from "../contracts/user-account.types";
 
 const ROLE_BADGES: Record<
@@ -25,6 +30,9 @@ export interface UserAccountViewer {
   userId: string;
   role: UserRole;
   adminImpersonation: boolean;
+  organizationId: string;
+  orgRole: OrgRole | null;
+  multiOrg: boolean;
 }
 
 export function buildUserAccountColumns(
@@ -33,6 +41,7 @@ export function buildUserAccountColumns(
   viewer: UserAccountViewer,
   pendingId: string | null,
   onImpersonate: (userId: string) => void,
+  contributedColumns: readonly ColumnDef<UserAccountListItem>[],
 ): ColumnDef<UserAccountListItem>[] {
   return [
     {
@@ -74,6 +83,7 @@ export function buildUserAccountColumns(
         </span>
       ),
     },
+    ...contributedColumns,
     {
       id: "actions",
       enableSorting: false,
@@ -100,6 +110,18 @@ export function buildUserAccountColumns(
                 <UserCog className="h-4 w-4" />
               </Button>
             )}
+            <ClientSlot
+              id="users.table.row-actions"
+              context={{
+                userId: row.original.id,
+                organizationId: viewer.organizationId,
+              }}
+              viewer={{
+                userRole: viewer.role,
+                orgRole: viewer.orgRole,
+                multiOrg: viewer.multiOrg,
+              }}
+            />
           </div>
         );
       },
