@@ -412,9 +412,464 @@ describe("checkSelfhostCompose", () => {
     expect(checkSelfhostCompose(root)).toEqual([]);
   });
 
+  const oneShotProfileIssue = (name: string, profile: string) =>
+    `docker-compose.selfhost.yml: ${name} runs once (restart: "no"), so a service started with profile ${profile} must wait for it to complete (service_completed_successfully) or up --wait fails`;
+
+  const publishedPortIssue = (name: string) =>
+    `docker-compose.selfhost.yml: ${name} must not publish a port`;
+
+  const credentialIssue = (name: string) =>
+    `docker-compose.selfhost.yml: ${name} uses the development credential minioadmin; take the credentials from .env.selfhost`;
+
+  it("accepts a one-shot service without profiles that app waits to complete", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", restart: "no" };
+    compose.services.app.depends_on = {
+      migrate: { condition: "service_completed_successfully" },
+      seed: { condition: "service_completed_successfully" },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("reports a one-shot service without profiles whose only waiter runs under a profile", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", restart: "no" };
+    compose.services.worker = {
+      image: "w",
+      profiles: ["s3"],
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([oneShotIssue("seed")]);
+  });
+
+  it("reports a one-shot service with an empty profiles list like one without profiles", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", restart: "no", profiles: [] };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([oneShotIssue("seed")]);
+  });
+
+  it("accepts a one-shot service under a profile that a waiter under the same profile waits to complete", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", restart: "no", profiles: ["s3"] };
+    compose.services.worker = {
+      image: "w",
+      profiles: ["s3"],
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("accepts a one-shot service under a profile that app without profiles waits to complete", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", restart: "no", profiles: ["s3"] };
+    compose.services.app.depends_on = {
+      migrate: { condition: "service_completed_successfully" },
+      seed: { condition: "service_completed_successfully" },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("reports the profile of a one-shot service that no waiter runs under", () => {
+    const compose = validCompose();
+    compose.services.seed = {
+      image: "x",
+      restart: "no",
+      profiles: ["s3", "full"],
+    };
+    compose.services.worker = {
+      image: "w",
+      profiles: ["s3"],
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([
+      oneShotProfileIssue("seed", "full"),
+    ]);
+  });
+
+  it("accepts a one-shot service with two profiles covered by a different waiter for each", () => {
+    const compose = validCompose();
+    compose.services.seed = {
+      image: "x",
+      restart: "no",
+      profiles: ["s3", "full"],
+    };
+    compose.services.w1 = {
+      image: "w",
+      profiles: ["s3"],
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    compose.services.w2 = {
+      image: "w",
+      profiles: ["full"],
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("reports every uncovered profile in the one-shot service's profile order", () => {
+    const compose = validCompose();
+    compose.services.seed = {
+      image: "x",
+      restart: "no",
+      profiles: ["s3", "full"],
+    };
+    compose.services.worker = {
+      image: "w",
+      profiles: ["other"],
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([
+      oneShotProfileIssue("seed", "s3"),
+      oneShotProfileIssue("seed", "full"),
+    ]);
+  });
+
+  it("reports a one-shot service under a profile that no service waits for", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", restart: "no", profiles: ["s3"] };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([
+      oneShotProfileIssue("seed", "s3"),
+    ]);
+  });
+
+  it("counts a waiter with an empty profiles list as always running", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", restart: "no" };
+    compose.services.worker = {
+      image: "w",
+      profiles: [],
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("counts a waiter whose profiles is not a list as always running", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", restart: "no" };
+    compose.services.worker = {
+      image: "w",
+      profiles: "s3",
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("ignores a non-string profile entry and reports a one-shot service with only such entries like one without profiles", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", restart: "no", profiles: [null] };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([oneShotIssue("seed")]);
+  });
+
+  it("ignores a non-string profile entry and reports only the string profiles of a one-shot service", () => {
+    const compose = validCompose();
+    compose.services.seed = {
+      image: "x",
+      restart: "no",
+      profiles: [null, "s3"],
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([
+      oneShotProfileIssue("seed", "s3"),
+    ]);
+  });
+
+  it("does not count a waiter under the right profile that only waits for the one-shot service to start", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", restart: "no", profiles: ["s3"] };
+    compose.services.worker = {
+      image: "w",
+      profiles: ["s3"],
+      depends_on: { seed: { condition: "service_started" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([
+      oneShotProfileIssue("seed", "s3"),
+    ]);
+  });
+
+  it("reports minio that publishes a port", () => {
+    const compose = validCompose();
+    compose.services.minio = { image: "minio/minio", ports: ["9000:9000"] };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([publishedPortIssue("minio")]);
+  });
+
+  it("reports migrate that publishes a port", () => {
+    const compose = validCompose();
+    compose.services.migrate.ports = ["5555:5555"];
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([publishedPortIssue("migrate")]);
+  });
+
+  it("accepts a service other than db with an empty ports list", () => {
+    const compose = validCompose();
+    compose.services.minio = { image: "minio/minio", ports: [] };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("accepts a service other than db whose ports key has no value", () => {
+    const compose = validCompose();
+    compose.services.minio = { image: "minio/minio", ports: null };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("reports every service that publishes a port once, in file order", () => {
+    const compose = validCompose();
+    compose.services.migrate.ports = ["5555:5555"];
+    compose.services.zstore = { image: "z", ports: ["9001:9001", "9002:9002"] };
+    compose.services.astore = { image: "a", ports: ["9003:9003"] };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([
+      publishedPortIssue("migrate"),
+      publishedPortIssue("zstore"),
+      publishedPortIssue("astore"),
+    ]);
+  });
+
+  it("reports the minioadmin credential once per service in a map environment", () => {
+    const compose = validCompose();
+    compose.services.minio = {
+      image: "minio/minio",
+      environment: {
+        MINIO_ROOT_USER: "minioadmin",
+        MINIO_ROOT_PASSWORD: "minioadmin",
+      },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([credentialIssue("minio")]);
+  });
+
+  it("reports the minioadmin credential in a list environment", () => {
+    const compose = validCompose();
+    compose.services.minio = {
+      image: "minio/minio",
+      environment: ["MINIO_ROOT_USER=minioadmin"],
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([credentialIssue("minio")]);
+  });
+
+  it("reports the minioadmin credential as an interpolation default", () => {
+    const compose = validCompose();
+    compose.services.minio = {
+      image: "minio/minio",
+      environment: { MINIO_ROOT_USER: "${S3_ACCESS_KEY_ID:-minioadmin}" },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([credentialIssue("minio")]);
+  });
+
+  it("reports the minioadmin credential in a command string", () => {
+    const compose = validCompose();
+    compose.services["minio-init"] = {
+      image: "minio/mc",
+      command: "mc alias set local http://minio:9000 minioadmin minioadmin",
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([credentialIssue("minio-init")]);
+  });
+
+  it("reports the minioadmin credential in an entrypoint string", () => {
+    const compose = validCompose();
+    compose.services["minio-init"] = {
+      image: "minio/mc",
+      entrypoint:
+        "/bin/sh -c 'mc alias set local http://minio:9000 minioadmin secret'",
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([credentialIssue("minio-init")]);
+  });
+
+  it("reports the minioadmin credential written in mixed case", () => {
+    const compose = validCompose();
+    compose.services.minio = {
+      image: "minio/minio",
+      environment: { MINIO_ROOT_USER: "MinioAdmin" },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([credentialIssue("minio")]);
+  });
+
+  it("accepts credentials taken from the environment without a default", () => {
+    const compose = validCompose();
+    compose.services.minio = {
+      image: "minio/minio",
+      environment: {
+        MINIO_ROOT_USER: "${S3_ACCESS_KEY_ID}",
+        MINIO_ROOT_PASSWORD: "${S3_SECRET_ACCESS_KEY}",
+      },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("reports every service with the minioadmin credential in file order", () => {
+    const compose = validCompose();
+    compose.services.zstore = {
+      image: "z",
+      environment: { USER: "minioadmin" },
+    };
+    compose.services.astore = {
+      image: "a",
+      command: "start --user minioadmin",
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([
+      credentialIssue("zstore"),
+      credentialIssue("astore"),
+    ]);
+  });
+
+  it("reports a port published by a service through a merge key", () => {
+    writeHandWritten([
+      "x-exposed: &exposed",
+      '  ports: ["9000:9000"]',
+      ...handWrittenLines.slice(0, -1),
+      "  minio:",
+      "    <<: *exposed",
+      "    image: minio",
+      "",
+    ]);
+    expect(checkSelfhostCompose(root)).toEqual([publishedPortIssue("minio")]);
+  });
+
+  it("does not report a port merged into app through a merge key", () => {
+    writeHandWritten([
+      "x-exposed: &exposed",
+      '  ports: ["9000:9000"]',
+      ...handWrittenLines.slice(0, 11),
+      "    <<: *exposed",
+      ...handWrittenLines.slice(11),
+    ]);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("reports a service without restart whose only waiter for completion runs under a profile", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x" };
+    compose.services.worker = {
+      image: "w",
+      profiles: ["s3"],
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([oneShotIssue("seed")]);
+  });
+
+  it("accepts a service without restart that app without profiles waits to complete", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x" };
+    compose.services.app.depends_on = {
+      migrate: { condition: "service_completed_successfully" },
+      seed: { condition: "service_completed_successfully" },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("reports the uncovered profile of a service without restart that a waiter waits to complete", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", profiles: ["s3", "full"] };
+    compose.services.worker = {
+      image: "w",
+      profiles: ["s3"],
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([
+      oneShotProfileIssue("seed", "full"),
+    ]);
+  });
+
+  it("does not treat a service without restart that another service only waits to start as one-shot", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x" };
+    compose.services.app.depends_on = {
+      migrate: { condition: "service_completed_successfully" },
+      seed: { condition: "service_started" },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("does not treat a service without restart that no service waits for as one-shot", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x" };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("does not treat a service with a restart policy other than no as one-shot even when a waiter under a profile waits for it to complete", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", restart: "unless-stopped" };
+    compose.services.worker = {
+      image: "w",
+      profiles: ["s3"],
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("checks a one-shot service under its profiles other than tools", () => {
+    const compose = validCompose();
+    compose.services.seed = {
+      image: "x",
+      restart: "no",
+      profiles: ["tools", "s3"],
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([
+      oneShotProfileIssue("seed", "s3"),
+    ]);
+  });
+
+  it("does not check a one-shot service whose only profile is tools", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", restart: "no", profiles: ["tools"] };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("accepts a one-shot service with two profiles that a waiter under the same two profiles waits to complete", () => {
+    const compose = validCompose();
+    compose.services.seed = {
+      image: "x",
+      restart: "no",
+      profiles: ["s3", "full"],
+    };
+    compose.services.worker = {
+      image: "w",
+      profiles: ["s3", "full"],
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
   it("reports every broken rule in the contract order", () => {
     const compose = validCompose();
+    compose.services.minio = {
+      image: "minio/minio",
+      ports: ["9000:9000"],
+      environment: { MINIO_ROOT_USER: "minioadmin" },
+    };
     compose.services.mail = { image: "axllent/mailpit" };
+    compose.services.seed = { image: "x", restart: "no" };
     compose.services.app.depends_on = {
       migrate: { condition: "service_started" },
     };
@@ -427,7 +882,10 @@ describe("checkSelfhostCompose", () => {
       "docker-compose.selfhost.yml: migrate must wait for a healthy db (service_healthy)",
       "docker-compose.selfhost.yml: app needs a healthcheck on /api/healthcheck",
       "docker-compose.selfhost.yml: db must not publish a port",
+      "docker-compose.selfhost.yml: minio must not publish a port",
       "docker-compose.selfhost.yml: no mail relay in the self-hosted stack (mail)",
+      `docker-compose.selfhost.yml: seed runs once (restart: "no"), so another service must wait for it to complete (service_completed_successfully) or up --wait fails`,
+      "docker-compose.selfhost.yml: minio uses the development credential minioadmin; take the credentials from .env.selfhost",
     ]);
   });
 });

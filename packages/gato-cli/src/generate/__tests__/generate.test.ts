@@ -316,6 +316,8 @@ describe("generate", () => {
         'export const moduleEnvSchemas = enabledEntries([{ module: "demo", value: demoEnvSchema }], gatoConfig);',
         'export const authPlugins = enabledEntries([{ module: "auth", value: authAuthPlugin }], gatoConfig);',
         "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
         "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",

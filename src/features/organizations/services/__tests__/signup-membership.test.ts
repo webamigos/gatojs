@@ -10,6 +10,11 @@ const { mockPrisma } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/shared/lib/prisma", () => ({ prisma: mockPrisma }));
+vi.mock("@/modules.generated", () => ({
+  auditSinks: [],
+  moduleEvents: [],
+  moduleSubscribers: [],
+}));
 
 import {
   applySignupMembership,
@@ -153,6 +158,53 @@ describe("applySignupMembership", () => {
       op: "invitation.update",
       args,
     }));
+    mockPrisma.organization.create.mockResolvedValue({
+      id: "org-new",
+      slug: "ala-organizacja-abcd1234",
+    });
+  });
+
+  it("create returns the id of the new organization", async () => {
+    await expect(
+      applySignupMembership("user-1", {
+        action: "create",
+        organizationName: "Ala — organizacja",
+        role: "owner",
+      }),
+    ).resolves.toStrictEqual({ organizationId: "org-new" });
+  });
+
+  it("join with an invitation returns the organization of the membership", async () => {
+    await expect(
+      applySignupMembership("user-1", {
+        action: "join",
+        organizationId: "org-invited",
+        role: "admin",
+        invitationId: "inv-1",
+      }),
+    ).resolves.toStrictEqual({ organizationId: "org-invited" });
+  });
+
+  it("join without an invitation returns the organization of the membership", async () => {
+    await expect(
+      applySignupMembership("user-1", {
+        action: "join",
+        organizationId: "org-only",
+        role: "member",
+      }),
+    ).resolves.toStrictEqual({ organizationId: "org-only" });
+  });
+
+  it("a failing create rejects instead of returning an organization", async () => {
+    mockPrisma.organization.create.mockRejectedValue(new Error("db down"));
+
+    await expect(
+      applySignupMembership("user-1", {
+        action: "create",
+        organizationName: "Ala — organizacja",
+        role: "owner",
+      }),
+    ).rejects.toThrow("db down");
   });
 
   it("join z zaproszeniem dodaje członka i oznacza zaproszenie jako przyjęte", async () => {

@@ -23,6 +23,15 @@ const {
   mockTrackAudit: vi.fn(),
 }));
 
+const { emitted, timeline, failingSubscriber, scopeInSubscriber } = vi.hoisted(
+  () => ({
+    emitted: [] as unknown[],
+    timeline: [] as string[],
+    failingSubscriber: { enabled: false },
+    scopeInSubscriber: [] as boolean[],
+  }),
+);
+
 vi.mock("@/shared/lib/prisma", () => ({ prisma: mockPrisma }));
 vi.mock("@/shared/lib/auth/helpers", () => ({
   getAdminUserOrNull: () => mockGetAdminUserOrNull(),
@@ -46,8 +55,42 @@ vi.mock("@/shared/lib/audit", async (importActual) => ({
   ...(await importActual<typeof import("@/shared/lib/audit")>()),
   trackAudit: mockTrackAudit,
 }));
+vi.mock("@/modules.generated", () => ({
+  moduleEvents: [],
+  moduleSubscribers: [
+    {
+      module: "probe",
+      value: {
+        "users.invited": [
+          {
+            id: "probe.a-fail",
+            run: () => {
+              if (failingSubscriber.enabled) {
+                throw new Error("subscriber down");
+              }
+            },
+          },
+          {
+            id: "probe.record",
+            run: (event: unknown) => {
+              timeline.push("event");
+              emitted.push(event);
+            },
+          },
+          {
+            id: "probe.scope",
+            run: () => {
+              scopeInSubscriber.push(isInviteSignup());
+            },
+          },
+        ],
+      },
+    },
+  ],
+}));
 
 import { revalidatePath } from "next/cache";
+import { isInviteSignup } from "@/shared/lib/auth/invite-signup-scope";
 import { inviteUserCommand } from "../invite-user-command";
 
 const WELCOME_URL =
@@ -90,6 +133,10 @@ beforeEach(() => {
   mockCreateWelcomeUrl.mockResolvedValue(WELCOME_URL);
   mockSendWelcomeEmail.mockResolvedValue({ data: { id: "mail-1" } });
   mockTrackAudit.mockResolvedValue(undefined);
+  emitted.length = 0;
+  timeline.length = 0;
+  failingSubscriber.enabled = false;
+  scopeInSubscriber.length = 0;
 });
 
 function expectNoDatabaseAccess() {
@@ -625,6 +672,194 @@ describe("inviteUserCommand", () => {
         expect(result).toEqual(SERVICE_MODE_ERROR);
         expect(mockPrisma.invitation.create).not.toHaveBeenCalled();
         expect(mockTrackAudit).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe("users.invited domain event", () => {
+    beforeEach(() => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+    });
+
+    it("a successful invitation emits exactly one users.invited with the context organization, actor and the invitation", async () => {
+      const result = await inviteUserCommand(validInput);
+
+      expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
+      expect(emitted).toEqual([
+        {
+          name: "users.invited",
+          organizationId: "org-1",
+          actorUserId: "admin-1",
+          payload: {
+            invitationId: "inv-1",
+            email: "jan@firma.pl",
+            role: "member",
+          },
+        },
+      ]);
+    });
+
+    it("the organization and actor come from the context, the email and role from the parsed input", async () => {
+      mockGetAdminUserOrNull.mockResolvedValue({
+        id: "super-1",
+        role: "superadmin",
+      });
+      mockGetOrgContext.mockResolvedValue({
+        ...SERVICE_CONTEXT,
+        organizationId: "org-9",
+      });
+      mockPrisma.invitation.create.mockResolvedValue({ id: "inv-9" });
+
+      await inviteUserCommand(
+        { ...validInput, email: "  Ewa@Firma.PL ", role: "admin" },
+        { serviceModeConfirmed: true, organizationId: "org-9" },
+      );
+
+      expect(emitted).toEqual([
+        {
+          name: "users.invited",
+          organizationId: "org-9",
+          actorUserId: "super-1",
+          payload: {
+            invitationId: "inv-9",
+            email: "ewa@firma.pl",
+            role: "admin",
+          },
+        },
+      ]);
+    });
+
+    it("the event comes after trackAudit has finished its write", async () => {
+      mockTrackAudit.mockImplementation(async () => {
+        timeline.push("audit:start");
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        timeline.push("audit:end");
+      });
+
+      await inviteUserCommand(validInput);
+
+      expect(timeline).toEqual(["audit:start", "audit:end", "event"]);
+    });
+
+    it("an existing email emits no event", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: "existing" });
+
+      await inviteUserCommand(validInput);
+
+      expect(emitted).toEqual([]);
+    });
+
+    it("a failed account registration emits no event", async () => {
+      mockAuthApi.signUpEmail.mockRejectedValue(new Error("signup failed"));
+
+      await inviteUserCommand(validInput);
+
+      expect(emitted).toEqual([]);
+    });
+
+    it("a caller without the admin role emits no event", async () => {
+      mockGetAdminUserOrNull.mockResolvedValue(null);
+
+      await inviteUserCommand(validInput);
+
+      expect(emitted).toEqual([]);
+    });
+
+    it("service mode without confirmation emits no event", async () => {
+      mockGetAdminUserOrNull.mockResolvedValue({
+        id: "super-1",
+        role: "superadmin",
+      });
+      mockGetOrgContext.mockResolvedValue(SERVICE_CONTEXT);
+
+      await inviteUserCommand(validInput);
+
+      expect(emitted).toEqual([]);
+    });
+
+    it("a throwing subscriber does not fail the invitation", async () => {
+      failingSubscriber.enabled = true;
+
+      const result = await inviteUserCommand(validInput);
+
+      expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
+      expect(emitted).toHaveLength(1);
+      expect(mockSendWelcomeEmail).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("account registration inside the admin invite scope", () => {
+    beforeEach(() => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+    });
+
+    it("isInviteSignup() is true while auth.api.signUpEmail runs, also after an await inside it", async () => {
+      const seen: boolean[] = [];
+      mockAuthApi.signUpEmail.mockImplementation(async () => {
+        seen.push(isInviteSignup());
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        seen.push(isInviteSignup());
+        return { user: { id: "new-user-1" } };
+      });
+
+      const result = await inviteUserCommand(validInput);
+
+      expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
+      expect(seen).toEqual([true, true]);
+    });
+
+    it("isInviteSignup() is false after a successful invitation", async () => {
+      const result = await inviteUserCommand(validInput);
+
+      expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
+      expect(isInviteSignup()).toBe(false);
+    });
+
+    it("isInviteSignup() is false after a failed account registration", async () => {
+      const seen: boolean[] = [];
+      mockAuthApi.signUpEmail.mockImplementation(async () => {
+        seen.push(isInviteSignup());
+        throw new Error("signup failed");
+      });
+
+      const result = await inviteUserCommand(validInput);
+
+      expect(result).toEqual({
+        success: false,
+        error: "Nie udało się zaprosić użytkownika",
+      });
+      expect(seen).toEqual([true]);
+      expect(isInviteSignup()).toBe(false);
+    });
+
+    it("the users.invited subscribers run outside the invite scope", async () => {
+      await inviteUserCommand(validInput);
+
+      expect(emitted).toHaveLength(1);
+      expect(scopeInSubscriber).toEqual([false]);
+    });
+
+    it("the existing-email check, the invitation write and the welcome mail run outside the invite scope", async () => {
+      const seen: Record<string, boolean> = {};
+      mockPrisma.user.findUnique.mockImplementation(async () => {
+        seen.findUnique = isInviteSignup();
+        return null;
+      });
+      mockPrisma.invitation.create.mockImplementation(async () => {
+        seen.invitationCreate = isInviteSignup();
+        return { id: "inv-1" };
+      });
+      mockSendWelcomeEmail.mockImplementation(async () => {
+        seen.welcomeMail = isInviteSignup();
+        return { data: { id: "mail-1" } };
+      });
+
+      await inviteUserCommand(validInput);
+
+      expect(seen).toEqual({
+        findUnique: false,
+        invitationCreate: false,
+        welcomeMail: false,
       });
     });
   });

@@ -13,6 +13,7 @@ export const CLIENT_ENTRY_FILES = [
 ] as const;
 
 const SERVER_MODULES = [
+  "@/shared/lib/events",
   "@/shared/lib/prisma",
   "@/env",
   "@gatojs/env",
@@ -21,6 +22,7 @@ const SERVER_MODULES = [
   "server-only",
 ];
 
+const MODULE_SERVER_FILE = /^@\/features\/[^/]+\/(events|subscribers)$/;
 const SOURCE_FILE = /\.tsx?$/;
 const GENERATED_DIRECTORY = "src/generated/";
 
@@ -42,7 +44,7 @@ export function isClientModule(source: string): boolean {
 }
 
 function isServerModule(specifier: string): boolean {
-  if (specifier.startsWith("node:")) {
+  if (specifier.startsWith("node:") || MODULE_SERVER_FILE.test(specifier)) {
     return true;
   }
   if ((CLIENT_SAFE_AUTH_MODULES as readonly string[]).includes(specifier)) {

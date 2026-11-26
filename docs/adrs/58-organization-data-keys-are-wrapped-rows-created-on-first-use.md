@@ -22,8 +22,10 @@ are stored, when they are created, how the probe runs at startup and what happen
   pair, so KMS providers can be added behind it. `LocalKeyProvider` generates 32 random bytes and wraps them with
   the same AES-256-GCM envelope under the master key; it rejects a wrapped key that unwraps to anything but 32 bytes.
 - **Created on first use.** `encryptForOrganization` reads the row and, when there is none, generates a key and
-  writes it with `upsert` and an empty `update`, then uses the row the database returned. Two concurrent first
-  encryptions therefore end up on the same stored key. `decryptForOrganization` never creates a row: without one
+  writes it with `upsert` and an empty `update`, then uses the row the database returned. Prisma 7 runs that upsert
+  as a read and an insert, not `INSERT … ON CONFLICT`, so a concurrent first writer fails with `P2002`; it then reads
+  the stored row again and uses it (amended 2026-11-25). Two concurrent first encryptions therefore end up on the
+  same stored key. `decryptForOrganization` never creates a row: without one
   it throws `OrganizationDataKeyMissingError`.
 - **Every query filters by `organizationId`.** The model has `organizationId`, so the tenant-scope guard covers it.
   The API takes `organizationId` from the caller, who gets it from `getOrgContext()`; the functions are plain

@@ -300,6 +300,7 @@ jobs:
             fs.writeFileSync(".wa/kit.json", JSON.stringify(state, null, 2) + "\n");
           '
           npm run wa -- generate
+          npm run typecheck
           npm test
 
   # The S3 presets in docs/15-modul-uploads.md marked "verified in CI" run here.

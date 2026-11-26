@@ -221,7 +221,7 @@ Plik `organization` przeglądarka pobiera z ciasteczkiem sesji, więc działa w 
 
 `deleteDeliveryCommand` przed tym fragmentem woła `requireModuleAccess("deliveries")`, `assertServiceModeConfirmed` i wyszukuje dostawę z filtrem `organizationId`. Potwierdzenie trybu serwisowego przekazuje dalej, bo `deleteUploadCommand` sprawdza je jeszcze raz. W teście integracyjnym usunięcie dostawy usunęło rekord pliku i obiekt z MinIO (sprawdzone), a test padł, gdy wywołanie `deleteUploadCommand` usunięto.
 
-Kolejność ma skutki. `deleteUploadCommand` ma własne reguły ([Usuwanie](15-modul-uploads.md#usuwanie)): `member` nie usunie zdjęcia, które wgrał ktoś inny. Przykład usuwa najpierw dostawę, a niepowodzenie przy pliku tylko loguje, więc plik zostaje osierocony, ale dostawa znika. Jeśli wolisz zatrzymać usunięcie encji, gdy pliku nie da się usunąć, wołaj `deleteUploadCommand` przed usunięciem encji i przerwij przy błędzie.
+Kolejność ma skutki. `deleteUploadCommand` ma własne reguły ([Usuwanie](15-modul-uploads.md#usuwanie)): bez uprawnienia `uploads.delete-others` ([Uprawnienia](#uprawnienia)) `member` nie usunie zdjęcia, które wgrał ktoś inny. Przykład usuwa najpierw dostawę, a niepowodzenie przy pliku tylko loguje, więc plik zostaje osierocony, ale dostawa znika. Jeśli wolisz zatrzymać usunięcie encji, gdy pliku nie da się usunąć, wołaj `deleteUploadCommand` przed usunięciem encji i przerwij przy błędzie.
 
 Komenda z przebiegu nie pilnuje, żeby jeden plik był podpięty do jednej dostawy: to samo `photoUploadId` można zapisać w dwóch dostawach, a usunięcie jednej usunie plik, więc druga będzie wskazywać adres z 404. Dodaj unikalność kolumny (`@unique` na `photoUploadId`) albo przed `deleteUploadCommand` sprawdź, czy inne encje nie wskazują tego pliku.
 
@@ -244,7 +244,8 @@ Deklaracja `uploadPurposes` buduje się i nie przeszkadza w projekcie bez `uploa
 - **Obraz przechodzi przez `sharp`** z limitem 40 000 000 pikseli, a zapisany JPEG nie ma EXIF (w tym lokalizacji z telefonu) ([Obrazy](15-modul-uploads.md#obrazy)).
 - **Limit rozmiaru przed odczytem ciała.** Za duże `Content-Length` i brak sesji kończą żądanie przed wczytaniem pliku; brak `Content-Length` daje 411 ([Zapis](15-modul-uploads.md#post)).
 - **Tryb serwisowy** obowiązuje upload (potwierdzenie w formularzu) i `deleteUploadCommand` ([Potwierdzenie](15-modul-uploads.md#request-confirmation)).
-- **Usuwanie** z filtrem `organizationId` i regułą autora; plik innej organizacji daje ten sam błąd co nieistniejący ([Usuwanie](15-modul-uploads.md#usuwanie)).
+- **Usuwanie** z filtrem `organizationId` i regułą `upload.uploadedById === context.userId || can(context, "uploads.delete-others")`: cudzy plik usuwa tylko rola z uprawnieniem albo admin i superadmin globalny; plik innej organizacji daje ten sam błąd co nieistniejący także dla jej `owner` ([Usuwanie](15-modul-uploads.md#usuwanie), [Uprawnienia](#uprawnienia)).
+- **Zmiana ról uprawnienia** w `src/gato.config.ts` zastępuje `defaultRoles`, a nie je rozszerza: `["owner"]` odbiera usuwanie cudzych plików adminowi organizacji. Literówka w kluczu kończy import konfiguracji błędem `GatoConfigError`, a w kodzie `can` rzuca `UnknownPermissionError` zamiast odmówić ([04-auth-i-role.md](04-auth-i-role.md#uprawnienia)).
 - **Osierocone obiekty** zostają w magazynie i nikt ich nie sprząta ([Osierocone obiekty](15-modul-uploads.md#osierocone)).
 - **Klucz nie wyjdzie poza katalog `local`.** Provider `local` odrzuca klucz bezwzględny, z segmentem `..` albo z bajtem `\0` i sprawdza, że ścieżka po rozwiązaniu leży w katalogu magazynu. Sprawdzenie nie rozwiązuje dowiązań symbolicznych, więc katalog z `STORAGE_LOCAL_PATH` ma należeć wyłącznie do aplikacji ([Ochrona przed wyjściem poza katalog](15-modul-uploads.md#path-traversal)).
 - **Konfiguracja, która zgubiłaby pliki, zatrzymuje start.** Na produkcji provider `local` bez trwałego katalogu kończy start raportem ([Reguły produkcyjne](15-modul-uploads.md#reguly-produkcyjne)).
@@ -354,7 +355,7 @@ async function uploadPhoto(width: number): Promise<{ id: string; key: string }> 
 | 400 `unknown_purpose` | Cel nie jest zadeklarowany albo `module.ts` funkcji nie ma w rejestrze (sprawdzone dla nieznanego klucza). | Dodaj cel; dla nowego `module.ts` uruchom `npm run wa -- generate`. |
 | Plik `organization` daje 404 zalogowanemu użytkownikowi | Aktywna jest inna organizacja niż organizacja pliku, użytkownik nie jest już członkiem albo obiektu nie ma w magazynie. | Przełącz organizację; dla danych potrzebnych szerzej zaprojektuj cel `public` świadomie. |
 | Wgrany plik ma `mimeType` `image/jpeg`, a nazwa kończy się na `.png` | Cel z `resizeImage` zapisuje każdy obraz jako JPEG; `fileName` zostaje od klienta (sprawdzone). | To zamierzone; typ podaje `mimeType`. |
-| „Brak uprawnień do usunięcia pliku” | `member` usuwa plik wgrany przez kogoś innego. | Usuwa autor, owner albo admin ([Usuwanie](15-modul-uploads.md#usuwanie)). |
+| „Brak uprawnień do usunięcia pliku” | Rola bez `uploads.delete-others` (domyślnie `member`) usuwa plik wgrany przez kogoś innego. | Usuwa autor albo rola z uprawnieniem; role zmienia `src/gato.config.ts` ([Uprawnienia](#uprawnienia)). |
 | Magazyn rośnie, choć użytkownicy usuwają dane | Osierocone obiekty ([lista sytuacji](15-modul-uploads.md#osierocone)). | Wołaj `deleteUploadCommand` przy usuwaniu encji; sprzątaj magazyn porównaniem kluczy z kolumną `key`. |
 | Testy integracyjne modułu padają z błędem połączenia albo błędem S3 | Pod `localhost:9000` nie ma MinIO projektu (nie uruchomiono `docker compose --profile s3 up -d` albo port zajmuje inny kontener) albo nie ma bucketu `<slug>-uploads`. Testy integracyjne działają na S3 także wtedy, gdy aplikacja używa `local`. | Uruchom MinIO z profilem `s3` albo ustaw `INTEGRATION_S3_ENDPOINT` i `INTEGRATION_S3_BUCKET` na swój MinIO i utwórz bucket. |
 | `TS2307: Cannot find module '@/features/uploads/…'` | Kod importuje plik modułu w projekcie bez modułu albo po `wa remove`. | `npm run wa -- add uploads` albo usuń import. |
@@ -406,6 +407,28 @@ Pola deklaracji modułu w `module.ts`: [Definicja modułu](15-modul-uploads.md#d
 
 Typy zakazane w każdym celu: `image/svg+xml`, `text/html`, `application/xhtml+xml`, `application/xml`, `text/xml`.
 
+<a id="uprawnienia"></a>
+
+### Uprawnienia
+
+Moduł deklaruje w `module.ts` jedno uprawnienie, sprawdzane przez `can` z `src/shared/lib/auth/permissions.ts` ([04-auth-i-role.md](04-auth-i-role.md#uprawnienia)):
+
+| Uprawnienie | `defaultRoles` | Etykieta (`labelKey`) | Gdzie działa |
+| --- | --- | --- | --- |
+| `uploads.delete-others` | `owner`, `admin` | `permission-delete-others`: „Usuwanie plików innych osób” (`en`: „Delete files uploaded by others”) | `deleteUploadCommand`: usunięcie pliku, którego `uploadedById` nie jest bieżącym użytkownikiem, także pliku autora usuniętego z aplikacji (`uploadedById` równe `null`) |
+
+Autor usuwa własny plik bez uprawnienia. Admin i superadmin globalny przechodzą zawsze. Role zmienia wpis w `src/gato.config.ts`, który zastępuje `defaultRoles` ([Konfiguracja projektu](11-praca-z-kitem.md#gato-config)):
+
+```ts
+export default defineGatoConfig({
+  modules: {
+    uploads: { permissions: { "uploads.delete-others": ["owner"] } },
+  },
+});
+```
+
+Z tym wpisem admin organizacji dostaje „Brak uprawnień do usunięcia pliku” przy cudzym pliku, a owner nadal go usuwa.
+
 <a id="referencja-komunikaty"></a>
 
 ### Komunikaty
@@ -417,7 +440,7 @@ Typy zakazane w każdym celu: `image/svg+xml`, `text/html`, `application/xhtml+x
 | `Nie udało się przesłać pliku` | `<FileUpload>`, tekst pod polem pliku | Każdy inny błąd, także 403 trybu serwisowego i awaria sieci. |
 | `Potwierdź zmianę w trybie serwisowym` | odpowiedź `POST /api/uploads` (403), wynik `deleteUploadCommand` | Brak albo nieaktualne potwierdzenie ([Potwierdzenie](15-modul-uploads.md#request-confirmation)). |
 | `Nie udało się usunąć pliku` | wynik `deleteUploadCommand` | Nieprawidłowe `id`, plik innej organizacji, plik nieistniejący albo błąd bazy. |
-| `Brak uprawnień do usunięcia pliku` | wynik `deleteUploadCommand` | `member` usuwa cudzy plik. |
+| `Brak uprawnień do usunięcia pliku` | wynik `deleteUploadCommand` | Rola bez `uploads.delete-others` (domyślnie `member`) usuwa cudzy plik ([Uprawnienia](#uprawnienia)). |
 | `upload putObject failed` (log `error`, pole `err`) | log serwera | Zapis obiektu się nie powiódł; odpowiedź 500. |
 | `Nieprawidłowy klucz obiektu` | komunikat wyjątku `InvalidStorageKeyError` providera `local`, przy zapisie w polu `err` wpisu `upload putObject failed`, z `err.type` równym `InvalidStorageKeyError` | Klucz bezwzględny, z segmentem `..`, z bajtem `\0` albo wskazujący sam katalog magazynu; klucze tworzone przez moduł takie nie są ([Ochrona przed wyjściem poza katalog](15-modul-uploads.md#path-traversal)). |
 | `upload record create failed` (log `error`, pole `err`) | log serwera | Zapis rekordu się nie powiódł; obiekt jest cofany. |

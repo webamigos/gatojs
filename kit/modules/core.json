@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "0.24.0",
+  "version": "0.27.0",
   "description": "GatoJS core: auth, organizations, users, account, dashboard",
   "requires": [],
   "files": [
@@ -17,6 +17,7 @@
     ".github/workflows/ci.yml",
     ".github/workflows/docker-publish.yml",
     ".github/workflows/e2e.yml",
+    ".github/workflows/helm.yml",
     ".github/workflows/mutation.yml",
     ".github/workflows/security-audit.yml",
     ".github/workflows/security-secret-scan.yml",
@@ -33,6 +34,7 @@
     "Dockerfile",
     "README.md",
     "commitlint.config.mjs",
+    "deploy/helm/**",
     "components.json",
     "docker-compose.yml",
     "docker-compose.selfhost.yml",

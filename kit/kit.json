@@ -1,7 +1,7 @@
 {
-  "version": "0.25.0",
+  "version": "0.28.0",
   "repo": "https://github.com/webamigos/gatojs.git",
-  "kitFormat": 5,
+  "kitFormat": 6,
   "kitOnly": [
     "kit/**",
     "packages/gato-cli/**",
@@ -50,7 +50,9 @@
     "README.md",
     "docker/uploads.compose.yml",
     "docker/uploads.selfhost.compose.yml",
-    "ci/uploads.integration-steps.yml"
+    "ci/uploads.integration-steps.yml",
+    "deploy/helm/gatojs/Chart.yaml",
+    "deploy/helm/gatojs/values.yaml"
   ],
   "generatedFiles": [
     "src/modules.generated.ts",

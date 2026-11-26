@@ -227,6 +227,67 @@ describe("findServerImportsInClient", () => {
     ).toEqual([]);
   });
 
+  it("the events library and its subpaths are server modules for a client file", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import { emitEvent } from "@/shared/lib/events";\nimport { emitEvent as e } from "@/shared/lib/events/emit-event";',
+        ),
+      ),
+    ).toEqual(["@/shared/lib/events", "@/shared/lib/events/emit-event"]);
+  });
+
+  it("a feature's events.ts and subscribers.ts are server modules for a client file", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import { events } from "@/features/invoices/events";\nimport { subscribers } from "@/features/invoices/subscribers";',
+        ),
+      ),
+    ).toEqual([
+      "@/features/invoices/events",
+      "@/features/invoices/subscribers",
+    ]);
+  });
+
+  it("a dynamic import of a feature's subscribers in a client file is a violation", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'export const load = () => import("@/features/billing/subscribers");',
+        ),
+      ),
+    ).toEqual(["@/features/billing/subscribers"]);
+  });
+
+  it("names that only start like events or subscribers are not server modules", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import { a } from "@/features/invoices/events-list";\nimport { b } from "@/features/invoices/components/events";\nimport { c } from "@/shared/lib/eventsource";\nimport { d } from "@/features/invoices/subscribers-table";\nimport { e } from "@/features/invoices/components/subscribers";',
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("the same events imports without use client are not violations", () => {
+    expect(
+      findServerImportsInClient(
+        'import { emitEvent } from "@/shared/lib/events";\nimport { emitEvent as e } from "@/shared/lib/events/emit-event";\nimport { events } from "@/features/invoices/events";\nimport { subscribers } from "@/features/invoices/subscribers";',
+      ),
+    ).toEqual([]);
+  });
+
+  it("a type-only import from the events library in a client file is allowed", () => {
+    expect(
+      findServerImportsInClient(
+        client(
+          'import type { DomainEvent } from "@/shared/lib/events";\nimport type { events } from "@/features/invoices/events";',
+        ),
+      ),
+    ).toEqual([]);
+  });
+
   it("zwraca naruszenia w kolejności wystąpienia", () => {
     expect(
       findServerImportsInClient(
@@ -369,6 +430,20 @@ describe("checkClientBundles", () => {
     write("src/gato.config.ts", client('import "server-only";'));
     expect(checkClientBundles(root)).toEqual([
       "src/gato.config.ts: server-only",
+    ]);
+  });
+
+  it("reports a client component importing a feature's events", () => {
+    write(
+      "src/features/invoices/components/issue-button.tsx",
+      client('import { events } from "@/features/invoices/events";'),
+    );
+    write(
+      "src/features/invoices/services/commands/issue.ts",
+      'import { emitEvent } from "@/shared/lib/events";',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/invoices/components/issue-button.tsx: @/features/invoices/events",
     ]);
   });
 
