@@ -1,0 +1,51 @@
+# ADR-62: Gato commands run through `defineCommand` and `runCommand`, and other modules extend them only with `before` hooks
+
+**Status:** Accepted
+**Date:** 2026-11-26
+**Decided by:** Patryk Omiotek (extensibility decision 6A), implemented by an agent
+
+## Context
+
+A project module often has to stop or adjust a Gato command: an invoice module must not let `uploads` delete a PDF attached to an issued invoice. Without a hook point it edits the Gato command, which turns a Gato file into a local change (ADR-59) and repeats a lesson from another framework: a core operation without a hook forced its users to wrap handlers and import core internals.
+
+A hook point inside a command is also the easiest place to break tenant isolation and the service-mode contract (D22). Every command today repeats the same guard sequence by hand (`requireModuleEnabled`, `getOrgContext()` or `requireModuleAccess()`, `assertServiceModeConfirmed`, Zod), and a hook that ran before that sequence, or that could change the organization, the role or the confirmation, would bypass it.
+
+## Decision
+
+New core library `src/shared/lib/commands/` (in `mutation-gate.json` `critical`), in two files so that a module's hooks never import the registry:
+
+- `define-command.ts`: `defineCommand({ key, module, access, input, failureMessage, deniedMessage?, permission?, events?, run })` returns a frozen command. `key` starts with the module key and a dot. `access` is `"member"` (`getOrgContext()`), `"module"` (`requireModuleAccess(module)`) or `"global-admin"` (`getAdminUserOrNull()`, then `getOrgContext()`). `input` is a `z.object()`. `run(input, context, emit)` returns an `OperationResult` and records events with `emit(name, payload)`, only for names listed in `events`.
+- `run-command.ts`: `runCommand(command, input, confirmation)` is the whole entry point. In this order: `requireModuleEnabled(module)`; the command key must be declared in its module's `commands` (`ModuleDef.commands`, pure data in `module.ts`); the session guard by `access`; `assertServiceModeConfirmed(context, confirmation)`; Zod parse (failure → `failureMessage`); `can(context, permission)` when set (denied → `deniedMessage`, else `failureMessage`); the context is copied and frozen; the `before` hooks of enabled modules, in registry order, one at a time; re-parse with the command's schema; the organization check; `run`; when `run` succeeded, `emitEvent(eventOrigin(context), …)` for each recorded event; `handleCommandError(error, failureMessage)` on any throw.
+- A module adds `src/features/<x>/command-hooks.ts`: `export const commandHooks = defineCommandHooks({ "uploads.delete": { id: "<x>.<name>", before: async (input, context) => … } })`, one hook or an array per command. `before` gets the current input and the frozen context. It may throw (a `DomainError` message reaches the user, anything else becomes `failureMessage`), return a new input, or return nothing to keep the input. There is no `after` hook: reactions go through events (ADR-61).
+- Organization check: an organization-scoped field is `organizationId` or a top-level field whose schema carries `.meta({ organizationScoped: true })` (also under `.optional()`, `.nullable()`, `.default()`). After the hooks each one must still equal its parsed value and be either absent or equal to `context.organizationId`. The check runs with or without hooks, so a caller that sends another organization's id fails too. Commands keep taking the organization from the context, never from the input.
+- The generator (`gato-cli` 0.11.0, `kitFormat` 8) detects `command-hooks.ts` and emits in the server registry only `export const moduleCommandHooks = commandHookRegistry({ modules: [...], hooks: [...] }, gatoConfig);`, always. `commandHookRegistry` validates every entry, enabled or not, and throws one `CommandError` listing every problem: a declared command key without the module prefix, a command declared twice, a hook id without the module prefix, a hook id used twice, a hook on a command no module declares (`unknown command: <key>`). Then it leaves out the hooks of modules disabled in `src/gato.config.ts`. `runCommand` checks `isModuleEnabled` again for each hook before it runs.
+- First migration: `deleteUploadCommand` is the `uploads.delete` command (`access: "member"`), with every message and behaviour kept, and emits the new `uploads.deleted` event (`{ uploadId }`, `src/features/uploads/events.ts`); `trackAudit` stays.
+
+## Rejected alternatives
+
+- Hooks declared in `defineModule`: `module.ts` ships to the browser, and hooks are server code.
+- Command keys taken from the command objects themselves, imported by the registry: a `"use server"` file can only export async functions, so the registry cannot import the command objects without moving every command into a second file. The keys are pure data in `module.ts` instead, and `runCommand` refuses an undeclared command, so the list cannot drift silently.
+- Checking an unknown hook key lazily on the first call: a renamed Gato command would leave a project's hook silently dead until someone ran that command (lesson 1 of the extensibility spec). The registry check fails `npm run build`, `npm run dev` and every test that imports the registry.
+- `after` hooks: a second way to react next to events, with the same ordering and failure questions.
+- Letting a hook change the context or the confirmation: the guards and the service-mode contract would then depend on every installed module's code.
+- Comparing an organization-scoped field only with its value before the hooks: a caller-supplied foreign organization would pass when no hook touches it.
+
+## Consequences
+
+- A Gato command on organization data is a `defineCommand` object plus an exported `(input: unknown, confirmation?: unknown)` function that returns `runCommand(command, input, confirmation)`. Its key goes into `commands` in its `module.ts`. Project commands may keep the manual pattern (`docs/06-wzorce-kodu.md`).
+- A `before` hook runs after authorization, the service-mode confirmation, validation and the permission check, for every caller of the command. It cannot see the raw request or the confirmation, and it cannot widen access: it can only veto or change non-organization fields. A changed id is a different record of the same organization; `run` reads it filtered by `context.organizationId` and applies its own rules to it.
+- `access: "module"` turns the `notFound()` of `requireModuleAccess` into the command's failure result, like any other thrown error.
+- Events of a command are emitted only after `run` returned success, so a veto or a failed write never emits.
+- A hook that throws something other than a `DomainError`, or returns input the schema rejects, ends the command with `failureMessage` and is logged with `logger.error`.
+
+## Enforcement
+
+- `src/shared/lib/commands/__tests__/` pins the order of the steps, the frozen context, the organization check, the registry validation and the event timing; `src/shared/lib/commands/` is in `mutation-gate.json` `critical`.
+- `src/__tests__/server-entrypoints-guard.test.ts` counts `return runCommand(command, input, confirmation)` as the session guard and the service-mode confirmation, the latter only with the untouched confirmation parameter.
+- `src/__tests__/architecture/module-entry-points-check-enabled.test.ts` (`scripts/lib/architecture/module-entry-points.ts`) counts `runCommand` as the module-enabled guard only when its command is a module-level `defineCommand` of the file's own module and its value is returned directly, because `runCommand` returns a failure instead of throwing.
+- `src/__tests__/architecture/client-bundles-stay-server-free.test.ts` keeps `@/shared/lib/commands` and `command-hooks.ts` out of client files.
+
+## Sources
+
+- Spec: [docs/superpowers/specs/2026-11-22-extensibility-design.md](../superpowers/specs/2026-11-22-extensibility-design.md), §5.6.
+- Plan: [docs/superpowers/plans/2026-11-23-extensibility.md](../superpowers/plans/2026-11-23-extensibility.md), Task 12 and its contract.

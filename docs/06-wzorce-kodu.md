@@ -259,6 +259,40 @@ Ten wzorzec różni się od `inviteUserCommand` w trzech miejscach, więc nie ko
 
 Komenda dostaje testy jednostkowe każdego kroku, także negatywne (błędne wejście, brak uprawnień, tryb serwisowy bez potwierdzenia), i test izolacji na prawdziwej bazie: dwie organizacje, zapis z kontekstem jednej nie dotyka drugiej ([03-dane-i-organizacje.md](03-dane-i-organizacje.md#izolacja), [08-testy.md](08-testy.md)). Wzór przypadków trybu serwisowego: bloki „tryb serwisowy” i „poza trybem serwisowym” w `src/features/users/services/commands/__tests__/invite-user-command.test.ts`.
 
+<a id="define-command"></a>
+
+### Komenda przez `defineCommand`
+
+Komendy kitu na danych organizacji przechodzą na `defineCommand` i `runCommand` z `src/shared/lib/commands/` ([ADR-62](adrs/62-gato-commands-run-through-define-command-with-before-hooks-only.md)). Komenda projektu może zostać przy ręcznym wzorcu z poprzedniej sekcji; `defineCommand` przydaje się, gdy inne moduły mają móc ją zatrzymać albo zmienić jej wejście. Pierwsza komenda w tym wzorcu to `deleteUploadCommand` (`uploads.delete`):
+
+```ts
+"use server";
+
+const deleteUpload = defineCommand({
+  key: "uploads.delete",
+  module: "uploads",
+  access: "member",
+  input: z.object({ id: z.uuid() }),
+  failureMessage: "Nie udało się usunąć pliku",
+  events: ["uploads.deleted"],
+  run: async ({ id }, context, emit) => {
+    // Prisma z organizationId: context.organizationId, jak w ręcznej komendzie
+    emit("uploads.deleted", { uploadId: id });
+    return { success: true };
+  },
+});
+
+export async function deleteUploadCommand(input: unknown, confirmation?: unknown) {
+  return runCommand(deleteUpload, input, confirmation);
+}
+```
+
+- **Klucz komendy** zaczyna się od klucza modułu i kropki, a moduł deklaruje go w `commands` swojego `module.ts` (`commands: ["uploads.delete"]`). `runCommand` odmawia komendy, której moduł nie deklaruje, a rejestr odrzuca hook na nieznany klucz już przy imporcie.
+- **`runCommand` robi kroki z [Kolejności](#kolejnosc) sam**, w stałej kolejności: `requireModuleEnabled(module)`, guard sesji według `access` (`"member"`: `getOrgContext()`, `"module"`: `requireModuleAccess(module)`, `"global-admin"`: `getAdminUserOrNull()`, potem `getOrgContext()`), `assertServiceModeConfirmed`, walidacja Zod (błąd → `failureMessage`), `can(context, permission)`, gdy komenda ma `permission` (odmowa → `deniedMessage`, a bez niego `failureMessage`), hooki `before`, ponowna walidacja i kontrola organizacji, `run`, zdarzenia, `handleCommandError`.
+- **Eksport zwraca wynik `runCommand` wprost** (`return runCommand(…)`). `runCommand` nie rzuca, tylko zwraca błąd, więc kod po `await runCommand(…)` wykonałby się bez guardów; testy architektury liczą `runCommand` jako guard tylko w `return`, a potwierdzenie trybu serwisowego tylko z niezmienionym parametrem `confirmation`.
+- **`run(input, context, emit)`** dostaje sparsowane wejście i zamrożoną kopię kontekstu i zwraca `OperationResult`. Zdarzenia zapisuje przez `emit(nazwa, payload)`, tylko z listy `events`; `runCommand` wysyła je dopiero, gdy `run` zwróciło `success: true`. Odmowa albo wyjątek nie wysyła nic.
+- **Hook `before` innego modułu** (`src/features/<x>/command-hooks.ts`, `export const commandHooks = defineCommandHooks({ "uploads.delete": { id: "<x>.<nazwa>", before: async (input, context) => … } })`) działa po autoryzacji, potwierdzeniu, walidacji i `can`, w kolejności rejestru, tylko dla włączonych modułów. Może rzucić `DomainError` (komunikat trafia do użytkownika), zwrócić nowe wejście albo nic nie zwrócić. Kontekst jest zamrożony. Pole `organizationId` i pola oznaczone `.meta({ organizationScoped: true })` muszą po hookach mieć wartość sprzed hooków i równą `context.organizationId` (albo nie istnieć), inaczej komenda kończy się `failureMessage`. Hook nie ma wariantu `after`: na wynik komendy reaguje się subskrybentem zdarzenia ([ADR-61](adrs/61-domain-events-run-subscribers-after-success.md)).
+
 <a id="wynik-i-bledy"></a>
 
 ### Wynik i błędy
@@ -623,7 +657,8 @@ Modułem pliku jest `<x>` dla `src/features/<x>/`, a dla innych ścieżek moduł
 
 Punkt wejścia jest chroniony, gdy pierwszym zdarzeniem w jego ciele jest poprawne wywołanie guardu, przed pierwszym odwołaniem do Prismy (identyfikator `prisma` albo nazwa zaimportowana z `@/shared/lib/prisma`). Wywołanie funkcji z tego samego pliku liczy się w miejscu wywołania jako pierwsze zdarzenie jej ciała. Poprawne wywołanie guardu:
 
-- dotyczy `requireModuleAccess` zaimportowanego z `@/shared/lib/auth/require-module-access` albo `requireModuleEnabled` lub `isModuleEnabled` z `@/shared/lib/modules/require-module-enabled` (alias dozwolony); funkcja o tej samej nazwie z innej ścieżki się nie liczy;
+- dotyczy `requireModuleAccess` zaimportowanego z `@/shared/lib/auth/require-module-access`, `requireModuleEnabled` lub `isModuleEnabled` z `@/shared/lib/modules/require-module-enabled` albo `runCommand` z `@/shared/lib/commands/run-command` (alias dozwolony); funkcja o tej samej nazwie z innej ścieżki się nie liczy;
+- dla `runCommand` ma jako pierwszy argument stałą `const` z najwyższego poziomu pliku zainicjowaną wywołaniem `defineCommand` z `@/shared/lib/commands/define-command`, z polem `module` równym kluczowi modułu pliku (literał albo stała), a wynik wywołania jest zwracany wprost (`return runCommand(…)`, `return await runCommand(…)` albo ciało funkcji strzałkowej); `runCommand` przy wyłączonym module zwraca błąd zamiast go rzucać, więc kod po `await runCommand(…)` nie jest chroniony;
 - ma jako pierwszy argument literał z kluczem modułu pliku albo stałą `const` na najwyższym poziomie pliku zainicjowaną takim literałem; `requireModuleEnabled("auth")` w pliku `billing` jest naruszeniem;
 - dla `isModuleEnabled` ma postać `if (!isModuleEnabled("<klucz>")) …`, gdzie gałąź kończy się `return` albo `throw`; w funkcji pomocniczej liczy się tylko `throw`, bo `return` kończy funkcję pomocniczą, a nie punkt wejścia; wynik zignorowany albo zapisany w zmiennej jest naruszeniem;
 - nie leży w funkcji zagnieżdżonej (callback, funkcja strzałkowa, metoda), bo jej wywołanie nie jest pewne; zdarzenia w takich funkcjach detektor pomija;
