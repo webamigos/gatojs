@@ -18,6 +18,7 @@ import {
 import { getDefaultActiveOrganizationId } from "@/features/organizations/services/queries/default-organization-query";
 import { trackServiceModeEntry } from "@/features/organizations/services/service-mode-entry";
 import { env } from "@/env";
+import { emitEvent } from "@/shared/lib/events";
 import { prisma } from "@/shared/lib/prisma";
 import { createAdminRoles, assertAdminActionAllowed } from "./admin-access";
 import {
@@ -90,7 +91,15 @@ export const auth = betterAuth({
           if (!membership) {
             return;
           }
-          await applySignupMembership(user.id, membership);
+          const { organizationId } = await applySignupMembership(
+            user.id,
+            membership,
+          );
+          await emitEvent(
+            { organizationId, actorUserId: user.id },
+            "auth.signed-up",
+            { userId: user.id, email: user.email },
+          );
         },
       },
     },

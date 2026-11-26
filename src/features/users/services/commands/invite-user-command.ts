@@ -8,6 +8,7 @@ import { auditActor, trackAudit } from "@/shared/lib/audit";
 import { getAdminUserOrNull } from "@/shared/lib/auth/helpers";
 import { getOrgContext } from "@/shared/lib/auth/org-context";
 import { assertServiceModeConfirmed } from "@/shared/lib/auth/service-mode";
+import { emitEvent, eventOrigin } from "@/shared/lib/events";
 import { logger } from "@/shared/lib/logger";
 import { handleCommandError } from "@/shared/utils/error-handling";
 import { createWelcomeSetPasswordUrl } from "@/shared/lib/auth/welcome-set-password";
@@ -74,6 +75,11 @@ export async function inviteUserCommand(
       entityType: "invitation",
       entityId: invitation.id,
       newData: { email, role },
+    });
+    await emitEvent(eventOrigin(context), "users.invited", {
+      invitationId: invitation.id,
+      email,
+      role,
     });
 
     await markEmailVerified(userId);
