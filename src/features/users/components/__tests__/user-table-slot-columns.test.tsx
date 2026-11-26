@@ -8,6 +8,8 @@ import {
   type MockInstance,
 } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import coreMessages from "@/app/messages/pl.json";
 import { DataTable, type ColumnDef } from "@/components/ui/data-table";
 import type {
   RegisteredContribution,
@@ -103,7 +105,11 @@ function renderTable(
     EMAIL_COLUMN,
     ...buildContributedUserColumns(contributions, translate, organizationId),
   ];
-  return render(<DataTable columns={columns} data={[ULA, ADAM]} />);
+  return render(
+    <NextIntlClientProvider locale="pl" messages={coreMessages}>
+      <DataTable columns={columns} data={[ULA, ADAM]} />
+    </NextIntlClientProvider>,
+  );
 }
 
 function rowOf(email: string): HTMLElement {
@@ -307,13 +313,15 @@ describe("buildContributedUserColumns: cells", () => {
     ).toBeInTheDocument();
 
     rerender(
-      <DataTable
-        columns={[
-          EMAIL_COLUMN,
-          ...buildContributedUserColumns([contribution], translate, "org-2"),
-        ]}
-        data={[ULA, ADAM]}
-      />,
+      <NextIntlClientProvider locale="pl" messages={coreMessages}>
+        <DataTable
+          columns={[
+            EMAIL_COLUMN,
+            ...buildContributedUserColumns([contribution], translate, "org-2"),
+          ]}
+          data={[ULA, ADAM]}
+        />
+      </NextIntlClientProvider>,
     );
 
     expect(
