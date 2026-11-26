@@ -5,7 +5,10 @@ import {
 } from "@/shared/lib/auth/permissions";
 import { roleAllows, type RegisteredContribution } from "./slots";
 
-function moduleAllows(module: string, viewer: AccessContext): boolean {
+export function moduleVisibleTo(
+  module: string,
+  viewer: AccessContext,
+): boolean {
   const moduleDef = moduleByKey(module);
   return moduleDef !== null && canAccessModule(moduleDef, viewer);
 }
@@ -18,7 +21,7 @@ export function visibleContributions(
   return contributions.filter(
     (contribution) =>
       contribution.slot === slotId &&
-      moduleAllows(contribution.module, viewer) &&
+      moduleVisibleTo(contribution.module, viewer) &&
       roleAllows(contribution, viewer),
   );
 }

@@ -130,11 +130,13 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
         'import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         'import alphaModule from "@/features/alpha/module";',
         "",
         "export const authClientPlugins: never[] = [];",
         "export const clientModules = applyGatoConfig([alphaModule], gatoConfig);",
         "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         "export const gatoBranding = gatoBrandingOf(gatoConfig);",
         "",
       ].join("\n"),
@@ -409,6 +411,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
         'import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         'import alphaModule from "@/features/alpha/module";',
         'import * as alphaClientSlots from "@/features/alpha/client-slots";',
         'import * as betaClientSlots from "@/features/beta/client-slots";',
@@ -416,6 +419,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const authClientPlugins: never[] = [];",
         "export const clientModules = applyGatoConfig([alphaModule], gatoConfig);",
         'export const clientModuleSlots = clientSlotRegistry([{ module: "alpha", value: alphaClientSlots }, { module: "beta", value: betaClientSlots }], gatoConfig);',
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         "export const gatoBranding = gatoBrandingOf(gatoConfig);",
         "",
       ].join("\n"),
@@ -480,12 +484,14 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
         'import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         'import alphaModule from "@/features/alpha/module";',
         'import gammaModule from "@/features/gamma/module";',
         "",
         "export const authClientPlugins: never[] = [];",
         "export const clientModules = applyGatoConfig([alphaModule, gammaModule], gatoConfig);",
         "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         "export const gatoBranding = gatoBrandingOf(gatoConfig);",
         "",
       ].join("\n"),
@@ -574,6 +580,106 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
     );
   });
 
+  it("a feature with only components.ts enters the client registry's clientComponentOverrides and stays out of the server registry", async () => {
+    const dir = await makeProject({
+      alpha: { files: ["src/features/alpha/**"] },
+    });
+    await put(
+      dir,
+      "src/features/alpha/components.ts",
+      "export const componentOverrides = [];",
+    );
+    await generate(dir);
+    expect(await read(dir, "src/modules.client.generated.ts")).toBe(
+      [
+        HEADER,
+        'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
+        'import { gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
+        'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
+        'import * as alphaComponents from "@/features/alpha/components";',
+        "",
+        "export const authClientPlugins: never[] = [];",
+        "export const clientModules: never[] = [];",
+        "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        'export const clientComponentOverrides = componentOverrideRegistry([{ module: "alpha", value: alphaComponents }], gatoConfig);',
+        "export const gatoBranding = gatoBrandingOf(gatoConfig);",
+        "",
+      ].join("\n"),
+    );
+    const server = await read(dir, "src/modules.generated.ts");
+    expect(server).not.toContain("@/features/alpha/");
+    expect(server).not.toContain("componentOverrideRegistry");
+  });
+
+  it("a feature with module.ts, client-slots.ts and components.ts lists components after client-slots in the client registry", async () => {
+    const dir = await makeProject({
+      alpha: { files: ["src/features/alpha/**"] },
+    });
+    await put(dir, "src/features/alpha/module.ts", "export default {};");
+    await put(
+      dir,
+      "src/features/alpha/client-slots.ts",
+      "export const clientSlots = [];",
+    );
+    await put(
+      dir,
+      "src/features/alpha/components.ts",
+      "export const componentHandles = [];",
+    );
+    await generate(dir);
+    expect(await read(dir, "src/modules.client.generated.ts")).toBe(
+      [
+        HEADER,
+        'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
+        'import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
+        'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
+        'import alphaModule from "@/features/alpha/module";',
+        'import * as alphaClientSlots from "@/features/alpha/client-slots";',
+        'import * as alphaComponents from "@/features/alpha/components";',
+        "",
+        "export const authClientPlugins: never[] = [];",
+        "export const clientModules = applyGatoConfig([alphaModule], gatoConfig);",
+        'export const clientModuleSlots = clientSlotRegistry([{ module: "alpha", value: alphaClientSlots }], gatoConfig);',
+        'export const clientComponentOverrides = componentOverrideRegistry([{ module: "alpha", value: alphaComponents }], gatoConfig);',
+        "export const gatoBranding = gatoBrandingOf(gatoConfig);",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("a components directory and files merely named like components.ts do not register a feature", async () => {
+    const dir = await makeProject({
+      alpha: { files: ["src/features/alpha/**"] },
+    });
+    await put(
+      dir,
+      "src/features/alpha/components/card.tsx",
+      "export const x = 1;",
+    );
+    await put(
+      dir,
+      "src/features/alpha/components/components.ts",
+      "export const x = 1;",
+    );
+    await put(dir, "src/features/alpha/components.tsx", "export const x = 1;");
+    await put(
+      dir,
+      "src/features/alpha/components-list.ts",
+      "export const x = 1;",
+    );
+    await generate(dir);
+    const client = await read(dir, "src/modules.client.generated.ts");
+    expect(client.split("\n")).toContain(
+      "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
+    );
+    expect(client).not.toContain("@/features/alpha/");
+    expect(await read(dir, "src/modules.generated.ts")).not.toContain(
+      "@/features/alpha/",
+    );
+  });
+
   it("katalog bez żadnego rozpoznanego pliku nie trafia do rejestru", async () => {
     const dir = await makeProject({
       alpha: { files: ["src/features/alpha/**"] },
@@ -625,6 +731,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         'import { emptyGatoConfig as gatoConfig } from "@/shared/lib/modules/gato-config";',
         'import { applyGatoConfig, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         'import alphaModule from "@/features/alpha/module";',
         'import zetaModule from "@/features/zeta/module";',
         'import midModule from "@/features/mid/module";',
@@ -632,6 +739,7 @@ describe("generate: wykrywanie modułów w rejestrze", () => {
         "export const authClientPlugins: never[] = [];",
         "export const clientModules = applyGatoConfig([alphaModule, zetaModule, midModule], gatoConfig);",
         "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         "export const gatoBranding = gatoBrandingOf(gatoConfig);",
         "",
       ].join("\n"),

@@ -322,7 +322,7 @@ flowchart TD
 8. **Kopiowanie** z placeholderami według nazw z `.wa/kit.json` projektu, z hashami plików; dopisanie zależności npm do `package.json`; zapis `.wa/kit.json`.
 9. **`wa generate`**, potem `npm install` (bez `--no-install`).
 10. **Podpowiedź migracji:** linia `npx prisma migrate dev --name add-<moduł>`, z nazwą z argumentu, także gdy CLI dodało moduły z `requires`. Migrację tworzysz i commitujesz sam ([03b](03b-schemat-i-migracje.md#migracje-w-projekcie)).
-11. **Podpowiedź konfiguracji organizacji** (od `gato-cli` 0.12.0): dla każdego dodanego modułu (także z `requires`, w kolejności dodawania), który ma w projekcie `src/features/<moduł>/setup.ts`, linia `Existing organizations did not run <moduł>'s setup: npm run setup:organizations -- --module <moduł>`. Organizacje utworzone przed dodaniem modułu nie wykonały jego `onOrganizationCreated`; uruchom komendę po migracji ([Konfiguracja organizacji](09-nowy-modul.md#konfiguracja-organizacji)). Bez takich modułów ostatnią linią zostaje podpowiedź migracji.
+11. **Podpowiedź konfiguracji organizacji** (od `gato-cli` 0.13.0): dla każdego dodanego modułu (także z `requires`, w kolejności dodawania), który ma w projekcie `src/features/<moduł>/setup.ts`, linia `Existing organizations did not run <moduł>'s setup: npm run setup:organizations -- --module <moduł>`. Organizacje utworzone przed dodaniem modułu nie wykonały jego `onOrganizationCreated`; uruchom komendę po migracji ([Konfiguracja organizacji](09-nowy-modul.md#konfiguracja-organizacji)). Bez takich modułów ostatnią linią zostaje podpowiedź migracji.
 
 Przebieg w projekcie `acme-app` z modułem `uploads` (sprawdzone, domyślne źródło, wyjście skrócone):
 

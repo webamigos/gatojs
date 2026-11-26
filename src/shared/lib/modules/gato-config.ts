@@ -1,3 +1,4 @@
+import type { ComponentType } from "react";
 import type { OrgRole } from "@/shared/lib/auth/roles";
 import type {
   ModuleDef,
@@ -20,12 +21,22 @@ export interface GatoSlotOverride {
   priority: number;
 }
 
+export type GatoComponentLoader = () => Promise<{
+  default: ComponentType<never>;
+}>;
+
+export type GatoComponentOverride =
+  | { replace: GatoComponentLoader }
+  | { wrap: GatoComponentLoader }
+  | { module: string };
+
 export interface GatoModuleConfig {
   enabled?: boolean;
   nav?: Record<string, GatoNavOverride>;
   access?: GatoModuleAccess;
   permissions?: Record<string, OrgRole[]>;
   slots?: Record<string, Record<string, GatoSlotOverride | null>>;
+  components?: Record<string, GatoComponentOverride | null>;
 }
 
 export interface GatoLogo {

@@ -52,6 +52,14 @@ export function UsersManager({
   const router = useRouter();
   const dateLocale = DATE_FNS_LOCALES[useLocale()] ?? pl;
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const viewer = useMemo(
+    () => ({
+      userRole: currentUserRole,
+      orgRole: currentOrgRole,
+      multiOrg,
+    }),
+    [currentUserRole, currentOrgRole, multiOrg],
+  );
 
   const handleImpersonate = useCallback(
     async (userId: string) => {
@@ -81,11 +89,7 @@ export function UsersManager({
 
   const columns = useMemo(() => {
     const contributed = buildContributedUserColumns(
-      visibleContributions(clientModuleSlots, "users.table.columns", {
-        userRole: currentUserRole,
-        orgRole: currentOrgRole,
-        multiOrg,
-      }),
+      visibleContributions(clientModuleSlots, "users.table.columns", viewer),
       (key) => translateAny(key),
       organizationId,
     );
@@ -108,6 +112,7 @@ export function UsersManager({
     t,
     translateAny,
     dateLocale,
+    viewer,
     currentUserId,
     currentUserRole,
     currentOrgRole,
@@ -131,7 +136,7 @@ export function UsersManager({
           </div>
         </div>
         <CardAction>
-          <InviteUserDialog />
+          <InviteUserDialog viewer={viewer} />
         </CardAction>
       </CardHeader>
       <CardContent className="space-y-4 pt-6">

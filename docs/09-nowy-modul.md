@@ -733,6 +733,51 @@ npm run setup:organizations -- --check
 ```
 
 Skrypt wypisuje `ran <organizacja> <moduł>` i `failed <organizacja> <moduł>` (albo `Nothing to set up`) i kończy się kodem 1, gdy coś się nie udało. `--check` niczego nie uruchamia: wypisuje brakujące pary `<organizacja> <moduł>` z kodem 1 albo `All organizations are set up` z kodem 0. Nieznany moduł (bez `onOrganizationCreated` albo wyłączony) i nieznana organizacja kończą się błędem i kodem 1. `wa add` przypomina o tej komendzie dla dodanego modułu z `setup.ts` ([16-cli-wa.md](16-cli-wa.md#add-po)).
+<a id="nadpisanie-komponentu"></a>
+
+## Nadpisanie komponentu przez uchwyt
+
+Niektóre komponenty klienckie GatoJS mają uchwyt (handle): moduł projektu może je zastąpić albo owinąć bez edycji pliku GatoJS ([ADR-69](adrs/69-component-overrides-resolve-in-the-client-registry-and-fall-back-to-the-core.md)). Pierwszy uchwyt:
+
+| Uchwyt | Komponent | Propsy | Konfiguracja w `src/gato.config.ts` |
+| --- | --- | --- | --- |
+| `users.invite-dialog` | `InviteUserDialog` (przycisk „Zaproś” i okno zaproszenia na `/users`), `src/features/users/components/invite-user-dialog.tsx` | brak (`InviteUserDialogProps`) | `modules.users.components` |
+
+Nadpisanie zapisujesz w `src/features/<x>/components.ts`. Szkielet `notes` w repozytorium kitu owija okno zaproszenia (`packages/gato-cli/src/__tests__/fixtures/project-module/src/features/notes/components.ts`):
+
+```ts
+import { defineComponentOverride } from "@/shared/lib/modules/component-overrides";
+
+export const componentOverrides = [
+  defineComponentOverride("users.invite-dialog", {
+    wrap: () => import("./components/invite-dialog-with-notes"),
+  }),
+];
+```
+
+```tsx
+"use client";
+
+import type { WrapperProps } from "@/shared/lib/modules/component-overrides";
+import type { InviteUserDialogProps } from "@/features/users/components/invite-user-dialog";
+
+export default function InviteDialogWithNotes({ Base, ...props }: WrapperProps<InviteUserDialogProps>) {
+  return (
+    <span data-notes-invite="" className="contents">
+      <Base {...props} />
+    </span>
+  );
+}
+```
+
+- `replace: () => import(…)` zastępuje komponent; zamiennik dostaje te same propsy co komponent GatoJS. `wrap: () => import(…)` owija go; opakowanie dostaje te propsy i dodatkowo `Base`, czyli komponent GatoJS, który renderuje w środku (zmiana propsów to też `wrap`). W `defineComponentOverride` TypeScript sprawdza propsy zamiennika i opakowania z typem uchwytu; nadpisania z `src/gato.config.ts` (`{ replace }`, `{ wrap }`) nie są sprawdzane z typem uchwytu, więc tam typ propsów (`WrapperProps<InviteUserDialogProps>` itp.) wpisujesz sam w komponencie. Nadpisanie nie dostaje niczego ponad to, co widzi komponent GatoJS; dane czyta tak jak każdy komponent kliencki, przez akcje serwerowe z własnym sprawdzeniem uprawnień, a komendy woła przez `useServiceModeAction().run` (jak komponent GatoJS), żeby w trybie serwisowym pokazać okno potwierdzenia.
+- `components.ts` i wszystko, co leniwie importuje, trafia do paczki przeglądarki: każdy taki plik zaczyna się od `"use client"`, a `components.ts` nie importuje kodu serwerowego. Pilnuje tego `client-bundles-stay-server-free.test.ts` (to samo dotyczy komponentów leniwie importowanych w `src/gato.config.ts`).
+- Nadpisanie modułu wyłączonego w `src/gato.config.ts` (`enabled: false`) nie działa; wtedy renderuje się komponent GatoJS. Tak samo dla użytkownika, którego rola nie ma dostępu do modułu z nadpisaniem (ta sama reguła co w slotach: `roles`, `adminOnly`, `multiOrgRoles`): widzi komponent GatoJS, a nadpisanie się nie ładuje. Nadpisanie z `src/gato.config.ts` widzi każdy. To ukrywa tylko UI; komendy za nim i tak sprawdzają uprawnienia same.
+- Dwa włączone moduły nadpisujące ten sam uchwyt kończą import rejestru błędem `ComponentOverrideError`: `users.invite-dialog is overridden by both crm and invoices; choose one under modules.users.components in src/gato.config.ts`. Rozstrzygasz to w konfiguracji pod kluczem modułu, który ma uchwyt: `modules: { users: { components: { "users.invite-dialog": { module: "crm" } } } }` wybiera nadpisanie `crm`, `{ replace: () => import(…) }` albo `{ wrap: () => import(…) }` daje własne nadpisanie projektu (wygrywa z nadpisaniami modułów), a `null` przywraca komponent GatoJS. Nieznany uchwyt, uchwyt pod kluczem innego modułu, wpis bez dokładnie jednego z `replace`, `wrap`, `module` albo `module` bez włączonego nadpisania kończą import błędem `GatoConfigError`; listę pokazuje też `gato-config-keys-exist.test.ts`.
+- Nadpisanie, które rzuca błąd przy renderowaniu albo którego `import()` się nie powiedzie, zostaje zastąpione komponentem GatoJS, a w konsoli przeglądarki pojawia się `Component override failed to render:` z uchwytem i źródłem. Przy renderowaniu na serwerze (SSR) błąd łapie wewnętrzny `Suspense`: w jego miejscu nic się nie renderuje, błąd trafia też do logu serwera, a przeglądarka renderuje ten fragment sama i pokazuje komponent GatoJS. Do czasu załadowania nadpisania w jego miejscu nic się nie renderuje.
+- Po dodaniu albo usunięciu `components.ts` uruchom `npm run wa -- generate`.
+- Uchwyt ma tylko wybrany komponent; nowy dodaje GatoJS na prośbę (issue w `webamigos/gatojs`). Moduł GatoJS deklaruje swój uchwyt w `components.ts` (`export const componentHandles = [defineComponentHandle("<x>.<nazwa>")]` i typ propsów w `declare module "@/shared/lib/modules/component-overrides" { interface ComponentHandleMap { … } }`, jak `src/features/users/components.ts`), a komponent eksportuje jako `overridable("<x>.<nazwa>", KomponentBase)` z `src/shared/lib/modules/overridable.tsx`. Zwrócony komponent przyjmuje propsy uchwytu i dodatkowo `viewer` (`{ userRole, orgRole, multiOrg }`, jak `ClientSlot`), np. `<InviteUserDialog viewer={viewer} />` w `UsersManager`; `viewer` nie trafia ani do komponentu GatoJS, ani do nadpisania.
+- Testy rdzenia, które sprawdzają komponent GatoJS z uchwytem, przypinają go mockiem `vi.mock("@/shared/lib/modules/overridable", () => ({ overridable: (_handle, Base) => Base }))`, więc przechodzą także w projekcie, który ten uchwyt nadpisuje.
 
 <a id="dalej"></a>
 

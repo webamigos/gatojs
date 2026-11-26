@@ -292,6 +292,100 @@ describe("findGatoConfigKeyProblems: slots", () => {
   });
 });
 
+describe("findGatoConfigKeyProblems: component handles", () => {
+  let root: string;
+
+  const write = (relative: string, content: string) => {
+    const file = path.join(root, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, content);
+  };
+
+  const loader = "() => Promise.resolve({ default: () => null })";
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "gato-config-components-"));
+    write(
+      "src/features/users/module.ts",
+      'export default { key: "users", nav: [], routePrefixes: ["/users"] };\n',
+    );
+    write(
+      "src/features/users/components.ts",
+      'export const componentHandles = [{ id: "users.invite-dialog" }];\n',
+    );
+    write(
+      "src/features/crm/module.ts",
+      'export default { key: "crm", nav: [], routePrefixes: ["/crm"] };\n',
+    );
+    write(
+      "src/features/crm/components.ts",
+      `export const componentOverrides = [{ handle: "users.invite-dialog", mode: "replace", component: ${loader} }];\n`,
+    );
+  });
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("reports a handle the users module does not declare", async () => {
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { users: { components: { "users.nope": null } } } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([
+      "modules.users.components.users.nope: unknown component handle: users.nope",
+    ]);
+  });
+
+  it("returns an empty list for null on a declared handle", async () => {
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { users: { components: { "users.invite-dialog": null } } } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([]);
+  });
+
+  it("returns an empty list for module crm, which overrides the handle", async () => {
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { users: { components: { "users.invite-dialog": { module: "crm" } } } } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([]);
+  });
+
+  it("reports module users, which has no override of the handle", async () => {
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { users: { components: { "users.invite-dialog": { module: "users" } } } } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([
+      "modules.users.components.users.invite-dialog.module: users has no enabled override of users.invite-dialog",
+    ]);
+  });
+
+  it("a handle is unknown once the components.ts of its owner is gone", async () => {
+    fs.rmSync(path.join(root, "src/features/users/components.ts"));
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { users: { components: { "users.invite-dialog": null } } } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([
+      "modules.users.components.users.invite-dialog: unknown component handle: users.invite-dialog",
+    ]);
+  });
+
+  it("appends the component problems after the module problems", async () => {
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { users: { components: { "users.nope": null } }, billing: {} } };\n',
+    );
+    await expect(findGatoConfigKeyProblems(root)).resolves.toEqual([
+      "modules.billing: unknown module: billing",
+      "modules.users.components.users.nope: unknown component handle: users.nope",
+    ]);
+  });
+});
+
 describe("gato.config.ts in the repo", () => {
   it("names only existing modules and nav ids", async () => {
     await expect(findGatoConfigKeyProblems(repoRoot)).resolves.toEqual([]);

@@ -12,6 +12,7 @@ export type RegistryModule = {
   hasClientSlots: boolean;
   hasSetup: boolean;
   version: string;
+  hasComponents: boolean;
   locales: string[];
 };
 
@@ -35,6 +36,7 @@ const GATO_CONFIG_MODULE = "@/shared/lib/modules/gato-config";
 const PROJECT_CONFIG_IMPORT = 'import gatoConfig from "@/gato.config";';
 const EMPTY_CONFIG_IMPORT = `import { emptyGatoConfig as gatoConfig } from "${GATO_CONFIG_MODULE}";`;
 const SLOTS_MODULE = "@/shared/lib/modules/slots";
+const COMPONENT_OVERRIDES_MODULE = "@/shared/lib/modules/component-overrides";
 const COMMANDS_MODULE = "@/shared/lib/commands/define-command";
 
 type ConfigHelper =
@@ -96,7 +98,11 @@ function clientSlotsImport(module: RegistryModule): string {
   return `import * as ${identifier(module.name, "ClientSlots")} from "@/features/${module.name}/client-slots";`;
 }
 
-function slotEntries(modules: RegistryModule[], suffix: string): string {
+function componentsImport(module: RegistryModule): string {
+  return `import * as ${identifier(module.name, "Components")} from "@/features/${module.name}/components";`;
+}
+
+function namespaceEntries(modules: RegistryModule[], suffix: string): string {
   return array(modules.map((m) => entry(m, identifier(m.name, suffix))));
 }
 
@@ -133,6 +139,7 @@ export function renderRegistry(
   const withSlots = modules.filter((m) => m.hasSlots);
   const withClientSlots = modules.filter((m) => m.hasClientSlots);
   const withSetup = modules.filter((m) => m.hasSetup);
+  const withComponents = modules.filter((m) => m.hasComponents);
   const loadersByLocale = locales.map((locale) => ({
     locale,
     loaders: modules
@@ -228,7 +235,7 @@ export function renderRegistry(
     ),
     `export const moduleCommandHooks = commandHookRegistry({ modules: ${array(withModule.map((m) => identifier(m.name, "Module")))}, hooks: ${array(withCommandHooks.map((m) => entry(m, identifier(m.name, "CommandHooks"))))} }, gatoConfig);`,
     enabledModuleList("moduleSetups", withSetup.map(setupEntry)),
-    `export const moduleSlots = slotRegistry({ slots: ${slotEntries(withSlots, "Slots")}, clientSlots: ${slotEntries(withClientSlots, "ClientSlots")} }, gatoConfig);`,
+    `export const moduleSlots = slotRegistry({ slots: ${namespaceEntries(withSlots, "Slots")}, clientSlots: ${namespaceEntries(withClientSlots, "ClientSlots")} }, gatoConfig);`,
     "export const env = createEnv(moduleEnvSchemas);",
     "",
     "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
@@ -262,6 +269,7 @@ export function renderRegistry(
     clientImports.config,
     ...clientImports.helpers,
     `import { clientSlotRegistry } from "${SLOTS_MODULE}";`,
+    `import { componentOverrideRegistry } from "${COMPONENT_OVERRIDES_MODULE}";`,
     ...withAuthClient.map(
       (m) =>
         `import { authClientPlugin as ${identifier(m.name, "AuthClientPlugin")} } from "@/features/${m.name}/auth-client";`,
@@ -271,6 +279,7 @@ export function renderRegistry(
         `import ${identifier(m.name, "Module")} from "@/features/${m.name}/module";`,
     ),
     ...withClientSlots.map(clientSlotsImport),
+    ...withComponents.map(componentsImport),
     "",
     enabledList(
       "authClientPlugins",
@@ -282,7 +291,8 @@ export function renderRegistry(
       "clientModules",
       withModule.map((m) => identifier(m.name, "Module")),
     ),
-    `export const clientModuleSlots = clientSlotRegistry(${slotEntries(withClientSlots, "ClientSlots")}, gatoConfig);`,
+    `export const clientModuleSlots = clientSlotRegistry(${namespaceEntries(withClientSlots, "ClientSlots")}, gatoConfig);`,
+    `export const clientComponentOverrides = componentOverrideRegistry(${namespaceEntries(withComponents, "Components")}, gatoConfig);`,
     "export const gatoBranding = gatoBrandingOf(gatoConfig);",
     "",
   ].join("\n");

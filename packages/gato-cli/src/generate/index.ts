@@ -53,6 +53,7 @@ async function detectFeature(
     hasClientSlots: await exists(join(base, "client-slots.ts")),
     hasSetup: await exists(join(base, "setup.ts")),
     version,
+    hasComponents: await exists(join(base, "components.ts")),
     locales,
   };
 }
