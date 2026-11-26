@@ -74,6 +74,8 @@ npx prisma migrate dev --name <name>     # new migration
   `withoutTenantScope(reason, fn)`.
 - Module pages are protected by `requireModuleAccess(key)` (`src/shared/lib/auth/require-module-access.ts`), which reads
   the module registry. Hiding a navigation entry is not protection.
+- A module's route handler or server action that doesn't call `requireModuleAccess` starts with `isModuleEnabled(key)`
+  (route: `404`) or `requireModuleEnabled(key)` (`src/shared/lib/modules/require-module-enabled.ts`); a test checks it.
 - Every server action checks permissions itself (an action is a POST endpoint; it does not go through the page layout).
 - **Commands on organization data confirm service mode.** The contract:
   - signature `(input: unknown, confirmation?: unknown)`;
