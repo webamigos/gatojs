@@ -34,8 +34,8 @@ function deniedMessage(command: AnyCommand): string {
 }
 
 function assertDeclared(command: AnyCommand): void {
-  const declared = moduleByKey(command.module)?.commands ?? [];
-  if (!declared.includes(command.key)) {
+  const declared = moduleByKey(command.module)?.commands?.includes(command.key);
+  if (declared !== true) {
     throw new CommandError(
       `command not declared by module ${command.module}: ${command.key}`,
     );
