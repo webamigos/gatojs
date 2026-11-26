@@ -50,6 +50,7 @@ async function detectFeature(
     hasCommandHooks: await exists(join(base, "command-hooks.ts")),
     hasSlots: await exists(join(base, "slots.ts")),
     hasClientSlots: await exists(join(base, "client-slots.ts")),
+    hasComponents: await exists(join(base, "components.ts")),
     locales,
   };
 }

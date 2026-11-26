@@ -30,7 +30,7 @@ vi.mock("@/modules.client.generated", () => {
   };
 });
 
-import { visibleContributions } from "../slot-access";
+import { moduleVisibleTo, visibleContributions } from "../slot-access";
 
 const Card: ComponentType<{ organizationId: string }> = () => null;
 const loader = () => Promise.resolve({ default: Card });
@@ -220,5 +220,50 @@ describe("visibleContributions", () => {
       viewer({ orgRole: "member", multiOrg: true }),
     );
     expect(ids(result)).toEqual(["dashboard.first", "dashboard.last"]);
+  });
+});
+
+describe("moduleVisibleTo", () => {
+  it("a module without role limits is visible to a member", () => {
+    expect(moduleVisibleTo("dashboard", viewer({ orgRole: "member" }))).toBe(
+      true,
+    );
+  });
+
+  it("a module limited to owners is visible to an owner", () => {
+    expect(moduleVisibleTo("reports", viewer({ orgRole: "owner" }))).toBe(true);
+  });
+
+  it("a module limited to owners is hidden from a member", () => {
+    expect(moduleVisibleTo("reports", viewer({ orgRole: "member" }))).toBe(
+      false,
+    );
+  });
+
+  it("an adminOnly module is hidden from an owner when MULTI_ORG is off", () => {
+    expect(
+      moduleVisibleTo("users", viewer({ orgRole: "owner", multiOrg: false })),
+    ).toBe(false);
+  });
+
+  it("an adminOnly module is visible to a global admin without a membership", () => {
+    expect(
+      moduleVisibleTo("users", viewer({ userRole: "admin", orgRole: null })),
+    ).toBe(true);
+  });
+
+  it("a module missing from clientModules is hidden even from a superadmin", () => {
+    expect(
+      moduleVisibleTo(
+        "invoices",
+        viewer({ userRole: "superadmin", orgRole: null }),
+      ),
+    ).toBe(false);
+  });
+
+  it("a module missing from clientModules is hidden from an owner", () => {
+    expect(moduleVisibleTo("invoices", viewer({ orgRole: "owner" }))).toBe(
+      false,
+    );
   });
 });

@@ -345,6 +345,7 @@ describe("generate", () => {
         EMPTY_CONFIG_IMPORT,
         'import { applyGatoConfig, enabledEntries, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         'import { authClientPlugin as authAuthClientPlugin } from "@/features/auth/auth-client";',
         'import authModule from "@/features/auth/module";',
         'import demoModule from "@/features/demo/module";',
@@ -353,6 +354,7 @@ describe("generate", () => {
         'export const authClientPlugins = enabledEntries([{ module: "auth", value: authAuthClientPlugin }], gatoConfig);',
         "export const clientModules = applyGatoConfig([authModule, demoModule, notesModule], gatoConfig);",
         "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         "export const gatoBranding = gatoBrandingOf(gatoConfig);",
         "",
       ].join("\n"),
@@ -436,6 +438,68 @@ describe("generate", () => {
   });
 });
 
+describe("generate: components.ts", () => {
+  it("demo with components.ts enters clientComponentOverrides of the client registry only", async () => {
+    const dir = await copyFixture("minimal");
+    await writeFile(
+      join(dir, "src/features/demo/components.ts"),
+      "export const componentOverrides = [];\n",
+    );
+    await generate(dir);
+    const client = (await read(dir, "src/modules.client.generated.ts")).split(
+      "\n",
+    );
+    expect(client).toContain(
+      'import * as demoComponents from "@/features/demo/components";',
+    );
+    expect(client).toContain(
+      'export const clientComponentOverrides = componentOverrideRegistry([{ module: "demo", value: demoComponents }], gatoConfig);',
+    );
+    const server = await read(dir, "src/modules.generated.ts");
+    expect(server).not.toContain("@/features/demo/components");
+    expect(server).not.toContain("componentOverrideRegistry");
+  });
+
+  it("a project module with only components.ts is registered in clientComponentOverrides", async () => {
+    const dir = await copyFixture("minimal");
+    const path = join(dir, ".wa/kit.json");
+    const state = JSON.parse(await readFile(path, "utf8"));
+    state.projectModules = {
+      crm: {
+        manifest: {
+          name: "crm",
+          version: "0.1.0",
+          description: "CRM",
+          files: ["src/features/crm/**"],
+        },
+      },
+    };
+    await writeFile(path, JSON.stringify(state, null, 2));
+    await mkdir(join(dir, "src/features/crm"), { recursive: true });
+    await writeFile(
+      join(dir, "src/features/crm/components.ts"),
+      "export const componentOverrides = [];\n",
+    );
+    await generate(dir);
+    const client = await read(dir, "src/modules.client.generated.ts");
+    expect(client.split("\n")).toContain(
+      'export const clientComponentOverrides = componentOverrideRegistry([{ module: "crm", value: crmComponents }], gatoConfig);',
+    );
+    expect(client).not.toContain("crmModule");
+  });
+
+  it("adding components.ts and generating again changes only the client registry", async () => {
+    const dir = await copyFixture("minimal");
+    await generate(dir);
+    await writeFile(
+      join(dir, "src/features/demo/components.ts"),
+      "export const componentOverrides = [];\n",
+    );
+    const { changed } = await generate(dir);
+    expect(changed).toEqual(["src/modules.client.generated.ts"]);
+  });
+});
+
 describe("generate: src/gato.config.ts", () => {
   async function addGatoConfig(dir: string): Promise<void> {
     await writeFile(
@@ -475,6 +539,7 @@ describe("generate: src/gato.config.ts", () => {
         'import gatoConfig from "@/gato.config";',
         'import { applyGatoConfig, enabledEntries, gatoBrandingOf } from "@/shared/lib/modules/gato-config";',
         'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
         'import { authClientPlugin as authAuthClientPlugin } from "@/features/auth/auth-client";',
         'import authModule from "@/features/auth/module";',
         'import demoModule from "@/features/demo/module";',
@@ -482,6 +547,7 @@ describe("generate: src/gato.config.ts", () => {
         'export const authClientPlugins = enabledEntries([{ module: "auth", value: authAuthClientPlugin }], gatoConfig);',
         "export const clientModules = applyGatoConfig([authModule, demoModule], gatoConfig);",
         "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
         "export const gatoBranding = gatoBrandingOf(gatoConfig);",
         "",
       ].join("\n"),

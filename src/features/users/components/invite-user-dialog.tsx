@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { ORG_ROLES } from "@/shared/lib/auth/roles";
 import { useServiceModeAction } from "@/shared/components/service-mode/use-service-mode-action";
+import { overridable } from "@/shared/lib/modules/overridable";
 import { inviteUserCommand } from "../services/commands/invite-user-command";
 import {
   inviteUserSchema,
@@ -36,7 +37,9 @@ import {
 
 type InviteUserFormValues = z.input<typeof inviteUserSchema>;
 
-export function InviteUserDialog() {
+export type InviteUserDialogProps = Record<never, never>;
+
+export function InviteUserDialogBase() {
   const router = useRouter();
   const t = useTranslations("users");
   const tc = useTranslations("common");
@@ -190,3 +193,8 @@ export function InviteUserDialog() {
     </>
   );
 }
+
+export const InviteUserDialog = overridable(
+  "users.invite-dialog",
+  InviteUserDialogBase,
+);

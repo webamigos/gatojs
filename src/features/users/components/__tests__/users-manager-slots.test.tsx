@@ -55,6 +55,9 @@ vi.mock("../../services/commands/impersonation-commands", () => ({
 vi.mock("../../services/commands/invite-user-command", () => ({
   inviteUserCommand: vi.fn(),
 }));
+vi.mock("@/shared/lib/modules/overridable", () => ({
+  overridable: (_handle: string, Base: unknown) => Base,
+}));
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));

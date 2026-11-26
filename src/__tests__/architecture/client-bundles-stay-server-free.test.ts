@@ -49,9 +49,10 @@ describe("isClientModule", () => {
 });
 
 describe("CLIENT_ENTRY_FILES", () => {
-  it("lists the project config and the config helper as client entries", () => {
-    expect(CLIENT_ENTRY_FILES).toEqual([
+  it("lists the project config, the config helper and the component overrides library as client entries", () => {
+    expect([...CLIENT_ENTRY_FILES].sort()).toEqual([
       "src/gato.config.ts",
+      "src/shared/lib/modules/component-overrides.ts",
       "src/shared/lib/modules/gato-config.ts",
     ]);
   });
@@ -1052,6 +1053,148 @@ describe("checkClientBundles", () => {
       "src/features/x/client-slots.ts: @/env",
       'src/features/x/client-slots.ts: ./components/b (missing "use client")',
       'src/features/x/client-slots.ts: ./components/a (missing "use client")',
+    ]);
+  });
+
+  it("reports a static prisma import in a feature's components.ts without a use client directive", () => {
+    write(
+      "src/features/crm/components.ts",
+      'import { prisma } from "@/shared/lib/prisma";\nexport const componentOverrides = [];',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/crm/components.ts: @/shared/lib/prisma",
+    ]);
+  });
+
+  it("reports a dynamic prisma import in a feature's components.ts", () => {
+    write(
+      "src/features/crm/components.ts",
+      'export const componentOverrides = [{ component: () => import("@/shared/lib/prisma") }];',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/crm/components.ts: @/shared/lib/prisma",
+    ]);
+  });
+
+  it("reports a relative ./slots in a feature's components.ts as written", () => {
+    write(
+      "src/features/crm/components.ts",
+      'import { slots } from "./slots";\nexport const componentOverrides = [];',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/features/crm/components.ts: ./slots",
+    ]);
+  });
+
+  it("a feature's components.ts with only type imports of server modules passes", () => {
+    write(
+      "src/features/crm/components.ts",
+      'import type { PrismaClient } from "@/generated/prisma";\nexport const componentOverrides = [];',
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("reports a lazy target of components.ts without use client", () => {
+    write(
+      "src/features/crm/components.ts",
+      'export const componentOverrides = [{ component: () => import("./components/invite-dialog") }];',
+    );
+    write(
+      "src/features/crm/components/invite-dialog.tsx",
+      "export default function InviteDialog() {\n  return null;\n}",
+    );
+    expect(checkClientBundles(root)).toEqual([
+      'src/features/crm/components.ts: ./components/invite-dialog (missing "use client")',
+    ]);
+  });
+
+  it("a lazy target of components.ts with use client as its first statement passes", () => {
+    write(
+      "src/features/crm/components.ts",
+      'export const componentOverrides = [{ component: () => import("./components/invite-dialog") }];',
+    );
+    write(
+      "src/features/crm/components/invite-dialog.tsx",
+      client("export default function InviteDialog() {\n  return null;\n}"),
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("reports a lazy @/ target of components.ts without use client with the specifier as written", () => {
+    write(
+      "src/features/crm/components.ts",
+      'export const componentOverrides = [{ component: () => import("@/features/crm/components/invite-dialog") }];',
+    );
+    write(
+      "src/features/crm/components/invite-dialog.tsx",
+      "export default function InviteDialog() {\n  return null;\n}",
+    );
+    expect(checkClientBundles(root)).toEqual([
+      'src/features/crm/components.ts: @/features/crm/components/invite-dialog (missing "use client")',
+    ]);
+  });
+
+  it("files only named like a feature's components.ts are not client entries", () => {
+    for (const file of [
+      "src/features/crm/components/components.ts",
+      "src/features/crm/components/invite-dialog.ts",
+      "src/features/crm/components/index.ts",
+      "src/features/crm/components.tsx",
+      "src/components.ts",
+      "src/legacy/src/features/crm/components.ts",
+    ]) {
+      write(file, 'import { prisma } from "@/shared/lib/prisma";');
+    }
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("reports a lazy target of src/gato.config.ts without use client", () => {
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { users: { components: { "users.invite-dialog": { replace: () => import("./features/crm/components/invite-dialog") } } } } };',
+    );
+    write(
+      "src/features/crm/components/invite-dialog.tsx",
+      "export default function InviteDialog() {\n  return null;\n}",
+    );
+    expect(checkClientBundles(root)).toEqual([
+      'src/gato.config.ts: ./features/crm/components/invite-dialog (missing "use client")',
+    ]);
+  });
+
+  it("reports a lazy @/ target of src/gato.config.ts without use client", () => {
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { users: { components: { "users.invite-dialog": { wrap: () => import("@/features/crm/components/invite-dialog") } } } } };',
+    );
+    write(
+      "src/features/crm/components/invite-dialog.tsx",
+      "export default function InviteDialog() {\n  return null;\n}",
+    );
+    expect(checkClientBundles(root)).toEqual([
+      'src/gato.config.ts: @/features/crm/components/invite-dialog (missing "use client")',
+    ]);
+  });
+
+  it("a lazy target of src/gato.config.ts with use client passes", () => {
+    write(
+      "src/gato.config.ts",
+      'export default { modules: { users: { components: { "users.invite-dialog": { replace: () => import("./features/crm/components/invite-dialog") } } } } };',
+    );
+    write(
+      "src/features/crm/components/invite-dialog.tsx",
+      client("export default function InviteDialog() {\n  return null;\n}"),
+    );
+    expect(checkClientBundles(root)).toEqual([]);
+  });
+
+  it("reports a server import in the component overrides library without a use client directive", () => {
+    write(
+      "src/shared/lib/modules/component-overrides.ts",
+      'import { env } from "@/env";\nexport const a = env;',
+    );
+    expect(checkClientBundles(root)).toEqual([
+      "src/shared/lib/modules/component-overrides.ts: @/env",
     ]);
   });
 

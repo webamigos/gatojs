@@ -1,7 +1,7 @@
 {
   "kitVersion": "0.34.0",
   "kitRepo": "https://github.com/webamigos/gatojs.git",
-  "kitFormat": 8,
+  "kitFormat": 9,
   "project": {
     "name": "WA App",
     "slug": "wa-app"
@@ -87,10 +87,10 @@
       "files": {}
     },
     "core": {
-      "version": "0.32.0",
+      "version": "0.33.0",
       "manifest": {
         "name": "core",
-        "version": "0.32.0",
+        "version": "0.33.0",
         "description": "GatoJS core: auth, organizations, users, account, dashboard",
         "requires": [],
         "files": [
