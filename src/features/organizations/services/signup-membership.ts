@@ -88,13 +88,13 @@ export async function resolveSignupMembership(
 export async function applySignupMembership(
   userId: string,
   membership: SignupMembership,
-): Promise<void> {
+): Promise<{ organizationId: string }> {
   if (membership.action === "create") {
-    await createOrganizationWithOwnerCommand({
+    const organization = await createOrganizationWithOwnerCommand({
       name: membership.organizationName,
       ownerId: userId,
     });
-    return;
+    return { organizationId: organization.id };
   }
   await joinOrganizationCommand({
     userId,
@@ -102,4 +102,5 @@ export async function applySignupMembership(
     role: membership.role,
     invitationId: membership.invitationId,
   });
+  return { organizationId: membership.organizationId };
 }

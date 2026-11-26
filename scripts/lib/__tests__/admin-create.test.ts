@@ -127,6 +127,29 @@ vi.mock("@/shared/config/project", () => ({
   project: { name: "Test Projekt", slug: "test-projekt" },
 }));
 
+const { emitted, transaction } = vi.hoisted(() => ({
+  emitted: [] as { event: unknown; insideTransaction: boolean }[],
+  transaction: { open: false },
+}));
+
+vi.mock("@/modules.generated", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/modules.generated")>()),
+  moduleEvents: [],
+  moduleSubscribers: [
+    {
+      module: "probe",
+      value: {
+        "organizations.created": {
+          id: "probe.record",
+          run: (event: unknown) => {
+            emitted.push({ event, insideTransaction: transaction.open });
+          },
+        },
+      },
+    },
+  ],
+}));
+
 import {
   AdminCreateError,
   adminCreate,
@@ -706,6 +729,104 @@ describe("adminCreate: puste hasło (R36)", () => {
       expect(r.generatedPassword).toBeNull();
     },
   );
+});
+
+describe("adminCreate: organizations.created", () => {
+  beforeEach(() => {
+    db.users.length = 0;
+    db.orgs.length = 0;
+    db.members.length = 0;
+    db.seq = 0;
+    emitted.length = 0;
+    transaction.open = false;
+  });
+
+  function trackTransaction() {
+    mockPrisma.$transaction.mockImplementationOnce(
+      async (fn: (tx: unknown) => unknown) => {
+        transaction.open = true;
+        try {
+          return await fn(mockPrisma);
+        } finally {
+          transaction.open = false;
+        }
+      },
+    );
+  }
+
+  it("creating the first organization emits one organizations.created with the admin as owner and actor", async () => {
+    const r = await adminCreate({
+      email: "a@x.pl",
+      orgName: "Acme Corp",
+      ...yes,
+    });
+
+    expect(r).toMatchObject({ userId: "user-1", organizationId: "org-2" });
+    expect(emitted.map(({ event }) => event)).toEqual([
+      {
+        name: "organizations.created",
+        organizationId: "org-2",
+        actorUserId: "user-1",
+        payload: {
+          name: "Acme Corp",
+          slug: "acme-corp",
+          ownerUserId: "user-1",
+        },
+      },
+    ]);
+  });
+
+  it("the event is emitted after the transaction resolved, not inside its callback", async () => {
+    trackTransaction();
+
+    await adminCreate({ email: "a@x.pl", ...yes });
+
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0].insideTransaction).toBe(false);
+  });
+
+  it("an organization name without a slug carries the project slug fallback in the payload", async () => {
+    await adminCreate({ email: "a@x.pl", orgName: "!!!", ...yes });
+
+    expect(emitted.map(({ event }) => event)).toEqual([
+      {
+        name: "organizations.created",
+        organizationId: "org-2",
+        actorUserId: "user-1",
+        payload: { name: "!!!", slug: "test-projekt", ownerUserId: "user-1" },
+      },
+    ]);
+  });
+
+  it("joining the existing oldest organization emits no event", async () => {
+    db.orgs.push({
+      id: "org-old",
+      name: "Stara",
+      slug: "stara",
+      createdAt: new Date(0),
+    });
+
+    const r = await adminCreate({ email: "c@x.pl", ...yes });
+
+    expect(r).toMatchObject({ createdOrganization: false });
+    expect(emitted).toEqual([]);
+  });
+
+  it("a second run against the organization it created emits no second event", async () => {
+    await adminCreate({ email: "a@x.pl", ...yes });
+    await adminCreate({ email: "a@x.pl", ...yes });
+
+    expect(emitted).toHaveLength(1);
+  });
+
+  it("a failing transaction emits no event", async () => {
+    mockPrisma.$transaction.mockRejectedValueOnce(new Error("db down"));
+
+    await expect(adminCreate({ email: "a@x.pl", ...yes })).rejects.toThrow(
+      "db down",
+    );
+    expect(emitted).toEqual([]);
+  });
 });
 
 describe("slugifyOrgName", () => {

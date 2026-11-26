@@ -408,6 +408,36 @@ Feature nie ma kontraktów ani kodu w `services/`.
 
 Kod w `src/shared/` i `src/components/ui/` należy do modułu `core` (wzorce `src/shared/**` i `src/components/ui/**` w `.wa/kit.json`), ale nie jest żadnym feature: korzystają z niego wszystkie. Biblioteki w `src/shared/lib/` opisują inne pliki: auth i guardy [04-auth-i-role.md](04-auth-i-role.md#guardy), kontekst organizacji [03-dane-i-organizacje.md](03-dane-i-organizacje.md#kontekst-organizacji), `defineModule` i nawigację [02-architektura.md](02-architektura.md#definicja-modulu), `env.ts` i `mailer.ts` [07-i18n-mail-env.md](07-i18n-mail-env.md), `logger.ts` [07b-logi-naglowki-healthcheck.md](07b-logi-naglowki-healthcheck.md#logger), `audit.ts` (`trackAudit`, `auditActor` i typy zdarzenia oraz ujścia) [12-moduly-kitu.md](12-moduly-kitu.md#punkty-wejscia). Wywołanie `trackAudit` bez żadnego ujścia zdarzeń nic nie zapisuje; w kicie ujście ma tylko moduł `audit-logs`, a generator rejestruje też `audit-sink.ts` z funkcji projektu.
 
+<a id="zdarzenia"></a>
+
+### Zdarzenia domenowe: `src/shared/lib/events/`
+
+Rdzeń emituje zdarzenia, na które moduły (także moduły projektu) reagują w `subscribers.ts` bez zmiany plików GatoJS ([ADR-61](adrs/61-domain-events-run-subscribers-after-success.md)). Każde zdarzenie niesie `organizationId` i `actorUserId` z pochodzenia (`origin`), a nie z danych: subskrybent dostaje `{ name, organizationId, actorUserId, payload }` (zamrożone, `payload` w głąb: każdy zagnieżdżony obiekt i tablica) i filtruje każde zapytanie po `event.organizationId`. Subskrybenci działają po udanej operacji, po kolei i z `await`; błąd subskrybenta trafia do `logger.error` i nie psuje operacji. Moduł deklaruje własne zdarzenia w `events.ts` (`defineEvents`, klucze `<moduł>.<nazwa>`); schemat to zwykły `z.object()`, który usuwa nieznane klucze (bez `looseObject`, `passthrough()`, `catchall()`, `strict()` i bez `transform()`), więc `organizationId` z danych nigdy nie dociera do subskrybenta.
+
+Subskrybent może emitować kolejne zdarzenia. Łańcuch ma najwyżej 8 zdarzeń razem z pierwszym: dziewiąte nie woła subskrybentów, nie rzuca i raz zapisuje `logger.error("Event depth exceeded", …)` z `EventError` „event depth exceeded 8: <nazwa>”, więc cykl (A emituje B, B emituje A) kończy się zamiast zapętlić. Subskrybent, który potrzebuje `auth` z `@/shared/lib/auth`, importuje go dynamicznie w `run` (`const { auth } = await import("@/shared/lib/auth")`, jak `inviteUserCommand`): `auth` importuje `emitEvent`, a ten rejestr z `subscribers.ts`, więc import statyczny tworzy cykl.
+
+Test, który podmienia `moduleSubscribers`, `moduleEvents` albo `auditSinks`, mockuje `@/modules.generated` fabryką z listą potrzebnych eksportów, bez `importOriginal()` (wzór: `src/shared/lib/auth/__tests__/user-create-hooks.test.ts`). Oryginalny rejestr ładuje `events.ts` i `subscribers.ts` modułów, a one `@/shared/lib/events`; plik wczytany pierwszy raz wewnątrz fabryki mocka Vitest wiąże z oryginalnym rejestrem do końca pliku testów, więc podmienieni subskrybenci nie dostają zdarzeń.
+
+| Zdarzenie | Dane (`payload`) | Kto emituje |
+| --- | --- | --- |
+| `organizations.created` | `name`, `slug`, `ownerUserId` | `createOrganizationWithOwnerCommand` (rejestracja z `MULTI_ORG=true`), `adminCreate` w `scripts/lib/admin-create.ts` po transakcji, która utworzyła organizację. Endpoint better-auth `/organization/create` (nowa organizacja z `OrgSwitcher` przy `MULTI_ORG=true`) jeszcze go nie emituje: plugin better-auth rdzenia (plan rozszerzalności, zadanie 10) |
+| `users.invited` | `invitationId`, `email`, `role` | `inviteUserCommand`, po `trackAudit`; zaproszenie przez admina emituje tylko to zdarzenie |
+| `auth.signed-up` | `userId`, `email` | hook `databaseHooks.user.create.after` w `src/shared/lib/auth/index.ts`, gdy rejestracja użytkownika (publiczna, także z zaproszeniem) dała członkostwo; organizacja zdarzenia to organizacja tego członkostwa, aktor to nowy użytkownik. Nie przy zaproszeniu przez admina: `inviteUserCommand` zakłada konto w `withInviteSignup` (`src/shared/lib/auth/invite-signup-scope.ts`, flaga w `AsyncLocalStorage` po stronie serwera, nigdy z treści żądania), a hook wtedy tylko zapisuje członkostwo |
+| `organizations.member-added` | `memberId`, `userId`, `role` | jeszcze nikt; plugin better-auth rdzenia (plan rozszerzalności, zadanie 10) |
+| `organizations.member-removed` | `memberId`, `userId` | jak wyżej |
+| `organizations.member-role-changed` | `memberId`, `userId`, `previousRole`, `role` | jak wyżej |
+| `users.invitation-accepted` | `invitationId`, `userId` | jak wyżej |
+| `users.invitation-canceled` | `invitationId` | jak wyżej |
+
+| Plik | Eksport | Działanie |
+| --- | --- | --- |
+| `define-events.ts` | `defineEvents`, `defineSubscribers`, `eventOrigin(context)`, `EventError`, typy `DomainEvent`, `EventOrigin`, `EventName`, `EventPayload` | Deklaracje dla modułów; nie importuje rejestru w czasie działania, więc `events.ts` i `subscribers.ts` modułu nie tworzą cyklu importów. |
+| `core-events.ts` | `coreEvents` | Schematy Zod zdarzeń rdzenia z tabeli powyżej. |
+| `event-bus.ts` | `createEventBus({ core, events, subscribers })` | Sprawdza rejestr (prefiks kluczy i `id`, duplikaty, schemat inny niż `z.object()` usuwający nieznane klucze, `organizationId` w schemacie, subskrybent nieznanego zdarzenia) i rzuca jeden `EventError` z listą problemów; `emit` sprawdza nazwę i dane, zamraża je w głąb, pilnuje limitu 8 zagnieżdżonych zdarzeń, potem woła subskrybentów. |
+| `emit-event.ts` | `emitEvent(origin, name, payload)` | Magistrala z `coreEvents`, `moduleEvents` i `moduleSubscribers` rejestru, zbudowana przy pierwszym zdarzeniu. |
+
+Pliki `events.ts` i `subscribers.ts` są tylko serwerowe: test `client-bundles-stay-server-free` zatrzymuje plik `"use client"`, który je importuje. Testy: `src/shared/lib/events/__tests__/`.
+
 <a id="app-sidebar"></a>
 
 ### Menu boczne: `src/shared/components/app-sidebar.tsx`

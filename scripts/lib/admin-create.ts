@@ -3,6 +3,7 @@ import { project } from "@/shared/config/project";
 import { auth } from "@/shared/lib/auth";
 import { ORG_ROLES, USER_ROLES } from "@/shared/lib/auth/roles";
 import { roleFromStored } from "@/shared/lib/auth/admin-guard";
+import { emitEvent } from "@/shared/lib/events";
 import { prisma } from "@/shared/lib/prisma";
 
 export type GlobalAdminRole = "admin" | "superadmin";
@@ -111,10 +112,28 @@ async function ensureUser(
   return { userId: existing.id, created: false, generatedPassword: null };
 }
 
+type OwnedOrganization =
+  | { organizationId: string; created: false }
+  | { organizationId: string; created: true; name: string; slug: string };
+
+async function emitOrganizationCreated(
+  userId: string,
+  organization: OwnedOrganization,
+): Promise<void> {
+  if (!organization.created) {
+    return;
+  }
+  await emitEvent(
+    { organizationId: organization.organizationId, actorUserId: userId },
+    "organizations.created",
+    { name: organization.name, slug: organization.slug, ownerUserId: userId },
+  );
+}
+
 async function ensureOrganizationOwner(
   userId: string,
   orgName: string,
-): Promise<{ organizationId: string; created: boolean }> {
+): Promise<OwnedOrganization> {
   return prisma.$transaction(async (tx) => {
     const oldest = await tx.organization.findFirst({
       orderBy: { createdAt: "asc" },
@@ -128,7 +147,12 @@ async function ensureOrganizationOwner(
           members: { create: { userId, role: ORG_ROLES.OWNER } },
         },
       });
-      return { organizationId: organization.id, created: true };
+      return {
+        organizationId: organization.id,
+        name: organization.name,
+        slug: organization.slug,
+        created: true,
+      };
     }
 
     const membership = await tx.member.findFirst({
@@ -163,6 +187,7 @@ export async function adminCreate(
       user.userId,
       options.orgName ?? project.name,
     );
+    await emitOrganizationCreated(user.userId, organization);
     return {
       userId: user.userId,
       organizationId: organization.organizationId,

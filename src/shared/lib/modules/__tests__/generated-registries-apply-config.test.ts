@@ -87,6 +87,16 @@ describe.skipIf(!hasKitModules || !hasOptionalModules)(
       expect(moduleEnvSchemas[1]).toBe(uploadsEnvSchema);
     });
 
+    it("moduleSubscribers has no entry of a disabled module", async () => {
+      const { moduleSubscribers } = await import("@/modules.generated");
+      expect(
+        moduleSubscribers.map((entry: { module: string }) => entry.module),
+      ).not.toContain("audit-logs");
+      expect(
+        moduleSubscribers.map((entry: { module: string }) => entry.module),
+      ).not.toContain("api-keys");
+    });
+
     it("authClientPlugins is empty", async () => {
       const { authClientPlugins } = await import("@/modules.client.generated");
       expect(authClientPlugins).toEqual([]);

@@ -5,6 +5,8 @@ export type RegistryModule = {
   hasAuth: boolean;
   hasAuthClient: boolean;
   hasAuditSink: boolean;
+  hasEvents: boolean;
+  hasSubscribers: boolean;
   locales: string[];
 };
 
@@ -28,7 +30,11 @@ const GATO_CONFIG_MODULE = "@/shared/lib/modules/gato-config";
 const PROJECT_CONFIG_IMPORT = 'import gatoConfig from "@/gato.config";';
 const EMPTY_CONFIG_IMPORT = `import { emptyGatoConfig as gatoConfig } from "${GATO_CONFIG_MODULE}";`;
 
-type ConfigHelper = "applyGatoConfig" | "enabledEntries" | "gatoBrandingOf";
+type ConfigHelper =
+  | "applyGatoConfig"
+  | "enabledEntries"
+  | "enabledModuleEntries"
+  | "gatoBrandingOf";
 
 function entry(module: RegistryModule, value: string): string {
   return `{ module: "${module.name}", value: ${value} }`;
@@ -46,6 +52,18 @@ function enabledList(name: string, entries: string[]): string {
     : `export const ${name} = enabledEntries(${array(entries)}, gatoConfig);`;
 }
 
+function moduleEntries(name: string, entries: string[]): string {
+  return entries.length === 0
+    ? `export const ${name}: never[] = [];`
+    : `export const ${name} = ${array(entries)};`;
+}
+
+function enabledModuleList(name: string, entries: string[]): string {
+  return entries.length === 0
+    ? `export const ${name}: never[] = [];`
+    : `export const ${name} = enabledModuleEntries(${array(entries)}, gatoConfig);`;
+}
+
 function configImports(
   options: RenderRegistryOptions,
   helpers: ConfigHelper[],
@@ -61,16 +79,14 @@ function configImports(
   };
 }
 
-function usedHelpers(
-  usesApply: boolean,
-  usesEnabledEntries: boolean,
-  usesBranding: boolean,
-): ConfigHelper[] {
-  return [
-    ...(usesApply ? (["applyGatoConfig"] as const) : []),
-    ...(usesEnabledEntries ? (["enabledEntries"] as const) : []),
-    ...(usesBranding ? (["gatoBrandingOf"] as const) : []),
+function usedHelpers(uses: Record<ConfigHelper, boolean>): ConfigHelper[] {
+  const order: ConfigHelper[] = [
+    "applyGatoConfig",
+    "enabledEntries",
+    "enabledModuleEntries",
+    "gatoBrandingOf",
   ];
+  return order.filter((helper) => uses[helper]);
 }
 
 export function renderLocales(locales: ("pl" | "en")[]): string {
@@ -90,6 +106,8 @@ export function renderRegistry(
   const withAuth = modules.filter((m) => m.hasAuth);
   const withAuthClient = modules.filter((m) => m.hasAuthClient);
   const withAuditSink = modules.filter((m) => m.hasAuditSink);
+  const withEvents = modules.filter((m) => m.hasEvents);
+  const withSubscribers = modules.filter((m) => m.hasSubscribers);
   const loadersByLocale = locales.map((locale) => ({
     locale,
     loaders: modules
@@ -104,14 +122,16 @@ export function renderRegistry(
 
   const serverImports = configImports(
     options,
-    usedHelpers(
-      withModule.length > 0,
-      withEnv.length > 0 ||
+    usedHelpers({
+      applyGatoConfig: withModule.length > 0,
+      enabledEntries:
+        withEnv.length > 0 ||
         withAuth.length > 0 ||
         withAuditSink.length > 0 ||
         loadersByLocale.some(({ loaders }) => loaders.length > 0),
-      false,
-    ),
+      enabledModuleEntries: withSubscribers.length > 0,
+      gatoBrandingOf: false,
+    }),
   );
 
   const server = [
@@ -136,6 +156,14 @@ export function renderRegistry(
       (m) =>
         `import { auditSink as ${identifier(m.name, "AuditSink")} } from "@/features/${m.name}/audit-sink";`,
     ),
+    ...withEvents.map(
+      (m) =>
+        `import { events as ${identifier(m.name, "Events")} } from "@/features/${m.name}/events";`,
+    ),
+    ...withSubscribers.map(
+      (m) =>
+        `import { subscribers as ${identifier(m.name, "Subscribers")} } from "@/features/${m.name}/subscribers";`,
+    ),
     "",
     configuredModules(
       "modules",
@@ -152,6 +180,14 @@ export function renderRegistry(
     enabledList(
       "auditSinks",
       withAuditSink.map((m) => entry(m, identifier(m.name, "AuditSink"))),
+    ),
+    moduleEntries(
+      "moduleEvents",
+      withEvents.map((m) => entry(m, identifier(m.name, "Events"))),
+    ),
+    enabledModuleList(
+      "moduleSubscribers",
+      withSubscribers.map((m) => entry(m, identifier(m.name, "Subscribers"))),
     ),
     "export const env = createEnv(moduleEnvSchemas);",
     "",
@@ -173,7 +209,12 @@ export function renderRegistry(
 
   const clientImports = configImports(
     options,
-    usedHelpers(withModule.length > 0, withAuthClient.length > 0, true),
+    usedHelpers({
+      applyGatoConfig: withModule.length > 0,
+      enabledEntries: withAuthClient.length > 0,
+      enabledModuleEntries: false,
+      gatoBrandingOf: true,
+    }),
   );
 
   const client = [

@@ -6,8 +6,9 @@ const { recordedEvents, sinkBehaviour } = vi.hoisted(() => ({
   sinkBehaviour: { fail: false },
 }));
 
-vi.mock("@/modules.generated", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/modules.generated")>()),
+vi.mock("@/modules.generated", async () => ({
+  env: (await import("@gatojs/env")).createEnv([]),
+  authPlugins: [],
   auditSinks: [
     async (event: AuditEvent) => {
       if (sinkBehaviour.fail) {
@@ -28,10 +29,6 @@ vi.mock("@/shared/lib/mailer", () => ({
   sendOrganizationInvitationEmail: vi.fn(async () => undefined),
 }));
 
-// WHY: cykl modules.generated -> audit-logs -> audit.ts wiąże audit.ts z oryginalnym
-// auditSinks, jeśli pierwszy załaduje się modules.generated; import audit.ts jako pierwszy
-// wiąże go z podmienionym auditSinks.
-import "@/shared/lib/audit";
 import { auth } from "@/shared/lib/auth";
 import { prisma } from "@/shared/lib/prisma";
 import {

@@ -935,7 +935,7 @@ import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile2 } from 
 import { dirname as dirname2, join as join3 } from "node:path";
 
 // src/kit/kit-format.ts
-var SUPPORTED_KIT_FORMATS = [1, 2, 3, 4, 5];
+var SUPPORTED_KIT_FORMATS = [1, 2, 3, 4, 5, 6];
 function assertSupportedKitFormat(format) {
   if (!SUPPORTED_KIT_FORMATS.includes(format)) {
     throw new Error(
@@ -20824,6 +20824,12 @@ function configuredModules(name, items) {
 function enabledList(name, entries) {
   return entries.length === 0 ? `export const ${name}: never[] = [];` : `export const ${name} = enabledEntries(${array2(entries)}, gatoConfig);`;
 }
+function moduleEntries(name, entries) {
+  return entries.length === 0 ? `export const ${name}: never[] = [];` : `export const ${name} = ${array2(entries)};`;
+}
+function enabledModuleList(name, entries) {
+  return entries.length === 0 ? `export const ${name}: never[] = [];` : `export const ${name} = enabledModuleEntries(${array2(entries)}, gatoConfig);`;
+}
 function configImports(options, helpers) {
   if (helpers.length === 0) {
     return { config: [], helpers: [] };
@@ -20835,12 +20841,14 @@ function configImports(options, helpers) {
     helpers: [`import { ${helpers.join(", ")} } from "${GATO_CONFIG_MODULE}";`]
   };
 }
-function usedHelpers(usesApply, usesEnabledEntries, usesBranding) {
-  return [
-    ...usesApply ? ["applyGatoConfig"] : [],
-    ...usesEnabledEntries ? ["enabledEntries"] : [],
-    ...usesBranding ? ["gatoBrandingOf"] : []
+function usedHelpers(uses) {
+  const order = [
+    "applyGatoConfig",
+    "enabledEntries",
+    "enabledModuleEntries",
+    "gatoBrandingOf"
   ];
+  return order.filter((helper) => uses[helper]);
 }
 function renderLocales(locales) {
   return `${GENERATED_HEADER}
@@ -20853,6 +20861,8 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
   const withAuth = modules.filter((m) => m.hasAuth);
   const withAuthClient = modules.filter((m) => m.hasAuthClient);
   const withAuditSink = modules.filter((m) => m.hasAuditSink);
+  const withEvents = modules.filter((m) => m.hasEvents);
+  const withSubscribers = modules.filter((m) => m.hasSubscribers);
   const loadersByLocale = locales.map((locale) => ({
     locale,
     loaders: modules.filter((m) => m.locales.includes(locale)).map(
@@ -20864,11 +20874,12 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
   }));
   const serverImports = configImports(
     options,
-    usedHelpers(
-      withModule.length > 0,
-      withEnv.length > 0 || withAuth.length > 0 || withAuditSink.length > 0 || loadersByLocale.some(({ loaders }) => loaders.length > 0),
-      false
-    )
+    usedHelpers({
+      applyGatoConfig: withModule.length > 0,
+      enabledEntries: withEnv.length > 0 || withAuth.length > 0 || withAuditSink.length > 0 || loadersByLocale.some(({ loaders }) => loaders.length > 0),
+      enabledModuleEntries: withSubscribers.length > 0,
+      gatoBrandingOf: false
+    })
   );
   const server = [
     GENERATED_HEADER,
@@ -20888,6 +20899,12 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
     ...withAuditSink.map(
       (m) => `import { auditSink as ${identifier(m.name, "AuditSink")} } from "@/features/${m.name}/audit-sink";`
     ),
+    ...withEvents.map(
+      (m) => `import { events as ${identifier(m.name, "Events")} } from "@/features/${m.name}/events";`
+    ),
+    ...withSubscribers.map(
+      (m) => `import { subscribers as ${identifier(m.name, "Subscribers")} } from "@/features/${m.name}/subscribers";`
+    ),
     "",
     configuredModules(
       "modules",
@@ -20904,6 +20921,14 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
     enabledList(
       "auditSinks",
       withAuditSink.map((m) => entry(m, identifier(m.name, "AuditSink")))
+    ),
+    moduleEntries(
+      "moduleEvents",
+      withEvents.map((m) => entry(m, identifier(m.name, "Events")))
+    ),
+    enabledModuleList(
+      "moduleSubscribers",
+      withSubscribers.map((m) => entry(m, identifier(m.name, "Subscribers")))
     ),
     "export const env = createEnv(moduleEnvSchemas);",
     "",
@@ -20922,7 +20947,12 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
   ].join("\n");
   const clientImports = configImports(
     options,
-    usedHelpers(withModule.length > 0, withAuthClient.length > 0, true)
+    usedHelpers({
+      applyGatoConfig: withModule.length > 0,
+      enabledEntries: withAuthClient.length > 0,
+      enabledModuleEntries: false,
+      gatoBrandingOf: true
+    })
   );
   const client = [
     GENERATED_HEADER,
@@ -20985,6 +21015,8 @@ async function detectFeature(projectDir, name, configuredLocales) {
     hasAuth: await exists(join4(base, "auth.ts")),
     hasAuthClient: await exists(join4(base, "auth-client.ts")),
     hasAuditSink: await exists(join4(base, "audit-sink.ts")),
+    hasEvents: await exists(join4(base, "events.ts")),
+    hasSubscribers: await exists(join4(base, "subscribers.ts")),
     locales
   };
 }
@@ -24882,7 +24914,7 @@ function cliDependency(input2) {
 }
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.8.0" };
+var identity = { name: "wa", version: "0.9.0" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);

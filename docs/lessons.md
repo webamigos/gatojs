@@ -38,7 +38,7 @@ After a nontrivial correction or a non-obvious gotcha:
 - [Prisma 7 refuses `db push --force-reset` from an AI agent until the user's own consent text is passed in an environment variable](lessons/prisma-refuses-a-database-reset-from-an-agent.md)
 - [Parallel worktrees collide on e2e ports, the uploads directory and database containers unless each one gets its own](lessons/parallel-worktrees-need-their-own-ports-and-dirs.md)
 - [`packages/gato-cli` tests that touch git and the filesystem time out at 5 seconds when the machine is busy; rerun before debugging](lessons/cli-tests-time-out-under-heavy-load.md)
-- [On a loaded machine, Stryker on `packages/gato-cli` needs a task-scoped Vitest config; `taskpolicy -b` and the full dry run never finish](lessons/scope-stryker-dry-runs-for-cli-tasks-under-load.md)
+- [On a loaded machine, Stryker on the task files (CLI or root) needs a task-scoped Vitest config; `taskpolicy -b` and the full dry run never finish](lessons/scope-stryker-dry-runs-for-cli-tasks-under-load.md)
 - [macOS lists directory entries in sorted order, so a test on a real directory cannot see a missing sort; Linux CI can](lessons/macos-lists-directories-in-sorted-order.md)
 - [A new file outside an owned glob (a test in `src/__tests__/`, a file in `packages/<name>/`) needs a manifest entry, and only the CLI gate notices](lessons/a-new-file-needs-an-owner-only-the-cli-gate-checks.md)
 - [The "no placeholders left" check greps every file but `__tests__/` and `*.test.*`, so a test of another kind (helm-unittest `tests/*_test.yaml`) must not contain `wa-app`](lessons/a-test-outside-test-paths-must-not-hold-placeholders.md)

@@ -245,13 +245,18 @@ export function applyGatoConfig<T extends ModuleDef>(
     );
 }
 
+export function enabledModuleEntries<E extends ModuleEntry<unknown>>(
+  entries: readonly E[],
+  config: GatoConfig,
+): E[] {
+  return entries.filter((entry) => !isDisabled(config, entry.module));
+}
+
 // WHY: a single T fails to infer a union from entries of different value types, so the
 // entry type is inferred instead; an explicit <T> still types the entries through the default.
 export function enabledEntries<T, E extends ModuleEntry<T> = ModuleEntry<T>>(
   entries: readonly E[],
   config: GatoConfig,
 ): E["value"][] {
-  return entries
-    .filter((entry) => !isDisabled(config, entry.module))
-    .map((entry) => entry.value);
+  return enabledModuleEntries(entries, config).map((entry) => entry.value);
 }

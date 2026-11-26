@@ -1,17 +1,40 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { serializeSignedCookie } from "better-call";
 import type { AuditEvent } from "@/shared/lib/audit";
+import type { DomainEvent } from "@/shared/lib/events";
 
-const { recordedEvents, currentHeaders } = vi.hoisted(() => ({
+const { recordedEvents, currentHeaders, domainEvents } = vi.hoisted(() => ({
   recordedEvents: [] as AuditEvent[],
   currentHeaders: { value: new Headers() },
+  domainEvents: [] as DomainEvent[],
 }));
 
-vi.mock("@/modules.generated", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/modules.generated")>()),
+vi.mock("@/modules.generated", async () => ({
+  env: (await import("@gatojs/env")).createEnv([]),
+  authPlugins: [],
+  moduleEvents: [],
   auditSinks: [
     async (event: AuditEvent) => {
       recordedEvents.push(event);
+    },
+  ],
+  moduleSubscribers: [
+    {
+      module: "probe",
+      value: {
+        "auth.signed-up": {
+          id: "probe.signed-up",
+          run: (event: DomainEvent) => {
+            domainEvents.push(event);
+          },
+        },
+        "users.invited": {
+          id: "probe.invited",
+          run: (event: DomainEvent) => {
+            domainEvents.push(event);
+          },
+        },
+      },
     },
   ],
 }));
@@ -41,6 +64,7 @@ import "@/shared/lib/audit";
 import { prisma } from "@/shared/lib/prisma";
 import { inviteUserCommand } from "../invite-user-command";
 import {
+  createInvitation,
   createOrganization,
   createSession,
   createUser,
@@ -71,8 +95,11 @@ async function signInAs(
   currentHeaders.value = new Headers({ cookie: cookie.split(";")[0] ?? "" });
 }
 
+const IN_A_DAY = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
 beforeEach(async () => {
   recordedEvents.length = 0;
+  domainEvents.length = 0;
   currentHeaders.value = new Headers();
   await resetDatabase();
   const admin = await createUser({ email: "admin@a.example", role: "admin" });
@@ -186,5 +213,137 @@ describe("inviteUserCommand na prawdziwym better-auth: dziennik zdarzeń", () =>
     });
     expect(await prisma.invitation.count()).toBe(0);
     expect(recordedEvents).toEqual([]);
+  });
+});
+
+describe("inviteUserCommand na prawdziwym better-auth: zdarzenia domenowe", () => {
+  it("zaproszenie przez admina organizacji A daje dokładnie users.invited z organizacją A i aktorem admina, bez auth.signed-up", async () => {
+    await signInAs(world.admin.id, world.orgA.id);
+
+    const result = await inviteUserCommand({
+      name: "Nowy Użytkownik",
+      email: "nowy@a.example",
+      role: "member",
+    });
+
+    expect(result.success).toBe(true);
+    const invitation = await prisma.invitation.findFirstOrThrow({
+      where: { email: "nowy@a.example" },
+      select: { id: true },
+    });
+    expect(domainEvents.map((event) => event.name)).toEqual(["users.invited"]);
+    expect(domainEvents[0]).toEqual({
+      name: "users.invited",
+      organizationId: world.orgA.id,
+      actorUserId: world.admin.id,
+      payload: {
+        invitationId: invitation.id,
+        email: "nowy@a.example",
+        role: "member",
+      },
+    });
+  });
+
+  it("zaproszenie przez admina nadal tworzy członkostwo zaproszonego w organizacji A", async () => {
+    await signInAs(world.admin.id, world.orgA.id);
+
+    await inviteUserCommand({
+      name: "Nowy Użytkownik",
+      email: "nowy@a.example",
+      role: "admin",
+    });
+
+    const invitedUser = await prisma.user.findUniqueOrThrow({
+      where: { email: "nowy@a.example" },
+      select: { id: true },
+    });
+    const memberships = await prisma.member.findMany({
+      where: { userId: invitedUser.id },
+      select: { organizationId: true, role: true },
+    });
+    expect(memberships).toEqual([
+      { organizationId: world.orgA.id, role: "admin" },
+    ]);
+  });
+
+  it("superadmin z potwierdzeniem trybu serwisowego daje dokładnie users.invited ze swoim aktorem", async () => {
+    await signInAs(world.superadmin.id, world.orgA.id);
+
+    const result = await inviteUserCommand(
+      { name: "Nowy Użytkownik", email: "nowy@a.example", role: "member" },
+      { serviceModeConfirmed: true, organizationId: world.orgA.id },
+    );
+
+    expect(result.success).toBe(true);
+    expect(domainEvents.map((event) => event.name)).toEqual(["users.invited"]);
+    expect(domainEvents[0]).toMatchObject({
+      organizationId: world.orgA.id,
+      actorUserId: world.superadmin.id,
+    });
+  });
+
+  it("publiczna rejestracja z zaproszeniem do A (poza zaproszeniem admina) daje dokładnie auth.signed-up z organizacją A i aktorem nowego użytkownika", async () => {
+    const invitation = await createInvitation({
+      organizationId: world.orgA.id,
+      inviterId: world.admin.id,
+      email: "gosc@a.example",
+      role: "member",
+      expiresAt: IN_A_DAY,
+    });
+    const { auth } = await import("@/shared/lib/auth");
+
+    await auth.api.signUpEmail({
+      body: {
+        name: "Gość",
+        email: "gosc@a.example",
+        password: "password-123456",
+        invitationId: invitation.id,
+      } as { name: string; email: string; password: string },
+    });
+
+    const newUser = await prisma.user.findUniqueOrThrow({
+      where: { email: "gosc@a.example" },
+      select: { id: true },
+    });
+    expect(domainEvents.map((event) => event.name)).toEqual(["auth.signed-up"]);
+    expect(domainEvents[0]).toEqual({
+      name: "auth.signed-up",
+      organizationId: world.orgA.id,
+      actorUserId: newUser.id,
+      payload: { userId: newUser.id, email: "gosc@a.example" },
+    });
+  });
+
+  it("publiczna rejestracja z podrobionymi polami inviteSignup, adminInvite i isInviteSignup nadal daje auth.signed-up", async () => {
+    const invitation = await createInvitation({
+      organizationId: world.orgA.id,
+      inviterId: world.admin.id,
+      email: "gosc@a.example",
+      role: "member",
+      expiresAt: IN_A_DAY,
+    });
+    const { auth } = await import("@/shared/lib/auth");
+
+    await auth.api.signUpEmail({
+      body: {
+        name: "Gość",
+        email: "gosc@a.example",
+        password: "password-123456",
+        invitationId: invitation.id,
+        inviteSignup: true,
+        adminInvite: true,
+        isInviteSignup: true,
+      } as { name: string; email: string; password: string },
+    });
+
+    const newUser = await prisma.user.findUniqueOrThrow({
+      where: { email: "gosc@a.example" },
+      select: { id: true },
+    });
+    expect(domainEvents.map((event) => event.name)).toEqual(["auth.signed-up"]);
+    expect(domainEvents[0]).toMatchObject({
+      organizationId: world.orgA.id,
+      actorUserId: newUser.id,
+    });
   });
 });
