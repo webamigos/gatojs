@@ -194,14 +194,12 @@ async function missingSetupEntries(
     return [];
   }
   const finished = await finishedPairs(entries.map((entry) => entry.module));
-  return organizations
-    .map((organizationId) => ({
-      organizationId,
-      entries: entries.filter(
-        (entry) => !finished.has(setupKey(organizationId, entry.module)),
-      ),
-    }))
-    .filter((organization) => organization.entries.length > 0);
+  return organizations.map((organizationId) => ({
+    organizationId,
+    entries: entries.filter(
+      (entry) => !finished.has(setupKey(organizationId, entry.module)),
+    ),
+  }));
 }
 
 export async function missingOrganizationSetups(
