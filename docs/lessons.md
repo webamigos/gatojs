@@ -45,6 +45,10 @@ After a nontrivial correction or a non-obvious gotcha:
 - [Stryker with the TypeScript checker crashes on `.mjs` files; mutate `packages/eslint-config` with `--checkers ""` and low concurrency](lessons/stryker-typescript-checker-cannot-mutate-mjs.md)
 - [A Zod 4 intersection throws `Unmergable intersection` when one side keeps raw values the other side parses; use `.overwrite(() => ({}))` on the rule side](lessons/a-zod-intersection-throws-when-a-refined-side-keeps-raw-values.md)
 
+### data
+
+- [Prisma 7 runs an `upsert` with an empty `update` as a read and an insert, so concurrent first writers fail with `P2002`](lessons/prisma-upsert-with-an-empty-update-races-on-postgres.md)
+
 ### deploy
 
 - [Compose interpolates every service, even one behind an inactive profile, so a `${VAR:?}` in a profile service stops installs that never use it](lessons/compose-interpolates-services-outside-the-active-profile.md)

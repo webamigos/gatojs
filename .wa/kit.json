@@ -1,5 +1,5 @@
 {
-  "kitVersion": "0.25.0",
+  "kitVersion": "0.25.1",
   "kitRepo": "https://github.com/webamigos/gatojs.git",
   "kitFormat": 5,
   "project": {
@@ -272,10 +272,10 @@
       "files": {}
     },
     "encryption": {
-      "version": "0.1.2",
+      "version": "0.1.3",
       "manifest": {
         "name": "encryption",
-        "version": "0.1.2",
+        "version": "0.1.3",
         "description": "Per-organization envelope encryption (AES-256-GCM) with data keys wrapped by a master key",
         "requires": [],
         "files": [
