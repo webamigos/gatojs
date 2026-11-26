@@ -734,6 +734,121 @@ describe("checkSelfhostCompose", () => {
     ]);
   });
 
+  it("reports a port published by a service through a merge key", () => {
+    writeHandWritten([
+      "x-exposed: &exposed",
+      '  ports: ["9000:9000"]',
+      ...handWrittenLines.slice(0, -1),
+      "  minio:",
+      "    <<: *exposed",
+      "    image: minio",
+      "",
+    ]);
+    expect(checkSelfhostCompose(root)).toEqual([publishedPortIssue("minio")]);
+  });
+
+  it("does not report a port merged into app through a merge key", () => {
+    writeHandWritten([
+      "x-exposed: &exposed",
+      '  ports: ["9000:9000"]',
+      ...handWrittenLines.slice(0, 11),
+      "    <<: *exposed",
+      ...handWrittenLines.slice(11),
+    ]);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("reports a service without restart whose only waiter for completion runs under a profile", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x" };
+    compose.services.worker = {
+      image: "w",
+      profiles: ["s3"],
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([oneShotIssue("seed")]);
+  });
+
+  it("accepts a service without restart that app without profiles waits to complete", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x" };
+    compose.services.app.depends_on = {
+      migrate: { condition: "service_completed_successfully" },
+      seed: { condition: "service_completed_successfully" },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("reports the uncovered profile of a service without restart that a waiter waits to complete", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", profiles: ["s3", "full"] };
+    compose.services.worker = {
+      image: "w",
+      profiles: ["s3"],
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([
+      oneShotProfileIssue("seed", "full"),
+    ]);
+  });
+
+  it("does not treat a service without restart that another service only waits to start as one-shot", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x" };
+    compose.services.app.depends_on = {
+      migrate: { condition: "service_completed_successfully" },
+      seed: { condition: "service_started" },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("does not treat a service without restart that no service waits for as one-shot", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x" };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("checks a one-shot service under its profiles other than tools", () => {
+    const compose = validCompose();
+    compose.services.seed = {
+      image: "x",
+      restart: "no",
+      profiles: ["tools", "s3"],
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([
+      oneShotProfileIssue("seed", "s3"),
+    ]);
+  });
+
+  it("does not check a one-shot service whose only profile is tools", () => {
+    const compose = validCompose();
+    compose.services.seed = { image: "x", restart: "no", profiles: ["tools"] };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
+  it("accepts a one-shot service with two profiles that a waiter under the same two profiles waits to complete", () => {
+    const compose = validCompose();
+    compose.services.seed = {
+      image: "x",
+      restart: "no",
+      profiles: ["s3", "full"],
+    };
+    compose.services.worker = {
+      image: "w",
+      profiles: ["s3", "full"],
+      depends_on: { seed: { condition: "service_completed_successfully" } },
+    };
+    writeCompose(compose);
+    expect(checkSelfhostCompose(root)).toEqual([]);
+  });
+
   it("reports every broken rule in the contract order", () => {
     const compose = validCompose();
     compose.services.minio = {
