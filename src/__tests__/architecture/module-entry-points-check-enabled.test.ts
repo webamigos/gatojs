@@ -1691,6 +1691,82 @@ describe("module entry point detector on fixtures", () => {
       expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
     });
 
+    it.each([
+      [
+        "an if without braces",
+        "  if (input.soft) return runCommand(cmd, input, confirmation);\n  return prisma.invoice.deleteMany({});",
+      ],
+      [
+        "an if block",
+        "  if (input.soft) {\n    return runCommand(cmd, input, confirmation);\n  }\n  return prisma.invoice.deleteMany({});",
+      ],
+      [
+        "a try with a finally that touches Prisma",
+        "  try {\n    return runCommand(cmd, input, confirmation);\n  } finally {\n    await prisma.invoice.deleteMany({});\n  }",
+      ],
+      [
+        "the concise body of an inner arrow called after Prisma",
+        "  const later = () => runCommand(cmd, input, confirmation);\n  await prisma.invoice.deleteMany({});\n  return later();",
+      ],
+      [
+        "the block body of an inner arrow called after Prisma",
+        "  const later = async () => {\n    return runCommand(cmd, input, confirmation);\n  };\n  await prisma.invoice.deleteMany({});\n  return later();",
+      ],
+      [
+        "an awaited return in an if block",
+        "  if (input.soft) {\n    return await runCommand(cmd, input, confirmation);\n  }\n  return prisma.invoice.deleteMany({});",
+      ],
+      [
+        "a bare block",
+        "  {\n    return runCommand(cmd, input, confirmation);\n  }\n  return prisma.invoice.deleteMany({});",
+      ],
+      [
+        "a loop",
+        "  for (const item of input.items) {\n    return runCommand(cmd, item, confirmation);\n  }\n  return prisma.invoice.deleteMany({});",
+      ],
+      [
+        "a switch case",
+        '  switch (input.mode) {\n    case "soft":\n      return runCommand(cmd, input, confirmation);\n  }\n  return prisma.invoice.deleteMany({});',
+      ],
+    ])("reports runCommand returned from %s", (_place, body) => {
+      write(
+        BILLING_COMMAND,
+        commandFile(`${P}\n${R}\n${D}\n${BILLING_CMD}`, body),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("reports runCommand returned only from an if when nothing else touches Prisma", () => {
+      write(
+        BILLING_COMMAND,
+        commandFile(
+          `${R}\n${D}\n${BILLING_CMD}`,
+          "  if (input) return runCommand(cmd, input, confirmation);\n  return { success: false };",
+        ),
+      );
+
+      expect(unguarded()).toEqual([`${BILLING_COMMAND}#archive`]);
+    });
+
+    it("accepts an arrow export whose block body returns runCommand at its top level", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${R}\n${D}\n${BILLING_CMD}\nexport const archive = async (input: unknown, confirmation?: unknown) => {\n  return runCommand(cmd, input, confirmation);\n};\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
+    it("accepts a function expression export that returns runCommand at its top level", () => {
+      write(
+        BILLING_COMMAND,
+        `"use server";\n\n${R}\n${D}\n${BILLING_CMD}\nexport const archive = async function (input: unknown, confirmation?: unknown) {\n  return runCommand(cmd, input, confirmation);\n};\n`,
+      );
+
+      expect(unguarded()).toEqual([]);
+    });
+
     it("reports a Prisma call inside runCommand's third argument only", () => {
       write(
         BILLING_COMMAND,

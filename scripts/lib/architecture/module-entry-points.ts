@@ -396,12 +396,21 @@ function runsOwnCommand(call: ts.CallExpression, facts: FileFacts): boolean {
   );
 }
 
-function isReturnedDirectly(call: ts.CallExpression): boolean {
+function functionBody(node: ts.Node): ts.Node | undefined {
+  return ts.isFunctionDeclaration(node) ||
+    ts.isArrowFunction(node) ||
+    ts.isFunctionExpression(node)
+    ? node.body
+    : undefined;
+}
+
+function isReturnedDirectly(call: ts.CallExpression, scope: Scope): boolean {
+  const body = functionBody(scope.body);
   const value = ts.isAwaitExpression(call.parent) ? call.parent : call;
   const parent = value.parent;
   return (
-    ts.isReturnStatement(parent) ||
-    (ts.isArrowFunction(parent) && parent.body === value)
+    body !== undefined &&
+    ((ts.isReturnStatement(parent) && parent.parent === body) || body === value)
   );
 }
 
@@ -412,7 +421,7 @@ function runCommandEvent(
   if (
     !scope.returnExits ||
     !runsOwnCommand(call, scope.facts) ||
-    !isReturnedDirectly(call)
+    !isReturnedDirectly(call, scope)
   ) {
     return undefined;
   }
