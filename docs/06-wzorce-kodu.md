@@ -499,6 +499,7 @@ Reguły pochodzą z sekcji „Bez komentarzy w kodzie” i „Struktura” w [AG
 | Logika biznesowa i Prisma poza komponentami, `page.tsx`, `layout.tsx` i route handlerami | tylko przegląd kodu | Brak reguły ESLint. Test architektury sprawdza pliki `"use server"` i `services/queries/`, a nie strony i komponenty. | Komponent działa w przeglądarce albo w renderze strony. Kod w `services/` przechodzi przez guardy i test architektury, da się go testować bez Reacta, a mutacje Strykera ([D26](decyzje.md#d26)) obejmują `src/features/**/services/**/*.ts` i `src/features/**/contracts/**/*.ts` (`mutate` w `stryker.config.json`), czyli nie obejmują komponentów ani stron. |
 | Każde wejście z zewnątrz przez Zod, schematy w `contracts/` | częściowo TypeScript, resztę przegląd kodu | Przy `input: unknown` TypeScript nie pozwala czytać pól bez zawężenia, ale nie wymaga, żeby zrobił to Zod. | Jedna reguła wejścia dla formularza i serwera ([Kontrakty](#kontrakty)). |
 | Guard sesji i `assertServiceModeConfirmed` przed Prismą w akcjach i query | test architektury | `src/__tests__/server-entrypoints-guard.test.ts` w `npm test` | Brak guardu to luka bezpieczeństwa, której nie wykryją mutacje, bo nie ma czego mutować ([D24](decyzje.md#d24)). |
+| Punkt wejścia modułu sprawdza, czy moduł jest włączony | test architektury | `src/__tests__/architecture/module-entry-points-check-enabled.test.ts` w `npm test` | Moduł wyłączony w `src/gato.config.ts` znika z rejestru, ale trasa API albo komenda bez `requireModuleAccess` działałaby dalej ([niżej](#guard-wlaczonego-modulu)). |
 | Akcja zwraca `OperationResult` i obsługuje błędy przez `handleCommandError` | tylko przegląd kodu | TypeScript sprawdza tylko typ wyniku zadeklarowany w sygnaturze. | Komponent zawsze dostaje ten sam kształt wyniku, a szczegóły błędu zostają w logu. |
 | Formatowanie | Prettier przy commicie | `.lintstagedrc.json` (`prettier --write`), ustawienia w `.prettierrc` | Jeden format bez dyskusji w recenzji. `npm run verify` i CI formatowania nie sprawdzają. |
 
@@ -603,3 +604,55 @@ Hook better-auth `databaseHooks.session.create.before` z `src/shared/lib/auth/in
 Plik testu leży w `__tests__/`, więc w fazie implementacji (plik `.gato/phase` z wartością `implement`) hook `.claude/hooks/protect-tests.mjs` blokuje jego edycję. Implementer, który potrzebuje wyjątku, zgłasza to w raporcie zamiast dopisywać wpis ([D25](decyzje.md#d25), [08b-testy-adwersarialne.md](08b-testy-adwersarialne.md#faza)).
 
 Analiza jest składniowa, a nie oparta na przebiegu programu, więc łapie pomyłki, ale nie celowe obejście: nie widzi na przykład akcji `"use server"` zdefiniowanej wewnątrz funkcji ani Prismy wołanej przez serwis z innego pliku. Pełną listę ograniczeń ma [AGENTS.md](../AGENTS.md#testy).
+
+<a id="guard-wlaczonego-modulu"></a>
+
+### Guard włączonego modułu
+
+Moduł wyłączony przez `enabled: false` w `src/gato.config.ts` znika z rejestrów, więc `requireModuleAccess` odpowiada dla niego 404 ([11-praca-z-kitem.md](11-praca-z-kitem.md)). Trasa API i komenda, które nie wołają `requireModuleAccess`, sprawdzają moduł same, funkcjami z `src/shared/lib/modules/require-module-enabled.ts`:
+
+- `isModuleEnabled(key)` zwraca `true` dla `auth` i `organizations` zawsze, a dla innego klucza tylko wtedy, gdy moduł jest w rejestrze po `applyGatoConfig`. Klucz nieznany albo wyłączony daje `false`. Trasa API woła ją jako pierwszą instrukcję i przy `false` odpowiada 404 bez treści, przed sprawdzeniem klucza API albo sesji.
+- `requireModuleEnabled(key)` rzuca wtedy `ModuleDisabledError`. Komenda woła ją jako pierwszą instrukcję w `try`, a `handleCommandError` zamienia błąd na komunikat domyślny komendy i loguje go jako ostrzeżenie, nie błąd.
+
+`src/__tests__/architecture/module-entry-points-check-enabled.test.ts` (wykrywanie w `scripts/lib/architecture/module-entry-points.ts`) sprawdza, że każdy punkt wejścia modułu zaczyna od guardu własnego modułu. Punkty wejścia to:
+
+- eksportowane metody HTTP (`GET`, `POST` i pozostałe) każdego `route.ts` w `src/app/`; `export * from "…"` liczy się jako punkt wejścia `*` i zawsze jest zgłaszany, bo nie widać, co eksportuje;
+- każdy eksport pliku z `"use server"` w `src/app/`, w `src/features/<x>/` (poza `auth` i `organizations`, których nie da się wyłączyć) i w `src/shared/`, jeśli plik należy tam do modułu innego niż `core`; `export * as nazwa` jest punktem wejścia `nazwa` bez ciała, więc też jest zgłaszany.
+
+Modułem pliku jest `<x>` dla `src/features/<x>/`, a dla innych ścieżek moduł, którego wzorzec z `files` w manifeście z `.wa/kit.json` (`modules` i `projectModules`) pasuje do ścieżki, z pominięciem `core`. Plik bez takiego modułu (na przykład trasa rdzenia albo trasa projektu bez wpisu w `projectModules`) nie ma klucza, którego guard mógłby użyć, więc trafia do mapy wyjątków albo do manifestu modułu.
+
+Punkt wejścia jest chroniony, gdy pierwszym zdarzeniem w jego ciele jest poprawne wywołanie guardu, przed pierwszym odwołaniem do Prismy (identyfikator `prisma` albo nazwa zaimportowana z `@/shared/lib/prisma`). Wywołanie funkcji z tego samego pliku liczy się w miejscu wywołania jako pierwsze zdarzenie jej ciała. Poprawne wywołanie guardu:
+
+- dotyczy `requireModuleAccess` zaimportowanego z `@/shared/lib/auth/require-module-access` albo `requireModuleEnabled` lub `isModuleEnabled` z `@/shared/lib/modules/require-module-enabled` (alias dozwolony); funkcja o tej samej nazwie z innej ścieżki się nie liczy;
+- ma jako pierwszy argument literał z kluczem modułu pliku albo stałą `const` na najwyższym poziomie pliku zainicjowaną takim literałem; `requireModuleEnabled("auth")` w pliku `billing` jest naruszeniem;
+- dla `isModuleEnabled` ma postać `if (!isModuleEnabled("<klucz>")) …`, gdzie gałąź kończy się `return` albo `throw`; w funkcji pomocniczej liczy się tylko `throw`, bo `return` kończy funkcję pomocniczą, a nie punkt wejścia; wynik zignorowany albo zapisany w zmiennej jest naruszeniem;
+- nie leży w funkcji zagnieżdżonej (callback, funkcja strzałkowa, metoda), bo jej wywołanie nie jest pewne; zdarzenia w takich funkcjach detektor pomija;
+- nie leży w `try`, którego `catch` połyka błąd: `catch` musi kończyć się `throw` albo `return handleCommandError(…)` z `@/shared/utils/error-handling`;
+- dla `requireModuleAccess`, która jest `async`, stoi bezpośrednio po `await` (`await requireModuleAccess(…)`, `const c = await …`, `return await …`); bez `await` odrzucenie obietnicy przepada, a kod po nim działa dalej, więc wywołanie bez `await`, z `void`, z `.catch(…)`, zapisane w zmiennej, w `Promise.all` albo zwrócone przez `return requireModuleAccess(…)` się nie liczy. `requireModuleEnabled` i `isModuleEnabled` są synchroniczne i `await` nie potrzebują.
+
+Wywołanie funkcji pomocniczej z tego pliku zadeklarowanej jako `async` (deklaracja, funkcja strzałkowa albo wyrażenie funkcyjne), której pierwszym zdarzeniem jest guard, liczy się tylko bezpośrednio po `await`, z tych samych powodów: wewnątrz funkcji `async` nawet synchroniczny `requireModuleEnabled` zamienia się w odrzuconą obietnicę. Funkcja synchroniczna z guardem liczy się bez `await`. Funkcja `async`, której pierwszym zdarzeniem jest Prisma, liczy się jako Prisma także bez `await`.
+
+Prisma na ścieżce, którą kod przechodzi, gdy guard zadziała, liczy się jak Prisma przed guardem: w gałęzi `if (!isModuleEnabled(…))`, w `catch` instrukcji `try`, w której bloku `try` leży guard, i w `finally` instrukcji `try`, w której bloku `try` albo `catch` leży guard. Dotyczy to też Prismy w funkcji pomocniczej wołanej w takim bloku; funkcje zagnieżdżone w tych blokach detektor pomija. Prisma w gałęzi `else` albo w `try`, która guardu nie obejmuje, się nie liczy.
+
+Naruszenie test wypisuje jako `<ścieżka>#<nazwa>`.
+
+Wyjątki to mapa `ALLOWED` w teście, z uzasadnieniem przy każdym wpisie: `GET` w healthchecku, `GET` i `POST` handlera better-auth (moduł `auth` rdzenia, którego nie da się wyłączyć) oraz dwie komendy w `users`, które zapisują impersonację w logu aplikacji (`logger.info`, nie w dzienniku audytu). Impersonację wykonuje plugin `admin` better-auth pod `/api/auth/*`. Wyłączenie modułu `users` nie wyłącza tych endpointów (wołać je mogą tylko globalni administratorzy), więc pominięty wpis w logu ukryłby impersonację. Wpis, który nie wskazuje już żadnego punktu wejścia, zatrzymuje test „every allowance names an existing entry point”.
+
+<a id="ograniczenia-detektora-guardu"></a>
+
+Analiza jest składniowa, tak jak w `server-entrypoints-guard.test.ts`: łapie pomyłki, ale nie celowe obejście. Znane ograniczenia:
+
+- guard w funkcji z innego pliku (serwis, helper współdzielony) jest niewidoczny, a Prisma wołana przez taki serwis nie liczy się jako zdarzenie; kolejność sprawdzana jest tylko względem Prismy w tym samym pliku;
+- Prisma w funkcji zagnieżdżonej zdefiniowanej przed guardem (na przykład callback wołany później) nie liczy się jako zdarzenie; Prisma pod inną nazwą niż `prisma` albo import z `@/shared/lib/prisma` (na przykład klient transakcji przekazany parametrem) też nie;
+- guard w gałęzi warunkowej (`if`, `switch`, operator `?:`, `&&`) albo w bloku `catch` lub `finally` liczy się jak wywołany zawsze; kolejność jest składniowa, bez przepływu sterowania;
+- `await` liczy się tylko jako bezpośredni rodzic wywołania: `await (requireModuleAccess(…))` w nawiasach i `return requireModuleAccess(…)` z funkcji `async` są naruszeniem, choć ten drugi zapis przekazuje odrzucenie dalej, jeśli wołający czeka na wynik; detektor nie sprawdza, czy wołający czeka, ani nie analizuje `finally`, więc wymaga `return await`;
+- funkcja pomocnicza bez `async`, która zwraca obietnicę z guardem (`function check() { return requireModuleAccess(…); }`), nigdy nie liczy się jako guard, nawet z `await check()`;
+- funkcja spoza pliku albo metoda, która zwraca obietnicę, nie jest znana detektorowi; guard schowany w takiej funkcji jest niewidoczny (punkt pierwszy);
+- ścieżka błędu guardu to tylko gałąź `if (!isModuleEnabled(…))` oraz `catch` i `finally` obejmującej go instrukcji `try` (także wokół wywołania funkcji pomocniczej z guardem); `catch (e) { if (e instanceof ModuleDisabledError) throw e; await prisma…; throw e; }` jest zgłaszany, choć Prisma działa tylko dla innych błędów;
+- `catch` ocenia się tylko po ostatniej instrukcji: `catch (e) { if (e instanceof ModuleDisabledError) return ok; throw e; }` przechodzi, choć połyka błąd guardu; `handleCommandError` liczy się po nazwie i ścieżce importu, bez sprawdzenia, co robi;
+- `if (!isModuleEnabled(…)) return …` przechodzi bez względu na to, co zwraca (także `return;` zamiast odpowiedzi 404);
+- klucz modułu to literał albo stała `const` z literałem; klucz złożony inaczej (szablon, import, parametr) jest naruszeniem, nawet gdy w praktyce jest poprawny;
+- funkcja pomocnicza liczy się tylko jako funkcja najwyższego poziomu pliku (deklaracja albo `const` z funkcją); metoda obiektu, funkcja przypisana później albo przekazana parametrem jest niewidoczna;
+- podszycie: zmienna albo parametr wewnątrz funkcji, który przesłania zaimportowany guard, `handleCommandError` albo stałą z kluczem, liczy się jak oryginał, bo detektor nie śledzi zasięgów;
+- akcje `"use server"` zdefiniowane wewnątrz funkcji (inline) i pliki `"use server"` poza `src/app/`, `src/features/` i `src/shared/` nie są skanowane; plik rdzenia w `src/shared/` też nie;
+- strony (`page.tsx`) i layouty nie są punktami wejścia tego testu; chroni je `requireModuleAccess(key)` wołane w samej stronie.
