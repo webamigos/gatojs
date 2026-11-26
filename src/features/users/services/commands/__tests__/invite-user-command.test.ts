@@ -51,10 +51,7 @@ vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/shared/lib/audit", async (importActual) => ({
-  ...(await importActual<typeof import("@/shared/lib/audit")>()),
-  trackAudit: mockTrackAudit,
-}));
+vi.mock("@/shared/lib/audit", () => ({ trackAudit: mockTrackAudit }));
 vi.mock("@/modules.generated", () => ({
   moduleEvents: [],
   moduleSubscribers: [
@@ -529,51 +526,51 @@ describe("inviteUserCommand", () => {
     });
   });
 
-  describe("wpis member.invited w dzienniku zdarzeń", () => {
+  describe("the member.invited audit entry is not written by the command", () => {
     beforeEach(() => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
     });
 
-    it("udane zaproszenie zapisuje jeden wpis member.invited z aktorem, organizacją i id zaproszenia", async () => {
+    it("a successful invitation does not call trackAudit itself", async () => {
       const result = await inviteUserCommand(validInput);
 
       expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
-      expect(mockTrackAudit).toHaveBeenCalledTimes(1);
-      expect(mockTrackAudit).toHaveBeenCalledWith({
+      expect(mockTrackAudit).not.toHaveBeenCalled();
+      expect(emitted).toHaveLength(1);
+    });
+
+    it("a confirmed service-mode invitation does not call trackAudit itself", async () => {
+      mockGetAdminUserOrNull.mockResolvedValue({
+        id: "super-1",
+        role: "superadmin",
+      });
+      mockGetOrgContext.mockResolvedValue(SERVICE_CONTEXT);
+
+      const result = await inviteUserCommand(validInput, {
+        serviceModeConfirmed: true,
         organizationId: "org-1",
-        actorUserId: "admin-1",
-        serviceMode: false,
-        action: "member.invited",
-        entityType: "invitation",
-        entityId: "inv-1",
-        newData: { email: "jan@firma.pl", role: "member" },
-      });
-    });
-
-    it("wpis zawiera email i rolę po walidacji schematu, nie surowe wejście", async () => {
-      await inviteUserCommand({
-        ...validInput,
-        email: "  JAN@Firma.PL ",
-        role: "admin",
       });
 
-      expect(mockTrackAudit).toHaveBeenCalledTimes(1);
-      expect(mockTrackAudit.mock.calls[0][0].newData).toEqual({
-        email: "jan@firma.pl",
-        role: "admin",
+      expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
+      expect(mockTrackAudit).not.toHaveBeenCalled();
+      expect(emitted).toHaveLength(1);
+    });
+
+    it("an undelivered welcome email still succeeds with a warning and one users.invited", async () => {
+      mockSendWelcomeEmail.mockRejectedValue(new Error("smtp down"));
+
+      const result = await inviteUserCommand(validInput);
+
+      expect(result).toEqual({
+        success: true,
+        data: { userId: "new-user-1" },
+        warning: "mail-failed",
       });
+      expect(emitted).toHaveLength(1);
+      expect(mockTrackAudit).not.toHaveBeenCalled();
     });
 
-    it("wpis powstaje dopiero po udanej rejestracji konta", async () => {
-      await inviteUserCommand(validInput);
-
-      expect(mockTrackAudit).toHaveBeenCalledTimes(1);
-      expect(mockTrackAudit.mock.invocationCallOrder[0]).toBeGreaterThan(
-        mockAuthApi.signUpEmail.mock.invocationCallOrder[0],
-      );
-    });
-
-    it("nieudana rejestracja: zaproszenie wycofane, błąd i brak wpisu", async () => {
+    it("a failed account registration withdraws the invitation and emits nothing", async () => {
       mockAuthApi.signUpEmail.mockRejectedValue(new Error("signup failed"));
 
       const result = await inviteUserCommand(validInput);
@@ -585,94 +582,8 @@ describe("inviteUserCommand", () => {
       expect(mockPrisma.invitation.delete).toHaveBeenCalledWith({
         where: { id: "inv-1" },
       });
+      expect(emitted).toEqual([]);
       expect(mockTrackAudit).not.toHaveBeenCalled();
-    });
-
-    it("istniejący adres: błąd i brak wpisu", async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ id: "existing" });
-
-      const result = await inviteUserCommand(validInput);
-
-      expect(result).toEqual({
-        success: false,
-        error: "Użytkownik z tym adresem już istnieje",
-      });
-      expect(mockTrackAudit).not.toHaveBeenCalled();
-    });
-
-    it("wywołujący bez roli admin: brak wpisu", async () => {
-      mockGetAdminUserOrNull.mockResolvedValue(null);
-
-      const result = await inviteUserCommand(validInput);
-
-      expect(result).toEqual({ success: false, error: "Brak uprawnień" });
-      expect(mockTrackAudit).not.toHaveBeenCalled();
-    });
-
-    it("błędne wejście: brak wpisu", async () => {
-      const result = await inviteUserCommand({ name: "", email: "x" });
-
-      expect(result.success).toBe(false);
-      expect(mockTrackAudit).not.toHaveBeenCalled();
-    });
-
-    it("niewysłany mail powitalny: sukces z ostrzeżeniem i wpis member.invited jest", async () => {
-      mockSendWelcomeEmail.mockRejectedValue(new Error("smtp down"));
-
-      const result = await inviteUserCommand(validInput);
-
-      expect(result).toEqual({
-        success: true,
-        data: { userId: "new-user-1" },
-        warning: "mail-failed",
-      });
-      expect(mockTrackAudit).toHaveBeenCalledTimes(1);
-      expect(mockTrackAudit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: "member.invited",
-          entityId: "inv-1",
-        }),
-      );
-    });
-
-    describe("w trybie serwisowym", () => {
-      beforeEach(() => {
-        mockGetAdminUserOrNull.mockResolvedValue({
-          id: "super-1",
-          role: "superadmin",
-        });
-        mockGetOrgContext.mockResolvedValue(SERVICE_CONTEXT);
-      });
-
-      it("z potwierdzeniem: wpis z aktorem superadmina i serviceMode: true", async () => {
-        const result = await inviteUserCommand(validInput, {
-          serviceModeConfirmed: true,
-          organizationId: "org-1",
-        });
-
-        expect(result).toEqual({
-          success: true,
-          data: { userId: "new-user-1" },
-        });
-        expect(mockTrackAudit).toHaveBeenCalledTimes(1);
-        expect(mockTrackAudit).toHaveBeenCalledWith({
-          organizationId: "org-1",
-          actorUserId: "super-1",
-          serviceMode: true,
-          action: "member.invited",
-          entityType: "invitation",
-          entityId: "inv-1",
-          newData: { email: "jan@firma.pl", role: "member" },
-        });
-      });
-
-      it("bez potwierdzenia: błąd trybu serwisowego, brak zaproszenia i wpisu", async () => {
-        const result = await inviteUserCommand(validInput);
-
-        expect(result).toEqual(SERVICE_MODE_ERROR);
-        expect(mockPrisma.invitation.create).not.toHaveBeenCalled();
-        expect(mockTrackAudit).not.toHaveBeenCalled();
-      });
     });
   });
 
@@ -690,6 +601,7 @@ describe("inviteUserCommand", () => {
           name: "users.invited",
           organizationId: "org-1",
           actorUserId: "admin-1",
+          serviceMode: false,
           payload: {
             invitationId: "inv-1",
             email: "jan@firma.pl",
@@ -699,7 +611,7 @@ describe("inviteUserCommand", () => {
       ]);
     });
 
-    it("the organization and actor come from the context, the email and role from the parsed input", async () => {
+    it("the organization, actor and serviceMode come from the context, the email and role from the parsed input", async () => {
       mockGetAdminUserOrNull.mockResolvedValue({
         id: "super-1",
         role: "superadmin",
@@ -720,6 +632,7 @@ describe("inviteUserCommand", () => {
           name: "users.invited",
           organizationId: "org-9",
           actorUserId: "super-1",
+          serviceMode: true,
           payload: {
             invitationId: "inv-9",
             email: "ewa@firma.pl",
@@ -729,16 +642,17 @@ describe("inviteUserCommand", () => {
       ]);
     });
 
-    it("the event comes after trackAudit has finished its write", async () => {
-      mockTrackAudit.mockImplementation(async () => {
-        timeline.push("audit:start");
+    it("the event comes after the account registration has finished", async () => {
+      mockAuthApi.signUpEmail.mockImplementation(async () => {
+        timeline.push("signup:start");
         await new Promise((resolve) => setTimeout(resolve, 5));
-        timeline.push("audit:end");
+        timeline.push("signup:end");
+        return { user: { id: "new-user-1" } };
       });
 
       await inviteUserCommand(validInput);
 
-      expect(timeline).toEqual(["audit:start", "audit:end", "event"]);
+      expect(timeline).toEqual(["signup:start", "signup:end", "event"]);
     });
 
     it("an existing email emits no event", async () => {

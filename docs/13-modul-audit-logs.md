@@ -14,9 +14,10 @@ Zweryfikowano z kodem: 042a1cb, 2026-10-30
 
 - `kit/modules/audit-logs.json`
 - `prisma/schema/audit-logs.prisma`
-- `src/features/audit-logs/` (`module.ts`, `audit-sink.ts`, `auth.ts`, `components/`, `contracts/`, `services/`, `i18n/`) z testami w `__tests__/`
+- `src/features/audit-logs/` (`module.ts`, `audit-sink.ts`, `subscribers.ts`, `components/`, `contracts/`, `services/`, `i18n/`) z testami w `__tests__/`
 - `src/app/[locale]/(app)/audit-log/page.tsx`
 - `src/shared/lib/audit.ts`, `src/shared/lib/__tests__/audit.test.ts`
+- `src/shared/lib/auth/events-plugin.ts`, `src/shared/lib/auth/organization-events.ts`, `src/shared/lib/events/` (zdarzenia rdzenia, [ADR-61](adrs/61-domain-events-run-subscribers-after-success.md))
 - `src/shared/lib/modules/define-module.ts`
 - `src/shared/lib/auth/permissions.ts`
 - `src/modules.generated.ts`, `src/modules.client.generated.ts`
@@ -25,7 +26,7 @@ Zweryfikowano z kodem: 042a1cb, 2026-10-30
 - `mutation-gate.json`
 - [spec planu 3](superpowers/specs/2026-10-28-wa-kit-plan-3-modules-design.md), §5
 
-Jak moduły kitu trafiają do projektu i łączą się z rdzeniem, wyjaśnia [12-moduly-kitu.md](12-moduly-kitu.md#warstwa-szwow); ten plik opisuje tylko `audit-logs`. Opis modułu ma dwie części: ten plik (co robi moduł, wymagania, instalacja i usunięcie, co dodaje do aplikacji, szwy) i [13b-modul-audit-logs-uzycie.md](13b-modul-audit-logs-uzycie.md) (użycie we własnym kodzie, bezpieczeństwo, testowanie, typowe problemy, referencja). Decyzje: [D39](decyzje.md#d39), [D40](decyzje.md#d40), [D41](decyzje.md#d41), [D42](decyzje.md#d42).
+Jak moduły kitu trafiają do projektu i łączą się z rdzeniem, wyjaśnia [12-moduly-kitu.md](12-moduly-kitu.md#warstwa-szwow); ten plik opisuje tylko `audit-logs`. Opis modułu ma dwie części: ten plik (co robi moduł, wymagania, instalacja i usunięcie, co dodaje do aplikacji, szwy) i [13b-modul-audit-logs-uzycie.md](13b-modul-audit-logs-uzycie.md) (użycie we własnym kodzie, bezpieczeństwo, testowanie, typowe problemy, referencja). Decyzje: [D39](decyzje.md#d39), [D40](decyzje.md#d40), [D41](decyzje.md#d41), [D42](decyzje.md#d42) (częściowo zastąpiona przez [ADR-61](adrs/61-domain-events-run-subscribers-after-success.md)).
 
 <a id="przebieg"></a>
 
@@ -42,8 +43,8 @@ Zdarzenia zapisuje kod, który zmienia dane: rdzeń (członkostwo, wejście supe
 Czego moduł nie robi:
 
 - **Nie ma retencji.** Nic nie usuwa starych wpisów, więc tabela rośnie bez limitu ([D41](decyzje.md#d41)). Wpisy znikają tylko razem z organizacją.
-- **Nie zapisuje zdarzeń sam z siebie.** Zmiana, której kod nie przekaże do `trackAudit` i której nie łapie plugin modułu ([Zdarzenia rdzenia i modułów kitu](#zdarzenia)), nie trafi do dziennika. Wołanie `trackAudit` po każdej zmianie danych to konwencja, nikt jej nie sprawdza.
-- **Nie loguje odczytów, logowań ani zmian kont użytkowników** (hasło, email, rola globalna, ban, impersonacja). Plugin łapie tylko pięć ścieżek organizacji.
+- **Nie zapisuje zdarzeń sam z siebie.** Zmiana, której kod nie przekaże do `trackAudit` i której nie łapią subskrybenci modułu ([Zdarzenia rdzenia i modułów kitu](#zdarzenia)), nie trafi do dziennika. Wołanie `trackAudit` po każdej zmianie danych to konwencja, nikt jej nie sprawdza.
+- **Nie loguje odczytów, logowań ani zmian kont użytkowników** (hasło, email, rola globalna, ban, impersonacja). Subskrybenci łapią tylko pięć zdarzeń organizacji.
 - **Nie eksportuje dziennika** i nie pokazuje widoku zbiorczego wielu organizacji: każde zapytanie jest ograniczone do aktywnej organizacji.
 
 Nie dodawaj modułu, gdy nikt nie będzie czytał dziennika. Kod projektu może wołać `trackAudit` i deklarować `auditActions` także bez modułu, więc moduł da się dodać później bez zmiany tego kodu ([Kod, który ma działać bez modułu](13b-modul-audit-logs-uzycie.md#bez-modulu)); zdarzenia sprzed dodania modułu nie zostaną jednak nigdzie zapisane.
@@ -57,7 +58,7 @@ Nie dodawaj modułu, gdy nikt nie będzie czytał dziennika. Kod projektu może 
 | Moduły kitu w `requires` | Brak. |
 | Usługi (Docker, CI) | Brak. Pole `compose` manifestu jest puste, region `wa:services` i `wa:ci-integration` zostają bez zmian. |
 | Zmienne środowiskowe | Brak. Pole `env` manifestu jest puste, moduł nie ma pliku `env.ts`. Uwaga z [16](16-cli-wa.md#add-po), że `wa add` nie dopisuje zmiennych do `.env`, tego modułu nie dotyczy. |
-| Zależności npm | Tylko `better-call` w `devDependencies`: używa go test integracyjny pluginu (`auth-plugin.integration.test.ts`) do podpisania ciasteczka sesji. Aplikacja go nie importuje. |
+| Zależności npm | Tylko `better-call` w `devDependencies`: używa go test integracyjny wpisów ze zdarzeń organizacji (`__tests__/organization-audit.integration.test.ts`) do podpisania ciasteczka sesji. Aplikacja go nie importuje. |
 | Baza | Tabela `audit_logs` i typ `AuditChannel`, czyli migracja po dodaniu modułu. |
 
 <a id="instalacja"></a>
@@ -91,7 +92,7 @@ Pierwsza migracja projektu (`npx prisma migrate dev --name init`) tworzy od razu
 | Deklaracje `auditActions` w `module.ts` | Zostają i nic nie robią. |
 | Kod projektu, który importuje pliki modułu (`<AuditTrail>`, `writeAuditLog`) | Przestaje się budować (`TS2307: Cannot find module '@/features/audit-logs/…'`, [12](12-moduly-kitu.md#punkty-wejscia)). `wa remove` nie szuka takich importów. |
 | `better-call` w `devDependencies` | Usunięte, jeśli nie deklaruje go inny manifest ([16](16-cli-wa.md#remove-co-robi)). |
-| Pozycja „Dziennik zdarzeń” w menu, strona `/audit-log`, plugin better-auth | Znikają razem z plikami i rejestrem. |
+| Pozycja „Dziennik zdarzeń” w menu, strona `/audit-log`, subskrybenci zdarzeń organizacji | Znikają razem z plikami i rejestrem. Zdarzenia rdzenia nadal są emitowane, ale nikt nie zapisuje z nich wpisów, także `member.invited`. |
 
 <a id="co-dodaje"></a>
 
@@ -129,7 +130,7 @@ Definicja modułu (`src/features/audit-logs/module.ts`):
 | `nav` | `/audit-log`, etykieta `nav` („Dziennik zdarzeń”), ikona `scroll-text`, `order: 90` | Pozycja menu dla ról z dostępem. |
 | `routePrefixes` | `["/audit-log"]` | Przypisuje ścieżkę do modułu (menu, guard ścieżek). |
 | `roles` | `["owner", "admin"]` | Dostęp mają owner i admin organizacji; `member` nie. |
-| `auditActions` | sześć akcji rdzenia (tabela w [Referencji](13b-modul-audit-logs-uzycie.md#referencja-akcje)) | Etykiety zdarzeń, które zapisuje rdzeń i plugin modułu. |
+| `auditActions` | sześć akcji rdzenia (tabela w [Referencji](13b-modul-audit-logs-uzycie.md#referencja-akcje)) | Etykiety zdarzeń, które zapisuje rdzeń i subskrybenci modułu. |
 
 <a id="model"></a>
 
@@ -199,8 +200,8 @@ Moduł nie ma akcji serwerowych (plików `"use server"`): nie da się z przeglą
 | `services/write-audit-log.ts` | `writeAuditLog(event)` | Zapis wpisu po redakcji `oldData` i `newData` ([Zapis wpisu](#zapis)). |
 | `audit-sink.ts` | `auditSink` | `writeAuditLog` jako ujście, które generator dopisuje do `auditSinks`. |
 | `services/redact.ts` | `redactSensitive(value)` | Redakcja kluczy wrażliwych ([Redakcja](#redakcja)). |
-| `auth.ts` | `authPlugin` | Plugin better-auth zapisujący zdarzenia organizacji ([Zdarzenia](#zdarzenia)). |
-| `services/organization-audit-events.ts` | `organizationAuditEvent(input)`, `AUDITED_ORGANIZATION_PATHS` | Buduje zdarzenie z odpowiedzi endpointu better-auth. |
+| `subscribers.ts` | `subscribers` | `organizationAuditSubscribers` jako subskrybenci, których generator dopisuje do `moduleSubscribers`. |
+| `services/organization-audit-subscribers.ts` | `organizationAuditSubscribers` | Subskrybenci pięciu zdarzeń organizacji; każdy woła `trackAudit` raz ([Zdarzenia](#zdarzenia)). |
 | `components/audit-action-labels.ts` | `findAuditActionLabel(action, modules)` | Szuka deklaracji akcji w rejestrze. |
 | `contracts/audit-log.schemas.ts` | `auditLogFiltersSchema` | Parsowanie parametrów adresu. |
 
@@ -221,11 +222,11 @@ Szwy generowane, przez które moduł łączy się z aplikacją ([12](12-moduly-k
 | Szew | Co wpina `audit-logs` |
 | --- | --- |
 | `modules`, `clientModules` | `src/features/audit-logs/module.ts`. |
-| `authPlugins` | `authPlugin` z `src/features/audit-logs/auth.ts`. |
+| `moduleSubscribers` | `subscribers` z `src/features/audit-logs/subscribers.ts`. |
 | `auditSinks` | `auditSink` z `src/features/audit-logs/audit-sink.ts`; jedyne ujście w kicie. |
 | `moduleMessages` | `i18n/pl.json`, `i18n/en.json` pod kluczem `audit-logs`. |
 | Region `wa:relations` | `auditLogs AuditLog[]` w `User` i `Organization`. |
-| `moduleEnvSchemas`, `authClientPlugins`, `wa:modules`, `wa:services`, `wa:ci-integration` | Nic. |
+| `moduleEnvSchemas`, `authPlugins`, `authClientPlugins`, `wa:modules`, `wa:services`, `wa:ci-integration` | Nic. |
 
 Punkty wejścia z kontraktem są cztery: `trackAudit`, `auditActor`, ujście `AuditSink` i deklaracja `auditActions`. Pierwsze trzy leżą w rdzeniu (`src/shared/lib/audit.ts`), czwarty to pole `ModuleDef`. Istnieją w każdym projekcie, także bez modułu.
 
@@ -354,21 +355,21 @@ export async function writeAuditLog(event: AuditEvent): Promise<void> {
 
 ### Zdarzenia rdzenia i modułów kitu
 
-Pięć zdarzeń organizacji łapie plugin better-auth modułu (`src/features/audit-logs/auth.ts`, [D42](decyzje.md#d42)): hook `after` dla ścieżek z `AUDITED_ORGANIZATION_PATHS` buduje zdarzenie z odpowiedzi endpointu i woła `trackAudit`, a hook `before` dla `/organization/update-member-role` odczytuje poprzednią rolę członka. Organizacja wpisu pochodzi z odpowiedzi endpointu, nie z ciała żądania. Endpoint, który zakończył się błędem (na przykład zła rola zaproszenia), nie tworzy wpisu. Pozostałe zdarzenia woła kod rdzenia i modułów kitu bezpośrednio.
+Pięć wpisów organizacji zapisują subskrybenci modułu (`src/features/audit-logs/services/organization-audit-subscribers.ts`) ze zdarzeń domenowych rdzenia ([ADR-61](adrs/61-domain-events-run-subscribers-after-success.md); [D42](decyzje.md#d42) w części o pluginie modułu nie obowiązuje). Zdarzenia emituje plugin better-auth rdzenia (`src/shared/lib/auth/events-plugin.ts`, [05](05-moduly-rdzenia.md#plugin-zdarzen-auth)) po endpointach organizacji oraz `inviteUserCommand`. Organizacja, autor i `serviceMode` wpisu pochodzą ze zdarzenia (`event.organizationId`, `event.actorUserId`, `event.serviceMode`); plugin bierze organizację z wiersza zwróconego przez endpoint, nie z ciała żądania. Endpoint, który zakończył się błędem (na przykład zła rola zaproszenia albo lista ról, którą odrzuca `orgRoleGuardPlugin` z [05](05-moduly-rdzenia.md#plugin-zdarzen-auth)), nie emituje zdarzenia i nie tworzy wpisu. Błąd subskrybenta albo zapisu nie psuje operacji: operacja się udaje, wpisu brak, a błąd trafia do logu (`trackAudit failed` albo `Event subscriber failed`). Pozostałe wpisy woła kod rdzenia i modułów kitu bezpośrednio przez `trackAudit`.
 
 | Akcja | `entityType`, `entityId` | Dane | Kto zapisuje i kiedy |
 | --- | --- | --- | --- |
-| `member.invited` | `invitation`, id zaproszenia | `newData: { email, role }` | Plugin, `/organization/invite-member`. Rdzeń, `inviteUserCommand` (strona „Użytkownicy”) po udanej rejestracji konta, autor to admin z `getOrgContext()`; w trybie serwisowym wpis ma `serviceMode: true`. Gdy rejestracja się nie uda, komenda usuwa zaproszenie i wpisu nie ma. |
-| `invitation.canceled` | `invitation`, id zaproszenia | brak | Plugin, `/organization/cancel-invitation`. |
-| `invitation.accepted` | `invitation`, id zaproszenia | brak | Plugin, `/organization/accept-invitation` (strona przyjęcia zaproszenia), autor to osoba przyjmująca. Rdzeń, `joinOrganizationCommand` przy rejestracji z zaproszeniem, autor to nowy użytkownik. |
-| `member.role_changed` | `member`, id członkostwa | `oldData: { role }` (gdy poprzednia rola znana), `newData: { role }` | Plugin, `/organization/update-member-role`. |
-| `member.removed` | `member`, id członkostwa | `oldData: { userId, role }` | Plugin, `/organization/remove-member`. |
+| `member.invited` | `invitation`, id zaproszenia | `newData: { email, role }` | Subskrybent `audit-logs.member-invited` zdarzenia `users.invited`: z `/organization/invite-member` oraz z `inviteUserCommand` (strona „Użytkownicy”) po udanej rejestracji konta, autor to admin z `getOrgContext()`; w trybie serwisowym wpis ma `serviceMode: true`. Jeden wpis na zaproszenie. Gdy rejestracja się nie uda, komenda usuwa zaproszenie i zdarzenia nie ma. |
+| `invitation.canceled` | `invitation`, id zaproszenia | brak | Subskrybent `audit-logs.invitation-canceled` zdarzenia `users.invitation-canceled` (`/organization/cancel-invitation`). |
+| `invitation.accepted` | `invitation`, id zaproszenia | brak | Subskrybent `audit-logs.invitation-accepted` zdarzenia `users.invitation-accepted` (`/organization/accept-invitation`, strona przyjęcia zaproszenia), autor to osoba przyjmująca. Zdarzenie `organizations.member-added` z tego samego endpointu wpisu nie tworzy. Rdzeń, `joinOrganizationCommand` przy rejestracji z zaproszeniem, autor to nowy użytkownik. |
+| `member.role_changed` | `member`, id członkostwa | `oldData: { role }`, `newData: { role }` | Subskrybent `audit-logs.member-role-changed` zdarzenia `organizations.member-role-changed` (`/organization/update-member-role`). Gdy plugin nie zna poprzedniej roli, zdarzenia i wpisu nie ma (`Auth event skipped` w logu). |
+| `member.removed` | `member`, id członkostwa | `oldData: { userId, role }` | Subskrybent `audit-logs.member-removed` zdarzenia `organizations.member-removed` (`/organization/remove-member`; `/organization/leave` z autorem, który odchodzi). Usunięcie całej organizacji (`/organization/delete`) nie zapisuje wpisów: kasuje je razem z organizacją. |
 | `organization.entered` | `organization`, id organizacji | `serviceMode: true` | Rdzeń, gdy superadmin wchodzi do organizacji bez członkostwa: `enterOrganizationCommand` (przełącznik i `/no-organization`) oraz hook `databaseHooks.session.create.after` przez `trackServiceModeEntry`, gdy nowa sesja (logowanie) dostaje taką organizację jako aktywną. |
 | `api_key.created` | `api_key`, id klucza | `newData: { name, scopes, displayPrefix }` | `api-keys`, `createApiKeyCommand`. |
 | `api_key.revoked`, `api_key.deleted` | `api_key`, id klucza | `oldData: { name, displayPrefix }` | `api-keys`, `revokeApiKeyCommand` i `deleteApiKeyCommand`, tylko gdy zapis zmienił wiersz. |
 | `upload.created` | `upload`, id pliku | `newData: { purpose, key, size }` | `uploads`, `createUpload` (trasa `POST /api/uploads`). |
 | `upload.deleted` | `upload`, id pliku | `oldData: { purpose, key, size }` | `uploads`, `deleteUploadCommand`. |
 
-Zdarzenia z pluginu nie mają `serviceMode` i zapisują się z `false`. Superadmin w trybie serwisowym nie wywoła tych endpointów, bo better-auth wymaga członkostwa ([04b](04b-superadmin-i-tryb-serwisowy.md#authclient-organization)). Żaden kod kitu nie zapisuje kanału `API` ani `credentialId`: trasa `GET /api/v1/organization` modułu `api-keys` nie zapisuje zdarzeń. Te pola wypełnia kod projektu ([Zapis z trasy z kluczem API](13b-modul-audit-logs-uzycie.md#kanal-api)). Etykiety akcji `api_key.*` i `upload.*` deklarują moduły `api-keys` i `uploads` ([14](14-modul-api-keys.md), [15](15-modul-uploads.md)).
+Zdarzenia z pluginu zdarzeń auth mają `serviceMode: false`. Superadmin w trybie serwisowym nie wywoła tych endpointów, bo better-auth wymaga członkostwa ([04b](04b-superadmin-i-tryb-serwisowy.md#authclient-organization)). Żaden kod kitu nie zapisuje kanału `API` ani `credentialId`: trasa `GET /api/v1/organization` modułu `api-keys` nie zapisuje zdarzeń. Te pola wypełnia kod projektu ([Zapis z trasy z kluczem API](13b-modul-audit-logs-uzycie.md#kanal-api)). Etykiety akcji `api_key.*` i `upload.*` deklarują moduły `api-keys` i `uploads` ([14](14-modul-api-keys.md), [15](15-modul-uploads.md)).
 
 Dalej: użycie modułu we własnym kodzie, bezpieczeństwo, testowanie, typowe problemy i referencja w [13b-modul-audit-logs-uzycie.md](13b-modul-audit-logs-uzycie.md).

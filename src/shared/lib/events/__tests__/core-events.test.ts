@@ -88,19 +88,51 @@ describe("coreEvents", () => {
   });
 
   describe("organizations.member-removed", () => {
-    it("accepts memberId and userId", () => {
+    it.each(["owner", "admin", "member"])(
+      "accepts memberId, userId and the role %s",
+      (role) => {
+        expect(
+          accepts("organizations.member-removed", {
+            memberId: "m1",
+            userId: "u2",
+            role,
+          }),
+        ).toBe(true);
+      },
+    );
+
+    it("rejects a payload without role", () => {
       expect(
         accepts("organizations.member-removed", {
           memberId: "m1",
           userId: "u2",
         }),
-      ).toBe(true);
+      ).toBe(false);
+    });
+
+    it("rejects a role outside owner, admin, member", () => {
+      expect(
+        accepts("organizations.member-removed", {
+          memberId: "m1",
+          userId: "u2",
+          role: "superadmin",
+        }),
+      ).toBe(false);
     });
 
     it("rejects a payload without userId", () => {
-      expect(accepts("organizations.member-removed", { memberId: "m1" })).toBe(
-        false,
-      );
+      expect(
+        accepts("organizations.member-removed", {
+          memberId: "m1",
+          role: "member",
+        }),
+      ).toBe(false);
+    });
+
+    it("declares exactly memberId, userId and role", () => {
+      expect(
+        Object.keys(coreEvents["organizations.member-removed"].shape).sort(),
+      ).toEqual(["memberId", "role", "userId"]);
     });
   });
 
