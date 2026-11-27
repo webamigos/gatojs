@@ -15,6 +15,8 @@ topics: ['seed-files', 'modules', 'created-project']
 - The kit's own `npm run verify` cannot notice: there the seed still holds the shipped values.
 - Module tests are Gato files, so the project cannot fix them without ejecting.
 
+**Also**: `describe.runIf(false)` still runs its callback while Vitest collects tests, so a kit-only block must not read `kit/` files in its body (a `const` or an `it.each` list): compute them as `hasKit ? read() : []` or read inside `beforeAll`/the tests. A created project has no `kit/` and fails with `ENOENT` otherwise.
+
 **Rule**: For every seed file a module ships, check that no shipped test reaches it, directly or through a default argument. Verify in a created project after editing the seeds (`wa create`, edit, `npm run verify`, `wa doctor --files`).
 
 **Applies to**: `seedFiles` in `kit/kit.json`, module tests under `src/features/<x>/**/__tests__/`.
