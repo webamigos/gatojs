@@ -14,7 +14,9 @@ const { projectConfig } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("../legal.config", () => ({ legalConfig: projectConfig }));
+vi.mock("../legal-settings", () => ({
+  legalSettings: { config: projectConfig, error: null },
+}));
 vi.mock("@/i18n/routing", () => ({
   Link: ({
     href,

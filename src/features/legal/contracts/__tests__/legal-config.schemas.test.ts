@@ -74,3 +74,58 @@ describe("legalConfigSchema", () => {
     ).toBe(false);
   });
 });
+
+describe("legalConfigSchema reserved cookie names", () => {
+  it.each([
+    "NEXT_LOCALE",
+    "next_locale",
+    "Next_Locale",
+    "better-auth",
+    "better-auth-session_token",
+    "Better-Auth_consent",
+    "__Host-consent",
+    "__HOST-consent",
+    "__Secure-consent",
+    "__secure-consent",
+  ])(
+    "rejects %s with the reserved name message on consentCookieName",
+    (name) => {
+      const result = legalConfigSchema.safeParse({
+        cookieCategories: [],
+        consentVersion: 1,
+        consentCookieName: name,
+      });
+
+      expect(result.success).toBe(false);
+      expect(
+        result.error?.issues.map(({ path, message }) => ({ path, message })),
+      ).toEqual([
+        {
+          path: ["consentCookieName"],
+          message:
+            "consentCookieName must not be NEXT_LOCALE, a better-auth cookie or use the __Host- or __Secure- prefix",
+        },
+      ]);
+    },
+  );
+
+  it.each([
+    "cookie_consent",
+    "acme_consent",
+    "_consent",
+    "host_consent",
+    "secure_consent",
+    "my-better-auth",
+    "consent__Host-",
+    "NEXT_LOCALE_consent",
+  ])("accepts %s", (name) => {
+    const result = legalConfigSchema.safeParse({
+      cookieCategories: [],
+      consentVersion: 1,
+      consentCookieName: name,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data?.consentCookieName).toBe(name);
+  });
+});

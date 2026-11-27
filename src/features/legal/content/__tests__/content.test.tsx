@@ -1,16 +1,14 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { renderToString } from "react-dom/server";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import corePl from "@/app/messages/pl.json";
 import coreEn from "@/app/messages/en.json";
 import legalPl from "../../i18n/pl.json";
 import legalEn from "../../i18n/en.json";
 import { resolveServerTree } from "../../__tests__/server-tree";
-import { legalDocuments } from "../index";
-import { legalConfig } from "../../legal.config";
 
 vi.mock("@/i18n/routing", () => ({
   Link: ({
@@ -38,6 +36,20 @@ const featureDir = path.resolve(__dirname, "../..");
 const repoRoot = path.resolve(featureDir, "../../..");
 const inKitRepo = existsSync(path.join(repoRoot, "kit/kit.json"));
 
+type SeedDocument = { default: ComponentType; updatedAt: string };
+
+type SeedLoaders = Record<
+  "terms" | "privacy",
+  Partial<Record<string, () => Promise<SeedDocument>>>
+>;
+
+async function importSeed<T>(relativeToFeature: string): Promise<T> {
+  const specifier = path.join(featureDir, relativeToFeature);
+  return (await import(specifier)) as T;
+}
+
+let legalDocuments: SeedLoaders;
+
 async function loadDocument(
   document: "terms" | "privacy",
   locale: "pl" | "en",
@@ -63,6 +75,12 @@ async function renderDocumentHtml(
 }
 
 describe.runIf(inKitRepo)("shipped legal content", () => {
+  beforeAll(async () => {
+    ({ legalDocuments } = await importSeed<{ legalDocuments: SeedLoaders }>(
+      "content/index.ts",
+    ));
+  });
+
   it("has pl and en loaders for both documents", () => {
     expect(Object.keys(legalDocuments).sort()).toEqual(["privacy", "terms"]);
     expect(Object.keys(legalDocuments.terms).sort()).toEqual(["en", "pl"]);
@@ -118,12 +136,11 @@ describe.runIf(inKitRepo)("shipped legal content", () => {
 });
 
 describe.runIf(inKitRepo)("shipped legal config", () => {
-  it("declares no cookie categories, consent version 1 and the default cookie", () => {
-    expect(legalConfig).toEqual({
-      cookieCategories: [],
-      consentVersion: 1,
-      consentCookieName: "cookie_consent",
-      consentMaxAgeDays: 180,
-    });
+  it("is plain data: no cookie categories and consent version 1", async () => {
+    const { legalConfig } = await importSeed<{ legalConfig: unknown }>(
+      "legal.config.ts",
+    );
+
+    expect(legalConfig).toEqual({ cookieCategories: [], consentVersion: 1 });
   });
 });

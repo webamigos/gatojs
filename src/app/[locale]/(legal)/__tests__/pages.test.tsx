@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import {
@@ -13,13 +13,27 @@ import legalEn from "@/features/legal/i18n/en.json";
 import type { ModuleDef } from "@/shared/lib/modules/define-module";
 import { resolveServerTree } from "@/features/legal/__tests__/server-tree";
 
-const { installedModules, termsLoader, privacyLoader, requestLocale } =
-  vi.hoisted(() => ({
-    requestLocale: { value: "pl" },
-    installedModules: [] as ModuleDef[],
-    termsLoader: { calls: 0 },
-    privacyLoader: { calls: 0 },
-  }));
+const {
+  installedModules,
+  termsLoader,
+  privacyLoader,
+  requestLocale,
+  settings,
+} = vi.hoisted(() => ({
+  requestLocale: { value: "pl" },
+  installedModules: [] as ModuleDef[],
+  termsLoader: { calls: 0 },
+  privacyLoader: { calls: 0 },
+  settings: {
+    config: {
+      cookieCategories: [],
+      consentVersion: 1,
+      consentCookieName: "cookie_consent",
+      consentMaxAgeDays: 180,
+    },
+    error: null as Error | null,
+  },
+}));
 
 const messagesByLocale: Record<string, Record<string, unknown>> = {
   pl: { ...corePl, legal: legalPl },
@@ -78,6 +92,9 @@ vi.mock("@/modules.client.generated", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/modules.client.generated")>()),
   clientModules: installedModules,
 }));
+vi.mock("@/features/legal/legal-settings", () => ({
+  legalSettings: settings,
+}));
 vi.mock("@/features/legal/content", () => ({
   legalDocuments: {
     terms: {
@@ -101,6 +118,7 @@ vi.mock("@/features/legal/content", () => ({
   },
 }));
 
+import { getTranslations } from "next-intl/server";
 import TermsPage, { generateMetadata as termsMetadata } from "../terms/page";
 import PrivacyPage, {
   generateMetadata as privacyMetadata,
@@ -152,6 +170,49 @@ describe("legal pages with the module disabled", () => {
       resolveServerTree(PrivacyPage({ params: params() })),
     ).rejects.toThrow("NEXT_NOT_FOUND");
     expect(privacyLoader.calls).toBe(0);
+  });
+
+  it("the terms metadata is empty and reads no translations", async () => {
+    vi.mocked(getTranslations).mockClear();
+
+    await expect(termsMetadata({ params: params() })).resolves.toEqual({});
+    expect(getTranslations).not.toHaveBeenCalled();
+  });
+
+  it("the privacy metadata is empty and reads no translations", async () => {
+    vi.mocked(getTranslations).mockClear();
+
+    await expect(privacyMetadata({ params: params("en") })).resolves.toEqual(
+      {},
+    );
+    expect(getTranslations).not.toHaveBeenCalled();
+  });
+});
+
+describe("legal pages with an invalid legal config", () => {
+  const configError = new Error(
+    "Invalid src/features/legal/legal.config.ts: consentVersion: consentVersion must be a positive integer",
+  );
+
+  beforeEach(() => {
+    installModules([legalModule]);
+    settings.error = configError;
+  });
+
+  afterEach(() => {
+    settings.error = null;
+  });
+
+  it("the terms page rejects with the config error", async () => {
+    await expect(
+      resolveServerTree(TermsPage({ params: params() })),
+    ).rejects.toBe(configError);
+  });
+
+  it("the privacy page rejects with the config error", async () => {
+    await expect(
+      resolveServerTree(PrivacyPage({ params: params() })),
+    ).rejects.toBe(configError);
   });
 });
 

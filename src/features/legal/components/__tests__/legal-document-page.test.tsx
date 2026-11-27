@@ -61,6 +61,17 @@ vi.mock("@/i18n/routing", () => ({
   usePathname: () => "/privacy",
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
+vi.mock("../../legal-settings", () => ({
+  legalSettings: {
+    config: {
+      cookieCategories: ["analytics"],
+      consentVersion: 1,
+      consentCookieName: "cookie_consent",
+      consentMaxAgeDays: 180,
+    },
+    error: null,
+  },
+}));
 vi.mock("../../content", () => ({
   legalDocuments: {
     terms: {
@@ -172,5 +183,35 @@ describe("LegalDocumentPage", () => {
     await renderPage("terms", "en");
 
     expect(screen.getByText("Treść regulaminu po polsku")).toBeInTheDocument();
+  });
+
+  it("privacy shows the cookie settings button after the article", async () => {
+    await renderPage("privacy", "pl");
+
+    const button = screen.getByRole("button", {
+      name: "Zmień ustawienia cookies",
+    });
+    const article = screen.getByRole("article");
+    expect(article).not.toContainElement(button);
+    expect(
+      article.compareDocumentPosition(button) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("privacy in en shows the English cookie settings button once", async () => {
+    await renderPage("privacy", "en");
+
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(screen.getByRole("button").textContent).toBe(
+      "Change cookie settings",
+    );
+  });
+
+  it("terms show no cookie settings button", async () => {
+    await renderPage("terms", "pl");
+
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByText("Zmień ustawienia cookies")).toBeNull();
   });
 });
