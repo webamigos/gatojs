@@ -860,6 +860,47 @@ export async function restoreUpload(origin) {
       remove(DELETE_UPLOAD_FILE);
       await expect(problems()).resolves.toEqual([NEVER_EMITTED]);
     });
+
+    it.each([
+      ['<Slot fallback="a \\" > b" id="dashboard.sections" />'],
+      ["<Slot fallback='a > b' id=\"dashboard.sections\" />"],
+      ['<Slot render={() => `a > b`} id="dashboard.sections" />'],
+    ])("counts %s as a render", async (jsx) => {
+      dashboardPage(jsx);
+      await expect(problems()).resolves.toEqual([]);
+    });
+
+    it.each([["origin /*(*/,"], ["origin /* see ( */,"], ["origin /*/ ( */,"]])(
+      "counts an emitEvent with %s before the event argument as an emit",
+      async (firstArgument) => {
+        deleteUpload(`  await emitEvent(
+    ${firstArgument}
+    "uploads.deleted",
+    {},
+  );`);
+        await expect(problems()).resolves.toEqual([]);
+      },
+    );
+
+    it.each([['"https://x"'], ["'https://x'"], ["`https://x`"]])(
+      "detects a defineCommand key after a string %s that contains //",
+      async (href) => {
+        write(
+          COMMANDS_FILE,
+          `export const deleteUpload = defineCommand({ href: ${href}, key: "uploads.delete", module: "uploads", run });\n`,
+        );
+        await expect(problems()).resolves.toEqual([]);
+      },
+    );
+
+    it("finishes the scan of a file that ends inside an unterminated quote", async () => {
+      write(
+        DELETE_UPLOAD_FILE,
+        `export async function deleteUpload(origin) {\n  await emitEvent(origin, "uploads.deleted", /'/)`,
+      );
+      const result = await problems();
+      expect([[], [NEVER_EMITTED]]).toContainEqual(result);
+    }, 5000);
   });
 
   describe("order", () => {

@@ -388,6 +388,16 @@ describe("readExtensionPoints", () => {
     ).rejects.toThrow(/EISDIR/);
   });
 
+  it("names the description rule after the path for a description with |", async () => {
+    const dir = await project({
+      [DEMO_FILE]:
+        '{ "slots": { "demo.panel": { "stability": "stable", "description": "a | b" } } }',
+    });
+    await expect(
+      readExtensionPoints(dir, [{ name: "demo", hasModuleTs: true }]),
+    ).rejects.toThrow(/description: must not contain/);
+  });
+
   it("accepts a description of 160 characters unchanged", async () => {
     const dir = await project({
       [DEMO_FILE]: {
