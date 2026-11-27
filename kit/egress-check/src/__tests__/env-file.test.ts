@@ -22,6 +22,24 @@ describe("fillEnv", () => {
     assert.equal(fillEnv("# A note=", { A: "x" }), "# A note=\nA=x");
   });
 
+  it("fills keys with underscores and digits", () => {
+    assert.equal(
+      fillEnv("APP_URL=\nS3_BUCKET_2=", { APP_URL: "u", S3_BUCKET_2: "b" }),
+      "APP_URL=u\nS3_BUCKET_2=b",
+    );
+  });
+
+  it("does not touch a prose comment that contains an assignment mid-line", () => {
+    assert.equal(
+      fillEnv("# Set A=1 for x", { A: "x" }),
+      "# Set A=1 for x\nA=x",
+    );
+  });
+
+  it("fills commented assignments with or without spaces after the hash", () => {
+    assert.equal(fillEnv("#B=\n#  C=", { B: "y", C: "z" }), "B=y\nC=z");
+  });
+
   it("returns the example unchanged when there are no values", () => {
     assert.equal(fillEnv("A=\nB=keep\n# C=\nD=1", {}), "A=\nB=keep\n# C=\nD=1");
   });

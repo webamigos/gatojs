@@ -159,6 +159,20 @@ describe("sealCompose on the repository docker-compose.selfhost.yml", () => {
     );
   });
 
+  it("runs tcpdump on the bridge in capture and keeps the sink idle", () => {
+    const { capture, sink } = sealCompose(loadCompose(), options).services;
+    assert.deepStrictEqual(capture.command, [
+      "tcpdump",
+      "-i",
+      "gato-egress",
+      "-nn",
+      "-l",
+      "-tt",
+      "ip",
+    ]);
+    assert.deepStrictEqual(sink.command, ["sleep", "infinity"]);
+  });
+
   it("keeps migrate deploying migrations when the schema is not pushed", () => {
     const { migrate } = sealCompose(loadCompose(), options).services;
     assert.deepStrictEqual(migrate.command, [
@@ -217,6 +231,25 @@ describe("sealCompose on fixtures", () => {
         ipam: { config: [{ subnet: "172.30.0.0/16" }] },
       },
     });
+  });
+
+  it("changes only the migrate command when the schema is pushed", () => {
+    const fixture: ComposeFile = {
+      services: {
+        app: { image: "web:1", command: ["node", "server.js"] },
+        migrate: {
+          image: "web:1",
+          command: ["node_modules/.bin/prisma", "migrate", "deploy"],
+        },
+      },
+    };
+    const { services } = sealCompose(fixture, { ...options, pushSchema: true });
+    assert.deepStrictEqual(services.app.command, ["node", "server.js"]);
+    assert.deepStrictEqual(services.migrate.command, [
+      "node_modules/.bin/prisma",
+      "db",
+      "push",
+    ]);
   });
 
   it("throws when the file has no services", () => {

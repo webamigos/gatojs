@@ -253,6 +253,120 @@ describe("findEscapes", () => {
       [],
     );
   });
+
+  it("reports a TCP packet to port 53 without a query and without a name", () => {
+    assert.deepStrictEqual(
+      findEscapes(
+        ["12:00:00.000000 IP 172.30.0.5.41234 > 8.8.8.8.53: Flags [S]"],
+        SUBNET,
+      ),
+      [{ source: "172.30.0.5", destination: "8.8.8.8:53" }],
+    );
+  });
+
+  it("does not take a name from a lookup-shaped payload on a port other than 53", () => {
+    assert.deepStrictEqual(
+      findEscapes(
+        [
+          "12:00:00.000000 IP 172.30.0.5.41234 > 8.8.8.8.5353: 0 A? x.example. (30)",
+        ],
+        SUBNET,
+      ),
+      [{ source: "172.30.0.5", destination: "8.8.8.8:5353" }],
+    );
+  });
+
+  it("keeps lookups of different names apart", () => {
+    assert.deepStrictEqual(
+      findEscapes(
+        [
+          "12:00:00.000000 IP 172.30.0.5.40001 > 8.8.8.8.53: 1+ A? a.example. (27)",
+          "12:00:00.000100 IP 172.30.0.5.40002 > 8.8.8.8.53: 2+ A? b.example. (27)",
+        ],
+        SUBNET,
+      ),
+      [
+        { source: "172.30.0.5", destination: "8.8.8.8:53", name: "a.example" },
+        { source: "172.30.0.5", destination: "8.8.8.8:53", name: "b.example" },
+      ],
+    );
+  });
+
+  it("keeps escapes apart whose source and destination only differ by where each ends", () => {
+    assert.deepStrictEqual(
+      findEscapes(
+        [
+          "12:00:00.000000 IP 172.30.0.5.41234 > 11.1.1.1.80: Flags [S]",
+          "12:00:00.000100 IP 172.30.0.51.41234 > 1.1.1.1.80: Flags [S]",
+        ],
+        SUBNET,
+      ),
+      [
+        { source: "172.30.0.5", destination: "11.1.1.1:80" },
+        { source: "172.30.0.51", destination: "1.1.1.1:80" },
+      ],
+    );
+  });
+
+  it("treats the top of the multicast range as multicast and the next address as an escape", () => {
+    assert.deepStrictEqual(
+      findEscapes(
+        [
+          "12:00:00.000000 IP 172.30.0.5.41234 > 239.255.255.250.1900: UDP, length 120",
+          "12:00:00.000100 IP 172.30.0.5.41234 > 240.0.0.1.443: Flags [S]",
+        ],
+        SUBNET,
+      ),
+      [{ source: "172.30.0.5", destination: "240.0.0.1:443" }],
+    );
+  });
+
+  it("parses a line with a trailing carriage return", () => {
+    assert.deepStrictEqual(
+      findEscapes(
+        [
+          "12:00:00.000000 IP 172.30.0.5.41234 > 93.184.215.14.443: Flags [S]\r",
+        ],
+        SUBNET,
+      ),
+      [{ source: "172.30.0.5", destination: "93.184.215.14:443" }],
+    );
+  });
+
+  it("parses a line with leading spaces", () => {
+    assert.deepStrictEqual(
+      findEscapes(
+        [
+          "   12:00:00.000000 IP 172.30.0.5.41234 > 8.8.8.8.53: 1+ A? a.example. (27)",
+        ],
+        SUBNET,
+      ),
+      [{ source: "172.30.0.5", destination: "8.8.8.8:53", name: "a.example" }],
+    );
+  });
+
+  it("reports a destination address it cannot read instead of treating it as inside", () => {
+    assert.deepStrictEqual(
+      findEscapes(
+        ["12:00:00.000000 IP 172.30.0.5.41234 > 172.30.0.300.443: Flags [S]"],
+        SUBNET,
+      ),
+      [{ source: "172.30.0.5", destination: "172.30.0.300:443" }],
+    );
+  });
+
+  it("ignores packets whose source address is not a valid address", () => {
+    assert.deepStrictEqual(
+      findEscapes(
+        [
+          "12:00:00.000000 IP 0172.30.0.5.41234 > 93.184.215.14.443: Flags [S]",
+          "12:00:00.000100 IP 172.30..5.41234 > 93.184.215.14.443: Flags [S]",
+        ],
+        SUBNET,
+      ),
+      [],
+    );
+  });
 });
 
 describe("verdict", () => {
