@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "0.35.3",
+  "version": "0.35.4",
   "description": "GatoJS core: auth, organizations, users, account, dashboard",
   "requires": [],
   "files": [
