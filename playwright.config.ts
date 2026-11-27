@@ -22,7 +22,7 @@ export default defineConfig({
   projects: [
     {
       name: "core-auth",
-      testMatch: "**/core-auth.spec.ts",
+      testMatch: ["**/core-auth.spec.ts", "**/production-bypass.spec.ts"],
       use: { baseURL: baseUrlFor(E2E_PORTS.core) },
     },
     {

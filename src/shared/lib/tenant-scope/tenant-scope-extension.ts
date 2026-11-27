@@ -11,7 +11,24 @@ interface TenantScopeBypass {
   reason: string;
 }
 
-const bypassStorage = new AsyncLocalStorage<TenantScopeBypass>();
+const BYPASS_STORE_KEY = Symbol.for("gatojs.tenant-scope.bypass");
+
+type GlobalWithBypassStore = typeof globalThis & { [key: symbol]: unknown };
+
+// WHY: the production server bundles this module into several chunks, and the Prisma client on
+// globalThis runs the guard of the copy that created it, so every copy must share one bypass store.
+function sharedBypassStorage(): AsyncLocalStorage<TenantScopeBypass> {
+  const globalStore = globalThis as GlobalWithBypassStore;
+  const existing = globalStore[BYPASS_STORE_KEY];
+  if (existing instanceof AsyncLocalStorage) {
+    return existing as AsyncLocalStorage<TenantScopeBypass>;
+  }
+  const created = new AsyncLocalStorage<TenantScopeBypass>();
+  globalStore[BYPASS_STORE_KEY] = created;
+  return created;
+}
+
+const bypassStorage = sharedBypassStorage();
 
 export async function withoutTenantScope<T>(
   reason: string,

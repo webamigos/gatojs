@@ -4,6 +4,7 @@ import type { OrgRole } from "@/shared/lib/auth/roles";
 import type { ModuleDef } from "../define-module";
 import {
   applyGatoConfig,
+  CORE_SLOTS_CONFIG_KEY,
   defineGatoConfig,
   emptyGatoConfig,
   enabledEntries,
@@ -767,7 +768,12 @@ describe("applyGatoConfig: identity and immutability", () => {
   });
 
   const modulesArbitrary = fc
-    .uniqueArray(fc.stringMatching(/^[a-z][a-z-]{0,10}$/), { maxLength: 6 })
+    .uniqueArray(
+      fc
+        .stringMatching(/^[a-z][a-z-]{0,10}$/)
+        .filter((key) => key !== CORE_SLOTS_CONFIG_KEY),
+      { maxLength: 6 },
+    )
     .chain((keys) =>
       fc.tuple(
         ...keys.map((key) =>
@@ -796,6 +802,17 @@ describe("applyGatoConfig: identity and immutability", () => {
       expect(modules).toEqual(before);
     },
   );
+
+  it("emptyGatoConfig rejects a module list with the reserved key app", () => {
+    expect(() =>
+      applyGatoConfig(
+        [dashboardModule(), { key: "app", nav: [], routePrefixes: [] }],
+        emptyGatoConfig,
+      ),
+    ).toThrow(
+      "modules.app: the key app is reserved for core-hosted slots and cannot be a module key",
+    );
+  });
 });
 
 describe("enabledEntries", () => {
