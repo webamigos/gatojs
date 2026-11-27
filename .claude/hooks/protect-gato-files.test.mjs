@@ -14,8 +14,14 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import * as protectGatoFiles from "./protect-gato-files.mjs";
 
-const { PROTECTION_MODE, classifyPath, decide, ownerOf, relativeToProject } =
-  protectGatoFiles;
+const {
+  PROTECTION_MODE,
+  classifyPath,
+  decide,
+  hookOutput,
+  ownerOf,
+  relativeToProject,
+} = protectGatoFiles;
 
 const HASH_A =
   "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
@@ -180,14 +186,53 @@ const assertAllowedSilently = (result) => {
   assert.equal(result.stderr.toString(), "");
 };
 
-const assertAsked = (result, message) => {
-  assert.equal(result.status, 0);
-  assert.equal(result.stderr.toString(), "");
-  assert.deepEqual(JSON.parse(result.stdout.toString()), askOutput(message));
+const assertBlocked = (result, message) => {
+  assert.equal(result.status, 2);
+  assert.equal(result.stdout.toString(), "");
+  assert.equal(result.stderr.toString(), `${message}\n`);
 };
 
-test("the protection mode is warn", () => {
-  assert.equal(PROTECTION_MODE, "warn");
+test("the protection mode is block", () => {
+  assert.equal(PROTECTION_MODE, "block");
+});
+
+test("hookOutput allows with exit 0 and no output", () => {
+  assert.deepEqual(hookOutput({ action: "allow" }), {
+    status: 0,
+    stdout: "",
+    stderr: "",
+  });
+});
+
+test("hookOutput asks with exit 0 and the ask object as one JSON object on stdout", () => {
+  const output = hookOutput({ action: "ask", message: AUDIT_MESSAGE });
+  assert.equal(output.status, 0);
+  assert.equal(output.stderr, "");
+  assert.deepEqual(JSON.parse(output.stdout), askOutput(AUDIT_MESSAGE));
+  assert.deepEqual(JSON.parse(output.stdout), {
+    systemMessage: AUDIT_MESSAGE,
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "ask",
+      permissionDecisionReason: AUDIT_MESSAGE,
+      additionalContext: AUDIT_MESSAGE,
+    },
+  });
+  assert.equal(output.stdout.trim().startsWith("{"), true);
+  assert.equal(output.stdout.trim().endsWith("}"), true);
+  assert.equal(output.stdout.split("\n").filter(Boolean).length, 1);
+});
+
+test("hookOutput blocks with exit 2 and the message with a newline on stderr", () => {
+  assert.deepEqual(hookOutput({ action: "block", message: AUDIT_MESSAGE }), {
+    status: 2,
+    stdout: "",
+    stderr: `${AUDIT_MESSAGE}\n`,
+  });
+  assert.deepEqual(
+    hookOutput({ action: "block", message: GENERATED_MESSAGE }),
+    { status: 2, stdout: "", stderr: `${GENERATED_MESSAGE}\n` },
+  );
 });
 
 test("relativeToProject returns the project-relative path of a file inside the project", () => {
@@ -425,9 +470,9 @@ test("the CLI allows the edit silently when .wa/kit.json is not valid JSON", () 
     assertAllowedSilently(runInProject(project, "src/shared/lib/audit.ts"));
   }));
 
-test("the CLI asks about a Gato file in warn mode with one JSON object on stdout", () =>
+test("the CLI blocks a Gato file with exit 2 and the Gato message on stderr", () =>
   withProject(state, ({ project }) => {
-    assertAsked(
+    assertBlocked(
       runInProject(project, "src/shared/lib/audit.ts"),
       AUDIT_MESSAGE,
     );
@@ -435,7 +480,7 @@ test("the CLI asks about a Gato file in warn mode with one JSON object on stdout
 
 test("the CLI names the owning module of a Gato file from the second module", () =>
   withProject(state, ({ project }) => {
-    assertAsked(
+    assertBlocked(
       runInProject(project, "src/features/audit-logs/services/track.ts"),
       AUDIT_LOGS_MESSAGE,
     );
@@ -486,7 +531,7 @@ test("the CLI allows an ejected Gato file silently", () =>
     assertAllowedSilently(runInProject(project, "src/shared/lib/audit.ts"));
   }));
 
-test("the CLI asks about a new file written at a Gato path", () =>
+test("the CLI blocks a new file written at a Gato path", () =>
   withProject(
     {
       modules: {
@@ -494,14 +539,14 @@ test("the CLI asks about a new file written at a Gato path", () =>
       },
     },
     ({ project }) => {
-      assertAsked(
+      assertBlocked(
         runInProject(project, "src/shared/lib/missing.ts", "Write"),
         'src/shared/lib/missing.ts is a Gato file (owned by core). Use an extension point from EXTENSION_POINTS.md, or run: npm run wa -- eject src/shared/lib/missing.ts --reason "<why>"',
       );
     },
   ));
 
-test("the CLI asks about a new file at a Gato path under a directory that does not exist yet", () =>
+test("the CLI blocks a new file at a Gato path under a directory that does not exist yet", () =>
   withProject(
     {
       modules: {
@@ -509,7 +554,7 @@ test("the CLI asks about a new file at a Gato path under a directory that does n
       },
     },
     ({ project }) => {
-      assertAsked(
+      assertBlocked(
         runInProject(project, "src/shared/new-dir/deep/a.ts", "Write"),
         'src/shared/new-dir/deep/a.ts is a Gato file (owned by core). Use an extension point from EXTENSION_POINTS.md, or run: npm run wa -- eject src/shared/new-dir/deep/a.ts --reason "<why>"',
       );
@@ -557,7 +602,7 @@ test("the CLI falls back to CLAUDE_PROJECT_DIR when the file is not in a git wor
     const project = join(root, "app");
     writeState(project, state);
     writeFile(project, "src/shared/lib/audit.ts", "export {};\n");
-    assertAsked(
+    assertBlocked(
       runInProject(project, "src/shared/lib/audit.ts"),
       AUDIT_MESSAGE,
     );
@@ -568,7 +613,7 @@ test("the CLI falls back to cwd without a git working copy and CLAUDE_PROJECT_DI
     const project = join(root, "app");
     writeState(project, state);
     writeFile(project, "src/shared/lib/audit.ts", "export {};\n");
-    assertAsked(
+    assertBlocked(
       runHook({
         sessionDir: undefined,
         cwd: project,
@@ -582,7 +627,7 @@ test("the CLI classifies a Gato file reached through a symlinked project directo
   withProject(state, ({ root, project }) => {
     const link = join(root, "project-link");
     symlinkSync(project, link, "junction");
-    assertAsked(
+    assertBlocked(
       runHook({
         sessionDir: link,
         cwd: link,
@@ -604,7 +649,7 @@ test("the CLI uses the worktree state when the session started in a main checkou
     );
     writeState(worktree, state);
     writeFile(worktree, "src/shared/lib/audit.ts", "export {};\n");
-    assertAsked(
+    assertBlocked(
       runHook({
         sessionDir: main,
         cwd: main,
@@ -674,7 +719,7 @@ test("the CLI prefers CLAUDE_PROJECT_DIR over cwd when the file is not in a git 
     mkdirSync(unrelated, { recursive: true });
     writeState(project, state);
     writeFile(project, "src/shared/lib/audit.ts", "export {};\n");
-    assertAsked(
+    assertBlocked(
       runHook({
         sessionDir: project,
         cwd: unrelated,
@@ -692,7 +737,7 @@ test("the CLI falls back to the input cwd, not the process cwd, without CLAUDE_P
     mkdirSync(unrelated, { recursive: true });
     writeState(project, state);
     writeFile(project, "src/shared/lib/audit.ts", "export {};\n");
-    assertAsked(
+    assertBlocked(
       runHook({
         sessionDir: undefined,
         cwd: project,
