@@ -120,6 +120,22 @@ describe("LegalDocumentPage", () => {
     expect(updated.textContent).not.toContain("2026-03-15");
   });
 
+  it("shows the last update date in long Polish form", async () => {
+    await renderPage("privacy", "pl");
+
+    expect(
+      screen.getByText("Ostatnia aktualizacja: 15 marca 2026"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the last update date in long English form", async () => {
+    await renderPage("privacy", "en");
+
+    expect(
+      screen.getByText("Last updated: April 16, 2026"),
+    ).toBeInTheDocument();
+  });
+
   it("renders the document content inside an article", async () => {
     await renderPage("privacy", "pl");
 

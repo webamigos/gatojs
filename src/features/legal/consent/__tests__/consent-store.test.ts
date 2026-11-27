@@ -249,6 +249,24 @@ describe("consent store", () => {
     });
   });
 
+  it("without a document writeConsent returns the record and notifies listeners", () => {
+    const listener = vi.fn();
+    const unsubscribe = onConsentChange(listener);
+    vi.stubGlobal("document", undefined);
+
+    const record = writeConsent({ analytics: true }, config, 1);
+    unsubscribe();
+
+    const expected = {
+      version: 2,
+      choices: { analytics: true, marketing: false },
+      decidedAt: 1,
+    };
+    expect(record).toEqual(expected);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith(expected);
+  });
+
   it("without a document there is no record and no consent", () => {
     setConsentCookie('{"v":2,"c":{"analytics":true,"marketing":true},"t":1}');
     vi.stubGlobal("document", undefined);

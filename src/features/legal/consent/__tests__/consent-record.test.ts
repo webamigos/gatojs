@@ -97,6 +97,20 @@ describe("serializeConsent and parseConsent", () => {
     expect(parseConsent(encodeURIComponent(json))).toBeNull();
   });
 
+  it("accepts a decision time of zero and empty choices", () => {
+    expect(parseConsent(encodeURIComponent('{"v":1,"c":{},"t":0}'))).toEqual({
+      version: 1,
+      choices: {},
+      decidedAt: 0,
+    });
+  });
+
+  it("returns null for a negative decision time", () => {
+    expect(
+      parseConsent(encodeURIComponent('{"v":1,"c":{},"t":-1}')),
+    ).toBeNull();
+  });
+
   it("drops unknown category keys and keeps known ones", () => {
     expect(
       parseConsent(
@@ -176,6 +190,16 @@ describe("consentCookieValue", () => {
 
   it("ignores cookie_consent appearing only inside another cookie's value", () => {
     expect(consentCookieValue("note=cookie_consent=x")).toBeUndefined();
+  });
+
+  it("ignores a cookie whose name only starts with cookie_consent without a separator", () => {
+    expect(consentCookieValue("cookie_consentx")).toBeUndefined();
+  });
+
+  it("skips a longer name and finds the consent cookie after it", () => {
+    expect(consentCookieValue("cookie_consentx; cookie_consent=abc")).toBe(
+      "abc",
+    );
   });
 
   it("returns undefined for an empty header", () => {
