@@ -314,10 +314,10 @@
       "files": {}
     },
     "uploads": {
-      "version": "0.7.0",
+      "version": "0.7.1",
       "manifest": {
         "name": "uploads",
-        "version": "0.7.0",
+        "version": "0.7.1",
         "description": "Organization files on disk or in S3 storage",
         "requires": [],
         "files": [

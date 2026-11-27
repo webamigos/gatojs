@@ -24,6 +24,7 @@ After a nontrivial correction or a non-obvious gotcha:
 - [When GitHub Actions billing fails, every job fails in seconds with zero steps; it is not the PR](lessons/failed-actions-billing-looks-like-red-ci.md)
 - [A build that fetches its fonts fails on whatever Google answers; serve them from the repository with `next/font/local`](lessons/a-build-that-fetches-fonts-fails-on-googles-answer.md)
 - [A release tag on a `[skip ci]` commit, or pushed with `GITHUB_TOKEN`, starts no workflow; call the follow-up workflow from the release job](lessons/a-release-tag-starts-no-workflow.md)
+- [From Docker 26 an internal network gives containers no default route and forwards no lookup outside it, so an egress capture sees nothing; point every service at a resolver address inside the network](lessons/an-internal-network-hides-lookups-from-docker-26.md)
 - [On Helm 4, install helm-unittest by unpacking its checksum-verified release archive into the plugins directory; `helm plugin install` needs `--verify=false` and its hook fails on macOS](lessons/install-helm-unittest-from-the-verified-release-archive.md)
 
 ### process

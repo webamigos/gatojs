@@ -1,0 +1,78 @@
+name: Egress check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - docker-compose.selfhost.yml
+      - .env.selfhost.example
+      - src/shared/lib/mailer.ts
+      - "src/features/uploads/**"
+      - "packages/env/**"
+      - package-lock.json
+      - "kit/egress-check/**"
+      - .github/workflows/egress-check.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: egress-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scripts:
+    name: Egress check scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: kit/egress-check/package-lock.json
+
+      - name: Install
+        run: npm ci --prefix kit/egress-check
+
+      - name: Typecheck
+        run: npm run typecheck --prefix kit/egress-check
+
+      - name: Unit tests
+        run: npm test --prefix kit/egress-check
+
+  egress-check:
+    name: Sealed stack (${{ matrix.storage }})
+    needs: scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        storage: [local, s3]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: kit/egress-check/package-lock.json
+
+      - name: Install
+        run: npm ci --prefix kit/egress-check
+
+      - name: Docker versions
+        run: |
+          docker version --format 'Engine {{.Server.Version}}'
+          docker compose version
+
+      - name: Run the stack on a network with no way out
+        run: npm run check --prefix kit/egress-check -- --storage ${{ matrix.storage }}

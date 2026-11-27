@@ -61,7 +61,7 @@ The TLS examples and the upgrade path have not been run (not verified).
 | [Published images](#published-images) | written, not run (the first publish happens on `main` after merge) |
 | [Railway](#railway) | written, not deployed |
 | [Kubernetes (Helm)](#kubernetes-helm) | written; chart lint, helm-unittest and kubeconform verified 2026-11-26, install on a cluster not verified |
-| [Prove nothing leaves the machine](#prove-nothing-leaves-the-machine) | placeholder until the egress check (self-hosting Task 7) |
+| [Prove nothing leaves the machine](#prove-nothing-leaves-the-machine) | written, both legs verified 2026-11-27 on Docker 24; Docker 28 runs in CI |
 
 ## What runs
 
@@ -658,5 +658,76 @@ against Kubernetes 1.31; an install on a live cluster has not been run (not veri
 
 ## Prove nothing leaves the machine
 
-Not built yet: self-hosting Task 7 adds an egress check that runs this stack on a network without internet access and
-fails if any container tries to leave it. This section will hold its command.
+The egress check runs this stack on a Docker network with no way out and fails if any container tries to leave it.
+The rule it enforces is [ADR-66](adrs/66-the-app-calls-only-configured-endpoints-and-the-build-fetches-only-packages.md):
+at runtime the app connects only to what you configured (database, mail relay, S3 endpoint, OpenTelemetry). It lives
+in the GatoJS repository (`kit/egress-check`, not copied into projects) and runs in CI on pull requests that touch the
+`Dockerfile`, this Compose file, `.env.selfhost.example`, the mailer, uploads, `packages/env` or the lockfile
+(`.github/workflows/egress-check.yml`, legs `local` and `s3`).
+
+Both legs (`--storage local` and `--storage s3`) ended with `no container tried to leave the network` on 2026-11-27,
+on Docker Engine 24.0.2 with Compose v2.19.1 (macOS arm64) (verified 2026-11-27). The first `s3` run found MinIO
+looking up `dl.min.io` (its update check); `MINIO_UPDATE: "off"` in the `uploads` fragment stopped it. The first
+`local` run found a download failing with `TenantScopeError` in the production build, fixed separately. The DNS design
+was checked on Docker 28.5.2 in a `docker:28-dind` container; the full run on Docker 28 is the CI job (not verified
+locally).
+
+### What it runs
+
+1. While still online: builds the app image and its `builder` stage (`tools`) from the checkout, and a small check
+   image (Alpine with `tcpdump` and `curl`).
+2. Writes a temporary directory with a sealed copy of `docker-compose.selfhost.yml` and a `.env.selfhost` made from
+   `.env.selfhost.example` with fresh secrets (every manifest variable with a `generate` kind), `MAIL_PROVIDER=smtp`,
+   `SMTP_HOST=relay`, `SMTP_PORT=1025`. Nothing from your checkout's `.env` reaches it.
+3. The sealed copy puts every service on one `internal: true` network with a fixed subnet, removes `build` and
+   `ports`, and adds `relay` (mailpit, inside the network, standing in for your relay), `sink` (a resolver address
+   inside the network that answers nothing), `canary` and `capture` (tcpdump on the network's bridge). Every service
+   resolves names through the sink, so each lookup of a name that is not a container is a packet the capture sees.
+4. Starts the capture first, then the canary, which looks up `egress-canary.invalid` and connects to `192.0.2.1:80`.
+   If the capture did not see the canary, the run stops with
+   `capture saw no canary attempt; refusing to report a clean result`: a capture that cannot see reports nothing,
+   and that must not read as a pass.
+5. Starts the stack (`up --wait`), creates an administrator with the `tools` profile, signs in, sends an invitation and
+   finds it in the relay, uploads an image and downloads it, all over HTTP from a container on the network. It waits
+   15 seconds for anything started in the background, then reads the capture.
+6. Prints the verdict and removes the stack, its volumes, the images it built and the temporary directory.
+
+### Run it on your own host
+
+From a checkout of the GatoJS repository (or a project into which you copied `kit/egress-check`), with Docker and
+Node.js 22:
+
+```bash
+npm ci --prefix kit/egress-check
+npm run check --prefix kit/egress-check -- --storage local
+npm run check --prefix kit/egress-check -- --storage s3
+```
+
+`--keep` leaves the stack, images and temporary directory for inspection (the run prints the Compose project name);
+`--image <ref>` and `--tools-image <ref>` use prebuilt images instead of building; `--subnet <cidr>` picks another
+subnet when `172.29.240.0/24` is taken; `--project <name>` names the Compose project. Run one leg at a time.
+
+### Reading the result
+
+A clean run ends with:
+
+```text
+no container tried to leave the network
+```
+
+A failing run exits 1 and names each container and what it asked for, a host name for a lookup or an address for a
+connection:
+
+```text
+1 attempt to leave the network:
+  gato-egress-local-app-1 (172.29.240.5) -> example.com (172.29.240.53:53)
+```
+
+Find which dependency made the call, turn it off with its own switch (an environment variable in the `Dockerfile`
+or the Compose file, named after the host it stopped), and run the check again. A run that prints
+`scenario did not complete: …` also exits 1: the stack did not do everything the check exercises, so a clean capture
+covers only what ran.
+
+The check covers runtime only: building the image still downloads npm packages and base images (decision 8.4 of the
+self-hosting spec). It sees only what the scenario and the containers' start do; a feature with its own outbound path
+needs a step in `kit/egress-check/src/scenario.ts`.

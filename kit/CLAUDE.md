@@ -101,6 +101,14 @@ Zasady dla plików tylko kitu (`kit/`, pakiety narzędzi `packages/gato-cli` i `
 
 - Job `assemble` w `.github/workflows/kit.yml` składa projekt z kitu (`wa create`) dla każdej kombinacji modułów z macierzy `combo` i uruchamia w nim `verify`, testy integracyjne oraz `docker build`. Nowy moduł kitu dopisz do macierzy.
 - Workflow `.github/workflows/docker-platforms.yml` buduje obraz z `Dockerfile` natywnie na amd64 (`ubuntu-latest`) i arm64 (`ubuntu-24.04-arm`) i uruchamia w nim `prisma --version`, bo silniki Prismy są per architektura. Zmiana `Dockerfile`, `.dockerignore` albo zależności go uruchamia.
+- Egress check ([ADR-66](../docs/adrs/66-the-app-calls-only-configured-endpoints-and-the-build-fetches-only-packages.md)):
+  paczka `kit/egress-check/` (nie workspace; `npm ci --prefix kit/egress-check`, testy `npm test --prefix kit/egress-check`,
+  typy `npm run typecheck --prefix kit/egress-check`). Lokalnie: `npm run check --prefix kit/egress-check -- --storage local`
+  (albo `s3`); buduje obraz z checkoutu, uruchamia `docker-compose.selfhost.yml` w sieci `internal: true` we własnym
+  projekcie Compose z katalogu tymczasowego i kończy się kodem 1, gdy któryś kontener próbował wyjść z sieci. `--keep`
+  zostawia stos, `--image`/`--tools-image` używają gotowych obrazów. CI: `.github/workflows/egress-check.yml` na PR-ach,
+  które zmieniają `Dockerfile`, `docker-compose.selfhost.yml`, `.env.selfhost.example`, mailer, `src/features/uploads/**`,
+  `packages/env/**`, `package-lock.json` albo sam check, oraz ręcznie (`workflow_dispatch`); dwie nogi: `local` i `s3`.
 - Fixture modułu projektu (`packages/gato-cli/src/__tests__/fixtures/project-module/`) jest używane przez `assemble`; zmiana kontraktu `projectModules` wymaga jego aktualizacji.
 - Fixture `invoices` (`packages/gato-cli/src/__tests__/fixtures/invoices-module/`, manifest w `manifest.json`) to test kontraktu punktów rozszerzeń: `assemble` dla kombinacji `uploads` i `all` kopiuje go do projektu, uruchamia `generate`, migrację, `doctor --files` (bez zmienionych plików Gato), testy jednostkowe i integracyjne fixture'u oraz `build`. Zmiana albo usunięcie klucza `stable`, którego używa (`dashboard.sections`, `uploads.delete`, `organizations.member-removed`, `dashboard.home`), wymaga aktualizacji fixture'u w tym samym PR.
 - Wydanie robi semantic-release (`.github/workflows/release.yml`, paczka `kit/release/`, [ADR-54](../docs/adrs/54-kit-releases-are-cut-by-semantic-release.md)) z Conventional Commits przy każdym pushu na `main`: `feat` → minor, `fix`/`perf` → patch, breaking poniżej 1.0 → minor, `[no release]` w temacie → bez wydania. Zapisuje wersję w `kit/kit.json`, uruchamia `kit sync`, commituje `chore(release): <wersja> [skip ci]` i ustawia tag `v<wersja>` na tym commicie.
