@@ -147,6 +147,26 @@ Context used below: `canary: "172.30.0.9"`, `holders: new Map([["172.30.0.5", ["
 33. Only the first matching line is replaced, and a value with `=` stays whole: `fillEnv("A=\nA=", { A: "p=q" })` → `"A=p=q\nA="`.
 34. A commented line that is prose is not touched: `fillEnv("# A note=", { A: "x" })` → `"# A note=\nA=x"`.
 
+### Added after the mutation review (2026-11-27)
+
+38. `fillEnv("APP_URL=\nS3_BUCKET_2=", { APP_URL: "u", S3_BUCKET_2: "b" })` → `"APP_URL=u\nS3_BUCKET_2=b"`.
+39. A prose comment that contains `KEY=` mid-line stays: `fillEnv("# Set A=1 for x", { A: "x" })` → `"# Set A=1 for x\nA=x"`.
+    A commented assignment with or without spaces is filled: `fillEnv("#B=\n#  C=", { B: "y", C: "z" })` → `"B=y\nC=z"`.
+40. A TCP packet to port 53 without a query: `"… IP 172.30.0.5.41234 > 8.8.8.8.53: Flags [S]"` → `[{ source: "172.30.0.5", destination: "8.8.8.8:53" }]`
+    (no `name`, no throw).
+41. A lookup-shaped payload on another port has no name: `"… IP 172.30.0.5.41234 > 8.8.8.8.5353: 0 A? x.example. (30)"`
+    → `[{ source: "172.30.0.5", destination: "8.8.8.8:5353" }]`.
+42. Different names, or keys that only differ by where a field ends, stay apart: `A? a.example.` and `A? b.example.` from
+    `172.30.0.5` to `8.8.8.8.53` give two entries; `172.30.0.5 → 11.1.1.1:80` and `172.30.0.51 → 1.1.1.1:80` give two entries.
+43. Multicast upper bound: a packet to `239.255.255.250.1900` → `[]`; a packet to `240.0.0.1.443` → one escape.
+44. A line with a trailing `\r` or leading spaces is still parsed.
+45. Invalid address tokens: a destination `172.30.0.300.443` from `172.30.0.5` is reported as
+    `{ source: "172.30.0.5", destination: "172.30.0.300:443" }` (an address the parser cannot read is not proof of
+    staying inside); a source `0172.30.0.5` or `172.30..5` is ignored (`[]`).
+46. `pushSchema: true` changes only `migrate.command`: a fixture `app` with `command: ["node", "server.js"]` keeps it.
+47. `capture.command` deep-equals `["tcpdump", "-i", "gato-egress", "-nn", "-l", "-tt", "ip"]`, and `sink.command`
+    deep-equals `["sleep", "infinity"]`.
+
 ### The run (manual, recorded in the report)
 
 35. A run whose capture misses the canary exits 1 with `"capture saw no canary attempt; refusing to report a clean result"`.
