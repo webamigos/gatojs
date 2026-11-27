@@ -307,3 +307,107 @@ export async function LegalDocumentPage(props: { document: LegalDocumentKey; loc
 `npm run verify`; `npm run test:mutation:task -- <task files>` (concurrency 3); `npm run test:mutation:gate`;
 created projects `core + legal` and `all` with their own `npm ci` and `npm run verify`; replay with `legal` disabled
 in `src/gato.config.ts` (`modules: { legal: { enabled: false } }`) → `/privacy` 404, `generate` clean, build passes.
+
+---
+
+# Revision 2: Patryk's decisions (2026-11-27)
+
+Decisions are recorded in the spec ("Decisions"). Tasks below follow the same rules (literals, mutations to kill,
+`test-writer` first). Core changes (Tasks 6–7) go in their own commits with a core **minor** bump (0.36.1 → 0.37.0).
+
+## Task 6 — core slots `app.root`, `app.sidebar.footer`, `auth.footer` (core)
+
+All three are **server** slots, catalogued `experimental` (ADR-63).
+
+```ts
+// src/shared/lib/modules/slots.ts
+interface SlotContextMap {
+  "app.header.actions": { organizationId: string };
+  "app.root": { locale: string };
+  "app.sidebar.footer": { organizationId: string };
+}
+export const coreSlotDefinitions = [
+  { id: "app.header.actions", kind: "server" },
+  { id: "app.root", kind: "server" },
+  { id: "app.sidebar.footer", kind: "server" },
+];
+
+// src/features/auth/slots.ts (new; auth is a core feature module)
+declare module "@/shared/lib/modules/slots" { interface SlotContextMap { "auth.footer": { locale: string } } }
+export const slotDefinitions = [defineSlot("auth.footer", { kind: "server" })];
+
+// src/shared/lib/modules/slot-access.ts
+export function anonymousViewer(multiOrg: boolean): AccessContext; // { userRole: "user", orgRole: null, multiOrg }
+```
+
+Rendering:
+- `src/app/[locale]/layout.tsx`: after `{children}` (inside `NextIntlClientProvider`), `<Slot id="app.root" context={{ locale }} viewer={anonymousViewer(env.MULTI_ORG)} />`. The viewer is anonymous on purpose: the root layout does not read the session, so only contributions of `public` modules without `roles` render there.
+- `src/app/[locale]/(auth)/layout.tsx`: below the page, `<footer>` containing `<Slot id="auth.footer" context={{ locale }} viewer={anonymousViewer(env.MULTI_ORG)} />`; the `<footer>` element is rendered only when the slot renders something (use `fallback`/wrapper so an empty slot leaves no empty landmark: render the footer element inside the contribution is not allowed, so the layout renders `<footer>` only when `visibleContributions(moduleSlots, "auth.footer", viewer).length > 0`).
+- `src/app/[locale]/(app)/layout.tsx`: passes `footer={<Slot id="app.sidebar.footer" context={{ organizationId }} viewer={accessContext} />}` to `AppSidebar`; `AppSidebar` gets an optional `footer?: ReactNode` prop rendered below the user menu, only when the sidebar is not collapsed.
+- Catalog: `src/shared/lib/modules/extension-points.json` gains `app.root` ("Server contributions rendered once at the end of every page, for an anonymous viewer (public modules only)") and `app.sidebar.footer` ("Server contributions under the user menu of the app sidebar, rendered with the organization id"), `src/features/auth/extension-points.json` gains `slots.auth.footer` ("Server contributions in the footer of the sign-in, sign-up and password pages, for an anonymous viewer"); all `experimental`.
+
+### Behaviours
+- `coreSlotDefinitions` equals the three literals above, in that order.
+- `anonymousViewer(true)` → `{ userRole: "user", orgRole: null, multiOrg: true }`.
+- A non-public module's contribution to `app.root` is not rendered for the anonymous viewer; a public module's contribution without roles is; a public module's contribution with `roles: ["owner"]` is not.
+- `AppSidebar` with `footer={<p>Footer</p>}` renders `Footer`; collapsed → not rendered; without the prop → nothing extra.
+- Auth layout: with a visible contribution the page has a `contentinfo` landmark containing it; without any → no `contentinfo`.
+- Locale layout renders the `app.root` contributions after the children.
+- Generated registry includes `auth` slots (`npm run wa -- generate`).
+
+### Mutations to kill
+- `app.root` rendered with the real session viewer or a non-anonymous role; `orgRole` not `null` in `anonymousViewer`.
+- Sidebar footer rendered while collapsed; empty `<footer>` landmark in the auth layout.
+
+## Task 7 — seed files (core test + kit config)
+
+`kit/kit.json` `seedFiles` += `src/features/legal/legal.config.ts`, `src/features/legal/content/index.ts`,
+`src/features/legal/content/{terms,privacy}.{pl,en}.tsx`; `seed-files-are-declared.test.ts` pins the full new list.
+Tests that assert the **content** of these seed files (`content.test.tsx`: shipped map, `updatedAt`, cookie names,
+`legalConfig` value) run only in the kit repo (`describe.runIf(fs.existsSync(<repo>/kit/kit.json))`), because a
+project owns and edits them.
+
+## Task 8 — legal module: slots instead of nav, configurable cookie
+
+- `module.ts`: `nav: []` (decision 3); `extension-points.json` drops `nav`.
+- `slots.ts`:
+  - `legal.cookie-banner` → slot `app.root`, priority 1000, component `cookie-banner-slot` (renders `<CookieBanner privacyHref="/privacy" />`);
+  - `legal.auth-footer-links` → `auth.footer`, priority 100, component `legal-links-slot`;
+  - `legal.sidebar-footer-links` → `app.sidebar.footer`, priority 100, component `legal-links-slot`.
+  The `app.header.actions` contribution is removed. The legal layout no longer renders its own `CookieBanner` (the root slot does).
+- `components/legal-links.tsx` (`"use client"`): `LegalLinks({ config?, className? })` → `<nav aria-label="Informacje prawne">` with links `Regulamin` → `/terms`, `Prywatność` → `/privacy` and, only with declared categories, the `Ustawienia cookies` button; `legal-links-slot.tsx` default export renders `<LegalLinks />`.
+- Config (decision 5): `LegalConfig` gains optional `consentCookieName?: string` and `consentMaxAgeDays?: number`; `defineLegalConfig` validates with a Zod schema in `src/features/legal/contracts/legal-config.schemas.ts` and returns them filled with defaults `"cookie_consent"` and `180`.
+  - name: `/^[A-Za-z0-9_-]{1,64}$/`, else `LegalConfigError` with `consentCookieName must be 1-64 letters, digits, _ or -`;
+  - days: integer 1–395, else `consentMaxAgeDays must be an integer from 1 to 395`;
+  - existing messages unchanged (`duplicate cookie category: analytics`, `unknown cookie category: tracking`, `consentVersion must be a positive integer`).
+- `consent-record.ts`: `consentCookieValue(cookieHeader, name = CONSENT_COOKIE_NAME)`;
+  `consentCookieString(record, { secure, name?, maxAgeSeconds? })` (defaults `cookie_consent`, `15552000`).
+- `consent-store.ts`: reads and writes the cookie named `config.consentCookieName ?? "cookie_consent"` with
+  `Max-Age = (config.consentMaxAgeDays ?? 180) * 86400`; `consentSnapshot(config?)` caches by name and raw value.
+  A cookie under another name is ignored: after renaming, every visitor is asked again.
+
+### Behaviours
+- `defineLegalConfig({ cookieCategories: [], consentVersion: 1 })` → `{ cookieCategories: [], consentVersion: 1, consentCookieName: "cookie_consent", consentMaxAgeDays: 180 }`.
+- `{ …, consentCookieName: "acme_consent", consentMaxAgeDays: 30 }` → kept.
+- names `""`, `"a b"`, `"a;b"`, `"ä"`, 65 × `a` → throw; `"a"`, `"A-1_b"`, 64 × `a` → accepted.
+- days `0`, `396`, `1.5`, `-1` → throw; `1`, `395` → accepted.
+- `consentCookieValue("cookie_consent=x; acme=y", "acme")` → `"y"`; `consentCookieValue("cookie_consent=x", "acme")` → `undefined`.
+- `consentCookieString({ version: 1, choices: {}, decidedAt: 1 }, { secure: false, name: "acme", maxAgeSeconds: 86400 })` →
+  `"acme=%7B%22v%22%3A1%2C%22c%22%3A%7B%7D%2C%22t%22%3A1%7D; Path=/; Max-Age=86400; SameSite=Lax"`.
+- Store with config `{ cookieCategories: ["analytics"], consentVersion: 1, consentCookieName: "acme", consentMaxAgeDays: 30 }`:
+  `writeConsent({ analytics: true }, config, 1)` writes a string starting `acme=` and containing `Max-Age=2592000`;
+  `hasConsent("analytics", config)` → `true`; with a valid `cookie_consent` cookie only → `false`.
+- `slots` literal list: three contributions as above (slot, id, priority, no roles); no `app.header.actions` contribution.
+- `LegalLinks`: links and hrefs as above; no settings button with no categories; the button opens the settings.
+- `module.nav` is `[]`.
+
+### Mutations to kill
+- name or max age ignored (always the default), `* 86400` dropped, snapshot cache not keyed by name.
+- Zod bounds off by one (0/1, 395/396, 64/65 chars).
+- Cookie settings button shown without categories.
+
+## Task 9 — terms acceptance at sign-up (decision 7): follow-up only
+
+Enforcing acceptance needs a field in the core sign-up form (`sign-up-form.tsx` has a fixed Zod schema and payload, no
+slot) and a way to send it with `authClient.signUp.email`. That core extension point does not exist, so nothing is
+implemented; the spec and PR record the follow-up.
