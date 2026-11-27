@@ -1,0 +1,13 @@
+model Invoice {
+  id             String       @id @default(cuid())
+  organizationId String       @map("organization_id")
+  number         String
+  status         String       @default("draft")
+  assigneeId     String?      @map("assignee_id")
+  pdfUploadId    String?      @map("pdf_upload_id") @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status])
+  @@map("invoices")
+}

@@ -1,0 +1,15 @@
+{
+  "nav": "Faktury",
+  "title": "Faktury",
+  "empty": "Nie ma jeszcze faktur",
+  "number": "Numer",
+  "status": "Status",
+  "status-draft": "Szkic",
+  "status-issued": "Wystawiona",
+  "status-paid": "Opłacona",
+  "issue": "Wystaw",
+  "issued-success": "Faktura wystawiona",
+  "unpaid-title": "Nieopłacone faktury",
+  "unpaid-empty": "Brak nieopłaconych faktur",
+  "action-invoice-issued": "Wystawienie faktury"
+}
