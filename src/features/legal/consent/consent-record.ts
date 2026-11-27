@@ -45,14 +45,17 @@ export function serializeConsent(record: ConsentRecord): string {
   );
 }
 
-export function consentCookieValue(cookieHeader: string): string | undefined {
+export function consentCookieValue(
+  cookieHeader: string,
+  name: string = CONSENT_COOKIE_NAME,
+): string | undefined {
   for (const part of cookieHeader.split(";")) {
     const pair = part.trim();
     const separator = pair.indexOf("=");
     if (separator === -1) {
       continue;
     }
-    if (pair.slice(0, separator) === CONSENT_COOKIE_NAME) {
+    if (pair.slice(0, separator) === name) {
       return pair.slice(separator + 1);
     }
   }
@@ -61,12 +64,12 @@ export function consentCookieValue(cookieHeader: string): string | undefined {
 
 export function consentCookieString(
   record: ConsentRecord,
-  options: { secure: boolean },
+  options: { secure: boolean; name?: string; maxAgeSeconds?: number },
 ): string {
   const attributes = [
-    `${CONSENT_COOKIE_NAME}=${serializeConsent(record)}`,
+    `${options.name ?? CONSENT_COOKIE_NAME}=${serializeConsent(record)}`,
     "Path=/",
-    `Max-Age=${CONSENT_MAX_AGE_SECONDS}`,
+    `Max-Age=${options.maxAgeSeconds ?? CONSENT_MAX_AGE_SECONDS}`,
     "SameSite=Lax",
   ];
   if (options.secure) {

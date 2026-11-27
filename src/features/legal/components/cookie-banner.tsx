@@ -29,7 +29,7 @@ type BannerView = "summary" | "choose";
 type FocusTarget = "heading" | "first-option";
 
 function storedChoices(config: LegalConfig): ConsentChoices {
-  const record = readConsent();
+  const record = readConsent(config);
   return record !== null && isConsentValid(record, config)
     ? record.choices
     : {};

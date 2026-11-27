@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { COOKIE_CATEGORIES, type CookieCategory } from "../legal-config";
+import { COOKIE_CATEGORIES, type CookieCategory } from "./legal-config.schemas";
 
 const consentChoicesShape = Object.fromEntries(
   COOKIE_CATEGORIES.map((category) => [category, z.boolean().optional()]),

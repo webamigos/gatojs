@@ -1,6 +1,8 @@
 import { legalConfig } from "../legal.config";
+import { DEFAULT_CONSENT_MAX_AGE_DAYS } from "../contracts/legal-config.schemas";
 import type { CookieCategory, LegalConfig } from "../legal-config";
 import {
+  CONSENT_COOKIE_NAME,
   consentCookieString,
   consentCookieValue,
   decide,
@@ -14,31 +16,54 @@ const consentListeners = new Set<(record: ConsentRecord | null) => void>();
 const storeListeners = new Set<() => void>();
 const settingsListeners = new Set<() => void>();
 
-let cachedRaw: string | undefined;
-let cachedRecord: ConsentRecord | null = null;
+const SECONDS_PER_DAY = 86400;
+
+interface CachedSnapshot {
+  raw: string | undefined;
+  record: ConsentRecord | null;
+}
+
+const snapshotsByName = new Map<string, CachedSnapshot>();
 
 function hasDocument(): boolean {
   return typeof document !== "undefined";
 }
 
-function rawConsentCookie(): string | undefined {
+function cookieName(config: LegalConfig): string {
+  return config.consentCookieName ?? CONSENT_COOKIE_NAME;
+}
+
+function maxAgeSeconds(config: LegalConfig): number {
+  return (
+    (config.consentMaxAgeDays ?? DEFAULT_CONSENT_MAX_AGE_DAYS) * SECONDS_PER_DAY
+  );
+}
+
+function rawConsentCookie(config: LegalConfig): string | undefined {
   if (!hasDocument()) {
     return undefined;
   }
-  return consentCookieValue(document.cookie);
+  return consentCookieValue(document.cookie, cookieName(config));
 }
 
-export function consentSnapshot(): ConsentRecord | null {
-  const raw = rawConsentCookie();
-  if (raw !== cachedRaw) {
-    cachedRaw = raw;
-    cachedRecord = parseConsent(raw);
+export function consentSnapshot(
+  config: LegalConfig = legalConfig,
+): ConsentRecord | null {
+  const name = cookieName(config);
+  const raw = rawConsentCookie(config);
+  const cached = snapshotsByName.get(name);
+  if (cached !== undefined && cached.raw === raw) {
+    return cached.record;
   }
-  return cachedRecord;
+  const record = parseConsent(raw);
+  snapshotsByName.set(name, { raw, record });
+  return record;
 }
 
-export function readConsent(): ConsentRecord | null {
-  return parseConsent(rawConsentCookie());
+export function readConsent(
+  config: LegalConfig = legalConfig,
+): ConsentRecord | null {
+  return parseConsent(rawConsentCookie(config));
 }
 
 export function writeConsent(
@@ -50,6 +75,8 @@ export function writeConsent(
   if (hasDocument()) {
     document.cookie = consentCookieString(record, {
       secure: window.location.protocol === "https:",
+      name: cookieName(config),
+      maxAgeSeconds: maxAgeSeconds(config),
     });
   }
   for (const listener of [...storeListeners]) {
@@ -65,7 +92,7 @@ export function hasConsent(
   category: CookieCategory,
   config: LegalConfig = legalConfig,
 ): boolean {
-  return isGranted(readConsent(), category, config);
+  return isGranted(readConsent(config), category, config);
 }
 
 export function onConsentChange(

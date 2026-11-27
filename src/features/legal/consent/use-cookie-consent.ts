@@ -58,7 +58,7 @@ export function useCookieConsent(
   const ready = useIsClient();
   const record = useSyncExternalStore(
     subscribeConsent,
-    consentSnapshot,
+    () => consentSnapshot(config),
     noServerRecord,
   );
   const valid = ready && isConsentValid(record, config);

@@ -3,7 +3,6 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/routing";
 import { BrandLogo } from "@/shared/components/brand-logo";
 import { getBranding } from "@/shared/lib/modules/branding";
-import { CookieBanner } from "@/features/legal/components/cookie-banner";
 import { CookieSettingsButton } from "@/features/legal/components/cookie-settings-button";
 
 const footerLinkClass =
@@ -52,7 +51,6 @@ export default async function LegalLayout({
           </Link>
         </nav>
       </footer>
-      <CookieBanner privacyHref="/privacy" />
     </div>
   );
 }

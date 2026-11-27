@@ -26,13 +26,14 @@ export const extensionPoints = {
     { key: "api-keys.list", module: "api-keys", stability: "stable", description: "API keys link in the sidebar" },
     { key: "audit-logs.list", module: "audit-logs", stability: "stable", description: "Audit log link in the sidebar" },
     { key: "dashboard.home", module: "dashboard", stability: "stable", description: "Dashboard link in the sidebar" },
-    { key: "legal.privacy", module: "legal", stability: "stable", description: "Privacy policy link in the sidebar" },
-    { key: "legal.terms", module: "legal", stability: "stable", description: "Terms link in the sidebar" },
     { key: "users.list", module: "users", stability: "stable", description: "Users link in the sidebar (Members when MULTI_ORG is on)" },
   ],
   slots: [
     { key: "account.sections", module: "account", stability: "stable", description: "Server sections on the account page, rendered with the signed-in user id" },
     { key: "app.header.actions", module: "app", stability: "stable", description: "Server actions in the app header, rendered with the organization id" },
+    { key: "app.root", module: "app", stability: "experimental", description: "Server contributions rendered once at the end of every page, for an anonymous viewer (public modules only)" },
+    { key: "app.sidebar.footer", module: "app", stability: "experimental", description: "Server contributions under the user menu of the app sidebar, rendered with the organization id" },
+    { key: "auth.footer", module: "auth", stability: "experimental", description: "Server contributions in the footer of the sign-in, sign-up and password pages, for an anonymous viewer" },
     { key: "dashboard.sections", module: "dashboard", stability: "stable", description: "Server sections under the dashboard heading, rendered with the organization id" },
     { key: "users.table.columns", module: "users", stability: "experimental", description: "Client columns added to the users table" },
     { key: "users.table.row-actions", module: "users", stability: "stable", description: "Client actions in each row of the users table" },
@@ -76,8 +77,8 @@ export const extensionPoints = {
 } as const satisfies Record<string, readonly ExtensionPoint[]>;
 
 export type ModuleKey = "account" | "api-keys" | "audit-logs" | "auth" | "dashboard" | "encryption" | "legal" | "organizations" | "uploads" | "users";
-export type NavItemId = "account.home" | "api-keys.list" | "audit-logs.list" | "dashboard.home" | "legal.privacy" | "legal.terms" | "users.list";
-export type SlotId = "account.sections" | "app.header.actions" | "dashboard.sections" | "users.table.columns" | "users.table.row-actions";
+export type NavItemId = "account.home" | "api-keys.list" | "audit-logs.list" | "dashboard.home" | "users.list";
+export type SlotId = "account.sections" | "app.header.actions" | "app.root" | "app.sidebar.footer" | "auth.footer" | "dashboard.sections" | "users.table.columns" | "users.table.row-actions";
 export type ComponentHandle = "users.invite-dialog";
 export type EventName = "api-keys.created" | "api-keys.deleted" | "api-keys.revoked" | "auth.signed-up" | "organizations.created" | "organizations.member-added" | "organizations.member-removed" | "organizations.member-role-changed" | "uploads.deleted" | "users.invitation-accepted" | "users.invitation-canceled" | "users.invited";
 export type CommandKey = "api-keys.create" | "api-keys.delete" | "api-keys.revoke" | "uploads.delete" | "users.invite";
