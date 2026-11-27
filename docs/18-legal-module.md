@@ -52,6 +52,11 @@ src/features/legal/content/index.ts
 src/features/legal/content/{terms,privacy}.{pl,en}.tsx
 ```
 
+Seed files import nothing from the module (only core paths such as `@/shared/config/project`, or each other; a kit test
+enforces it). So `npm run wa -- remove legal` can leave them behind and the project still compiles: `remove` keeps them,
+because they are yours, and lists them (`Kept seed files of legal …`). Delete them yourself if you no longer need the
+text. The "Change cookie settings" button under the privacy policy is rendered by the module, not by the content file.
+
 Each content file exports a server component with plain JSX and `updatedAt`, an ISO date shown as "Last updated":
 
 ```tsx
@@ -89,8 +94,8 @@ export default defineGatoConfig({
 });
 ```
 
-`modules: { legal: { enabled: false } }` turns the module off: both pages answer 404, and the banner and links
-disappear.
+`modules: { legal: { enabled: false } }` turns the module off: both pages answer 404 (the module is checked before any
+translation is loaded), and the banner and links disappear.
 
 ## Optional cookies and the banner
 
@@ -98,19 +103,31 @@ When your project adds something that stores optional data in the browser (an an
 preference that is not needed to use the app), declare its category:
 
 ```ts
-export const legalConfig = defineLegalConfig({
+export const legalConfig = {
   cookieCategories: ["analytics"],
   consentVersion: 1,
   consentCookieName: "cookie_consent", // optional, the default
   consentMaxAgeDays: 180,              // optional, the default
-});
+};
 ```
+
+The file is plain data; the module validates it (`legal-settings.ts`).
 
 Allowed categories: `preferences`, `analytics`, `marketing`. The config is checked with a Zod schema
 (`contracts/legal-config.schemas.ts`): a duplicate or unknown category, a `consentVersion` that is not a positive
-integer, a cookie name that is not 1–64 letters, digits, `_` or `-`, or a lifetime outside 1–395 days throws
-`LegalConfigError` when the file loads, so `next build` fails. Changing `consentCookieName` makes every stored choice
-invisible (the old cookie is ignored and expires on its own), so every visitor is asked again.
+integer, a cookie name that is not 1–64 letters, digits, `_` or `-`, or a lifetime outside 1–395 days is invalid. The
+cookie name must also not be `NEXT_LOCALE`, start with `better-auth`, or use the `__Host-`/`__Secure-` prefixes (any
+case): those belong to next-intl and better-auth, and browsers drop prefixed cookies set over plain HTTP.
+
+An invalid config **fails closed** instead of breaking every page:
+
+- no optional category is active anywhere (`hasConsent` is `false`, no banner);
+- the banner slot logs `Invalid legal config` with the error on the server;
+- `/terms` and `/privacy` answer 500 and throw `LegalConfigError` with a message that names the file and each field, for
+  example `Invalid src/features/legal/legal.config.ts: consentMaxAgeDays: consentMaxAgeDays must be an integer from 1 to 395`.
+
+Open `/privacy` after editing the config to check it. Changing `consentCookieName` makes every stored choice invisible
+(the old cookie is ignored and expires on its own), so every visitor is asked again.
 
 The banner then appears until the visitor decides. It offers "Accept all", "Reject all" and "Choose", all three with
 the same look; "Choose" lists one unchecked checkbox per category next to the always-on "Essential" row. Nothing

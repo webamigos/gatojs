@@ -201,3 +201,17 @@ rendering in the locale, `(auth)` and `(app)` layouts and `AppSidebar`'s `footer
 8. **No vetted base text.** The placeholder template stays, marked as a placeholder the deployer must replace; the
    docs carry a pre-launch checklist (no automated check).
 9. **TSX content** stays (no Markdown dependency).
+
+## Review fixes (PR #134, 2026-11-28)
+
+- **Seeds import nothing from the module.** `legal.config.ts` is plain data, validated by the module's `legal-settings.ts`;
+  `content/index.ts` has no type import; the "Change cookie settings" button moved from the privacy seeds into
+  `LegalDocumentPage`. `wa remove legal` keeps seed files (ADR-59) and now lists them (`gato-cli` 0.16.0); the leftovers
+  compile. A kit test checks that no seed imports a non-seed file of its module.
+- **Kit-only content tests load the seeds lazily**, so a project that reshapes or deletes them keeps Gato's tests green.
+- **Invalid config fails closed:** no categories, the banner slot logs `Invalid legal config`, the legal pages throw
+  `LegalConfigError` naming the file and every field (`<path>: <message>`).
+- **Reserved cookie names** (`NEXT_LOCALE`, `better-auth…`, `__Host-`, `__Secure-`, any case) are rejected.
+- **The legal layout and `generateMetadata` check the module before translating** (no `MISSING_MESSAGE` when disabled).
+- **Anonymous slots:** ADR-68 and the catalog say that `app.root` and `auth.footer` contributions render for anonymous
+  visitors and must not read the session to show user data (core 0.37.1).
