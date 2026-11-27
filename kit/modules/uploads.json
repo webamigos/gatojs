@@ -1,6 +1,6 @@
 {
   "name": "uploads",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Organization files on disk or in S3 storage",
   "requires": [],
   "files": [
