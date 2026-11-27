@@ -71,6 +71,7 @@ vi.mock(
 );
 
 import { NoOrganizationError } from "@/shared/lib/auth/org-context";
+import { Slot } from "@/shared/components/slot";
 import AppLayout from "../layout";
 
 const params = Promise.resolve({ locale: "en" });
@@ -169,8 +170,29 @@ describe("(app) layout", () => {
       accessContext: { userRole: "user", orgRole: "owner", multiOrg: true },
       userName: "Jan",
       userEmail: "jan@firma.pl",
+      footer: expect.anything(),
     });
     expect(screen.getByText("switcher")).toBeInTheDocument();
+  });
+
+  it("przekazuje do sidebara stopkę ze slotu app.sidebar.footer z organizacją i tym samym widzem", async () => {
+    mockEnv.MULTI_ORG = true;
+    mockGetOrgContext.mockResolvedValue({
+      ...MEMBER_CONTEXT,
+      orgRole: "owner",
+    });
+
+    renderLayout(await AppLayout({ children: null, params }));
+
+    const { footer } = sidebarProps.mock.calls[0][0] as {
+      footer: React.ReactElement<Record<string, unknown>>;
+    };
+    expect(footer.type).toBe(Slot);
+    expect(footer.props).toEqual({
+      id: "app.sidebar.footer",
+      context: { organizationId: "org-1" },
+      viewer: { userRole: "user", orgRole: "owner", multiOrg: true },
+    });
   });
 
   it("przełącznik dostaje aktywną organizację z kontekstu i listę z query", async () => {

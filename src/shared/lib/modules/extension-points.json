@@ -3,6 +3,14 @@
     "app.header.actions": {
       "stability": "stable",
       "description": "Server actions in the app header, rendered with the organization id"
+    },
+    "app.root": {
+      "stability": "experimental",
+      "description": "Server contributions rendered once at the end of every page, for an anonymous viewer (public modules only)"
+    },
+    "app.sidebar.footer": {
+      "stability": "experimental",
+      "description": "Server contributions under the user menu of the app sidebar, rendered with the organization id"
     }
   }
 }

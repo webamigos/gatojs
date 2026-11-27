@@ -6,5 +6,11 @@
       "stability": "stable",
       "description": "A user signed up without an invitation and joined an organization"
     }
+  },
+  "slots": {
+    "auth.footer": {
+      "stability": "experimental",
+      "description": "Server contributions in the footer of the sign-in, sign-up and password pages, for an anonymous viewer"
+    }
   }
 }
