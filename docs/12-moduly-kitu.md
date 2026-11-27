@@ -103,7 +103,7 @@ Szyfrowanie kopertowe (AES-256-GCM) z kluczem danych osobnym dla każdej organiz
 
 ### `legal`
 
-Publiczne strony `/terms` i `/privacy` z treścią z plików modułu (szablon `pl` i `en` do uzupełnienia), linki w menu bocznym i baner cookies, który pojawia się tylko wtedy, gdy projekt zadeklaruje kategorie opcjonalnych cookies w `src/features/legal/legal.config.ts`. Zgoda jest w ciasteczku `cookie_consent` w przeglądarce, bez modelu w bazie, bez zmiennych środowiskowych i bez usług zewnętrznych. Kod projektu sprawdza zgodę przez `hasConsent`, `useCookieConsent` i `<ConsentGate>`. Szczegóły (po angielsku): [18-legal-module.md](18-legal-module.md).
+Publiczne strony `/terms` i `/privacy` z treścią z plików seed, które projekt edytuje jak własne (szablon `pl` i `en` do zastąpienia), linki w stopkach przez sloty rdzenia `auth.footer` i `app.sidebar.footer` oraz baner cookies na każdej stronie przez slot `app.root`, który pojawia się tylko wtedy, gdy projekt zadeklaruje kategorie opcjonalnych cookies w `src/features/legal/legal.config.ts`. Zgoda jest w ciasteczku `cookie_consent` w przeglądarce, bez modelu w bazie, bez zmiennych środowiskowych i bez usług zewnętrznych. Kod projektu sprawdza zgodę przez `hasConsent`, `useCookieConsent` i `<ConsentGate>`. Szczegóły (po angielsku): [18-legal-module.md](18-legal-module.md).
 
 <a id="macierz-zaleznosci"></a>
 

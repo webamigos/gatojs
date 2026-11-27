@@ -25,9 +25,9 @@ Sources:
 | Public pages `/terms` and `/privacy` (`/en/terms`, `/en/privacy` in English) | `src/app/[locale]/(legal)/` |
 | Content of both documents in `pl` and `en`, a template with bracketed fields | `src/features/legal/content/<document>.<locale>.tsx` |
 | Cookie categories that need consent (none by default) | `src/features/legal/legal.config.ts` |
-| Cookie banner, rendered only when categories are declared | `components/cookie-banner.tsx`, mounted in the legal layout and through the `app.header.actions` slot |
+| Cookie banner, rendered only when categories are declared | `components/cookie-banner.tsx`, on every page through the core slot `app.root` |
+| Links Terms · Privacy · Cookie settings | `components/legal-links.tsx`, through the core slots `auth.footer` and `app.sidebar.footer` |
 | Client API for your code | `@/features/legal/consent` |
-| Sidebar links `legal.privacy` and `legal.terms` | `module.ts` |
 
 No database model, no environment variable, no external service, no dependency.
 
@@ -42,16 +42,17 @@ what your project adds.
 
 ## Your own documents
 
-The content files are module files today. Before you edit one, take ownership of it:
+The content and config files are **seed files**: the project gets them once and owns them. Edit them directly; no
+eject is needed, `npm run wa -- doctor --files` stays clean, `wa update` never overwrites them, and the protect hook
+lets agents edit them:
 
-```bash
-npm run wa -- eject src/features/legal/content/privacy.pl.tsx --reason "project legal text"
+```
+src/features/legal/legal.config.ts
+src/features/legal/content/index.ts
+src/features/legal/content/{terms,privacy}.{pl,en}.tsx
 ```
 
-(Repeat for each file you edit, including `legal.config.ts`. A later kit release may turn these files into seed files,
-which a project owns without ejecting; see open question 0 in the spec.)
-
-Each file exports a server component with plain JSX and `updatedAt`, an ISO date shown as "Last updated":
+Each content file exports a server component with plain JSX and `updatedAt`, an ISO date shown as "Last updated":
 
 ```tsx
 export const updatedAt = "2026-12-01";
@@ -67,18 +68,29 @@ export default function PrivacyPolicy() {
 ```
 
 `content/index.ts` maps documents and locales to loaders. A locale without a file falls back to the default locale
-(`defaultLocale`, `pl`). Fill every bracketed field (`[company name]`, `[address]`, `[contact e-mail]`) and have the
-text reviewed by a lawyer: the template is a starting point, not legal advice.
+(`defaultLocale`, `pl`).
 
-To remove the sidebar links, hide them in `src/gato.config.ts`:
+**The shipped text is a placeholder, not legal advice.** Nothing checks it automatically, so before launch:
+
+- replace every bracketed field (`[company name]`, `[address]`, `[contact e-mail]`, `[hosting provider]`, …): search the
+  content folder for `[`;
+- delete the "Template" notice at the top of each document;
+- list the processors, retention periods and cookies your deployment really uses;
+- have the text reviewed by a lawyer and set `updatedAt`.
+
+To remove the links from a footer, remove the contribution in `src/gato.config.ts`:
 
 ```ts
 export default defineGatoConfig({
-  modules: { legal: { nav: { "legal.terms": { hidden: true } } } },
+  modules: {
+    app: { slots: { "app.sidebar.footer": { "legal.sidebar-footer-links": null } } },
+    auth: { slots: { "auth.footer": { "legal.auth-footer-links": null } } },
+  },
 });
 ```
 
-`modules: { legal: { enabled: false } }` turns the module off: both pages answer 404 and the banner disappears.
+`modules: { legal: { enabled: false } }` turns the module off: both pages answer 404, and the banner and links
+disappear.
 
 ## Optional cookies and the banner
 
@@ -89,18 +101,24 @@ preference that is not needed to use the app), declare its category:
 export const legalConfig = defineLegalConfig({
   cookieCategories: ["analytics"],
   consentVersion: 1,
+  consentCookieName: "cookie_consent", // optional, the default
+  consentMaxAgeDays: 180,              // optional, the default
 });
 ```
 
-Allowed categories: `preferences`, `analytics`, `marketing`. A duplicate, an unknown category or a `consentVersion`
-that is not a positive integer throws `LegalConfigError` when the file loads, so `next build` fails.
+Allowed categories: `preferences`, `analytics`, `marketing`. The config is checked with a Zod schema
+(`contracts/legal-config.schemas.ts`): a duplicate or unknown category, a `consentVersion` that is not a positive
+integer, a cookie name that is not 1–64 letters, digits, `_` or `-`, or a lifetime outside 1–395 days throws
+`LegalConfigError` when the file loads, so `next build` fails. Changing `consentCookieName` makes every stored choice
+invisible (the old cookie is ignored and expires on its own), so every visitor is asked again.
 
 The banner then appears until the visitor decides. It offers "Accept all", "Reject all" and "Choose", all three with
 the same look; "Choose" lists one unchecked checkbox per category next to the always-on "Essential" row. Nothing
 optional is allowed before a decision.
 
-The choice is stored in the first-party cookie `cookie_consent`: URL-encoded JSON
-`{"v":<consentVersion>,"c":{"analytics":true},"t":<epoch seconds>}`, `Path=/`, `Max-Age` 180 days, `SameSite=Lax`,
+The choice is stored in a first-party cookie (`cookie_consent` by default): URL-encoded JSON
+`{"v":<consentVersion>,"c":{"analytics":true},"t":<epoch seconds>}`, validated with a Zod schema when read, `Path=/`,
+`Max-Age` = `consentMaxAgeDays` (180 by default), `SameSite=Lax`,
 `Secure` on HTTPS. A record from another `consentVersion`, or one without a decision for a category you added later,
 counts as no decision: the banner returns and every category is denied. Raise `consentVersion` when a purpose
 changes and you need everyone to decide again.
@@ -133,14 +151,16 @@ Withdrawing consent stops your gated components from rendering, but it does not 
 already set. Reload the page after a withdrawal if the script keeps state in memory, and clear its cookies if the
 vendor documents how.
 
-### Where the banner shows
+### Where the banner and the links show
 
-- On `/terms` and `/privacy` (the legal layout), with a "Cookie settings" link in their footer and a "Change cookie
-  settings" button in the privacy text.
-- On every signed-in page, through the contribution `legal.cookie-banner` to the core slot `app.header.actions`. The
-  banner is fixed to the bottom of the viewport, so it does not move the header.
-- **Not** on sign-in, sign-up and the other `(auth)` pages: there is no core slot there yet. `hasConsent` stays
-  `false` on those pages, so nothing optional runs before the visitor signs in.
+- The banner: on every page, through the contribution `legal.cookie-banner` to the core slot `app.root`, which the
+  locale layout renders at the end of each page (sign-in, sign-up, the app, the legal pages). The slot renders for an
+  anonymous viewer, because the root layout does not read the session; only public modules contribute there. The banner
+  is fixed to the bottom of the viewport, so it moves nothing.
+- The links Terms · Privacy · Cookie settings: under the sign-in, sign-up and password pages (`auth.footer`), under the
+  user menu of the app sidebar when it is expanded (`app.sidebar.footer`), and in the footer of the legal pages. "Cookie
+  settings" appears only with declared categories. The privacy text also has a "Change cookie settings" button.
+- The three core slots are `experimental` (see `EXTENSION_POINTS.md`); other modules can contribute to them too.
 
 ### Accessibility
 
@@ -152,11 +172,11 @@ vendor documents how.
   `Escape` does nothing on the first appearance, because closing without a decision would hide the question.
 - Every control is a native button, checkbox or link.
 
-## Limits and open questions
+## Limits and follow-ups
 
-- No banner and no legal links on `(auth)` pages, and the links sit in the sidebar instead of a footer: both need core
-  slots (`app.root`, `auth.footer`, `app.sidebar.footer` proposed).
-- No proof of consent on the server and no terms acceptance at sign-up.
+- No proof of consent on the server (decision 6).
+- Terms acceptance at sign-up is not available yet: it needs a core extension point in the sign-up form (spec,
+  decision 7).
 - Fixed category list; no per-organization documents.
 
-The full list, with the recommended answers, is in the spec under "Open questions for Patryk".
+Decisions and follow-ups are in the spec under "Decisions".

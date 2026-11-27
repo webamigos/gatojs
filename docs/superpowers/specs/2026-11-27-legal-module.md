@@ -40,8 +40,8 @@ therefore shows **no banner by default** and the privacy template lists the cook
    exporting `default` (a server component, plain JSX, no dependency) and `updatedAt` (ISO date shown as "Last
    updated"). A map `src/features/legal/content/index.ts` lists the loaders. The kit ships a placeholder template in
    `pl` and `en` with bracketed fields (`[company name]`, `[address]`, `[contact e-mail]`), an explicit "template, have it
-   reviewed by a lawyer" notice, and the cookie table above. These six files are meant to become **seed files** (see
-   "Seed files" below); in v1 they are ordinary module files the project ejects before editing. A locale without
+   reviewed by a lawyer" notice, and the cookie table above. These six files are **seed files** (see "Seed files"
+   below): the project owns and edits them, `wa update`, `wa doctor --files` and the protect hook leave them alone. A locale without
    a file falls back to the default locale's file (`defaultLocale` from `src/i18n/config.ts`).
 3. **Cookie categories declared in a project config**, `src/features/legal/legal.config.ts`:
 
@@ -49,15 +49,19 @@ therefore shows **no banner by default** and the privacy template lists the cook
    export const legalConfig = defineLegalConfig({
      cookieCategories: [],   // e.g. ["analytics"]; allowed: "preferences" | "analytics" | "marketing"
      consentVersion: 1,      // raise to ask everyone again (e.g. a new purpose)
+     consentCookieName: "cookie_consent", // optional, default; 1-64 letters, digits, _ or -
+     consentMaxAgeDays: 180,              // optional, default; integer 1-395
    });
    ```
 
    Client-safe (no server import), so the banner and the client API read it directly. `defineLegalConfig` (Gato file)
-   validates it with Zod at import: duplicate categories, an unknown category or a `consentVersion` that is not a
-   positive integer throw `LegalConfigError` (fail at build, not in a visitor's browser).
-4. **Consent record** in a first-party cookie `cookie_consent`: `encodeURIComponent(JSON.stringify({ v, c, t }))`,
+   validates it with a Zod schema (`contracts/legal-config.schemas.ts`) at import: duplicate categories, an unknown
+   category, a `consentVersion` that is not a positive integer, a bad cookie name or lifetime throw `LegalConfigError`
+   (fail at build, not in a visitor's browser). Renaming the cookie makes every stored choice invisible: everyone is
+   asked again.
+4. **Consent record** in a first-party cookie (default name `cookie_consent`): `encodeURIComponent(JSON.stringify({ v, c, t }))`,
    `v` = `consentVersion`, `c` = `{ [category]: boolean }` for every category the visitor decided, `t` = decision time
-   in epoch seconds. Attributes `Path=/; Max-Age=15552000` (180 days); `SameSite=Lax`; `Secure` on HTTPS. Not
+   in epoch seconds. Attributes `Path=/; Max-Age=<consentMaxAgeDays × 86400>` (default 180 days); `SameSite=Lax`; `Secure` on HTTPS. Not
    `HttpOnly`: the browser code reads it. A record is **valid** when it parses, `v` equals `consentVersion` and every
    declared category has a boolean. Anything else (missing, garbage, other version, a new category) means "no choice
    yet": every category is denied and the banner shows.
@@ -86,38 +90,37 @@ therefore shows **no banner by default** and the privacy template lists the cook
    - `onConsentChange(listener)` — returns an unsubscribe function; for code that must react outside React.
    Withdrawal: switching a category off removes nothing the third-party script already set; the docs say so and
    recommend reloading the page (`save` does not reload by itself).
-8. **Where the banner is mounted.** No core slot reaches every page (open question 1). In v1 the module renders the
-   banner (a) in its own legal layout and (b) through a server contribution `legal.cookie-banner` to the existing core
-   slot `app.header.actions`, which every signed-in page renders. The contribution renders the fixed banner, which is out
-   of the header's flow, and nothing when no categories are declared. Sign-in, sign-up and the other `(auth)` pages get
-   no banner in v1; `hasConsent` stays `false` there, which is compliant (nothing optional runs), only less convenient.
-9. **Links to the pages.** No footer slot exists in `(auth)` or `(app)` (open question 1). v1 adds two nav items to the
-   sidebar, `legal.privacy` ("Privacy policy", icon `shield`, order 900) and `legal.terms` ("Terms", icon
-   `file-text`, order 910); a project hides either with `modules.legal.nav.<id>.hidden`. The module is `public: true`
-   so every signed-in role sees them.
+8. **Where the banner is mounted.** Through the core slot `app.root` (server, rendered by `src/app/[locale]/layout.tsx`
+   at the end of every page, `(auth)` and legal pages included) with the contribution `legal.cookie-banner`. The slot is
+   rendered for an anonymous viewer (`anonymousViewer(env.MULTI_ORG)`: the root layout does not read the session), so
+   only public modules' contributions without `roles` appear there.
+9. **Links to the pages.** Through the core slots `auth.footer` (a `<footer>` under the sign-in, sign-up and password
+   pages, only when something is contributed) and `app.sidebar.footer` (under the sidebar's user menu, hidden when the
+   sidebar is collapsed), with `legal.auth-footer-links` and `legal.sidebar-footer-links`: `LegalLinks` = Terms ·
+   Privacy · Cookie settings (the last only with declared categories). No sidebar nav items. The legal layout has its
+   own footer with the same links.
 
 ### Out (v1)
 
 - Per-organization documents or consent, a database record of consent (proof of consent), versioned document history,
-  acceptance of terms at sign-up (a checkbox) — candidates for later, see open questions.
+  acceptance of terms at sign-up (a checkbox): see "Decisions" (6, 7).
 - Blocking third-party scripts automatically (script rewriting, Google Consent Mode); the project gates its own scripts
   with `ConsentGate`/`hasConsent`.
 - Markdown or a CMS for the content (no new dependency in v1).
-- A consent banner on `(auth)` pages and footer links there (needs a core slot).
 
 ## Design decisions
 
 - **No DB model.** Consent is about the browser, also before sign-in, so it lives in the browser. GDPR Art. 7(1) asks
   to be able to demonstrate consent; for a first-party cookie the usual practice is the record in the cookie itself
   plus the published policy version. A server log of consent would itself be personal data and needs an identifier; it
-  is deferred (open question 5).
+  is not built (decision 6).
 - **Fixed category set** (`preferences`, `analytics`, `marketing`): labels and descriptions live in the module's i18n,
-  so the banner is translated without project strings. A project needing another purpose raises it (open question 3).
+  so the banner is translated without project strings. A project needing another purpose raises it (decision 4).
 - **Content as TSX, not Markdown:** zero dependencies, server-rendered, can import `project.name`, type-checked. A
   lawyer's text is pasted once per locale.
 - **Version bump re-asks everyone; a new category re-asks too** (the record has no decision for it). Removing a
   category keeps the record valid (extra keys are ignored).
-- **180 days** before the cookie expires and the banner returns (CNIL's recommendation of about 6 months; neither
+- **180 days** (configurable) before the cookie expires and the banner returns (CNIL's recommendation of about 6 months; neither
   the GDPR nor ePrivacy fixes a period).
 - **No banner on the server**, rendered after hydration: avoids a hydration mismatch and keeps the HTML cacheable; the
   banner is fixed-position, so its late appearance moves nothing.
@@ -136,25 +139,28 @@ src/features/legal/content/privacy.pl.tsx
 src/features/legal/content/privacy.en.tsx
 ```
 
-Filling `seedFiles` does not change `kitFormat` (`kit/CLAUDE.md`). But the core architecture test
-`src/__tests__/architecture/seed-files-are-declared.test.ts` pins the list with `toEqual(["README.md", "src/theme.css"])`,
-so seeds need a one-line core test change (`toEqual` → `toContain` of the two core entries), done as a separate commit
-with a `kit/modules/core.json` patch bump as `kit/CLAUDE.md` prescribes. The task brief says "core untouched", so **v1
-ships the six files as ordinary module files** and the docs tell the project to run
-`npm run wa -- eject <file> --reason "project legal text"` before editing them. Switching to seeds later is the core test
-line plus six `seedFiles` entries, no code change (**open question 0**).
+Filling `seedFiles` does not change `kitFormat` (`kit/CLAUDE.md`). The core architecture test
+`src/__tests__/architecture/seed-files-are-declared.test.ts` pins the full list, so it changed with the core commit
+(core 0.37.0). Module tests that assert the shipped content of these files (`content.test.tsx`) run only in the kit
+repository (`describe.runIf(kit/kit.json exists)`), because a project rewrites them. Checked in a created project:
+the files are recorded with hash `seed` in `.wa/kit.json`, editing `legal.config.ts` and `privacy.pl.tsx` leaves
+`wa doctor --files` clean, the protect hook allows the edit (and still blocks a Gato file of the module), and the
+project's `verify` passes.
 
 ## Files
 
 ```
 kit/modules/legal.json                               manifest, version 0.1.0, no dependencies, no env
-src/features/legal/module.ts                          key "legal", public, nav, routePrefixes ["/terms", "/privacy"]
-src/features/legal/extension-points.json             module + nav ids
+src/features/legal/module.ts                          key "legal", public, no nav, routePrefixes ["/terms", "/privacy"]
+src/features/legal/extension-points.json             module
 src/features/legal/i18n/{pl,en}.json                 page titles, banner, categories, nav
-src/features/legal/slots.ts                          contribution legal.cookie-banner → app.header.actions
+src/features/legal/slots.ts                          legal.cookie-banner → app.root, legal.auth-footer-links → auth.footer,
+                                                     legal.sidebar-footer-links → app.sidebar.footer
+src/features/legal/contracts/                        Zod schemas: consent cookie payload, legal config
+src/features/legal/components/legal-links.tsx        footer links (Terms · Privacy · Cookie settings)
 src/features/legal/legal-config.ts                   defineLegalConfig, LegalConfigError, COOKIE_CATEGORIES
-src/features/legal/legal.config.ts                   (seed later) the project's config
-src/features/legal/content/*.tsx, index.ts            (seed later) templates and loader map
+src/features/legal/legal.config.ts                   (seed) the project's config
+src/features/legal/content/*.tsx, index.ts            (seed) templates and loader map
 src/features/legal/services/legal-documents.ts       resolveLegalDocument(document, locale)
 src/features/legal/consent/consent-record.ts         pure: parse, serialize, validity, grants
 src/features/legal/consent/consent-store.ts          cookie read/write, listeners, openCookieSettings
@@ -170,26 +176,28 @@ docs/18-legal-module.md                              usage (repo docs)
 .github/workflows/kit.yml                            assemble matrix: legal, and legal in "all"
 ```
 
-Core files: none. `kitFormat` and `gato-cli` stay: the generator already handles `slots.ts`,
-nav, i18n and public modules.
+Core changes (own commit, core 0.37.0): slots `app.root` and `app.sidebar.footer` (`coreSlotDefinitions`), `auth.footer`
+(`src/features/auth/slots.ts`), all experimental (ADR-63, ADR-68 amendment); `anonymousViewer` in `slot-access.ts`;
+rendering in the locale, `(auth)` and `(app)` layouts and `AppSidebar`'s `footer` prop; `seedFiles` and its test.
+`kitFormat` and `gato-cli` stay: the generator already handles `slots.ts` of any module.
 
-## Open questions for Patryk
+## Decisions (Patryk, 2026-11-27)
 
-0. **Seed files need a one-line core test change** (`seed-files-are-declared.test.ts` pins the list). v1 ships the
-   content and config as Gato files that a project ejects. Allow a separate `test(core)` commit with a core patch bump
-   and six `seedFiles` entries? Recommended: yes, it is what `kit/CLAUDE.md` prescribes for project-owned files.
-1. **Core slots for legal links and the banner.** Proposed for a later core PR: a client slot `app.root` in
-   `src/app/[locale]/layout.tsx` (banner on every page, including `(auth)`), and server slots `auth.footer` and
-   `app.sidebar.footer` (links instead of sidebar nav items). Until then: banner via `app.header.actions` + legal
-   pages, links as sidebar nav items. OK as an interim?
-2. **Sidebar nav items for Terms/Privacy** (orders 900/910) vs no links at all in v1. They are visible to everyone;
-   projects can hide them. Keep?
-3. **Category set** fixed to `preferences`, `analytics`, `marketing`. Allow project-defined categories (with their
-   own label keys) later?
-4. **Consent lifetime 180 days** and cookie name `cookie_consent` (no project prefix). OK?
-5. **Proof of consent on the server** (an anonymous consent log with a random id) — not in v1. Needed for your clients?
-6. **Terms acceptance at sign-up** (checkbox + stored timestamp/version on `User`) — not in v1; it would touch the
-   `auth` module and the schema. Separate task?
-7. **Template legal text**: the module ships a generic placeholder in Polish and English with a "have it reviewed"
-   notice, not legal advice. Should Web Amigos supply a vetted base text instead?
-8. **Content format**: TSX per locale (no dependency) vs Markdown (needs a renderer dependency). TSX OK?
+1. **Core slots: yes.** `app.root`, `auth.footer`, `app.sidebar.footer` added to the core as experimental server slots;
+   the banner and the footer links render through them, `(auth)` pages included.
+2. **Seed files: yes.** The six content/config files are `seedFiles`; verified in a created project (see "Seed files").
+3. **No sidebar nav items.** Removed; the links live in the footers.
+4. **Fixed category set** (`preferences`, `analytics`, `marketing`) stays for now.
+5. **180 days and `cookie_consent` stay the defaults**, configurable as `consentMaxAgeDays` (1–395) and
+   `consentCookieName` (1–64 letters, digits, `_`, `-`), validated with Zod. A renamed cookie ignores old consent.
+6. **No server-side proof of consent** for now.
+7. **Terms acceptance at sign-up: opt-in per deployer, not built yet.** Enforcing it needs a field in the core sign-up
+   form and a way to send it with `authClient.signUp.email`: `sign-up-form.tsx` has a fixed Zod schema and payload and
+   no slot, so no existing extension point fits. **Follow-up (core):** a client slot or field contribution in the
+   sign-up form (e.g. `auth.sign-up.fields`) whose values reach the sign-up request, then the legal module adds an
+   opt-in `termsAcceptance` flag, a checkbox through that slot, a `before` hook on `/sign-up/email` in its `auth.ts`
+   plugin that rejects a missing acceptance, and storage of the accepted version and time (`User` additional field or
+   a module table).
+8. **No vetted base text.** The placeholder template stays, marked as a placeholder the deployer must replace; the
+   docs carry a pre-launch checklist (no automated check).
+9. **TSX content** stays (no Markdown dependency).
