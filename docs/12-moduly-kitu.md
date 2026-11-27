@@ -13,7 +13,7 @@ Zweryfikowano z kodem: 6c05f1f, 2026-11-05
 Źródła:
 
 - `kit/kit.json`
-- `kit/modules/core.json`, `kit/modules/audit-logs.json`, `kit/modules/api-keys.json`, `kit/modules/uploads.json`, `kit/modules/encryption.json`
+- `kit/modules/core.json`, `kit/modules/audit-logs.json`, `kit/modules/api-keys.json`, `kit/modules/uploads.json`, `kit/modules/encryption.json`, `kit/modules/legal.json`
 - `packages/gato-cli/src/manifest/schema.ts`
 - `packages/gato-cli/src/manifest/kit-state.ts`
 - `packages/gato-cli/src/generate/index.ts`
@@ -99,6 +99,12 @@ Pliki organizacji na dysku serwera albo w magazynie zgodnym z S3, zależnie od `
 
 Szyfrowanie kopertowe (AES-256-GCM) z kluczem danych osobnym dla każdej organizacji, dla modułów, które przechowują wrażliwe dane. Dodaje pakiet `@gatojs/crypto` (`packages/crypto`), tabelę `organization_data_keys`, serwerowe API `encryptForOrganization` / `decryptForOrganization` oraz zmienne `ENCRYPTION_PROVIDER` (`local`) i wymaganą `ENCRYPTION_MASTER_KEY`. Bez UI i bez usług. Szczegóły (po angielsku): [17-encryption-module.md](17-encryption-module.md).
 
+<a id="legal"></a>
+
+### `legal`
+
+Publiczne strony `/terms` i `/privacy` z treścią z plików modułu (szablon `pl` i `en` do uzupełnienia), linki w menu bocznym i baner cookies, który pojawia się tylko wtedy, gdy projekt zadeklaruje kategorie opcjonalnych cookies w `src/features/legal/legal.config.ts`. Zgoda jest w ciasteczku `cookie_consent` w przeglądarce, bez modelu w bazie, bez zmiennych środowiskowych i bez usług zewnętrznych. Kod projektu sprawdza zgodę przez `hasConsent`, `useCookieConsent` i `<ConsentGate>`. Szczegóły (po angielsku): [18-legal-module.md](18-legal-module.md).
+
 <a id="macierz-zaleznosci"></a>
 
 ### Zależności między modułami
@@ -111,6 +117,7 @@ Szyfrowanie kopertowe (AES-256-GCM) z kluczem danych osobnym dla każdej organiz
 | `api-keys` | — | Zapisuje zdarzenia kluczy przez `trackAudit`; zapisze je `audit-logs`. | Zdarzenia kluczy nie trafiają nigdzie. |
 | `uploads` | — | Zapisuje `upload.created` i `upload.deleted` przez `trackAudit`; zapisze je `audit-logs`. | Zdarzenia plików nie trafiają nigdzie. |
 | `encryption` | — | — | Moduły nie mają `encryptForOrganization`; dane zapisują jawnym tekstem. |
+| `legal` | — | — | Brak stron `/terms` i `/privacy` i banera; skrypty projektu nie mają `hasConsent`. |
 
 `requires` modułu projektu może wskazywać moduł kitu. Wtedy `wa remove` odmawia usunięcia tego modułu ([16](16-cli-wa.md#wa-remove)), a każda komenda CLI odmawia pracy, jeśli wymaganego modułu w projekcie nie ma ([16](16-cli-wa.md#moduly-projektu)).
 
