@@ -10,6 +10,8 @@ export type RegistryModule = {
   hasCommandHooks: boolean;
   hasSlots: boolean;
   hasClientSlots: boolean;
+  hasSetup: boolean;
+  version: string;
   hasComponents: boolean;
   locales: string[];
 };
@@ -84,6 +86,10 @@ function configImports(
   };
 }
 
+function setupEntry(module: RegistryModule): string {
+  return `{ module: "${module.name}", version: "${module.version}", value: ${identifier(module.name, "Setup")} }`;
+}
+
 function slotsImport(module: RegistryModule): string {
   return `import * as ${identifier(module.name, "Slots")} from "@/features/${module.name}/slots";`;
 }
@@ -132,6 +138,7 @@ export function renderRegistry(
   const withCommandHooks = modules.filter((m) => m.hasCommandHooks);
   const withSlots = modules.filter((m) => m.hasSlots);
   const withClientSlots = modules.filter((m) => m.hasClientSlots);
+  const withSetup = modules.filter((m) => m.hasSetup);
   const withComponents = modules.filter((m) => m.hasComponents);
   const loadersByLocale = locales.map((locale) => ({
     locale,
@@ -154,7 +161,7 @@ export function renderRegistry(
         withAuth.length > 0 ||
         withAuditSink.length > 0 ||
         loadersByLocale.some(({ loaders }) => loaders.length > 0),
-      enabledModuleEntries: withSubscribers.length > 0,
+      enabledModuleEntries: withSubscribers.length > 0 || withSetup.length > 0,
       gatoBrandingOf: false,
     }),
   );
@@ -195,6 +202,10 @@ export function renderRegistry(
       (m) =>
         `import { commandHooks as ${identifier(m.name, "CommandHooks")} } from "@/features/${m.name}/command-hooks";`,
     ),
+    ...withSetup.map(
+      (m) =>
+        `import { setup as ${identifier(m.name, "Setup")} } from "@/features/${m.name}/setup";`,
+    ),
     ...withSlots.map(slotsImport),
     ...withClientSlots.map(clientSlotsImport),
     "",
@@ -223,6 +234,7 @@ export function renderRegistry(
       withSubscribers.map((m) => entry(m, identifier(m.name, "Subscribers"))),
     ),
     `export const moduleCommandHooks = commandHookRegistry({ modules: ${array(withModule.map((m) => identifier(m.name, "Module")))}, hooks: ${array(withCommandHooks.map((m) => entry(m, identifier(m.name, "CommandHooks"))))} }, gatoConfig);`,
+    enabledModuleList("moduleSetups", withSetup.map(setupEntry)),
     `export const moduleSlots = slotRegistry({ slots: ${namespaceEntries(withSlots, "Slots")}, clientSlots: ${namespaceEntries(withClientSlots, "ClientSlots")} }, gatoConfig);`,
     "export const env = createEnv(moduleEnvSchemas);",
     "",

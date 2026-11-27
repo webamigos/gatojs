@@ -224,7 +224,15 @@ export async function add(options: AddOptions): Promise<{ added: string[] }> {
     }
   }
   log(`npx prisma migrate dev --name add-${module}`);
-  return { added: toAdd.map((manifest) => manifest.name) };
+  const added = toAdd.map((manifest) => manifest.name);
+  for (const name of added) {
+    if (existsSync(join(projectDir, "src", "features", name, "setup.ts"))) {
+      log(
+        `Existing organizations did not run ${name}'s setup: npm run setup:organizations -- --module ${name}`,
+      );
+    }
+  }
+  return { added };
 }
 
 export async function addFromSource(options: {

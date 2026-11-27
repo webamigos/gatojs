@@ -20,6 +20,7 @@ import { envSchema as uploadsEnvSchema } from "@/features/uploads/env";
 import { auditSink as auditLogsAuditSink } from "@/features/audit-logs/audit-sink";
 import { events as apiKeysEvents } from "@/features/api-keys/events";
 import { events as uploadsEvents } from "@/features/uploads/events";
+import { subscribers as organizationsSubscribers } from "@/features/organizations/subscribers";
 import { subscribers as auditLogsSubscribers } from "@/features/audit-logs/subscribers";
 import * as accountSlots from "@/features/account/slots";
 import * as dashboardSlots from "@/features/dashboard/slots";
@@ -30,8 +31,9 @@ export const moduleEnvSchemas = enabledEntries([{ module: "api-keys", value: api
 export const authPlugins: never[] = [];
 export const auditSinks = enabledEntries([{ module: "audit-logs", value: auditLogsAuditSink }], gatoConfig);
 export const moduleEvents = [{ module: "api-keys", value: apiKeysEvents }, { module: "uploads", value: uploadsEvents }];
-export const moduleSubscribers = enabledModuleEntries([{ module: "audit-logs", value: auditLogsSubscribers }], gatoConfig);
+export const moduleSubscribers = enabledModuleEntries([{ module: "organizations", value: organizationsSubscribers }, { module: "audit-logs", value: auditLogsSubscribers }], gatoConfig);
 export const moduleCommandHooks = commandHookRegistry({ modules: [accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, encryptionModule, uploadsModule], hooks: [] }, gatoConfig);
+export const moduleSetups: never[] = [];
 export const moduleSlots = slotRegistry({ slots: [{ module: "account", value: accountSlots }, { module: "dashboard", value: dashboardSlots }, { module: "users", value: usersSlots }], clientSlots: [] }, gatoConfig);
 export const env = createEnv(moduleEnvSchemas);
 

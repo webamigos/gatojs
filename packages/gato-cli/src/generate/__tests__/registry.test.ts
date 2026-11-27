@@ -34,6 +34,8 @@ const base = {
   hasClientSlots: false,
   hasComponents: false,
   hasCommandHooks: false,
+  hasSetup: false,
+  version: "1.0.0",
   locales: [],
 };
 
@@ -54,6 +56,8 @@ describe("renderRegistry", () => {
           hasClientSlots: false,
           hasComponents: false,
           hasCommandHooks: false,
+          hasSetup: false,
+          version: "1.0.0",
           locales: ["pl", "en"],
         },
       ],
@@ -169,6 +173,8 @@ describe("renderRegistry", () => {
     hasClientSlots: false,
     hasComponents: false,
     hasCommandHooks: false,
+    hasSetup: false,
+    version: "1.0.0",
     locales: ["pl", "en"],
   };
 
@@ -193,6 +199,7 @@ describe("renderRegistry", () => {
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
         "export const moduleCommandHooks = commandHookRegistry({ modules: [demoModule], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -249,6 +256,8 @@ describe("renderRegistry", () => {
           hasClientSlots: false,
           hasComponents: false,
           hasCommandHooks: false,
+          hasSetup: false,
+          version: "1.0.0",
           locales: [],
         },
       ],
@@ -308,6 +317,7 @@ describe("renderRegistry", () => {
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
         "export const moduleCommandHooks = commandHookRegistry({ modules: [demoModule], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -474,6 +484,7 @@ describe("renderRegistry: env binding from @gatojs/env", () => {
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
         "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -502,6 +513,8 @@ describe("renderRegistry: env binding from @gatojs/env", () => {
           hasClientSlots: false,
           hasComponents: false,
           hasCommandHooks: false,
+          hasSetup: false,
+          version: "1.0.0",
         },
       ],
       BOTH,
@@ -516,7 +529,7 @@ describe("renderRegistry: env binding from @gatojs/env", () => {
       "export const modules = applyGatoConfig([demoModule], gatoConfig);",
     );
 
-    expect(lines.slice(modulesLine, modulesLine + 10)).toEqual([
+    expect(lines.slice(modulesLine, modulesLine + 11)).toEqual([
       "export const modules = applyGatoConfig([demoModule], gatoConfig);",
       'export const moduleEnvSchemas = enabledEntries([{ module: "demo", value: demoEnvSchema }], gatoConfig);',
       "export const authPlugins: never[] = [];",
@@ -524,6 +537,7 @@ describe("renderRegistry: env binding from @gatojs/env", () => {
       "export const moduleEvents: never[] = [];",
       "export const moduleSubscribers: never[] = [];",
       "export const moduleCommandHooks = commandHookRegistry({ modules: [demoModule], hooks: [] }, gatoConfig);",
+      "export const moduleSetups: never[] = [];",
       "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
       "export const env = createEnv(moduleEnvSchemas);",
       "",
@@ -572,6 +586,8 @@ describe("renderRegistry: gato.config", () => {
     hasClientSlots: false,
     hasComponents: false,
     hasCommandHooks: false,
+    hasSetup: false,
+    version: "1.0.0",
     locales: ["pl", "en"],
   };
 
@@ -599,6 +615,7 @@ describe("renderRegistry: gato.config", () => {
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
         "export const moduleCommandHooks = commandHookRegistry({ modules: [demoModule], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -641,6 +658,7 @@ describe("renderRegistry: gato.config", () => {
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
         "export const moduleCommandHooks = commandHookRegistry({ modules: [demoModule], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -742,6 +760,7 @@ describe("renderRegistry: gato.config", () => {
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
         "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -814,6 +833,7 @@ describe("renderRegistry: gato.config", () => {
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
         "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -933,6 +953,7 @@ describe("renderRegistry: gato.config", () => {
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
         "export const moduleCommandHooks = commandHookRegistry({ modules: [alphaModule], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -972,6 +993,7 @@ describe("renderRegistry: gato.config", () => {
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
         "export const moduleCommandHooks = commandHookRegistry({ modules: [alphaModule], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -1007,6 +1029,7 @@ describe("renderRegistry: gato.config", () => {
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
         "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -1142,6 +1165,8 @@ describe("renderRegistry: gatoBranding in the client file", () => {
     hasClientSlots: false,
     hasComponents: false,
     hasCommandHooks: false,
+    hasSetup: false,
+    version: "1.0.0",
     locales: ["pl", "en"],
   };
 
@@ -1207,6 +1232,8 @@ describe("renderRegistry: gatoBranding in the client file", () => {
         hasClientSlots: fc.boolean(),
         hasComponents: fc.boolean(),
         hasCommandHooks: fc.boolean(),
+        hasSetup: fc.boolean(),
+        version: fc.constant("1.0.0"),
         locales: fc.constant<string[]>([]),
       }),
       { maxLength: 4 },
@@ -1265,6 +1292,7 @@ describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
         'export const moduleEvents = [{ module: "invoices", value: invoicesEvents }];',
         'export const moduleSubscribers = enabledModuleEntries([{ module: "invoices", value: invoicesSubscribers }], gatoConfig);',
         "export const moduleCommandHooks = commandHookRegistry({ modules: [invoicesModule], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -1300,6 +1328,7 @@ describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
         'export const moduleEvents = [{ module: "alpha", value: alphaEvents }];',
         "export const moduleSubscribers: never[] = [];",
         "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -1338,6 +1367,7 @@ describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
         "export const moduleEvents: never[] = [];",
         'export const moduleSubscribers = enabledModuleEntries([{ module: "beta", value: betaSubscribers }], gatoConfig);',
         "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -1510,13 +1540,15 @@ describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
         hasClientSlots: fc.boolean(),
         hasComponents: fc.boolean(),
         hasCommandHooks: fc.boolean(),
+        hasSetup: fc.boolean(),
+        version: fc.constant("1.0.0"),
         locales: fc.constant<string[]>([]),
       }),
       { maxLength: 4 },
     ),
     fc.boolean(),
   ])(
-    "every server file declares moduleEvents, moduleSubscribers, moduleCommandHooks and moduleSlots once, between auditSinks and env",
+    "every server file declares moduleEvents, moduleSubscribers, moduleCommandHooks, moduleSetups and moduleSlots once, between auditSinks and env",
     (modules, hasGatoConfig) => {
       const lines = renderRegistry(modules, BOTH, {
         hasGatoConfig,
@@ -1531,10 +1563,14 @@ describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
       expect(lines[auditSinksAt + 3]).toMatch(
         /^export const moduleCommandHooks\b/,
       );
-      expect(lines[auditSinksAt + 4]).toMatch(/^export const moduleSlots\b/);
-      expect(lines[auditSinksAt + 5]).toBe(
+      expect(lines[auditSinksAt + 4]).toMatch(/^export const moduleSetups\b/);
+      expect(lines[auditSinksAt + 5]).toMatch(/^export const moduleSlots\b/);
+      expect(lines[auditSinksAt + 6]).toBe(
         "export const env = createEnv(moduleEnvSchemas);",
       );
+      expect(
+        lines.filter((line) => line.startsWith("export const moduleSetups")),
+      ).toHaveLength(1);
       expect(
         lines.filter((line) => line.startsWith("export const moduleEvents")),
       ).toHaveLength(1);
@@ -1543,6 +1579,220 @@ describe("renderRegistry: moduleEvents and moduleSubscribers", () => {
           line.startsWith("export const moduleSubscribers"),
         ),
       ).toHaveLength(1);
+    },
+  );
+});
+
+describe("renderRegistry: moduleSetups", () => {
+  const notes = {
+    name: "notes",
+    ...base,
+    hasModuleTs: true,
+    hasSubscribers: true,
+    hasSetup: true,
+    version: "1.2.0",
+  };
+  const NOTES_SETUP_IMPORT =
+    'import { setup as notesSetup } from "@/features/notes/setup";';
+  const NOTES_SETUPS =
+    'export const moduleSetups = enabledModuleEntries([{ module: "notes", version: "1.2.0", value: notesSetup }], gatoConfig);';
+
+  it("a module with subscribers.ts and setup.ts imports its setup after the subscribers import and lists it with its version right after moduleCommandHooks", () => {
+    expect(
+      renderRegistry([notes], ["pl"], { hasGatoConfig: true }).server,
+    ).toBe(
+      [
+        HEADER,
+        CONFIG_IMPORT,
+        'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
+        'import { applyGatoConfig, enabledModuleEntries } from "@/shared/lib/modules/gato-config";',
+        'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
+        'import notesModule from "@/features/notes/module";',
+        'import { subscribers as notesSubscribers } from "@/features/notes/subscribers";',
+        NOTES_SETUP_IMPORT,
+        "",
+        "export const modules = applyGatoConfig([notesModule], gatoConfig);",
+        "export const moduleEnvSchemas: never[] = [];",
+        "export const authPlugins: never[] = [];",
+        "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        'export const moduleSubscribers = enabledModuleEntries([{ module: "notes", value: notesSubscribers }], gatoConfig);',
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [notesModule], hooks: [] }, gatoConfig);",
+        NOTES_SETUPS,
+        "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
+        "export const env = createEnv(moduleEnvSchemas);",
+        "",
+        "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
+        "",
+        "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
+        "  pl: [],",
+        "};",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("a module with only setup.ts still imports enabledModuleEntries and the config", () => {
+    expect(
+      renderRegistry(
+        [{ name: "notes", ...base, hasSetup: true, version: "1.2.0" }],
+        ["pl"],
+        { hasGatoConfig: false },
+      ).server,
+    ).toBe(
+      [
+        HEADER,
+        EMPTY_CONFIG_IMPORT,
+        'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
+        'import { enabledModuleEntries } from "@/shared/lib/modules/gato-config";',
+        'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
+        NOTES_SETUP_IMPORT,
+        "",
+        "export const modules: never[] = [];",
+        "export const moduleEnvSchemas: never[] = [];",
+        "export const authPlugins: never[] = [];",
+        "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
+        NOTES_SETUPS,
+        "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
+        "export const env = createEnv(moduleEnvSchemas);",
+        "",
+        "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
+        "",
+        "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
+        "  pl: [],",
+        "};",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("with no module declaring setup.ts moduleSetups is never[] right after moduleCommandHooks and nothing imports a setup", () => {
+    const lines = renderRegistry(
+      [{ ...notes, hasSetup: false }],
+      BOTH,
+    ).server.split("\n");
+    const commandHooksAt = lines.findIndex((line) =>
+      line.startsWith("export const moduleCommandHooks"),
+    );
+    expect(lines[commandHooksAt + 1]).toBe(
+      "export const moduleSetups: never[] = [];",
+    );
+    expect(lines.filter((line) => line.includes("/setup"))).toEqual([]);
+  });
+
+  it("the setup import sits between the command hooks imports and the slots imports", () => {
+    const lines = renderRegistry(
+      [{ ...notes, hasCommandHooks: true, hasSlots: true }],
+      ["pl"],
+    ).server.split("\n");
+    const subscribersImportAt = lines.indexOf(
+      'import { subscribers as notesSubscribers } from "@/features/notes/subscribers";',
+    );
+    expect(lines.slice(subscribersImportAt, subscribersImportAt + 4)).toEqual([
+      'import { subscribers as notesSubscribers } from "@/features/notes/subscribers";',
+      'import { commandHooks as notesCommandHooks } from "@/features/notes/command-hooks";',
+      NOTES_SETUP_IMPORT,
+      'import * as notesSlots from "@/features/notes/slots";',
+    ]);
+  });
+
+  it("without command hooks the setup import sits between the subscribers imports and the slots imports", () => {
+    const lines = renderRegistry(
+      [{ ...notes, hasSlots: true }],
+      ["pl"],
+    ).server.split("\n");
+    const subscribersImportAt = lines.indexOf(
+      'import { subscribers as notesSubscribers } from "@/features/notes/subscribers";',
+    );
+    expect(lines.slice(subscribersImportAt, subscribersImportAt + 3)).toEqual([
+      'import { subscribers as notesSubscribers } from "@/features/notes/subscribers";',
+      NOTES_SETUP_IMPORT,
+      'import * as notesSlots from "@/features/notes/slots";',
+    ]);
+  });
+
+  it("setup imports of several modules follow all subscribers imports, in input order", () => {
+    const lines = renderRegistry(
+      [
+        { ...notes, name: "zeta" },
+        { ...notes, name: "alpha" },
+      ],
+      ["pl"],
+    ).server.split("\n");
+    const firstSubscribersImportAt = lines.indexOf(
+      'import { subscribers as zetaSubscribers } from "@/features/zeta/subscribers";',
+    );
+    expect(
+      lines.slice(firstSubscribersImportAt, firstSubscribersImportAt + 4),
+    ).toEqual([
+      'import { subscribers as zetaSubscribers } from "@/features/zeta/subscribers";',
+      'import { subscribers as alphaSubscribers } from "@/features/alpha/subscribers";',
+      'import { setup as zetaSetup } from "@/features/zeta/setup";',
+      'import { setup as alphaSetup } from "@/features/alpha/setup";',
+    ]);
+  });
+
+  it("several modules keep the input order and each carries the version of its own manifest", () => {
+    const lines = renderRegistry(
+      [
+        { name: "zeta", ...base, hasSetup: true, version: "0.3.1" },
+        { name: "beta", ...base, hasSetup: false, version: "9.9.9" },
+        { name: "alpha", ...base, hasSetup: true, version: "2.0.0" },
+      ],
+      ["pl"],
+    ).server.split("\n");
+    expect(lines).toContain(
+      'export const moduleSetups = enabledModuleEntries([{ module: "zeta", version: "0.3.1", value: zetaSetup }, { module: "alpha", version: "2.0.0", value: alphaSetup }], gatoConfig);',
+    );
+    expect(lines).not.toContain(
+      'import { setup as betaSetup } from "@/features/beta/setup";',
+    );
+  });
+
+  it("a hyphenated module name gives a camelCase identifier and keeps the raw key", () => {
+    const lines = renderRegistry(
+      [{ name: "my-feature", ...base, hasSetup: true, version: "1.0.0" }],
+      ["pl"],
+    ).server.split("\n");
+    expect(lines).toContain(
+      'import { setup as myFeatureSetup } from "@/features/my-feature/setup";',
+    );
+    expect(lines).toContain(
+      'export const moduleSetups = enabledModuleEntries([{ module: "my-feature", version: "1.0.0", value: myFeatureSetup }], gatoConfig);',
+    );
+  });
+
+  it("the client file says nothing about setups", () => {
+    const { client } = renderRegistry([notes], BOTH);
+    expect(client).not.toContain("setup");
+    expect(client).not.toContain("Setup");
+  });
+
+  test.prop([
+    fc.stringMatching(
+      /^(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})$/,
+    ),
+    fc.boolean(),
+  ])(
+    "the manifest version is written verbatim into the setup entry",
+    (version, hasGatoConfig) => {
+      const lines = renderRegistry(
+        [{ name: "notes", ...base, hasSetup: true, version }],
+        ["pl"],
+        { hasGatoConfig },
+      ).server.split("\n");
+      expect(
+        lines.filter((line) => line.startsWith("export const moduleSetups")),
+      ).toEqual([
+        `export const moduleSetups = enabledModuleEntries([{ module: "notes", version: "${version}", value: notesSetup }], gatoConfig);`,
+      ]);
     },
   );
 });
@@ -1563,6 +1813,8 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
     hasSubscribers: true,
     hasSlots: true,
     hasClientSlots: true,
+    hasSetup: false,
+    version: "1.0.0",
   };
 
   it("a module with slots.ts and client-slots.ts gets namespace imports after subscribers and both lists in moduleSlots", () => {
@@ -1589,6 +1841,7 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
         "export const moduleEvents: never[] = [];",
         'export const moduleSubscribers = enabledModuleEntries([{ module: "invoices", value: invoicesSubscribers }], gatoConfig);',
         "export const moduleCommandHooks = commandHookRegistry({ modules: [invoicesModule], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
         'export const moduleSlots = slotRegistry({ slots: [{ module: "invoices", value: invoicesSlots }], clientSlots: [{ module: "invoices", value: invoicesClientSlots }] }, gatoConfig);',
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -1647,6 +1900,7 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
         "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
         'export const moduleSlots = slotRegistry({ slots: [{ module: "alpha", value: alphaSlots }], clientSlots: [] }, gatoConfig);',
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -1758,6 +2012,8 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
           hasSubscribers: true,
           hasSlots: true,
           hasClientSlots: true,
+          hasSetup: false,
+          version: "1.0.0",
         },
       ],
       ["pl"],
@@ -1848,13 +2104,15 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
         hasClientSlots: fc.boolean(),
         hasComponents: fc.boolean(),
         hasCommandHooks: fc.boolean(),
+        hasSetup: fc.boolean(),
+        version: fc.constant("1.0.0"),
         locales: fc.constant<string[]>([]),
       }),
       { maxLength: 4 },
     ),
     fc.boolean(),
   ])(
-    "every pair of files declares moduleSlots right after moduleCommandHooks and clientModuleSlots right after clientModules, and imports the config on line 2",
+    "every pair of files declares moduleSlots right after moduleSetups, moduleSetups right after moduleCommandHooks and clientModuleSlots right after clientModules, and imports the config on line 2",
     (modules, hasGatoConfig) => {
       const { server, client } = renderRegistry(modules, BOTH, {
         hasGatoConfig,
@@ -1864,13 +2122,19 @@ describe("renderRegistry: moduleSlots and clientModuleSlots", () => {
       const clientLines = client.split("\n");
       expect(serverLines[1]).toBe(configImport);
       expect(clientLines[1]).toBe(configImport);
-      const subscribersAt = serverLines.findIndex((line) =>
-        line.startsWith("export const moduleSubscribers"),
+      const commandHooksAt = serverLines.findIndex((line) =>
+        line.startsWith("export const moduleCommandHooks"),
       );
-      expect(serverLines[subscribersAt + 1]).toMatch(
+      expect(serverLines[commandHooksAt - 1]).toMatch(
+        /^export const moduleSubscribers\b/,
+      );
+      expect(serverLines[commandHooksAt]).toMatch(
         /^export const moduleCommandHooks = commandHookRegistry\(\{ modules: \[.*\], hooks: \[.*\] \}, gatoConfig\);$/,
       );
-      expect(serverLines[subscribersAt + 2]).toMatch(
+      expect(serverLines[commandHooksAt + 1]).toMatch(
+        /^export const moduleSetups\b/,
+      );
+      expect(serverLines[commandHooksAt + 2]).toMatch(
         /^export const moduleSlots = slotRegistry\(\{ slots: \[.*\], clientSlots: \[.*\] \}, gatoConfig\);$/,
       );
       expect(
@@ -2070,6 +2334,8 @@ describe("renderRegistry: clientComponentOverrides", () => {
         hasClientSlots: fc.boolean(),
         hasComponents: fc.boolean(),
         hasCommandHooks: fc.boolean(),
+        hasSetup: fc.boolean(),
+        version: fc.constant("1.0.0"),
         locales: fc.constant<string[]>([]),
       }),
       { maxLength: 4 },
@@ -2140,6 +2406,7 @@ describe("renderRegistry: moduleCommandHooks", () => {
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
         'export const moduleCommandHooks = commandHookRegistry({ modules: [invoicesModule], hooks: [{ module: "invoices", value: invoicesCommandHooks }] }, gatoConfig);',
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -2177,6 +2444,7 @@ describe("renderRegistry: moduleCommandHooks", () => {
         "export const moduleEvents: never[] = [];",
         "export const moduleSubscribers: never[] = [];",
         'export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [{ module: "alpha", value: alphaCommandHooks }] }, gatoConfig);',
+        "export const moduleSetups: never[] = [];",
         "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
         "export const env = createEnv(moduleEnvSchemas);",
         "",
@@ -2375,6 +2643,8 @@ describe("renderRegistry: moduleCommandHooks", () => {
         hasClientSlots: fc.boolean(),
         hasCommandHooks: fc.boolean(),
         hasComponents: fc.boolean(),
+        hasSetup: fc.boolean(),
+        version: fc.constant("1.0.0"),
         locales: fc.constant<string[]>([]),
       }),
       { maxLength: 4, selector: (module) => module.name },

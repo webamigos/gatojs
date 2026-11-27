@@ -1,5 +1,5 @@
 export const SUPPORTED_KIT_FORMATS: readonly number[] = [
-  1, 2, 3, 4, 5, 6, 7, 8, 9,
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
 ];
 
 export function assertSupportedKitFormat(format: number): void {

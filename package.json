@@ -29,6 +29,7 @@
     "postinstall": "prisma generate",
     "prepare": "husky",
     "admin:create": "tsx scripts/admin-create.ts",
+    "setup:organizations": "tsx scripts/setup-organizations.ts",
     "test:e2e": "npm run build && rm -rf .next/standalone/.next/static && cp -R .next/static .next/standalone/.next/static && playwright test"
   },
   "dependencies": {
