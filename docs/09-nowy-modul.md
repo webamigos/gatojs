@@ -784,6 +784,25 @@ export default function InviteDialogWithNotes({ Base, ...props }: WrapperProps<I
 - Uchwyt ma tylko wybrany komponent; nowy dodaje GatoJS na prośbę (issue w `webamigos/gatojs`). Moduł GatoJS deklaruje swój uchwyt w `components.ts` (`export const componentHandles = [defineComponentHandle("<x>.<nazwa>")]` i typ propsów w `declare module "@/shared/lib/modules/component-overrides" { interface ComponentHandleMap { … } }`, jak `src/features/users/components.ts`), a komponent eksportuje jako `overridable("<x>.<nazwa>", KomponentBase)` z `src/shared/lib/modules/overridable.tsx`. Zwrócony komponent przyjmuje propsy uchwytu i dodatkowo `viewer` (`{ userRole, orgRole, multiOrg }`, jak `ClientSlot`), np. `<InviteUserDialog viewer={viewer} />` w `UsersManager`; `viewer` nie trafia ani do komponentu GatoJS, ani do nadpisania.
 - Testy rdzenia, które sprawdzają komponent GatoJS z uchwytem, przypinają go mockiem `vi.mock("@/shared/lib/modules/overridable", () => ({ overridable: (_handle, Base) => Base }))`, więc przechodzą także w projekcie, który ten uchwyt nadpisuje.
 
+<a id="punkty-rozszerzen"></a>
+
+## Katalog punktów rozszerzeń
+
+Wszystkie klucze, przez które projekt zmienia zachowanie GatoJS (moduły, pozycje nawigacji, sloty, uchwyty komponentów, zdarzenia, komendy z hookami `before`, ścieżki better-auth, uprawnienia), są w `EXTENSION_POINTS.md` w katalogu głównym projektu, z modułem, etykietą `stable` albo `experimental` i jednym zdaniem opisu ([ADR-63](adrs/63-extension-points-are-namespaced-labelled-and-catalogued.md)). Klucz `stable` zmienia się tylko z podbiciem `kitFormat` i notą wydania, `experimental` może się zmienić w każdym wydaniu. Agent zaczyna od skilla `gato-extend` (`.claude/skills/gato-extend/SKILL.md`), a gdy żaden punkt nie pasuje: `npm run wa -- eject <plik> --reason "<powód>"` i szkic issue w `webamigos/gatojs`.
+
+Własne punkty modułu projektu opisujesz w `src/features/<x>/extension-points.json` i uruchamiasz `npm run wa -- generate`, który przepisuje `EXTENSION_POINTS.md` i `src/extension-points.generated.ts`:
+
+```json
+{
+  "stability": "stable",
+  "description": "Notatki organizacji",
+  "nav": { "notes.list": { "stability": "stable", "description": "Link do notatek w menu" } },
+  "events": { "notes.created": { "stability": "experimental", "description": "Utworzono notatkę" } }
+}
+```
+
+Pola: `stability` i `description` modułu, potem mapy `nav`, `slots`, `components`, `events`, `commands`, `authPaths`, `permissions` z wpisami `{ "stability", "description" }`. Każdy klucz zaczyna się od `<moduł>.`. Test `src/__tests__/architecture/extension-points-exist.test.ts` porównuje katalog z kodem w obie strony i wypisuje klucz z plikiem, np. `notes.list: no nav item (expected in src/features/notes/module.ts)` albo `notes.created: missing from EXTENSION_POINTS.md (src/features/notes/events.ts)`. Klucz z katalogu, którego nie ma w kodzie, to błąd, nie ostrzeżenie. Moduł bez pliku dostaje w katalogu wiersz `experimental` bez opisu. Literówka w kluczu w `src/gato.config.ts` zatrzymuje też `npm run typecheck`, bo `defineGatoConfig` przyjmuje tylko klucze z katalogu.
+
 <a id="dalej"></a>
 
 ## Dalej
