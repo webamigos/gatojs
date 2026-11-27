@@ -270,4 +270,30 @@ describe("CookieBanner focus with a stored choice", () => {
       within(dialog).getByRole("checkbox", { name: /^Marketingowe/ }),
     ).not.toBeChecked();
   });
+
+  it("the settings view judges the stored choice by the config of the latest render", async () => {
+    setConsentCookie('{"v":2,"c":{"analytics":true},"t":1}');
+    const { rerender } = renderBanner({
+      cookieCategories: ["analytics"],
+      consentVersion: 1,
+    });
+    expect(await findBanner()).toBeInTheDocument();
+
+    rerender(
+      withIntl(
+        <CookieBanner
+          config={{ cookieCategories: ["analytics"], consentVersion: 2 }}
+        />,
+      ),
+    );
+    await act(async () => {});
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    act(() => openCookieSettings());
+    const dialog = await findBanner();
+
+    expect(
+      within(dialog).getByRole("checkbox", { name: /^Analityczne/ }),
+    ).toBeChecked();
+  });
 });
