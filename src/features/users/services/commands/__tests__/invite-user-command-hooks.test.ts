@@ -553,8 +553,8 @@ describe("users.invite: checks before the hooks", () => {
   it("a hook of a module that is disabled at call time does not run and the invitation is created", async () => {
     const before = registerHook(
       (input) => ({ ...input, role: "admin" }),
-      "invoices",
-      "invoices.invite-policy",
+      "not-installed",
+      "not-installed.invite-policy",
     );
 
     const result = await inviteUserCommand(validInput);

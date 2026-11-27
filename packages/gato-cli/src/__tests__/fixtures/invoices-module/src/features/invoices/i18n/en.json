@@ -1,0 +1,15 @@
+{
+  "nav": "Invoices",
+  "title": "Invoices",
+  "empty": "No invoices yet",
+  "number": "Number",
+  "status": "Status",
+  "status-draft": "Draft",
+  "status-issued": "Issued",
+  "status-paid": "Paid",
+  "issue": "Issue",
+  "issued-success": "Invoice issued",
+  "unpaid-title": "Unpaid invoices",
+  "unpaid-empty": "No unpaid invoices",
+  "action-invoice-issued": "Invoice issued"
+}
