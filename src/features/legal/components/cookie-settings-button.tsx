@@ -3,12 +3,12 @@
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { legalConfig } from "../legal.config";
+import { legalSettings } from "../legal-settings";
 import type { LegalConfig } from "../legal-config";
 import { openCookieSettings } from "../consent/consent-store";
 
 export function CookieSettingsButton({
-  config = legalConfig,
+  config = legalSettings.config,
   variant = "link",
   label = "footer",
 }: {

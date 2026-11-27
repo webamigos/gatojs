@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { legalConfig } from "../legal.config";
+import { legalSettings } from "../legal-settings";
 import type { CookieCategory, LegalConfig } from "../legal-config";
 import {
   allChoices,
@@ -53,7 +53,7 @@ export function useIsClient(): boolean {
 }
 
 export function useCookieConsent(
-  config: LegalConfig = legalConfig,
+  config: LegalConfig = legalSettings.config,
 ): CookieConsentState {
   const ready = useIsClient();
   const record = useSyncExternalStore(

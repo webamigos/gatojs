@@ -47,9 +47,18 @@ const consentVersionSchema = z
 const CONSENT_COOKIE_NAME_MESSAGE =
   "consentCookieName must be 1-64 letters, digits, _ or -";
 
+const RESERVED_CONSENT_COOKIE_NAME_MESSAGE =
+  "consentCookieName must not be NEXT_LOCALE, a better-auth cookie or use the __Host- or __Secure- prefix";
+
+const RESERVED_COOKIE_NAME_PATTERN =
+  /^(next_locale$|better-auth|__host-|__secure-)/i;
+
 const consentCookieNameSchema = z
   .string({ error: CONSENT_COOKIE_NAME_MESSAGE })
-  .regex(/^[A-Za-z0-9_-]{1,64}$/, { error: CONSENT_COOKIE_NAME_MESSAGE });
+  .regex(/^[A-Za-z0-9_-]{1,64}$/, { error: CONSENT_COOKIE_NAME_MESSAGE })
+  .refine((name) => !RESERVED_COOKIE_NAME_PATTERN.test(name), {
+    error: RESERVED_CONSENT_COOKIE_NAME_MESSAGE,
+  });
 
 const CONSENT_MAX_AGE_DAYS_MESSAGE =
   "consentMaxAgeDays must be an integer from 1 to 395";

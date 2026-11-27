@@ -11,7 +11,7 @@ import {
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
 import { Button } from "@/components/ui/button";
-import { legalConfig } from "../legal.config";
+import { legalSettings } from "../legal-settings";
 import type { CookieCategory, LegalConfig } from "../legal-config";
 import {
   allChoices,
@@ -91,7 +91,7 @@ function CategoryOption({
 }
 
 export function CookieBanner({
-  config = legalConfig,
+  config = legalSettings.config,
   privacyHref,
 }: {
   config?: LegalConfig;

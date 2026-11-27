@@ -1,6 +1,4 @@
-import { defineLegalConfig } from "./legal-config";
-
-export const legalConfig = defineLegalConfig({
+export const legalConfig = {
   cookieCategories: [],
   consentVersion: 1,
-});
+};

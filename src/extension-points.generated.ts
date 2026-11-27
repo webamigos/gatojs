@@ -31,9 +31,9 @@ export const extensionPoints = {
   slots: [
     { key: "account.sections", module: "account", stability: "stable", description: "Server sections on the account page, rendered with the signed-in user id" },
     { key: "app.header.actions", module: "app", stability: "stable", description: "Server actions in the app header, rendered with the organization id" },
-    { key: "app.root", module: "app", stability: "experimental", description: "Server contributions rendered once at the end of every page, for an anonymous viewer (public modules only)" },
+    { key: "app.root", module: "app", stability: "experimental", description: "End of every page, once (public modules only). Contributions render for anonymous visitors: a component must not read the session to show user data here." },
     { key: "app.sidebar.footer", module: "app", stability: "experimental", description: "Server contributions under the user menu of the app sidebar, rendered with the organization id" },
-    { key: "auth.footer", module: "auth", stability: "experimental", description: "Server contributions in the footer of the sign-in, sign-up and password pages, for an anonymous viewer" },
+    { key: "auth.footer", module: "auth", stability: "experimental", description: "Footer of the sign-in, sign-up and password pages. Contributions render for anonymous visitors: a component must not read the session to show user data here." },
     { key: "dashboard.sections", module: "dashboard", stability: "stable", description: "Server sections under the dashboard heading, rendered with the organization id" },
     { key: "users.table.columns", module: "users", stability: "experimental", description: "Client columns added to the users table" },
     { key: "users.table.row-actions", module: "users", stability: "stable", description: "Client actions in each row of the users table" },

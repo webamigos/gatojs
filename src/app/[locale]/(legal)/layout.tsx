@@ -1,9 +1,12 @@
 import type { ReactNode } from "react";
+import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/routing";
 import { BrandLogo } from "@/shared/components/brand-logo";
 import { getBranding } from "@/shared/lib/modules/branding";
+import { isModuleEnabled } from "@/shared/lib/modules/require-module-enabled";
 import { CookieSettingsButton } from "@/features/legal/components/cookie-settings-button";
+import { legalSettings } from "@/features/legal/legal-settings";
 
 const footerLinkClass =
   "text-muted-foreground underline-offset-4 hover:text-foreground hover:underline";
@@ -17,6 +20,12 @@ export default async function LegalLayout({
 }): Promise<ReactNode> {
   const { locale } = await params;
   setRequestLocale(locale);
+  if (!isModuleEnabled("legal")) {
+    notFound();
+  }
+  if (legalSettings.error !== null) {
+    throw legalSettings.error;
+  }
   const t = await getTranslations({ locale, namespace: "legal" });
   const { logo } = getBranding();
 

@@ -4,6 +4,7 @@ import {
   resolveLegalDocument,
   type LegalDocumentKey,
 } from "../services/legal-documents";
+import { CookieSettingsButton } from "./cookie-settings-button";
 
 const titleKeys = {
   terms: "terms-title",
@@ -41,6 +42,9 @@ export async function LegalDocumentPage({
       <article className="legal-document grid gap-4 text-sm leading-relaxed [&_h2]:mt-4 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mt-2 [&_h3]:font-semibold [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:p-2 [&_td]:align-top [&_th]:border [&_th]:p-2 [&_th]:text-left [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6">
         <Content />
       </article>
+      {document === "privacy" && (
+        <CookieSettingsButton label="page" variant="button" />
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { legalConfig } from "../legal.config";
+import { legalSettings } from "../legal-settings";
 import { DEFAULT_CONSENT_MAX_AGE_DAYS } from "../contracts/legal-config.schemas";
 import type { CookieCategory, LegalConfig } from "../legal-config";
 import {
@@ -47,7 +47,7 @@ function rawConsentCookie(config: LegalConfig): string | undefined {
 }
 
 export function consentSnapshot(
-  config: LegalConfig = legalConfig,
+  config: LegalConfig = legalSettings.config,
 ): ConsentRecord | null {
   const name = cookieName(config);
   const raw = rawConsentCookie(config);
@@ -61,14 +61,14 @@ export function consentSnapshot(
 }
 
 export function readConsent(
-  config: LegalConfig = legalConfig,
+  config: LegalConfig = legalSettings.config,
 ): ConsentRecord | null {
   return parseConsent(rawConsentCookie(config));
 }
 
 export function writeConsent(
   choices: ConsentChoices,
-  config: LegalConfig = legalConfig,
+  config: LegalConfig = legalSettings.config,
   now: number = Math.floor(Date.now() / 1000),
 ): ConsentRecord {
   const record = decide(config, choices, now);
@@ -90,7 +90,7 @@ export function writeConsent(
 
 export function hasConsent(
   category: CookieCategory,
-  config: LegalConfig = legalConfig,
+  config: LegalConfig = legalSettings.config,
 ): boolean {
   return isGranted(readConsent(config), category, config);
 }

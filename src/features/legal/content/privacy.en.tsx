@@ -1,5 +1,4 @@
 import { project } from "@/shared/config/project";
-import { CookieSettingsButton } from "../components/cookie-settings-button";
 
 export const updatedAt = "2026-11-27";
 
@@ -133,7 +132,6 @@ export default function PrivacyEn() {
         them here with their provider, purpose and lifetime. They are set only
         after you consent.]
       </p>
-      <CookieSettingsButton label="page" variant="button" />
 
       <h2>7. Changes to this policy</h2>
       <p>

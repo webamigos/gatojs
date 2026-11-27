@@ -40,9 +40,9 @@ Contribute from `slots.ts` or `client-slots.ts`; reorder or remove contributions
 | --- | --- | --- | --- |
 | `account.sections` | account | stable | Server sections on the account page, rendered with the signed-in user id |
 | `app.header.actions` | app | stable | Server actions in the app header, rendered with the organization id |
-| `app.root` | app | experimental | Server contributions rendered once at the end of every page, for an anonymous viewer (public modules only) |
+| `app.root` | app | experimental | End of every page, once (public modules only). Contributions render for anonymous visitors: a component must not read the session to show user data here. |
 | `app.sidebar.footer` | app | experimental | Server contributions under the user menu of the app sidebar, rendered with the organization id |
-| `auth.footer` | auth | experimental | Server contributions in the footer of the sign-in, sign-up and password pages, for an anonymous viewer |
+| `auth.footer` | auth | experimental | Footer of the sign-in, sign-up and password pages. Contributions render for anonymous visitors: a component must not read the session to show user data here. |
 | `dashboard.sections` | dashboard | stable | Server sections under the dashboard heading, rendered with the organization id |
 | `users.table.columns` | users | experimental | Client columns added to the users table |
 | `users.table.row-actions` | users | stable | Client actions in each row of the users table |

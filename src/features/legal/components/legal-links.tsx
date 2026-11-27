@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
 import { cn } from "@/shared/lib/utils";
-import { legalConfig } from "../legal.config";
+import { legalSettings } from "../legal-settings";
 import type { LegalConfig } from "../legal-config";
 import { CookieSettingsButton } from "./cookie-settings-button";
 
@@ -12,7 +12,7 @@ const linkClass =
   "text-muted-foreground underline-offset-4 hover:text-foreground hover:underline";
 
 export function LegalLinks({
-  config = legalConfig,
+  config = legalSettings.config,
   className,
 }: {
   config?: LegalConfig;
