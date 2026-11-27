@@ -422,14 +422,48 @@ describe("doctorFiles", () => {
     return log.mock.calls.map(([line]) => line).join("\n");
   }
 
-  it("exits 0 by default with a modified Gato file and names it", async () => {
+  it("exits 1 by default with a modified Gato file and names it", async () => {
     const dir = await makeTempDir();
     await writeKitState(dir, stateWith());
     await writeProjectFile(dir, "src/a.ts", "y");
     const result = await doctorFiles({ projectDir: dir, cli: "gato", log });
-    expect(result).toEqual({ exitCode: 0 });
+    expect(result).toEqual({ exitCode: 1 });
     expect(logged()).toContain("src/a.ts");
     expect(logged()).toContain("gato eject");
+  });
+
+  it("prints no warning line by default for a modified Gato file", async () => {
+    const dir = await makeTempDir();
+    await writeKitState(dir, stateWith());
+    await writeProjectFile(dir, "src/a.ts", "y");
+    await doctorFiles({ projectDir: dir, cli: "gato", log });
+    expect(log).toHaveBeenCalled();
+    expect(log.mock.calls.some(([line]) => line.includes("warning"))).toBe(
+      false,
+    );
+  });
+
+  it("exits 0 by default when the modified Gato file is ejected", async () => {
+    const dir = await makeTempDir();
+    await writeKitState(
+      dir,
+      stateWith({
+        "src/a.ts": { reason: "custom login", ejectedAt: "2026-11-23" },
+      }),
+    );
+    await writeProjectFile(dir, "src/a.ts", "y");
+    const result = await doctorFiles({ projectDir: dir, cli: "gato", log });
+    expect(result).toEqual({ exitCode: 0 });
+    expect(logged()).toContain("custom login");
+  });
+
+  it("exits 0 by default for an unchanged project and logs no changes", async () => {
+    const dir = await makeTempDir();
+    await writeKitState(dir, stateWith());
+    await writeProjectFile(dir, "src/a.ts", "x");
+    const result = await doctorFiles({ projectDir: dir, cli: "gato", log });
+    expect(result).toEqual({ exitCode: 0 });
+    expect(logged()).toContain("GatoJS files: no changes");
   });
 
   it("exits 1 in block mode with a modified Gato file", async () => {
