@@ -24,6 +24,7 @@ Task → where to look. Documentation pages live under https://docs.gatojs.com; 
 
 | Task | Where to look |
 | --- | --- |
+| Changing GatoJS behaviour (hide, replace, react, block) | `EXTENSION_POINTS.md`; skill `gato-extend` (`.claude/skills/gato-extend/SKILL.md`); never edit a Gato file without `npm run wa -- eject` |
 | New feature or module | skill `wa-new-module`; `projectModules` in `.wa/kit.json`; https://docs.gatojs.com/guides/build-a-feature, https://docs.gatojs.com/guides/finish-a-feature |
 | Query or command on organization data | `src/shared/lib/auth/org-context.ts`; "Data and organizations" below; https://docs.gatojs.com/concepts/organizations |
 | Cross-organization read | `withoutTenantScope(reason, fn)` from `src/shared/lib/tenant-scope/`, only with a reason; https://docs.gatojs.com/concepts/organizations |

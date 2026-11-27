@@ -1,0 +1,38 @@
+{
+  "stability": "stable",
+  "description": "Organization API keys with peppered secrets and scopes",
+  "nav": {
+    "api-keys.list": {
+      "stability": "stable",
+      "description": "API keys link in the sidebar"
+    }
+  },
+  "events": {
+    "api-keys.created": {
+      "stability": "stable",
+      "description": "An API key was created in the organization"
+    },
+    "api-keys.revoked": {
+      "stability": "stable",
+      "description": "An API key was revoked and no longer authenticates"
+    },
+    "api-keys.deleted": {
+      "stability": "stable",
+      "description": "An API key was deleted from the organization"
+    }
+  },
+  "commands": {
+    "api-keys.create": {
+      "stability": "stable",
+      "description": "Create an API key with a name and scopes"
+    },
+    "api-keys.revoke": {
+      "stability": "stable",
+      "description": "Revoke an API key of the organization"
+    },
+    "api-keys.delete": {
+      "stability": "stable",
+      "description": "Delete an API key of the organization"
+    }
+  }
+}

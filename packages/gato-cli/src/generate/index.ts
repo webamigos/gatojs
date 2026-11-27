@@ -2,6 +2,13 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { compareCodePoint } from "../compare.js";
 import { readKitState, registeredModules } from "../manifest/kit-state.js";
+import {
+  EXTENSION_POINTS_MD,
+  EXTENSION_POINTS_TS,
+  readExtensionPoints,
+  renderExtensionPointsMarkdown,
+  renderExtensionPointsTs,
+} from "./extension-points.js";
 import { renderLocales, renderRegistry } from "./registry.js";
 import type { RegistryModule } from "./registry.js";
 import { regionTargets, renderRegionTarget } from "./targets.js";
@@ -14,6 +21,8 @@ export const GENERATED_FILES: readonly string[] = [
   SERVER_REGISTRY,
   CLIENT_REGISTRY,
   LOCALES_FILE,
+  EXTENSION_POINTS_TS,
+  EXTENSION_POINTS_MD,
 ];
 const FEATURE_GLOB = /^src\/features\/([^/*]+)\//;
 
@@ -99,12 +108,15 @@ export async function generate(
   const registry = renderRegistry(features, state.locales, {
     hasGatoConfig: await exists(join(projectDir, GATO_CONFIG_FILE)),
   });
+  const catalog = await readExtensionPoints(projectDir, features);
 
   const pending: { file: string; current: string | null; next: string }[] = [];
   for (const [file, next] of [
     [SERVER_REGISTRY, registry.server],
     [CLIENT_REGISTRY, registry.client],
     [LOCALES_FILE, renderLocales(state.locales)],
+    [EXTENSION_POINTS_TS, renderExtensionPointsTs(catalog)],
+    [EXTENSION_POINTS_MD, renderExtensionPointsMarkdown(catalog)],
   ] as const) {
     const current = await readFile(join(projectDir, file), "utf8").catch(
       (error: NodeJS.ErrnoException) => {

@@ -12,7 +12,7 @@ Pełny przebieg na przykładzie `notes`: `docs/09-nowy-modul.md` i `docs/09b-imp
 - **Funkcja projektu** (domyślnie): kod tylko dla tego klienta. Wpis w `projectModules` w `.wa/kit.json`, sam `manifest`, bez wersji i hashy. `wa kit sync` go nie rusza.
 - **Moduł kitu**: funkcja potrzebna wielu projektom. Powstaje w repo `webamigos/wa-kit` jako `kit/modules/<x>.json`, z wersją i właścicielem każdego pliku i zależności (`docs/16b-rozwoj-kitu.md` w repo `webamigos/wa-kit`).
 
-Moduł nie edytuje plików rdzenia w żadnym z wariantów.
+Moduł nie edytuje plików rdzenia w żadnym z wariantów. Zmianę zachowania rdzenia (slot, podmiana komponentu, zdarzenie, hook komendy, konfiguracja) robisz przez punkty z `EXTENSION_POINTS.md`, według skilla `gato-extend` (`.claude/skills/gato-extend/SKILL.md`). Własne punkty modułu (id nawigacji, sloty, zdarzenia, komendy, uprawnienia) opisujesz w `src/features/<x>/extension-points.json` i uruchamiasz `npm run wa -- generate`.
 
 ## 2. Kroki
 

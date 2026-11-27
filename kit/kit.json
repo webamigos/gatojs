@@ -1,7 +1,7 @@
 {
-  "version": "0.36.0",
+  "version": "0.38.0",
   "repo": "https://github.com/webamigos/gatojs.git",
-  "kitFormat": 10,
+  "kitFormat": 11,
   "kitOnly": [
     "kit/**",
     "packages/gato-cli/**",
@@ -57,7 +57,9 @@
   "generatedFiles": [
     "src/modules.generated.ts",
     "src/modules.client.generated.ts",
-    "src/i18n/locales.generated.ts"
+    "src/i18n/locales.generated.ts",
+    "src/extension-points.generated.ts",
+    "EXTENSION_POINTS.md"
   ],
   "managedFiles": ["package.json", "package-lock.json"],
   "seedFiles": ["README.md", "src/theme.css"]

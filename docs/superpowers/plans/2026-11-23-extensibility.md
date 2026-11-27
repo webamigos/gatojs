@@ -615,6 +615,25 @@ When a slot frees up, the next task of its lane starts if its dependencies have 
 
 **Done when:** `verify`, `test:integration`, `test:mutation:gate` green.
 
+**Contract fixed before the tests (2026-11-26):**
+- Branch `feat/api-key-commands`. `api-keys` 0.2.1 → 0.3.0; no core, CLI or `kitFormat` change (the generator already handles `events.ts`).
+- Decision on 404: the three commands follow ADR-62 (`access: "module"` turns the `notFound()` of `requireModuleAccess` into the failure result). A disabled `api-keys` module (step 1, `requireModuleEnabled`) or a `member` now get `{ success: false, error: <failureMessage> }` from the server action instead of a thrown 404; no Prisma call, no hook. This replaces "a disabled `api-keys` module → `404`" above and changes five existing test cases that expected `rejects.toThrow("NEXT_NOT_FOUND")` (three unit, two integration); they keep "no write" and gain the failure literal. No session (`/sign-in`) and no organization (`/no-organization`) still redirect (`NEXT_REDIRECT` is rethrown). The public route `GET /api/v1/organization` is not a command and keeps answering `404` when the module is disabled (`isModuleEnabled`, pinned by `src/app/api/v1/organization/__tests__/route.test.ts`).
+- `src/features/api-keys/module.ts`: `commands: ["api-keys.create", "api-keys.revoke", "api-keys.delete"]`.
+- `src/features/api-keys/events.ts` (new): `export const events = defineEvents({ "api-keys.created": z.object({ apiKeyId: z.string(), name: z.string(), scopes: z.array(z.string()) }), "api-keys.revoked": z.object({ apiKeyId: z.string() }), "api-keys.deleted": z.object({ apiKeyId: z.string() }) })`.
+- `src/features/api-keys/services/commands/api-key-commands.ts`: three module-level `defineCommand` constants with `module: MODULE_KEY` (`"api-keys"`), `access: "module"`:
+  - `api-keys.create`: `input: createApiKeySchema()` (built once at import), `failureMessage: "Nie udało się utworzyć klucza"`, `events: ["api-keys.created"]`; `run` keeps today's body (the `$transaction` with the advisory lock, count and limit `DomainError("Osiągnięto limit 10 aktywnych kluczy")`, create, then `trackAudit` unchanged) and calls `emit("api-keys.created", { apiKeyId: created.id, name: parsed.name, scopes: parsed.scopes })` after `trackAudit`; returns `{ success: true, data: { id, plaintext } }`.
+  - `api-keys.revoke`: `input: apiKeyIdSchema`, `failureMessage: "Nie udało się unieważnić klucza"`, `events: ["api-keys.revoked"]`; `run` keeps today's body (`findOrganizationKey` → `DomainError("Nie znaleziono klucza")`; already revoked → `{ success: true }` with no audit and no event; `updateMany` filtered by `organizationId` and `revokedAt: null`; `count > 0` → `trackAudit` then `emit("api-keys.revoked", { apiKeyId: id })`).
+  - `api-keys.delete`: `input: apiKeyIdSchema`, `failureMessage: "Nie udało się usunąć klucza"`, `events: ["api-keys.deleted"]`; same shape, `deleteMany`, `count > 0` → `trackAudit` then `emit("api-keys.deleted", { apiKeyId: id })`.
+  - Exports unchanged in name and signature: `createApiKeyCommand(input: unknown, confirmation?: unknown)`, `revokeApiKeyCommand`, `deleteApiKeyCommand`, each `return runCommand(<command>, input, confirmation);`.
+- Behaviours (unit tests mock only I/O; registry mocks give `moduleCommandHooks` and keep the real `moduleEvents`/`modules`; existing assertions stay except the five 404 cases above):
+  - create success emits exactly one `api-keys.created` with `{ apiKeyId: <id>, name: "Integracja CRM", scopes: ["organization:read"] }` and the payload has no `plaintext`, `hashedKey`, `displayPrefix` or any value equal to the plaintext or its hash; origin `{ organizationId: "org-1", actorUserId: "user-1" }`;
+  - create: transaction throws (limit reached, or database failure) → no event; invalid input → no hook, no event;
+  - revoke: success emits one `api-keys.revoked` `{ apiKeyId }`; already revoked, `count` 0, or key of another organization → no event;
+  - delete: success emits one `api-keys.deleted` `{ apiKeyId }`; `count` 0 or missing key → no event;
+  - each command: disabled `api-keys` module → `{ success: false, error: <its failureMessage> }`, no session read, no hook, no Prisma; `member` → its failure message, no hook, no write; service mode without confirmation → `"Potwierdź zmianę w trybie serwisowym"`, no hook; a `before` hook throwing `DomainError("Blocked by policy")` → `{ success: false, error: "Blocked by policy" }`, no write, no event; a hook on `api-keys.revoke` returning another uuid → `run` revokes that id (in the active organization only);
+  - integration (two organizations): a `before` hook on `api-keys.revoke` and on `api-keys.delete` returning org B's key id with org A's context → `{ success: false, error: "Nie znaleziono klucza" }` and org B's key is untouched; a hook on `api-keys.create` returning `{ ...input, organizationId: <org B> }` → the schema has no such field, the re-parse drops it, and the key is created in org A only (org B has no row).
+- Mutations to kill (in addition to the two above): event emitted before `trackAudit` or when `count` is 0; `scopes` or `name` dropped from the payload; `access` changed to `"member"` (a `member` would then write); a key missing from `commands`.
+
 ---
 
 ### Task 15: UI slots: `dashboard.sections`, `app.header.actions`, `account.sections`
@@ -792,6 +811,19 @@ When a slot frees up, the next task of its lane starts if its dependencies have 
 **Mutations to kill:** not applicable to the fixture; the step itself fails if any extension point used by the fixture breaks.
 
 **Done when:** the `assemble` job is green for `uploads` and `all` on the PR.
+
+**Contract fixed before the tests (2026-11-27):**
+- Fixture root `packages/gato-cli/src/__tests__/fixtures/invoices-module/`: `manifest.json` (the `projectModules.invoices.manifest` value, `requires: ["uploads"]`), and `prisma/` and `src/` copied into the project as they are; `manifest.json` stays in the GatoJS repo.
+- `src/features/invoices/module.ts`: key `invoices`, nav `{ id: "invoices.list", href: "/invoices", labelKey: "nav", icon: "receipt", order: 30 }`, roles `owner`, `admin`, `member`, audit action `invoice.issued`, upload purpose `invoice-pdf`, `commands: ["invoices.issue"]`. `extension-points.json` lists the nav id, the event `invoices.issued` and the command `invoices.issue`, all `experimental`.
+- `events.ts`: `invoices.issued` with payload `{ invoiceId: string }`.
+- `services/commands/issue-invoice-command.ts` (`"use server"`): `issueInvoiceCommand(input: unknown, confirmation?: unknown): Promise<OperationResult<{ id: string }>>` through `defineCommand` (`key: "invoices.issue"`, `access: "module"`, input `{ id: string }`, failure `Could not issue the invoice`, events `["invoices.issued"]`). A draft invoice of the active organization → `issued`, `{ success: true, data: { id } }`; any other id (another organization's, already issued, unknown) → `{ success: false, error: "Invoice not found or already issued" }` and no change.
+- `services/queries/list-unpaid-invoices-query.ts`: `listUnpaidInvoicesQuery(): Promise<{ id: string; number: string }[]>`, the active organization's `issued` invoices sorted by `number`. `services/queries/list-invoices-query.ts`: `listInvoicesQuery()` with `{ id, number, status }` for the page.
+- `command-hooks.ts`: `commandHooks` with `"uploads.delete": { id: "invoices.keep-issued-pdf", before }`; `before({ id }, context)` throws `DomainError("This file is attached to an issued invoice")` when an `issued` invoice of `context.organizationId` has `pdfUploadId === id`, else returns nothing.
+- `subscribers.ts`: `organizations.member-removed` → `invoices.unassign-removed-member` sets `assigneeId: null` on the event organization's invoices assigned to `payload.userId`.
+- `slots.ts`: `dashboard.sections` contribution `invoices.unpaid-card`, priority 20, roles `owner`, `admin`, component `components/unpaid-invoices-card.tsx` (server component, prop `organizationId`).
+- `src/gato.config.ts`: `modules.dashboard.nav["dashboard.home"].order = 5`; nothing disabled.
+- Page `src/app/[locale]/(app)/invoices/page.tsx` (`requireModuleAccess("invoices")`) with a client list that issues through `useServiceModeAction().run(issueInvoiceCommand, { id })`.
+- Tests in the fixture: `src/features/invoices/__tests__/command-hooks.test.ts` (unit, Prisma mocked as I/O), `src/features/invoices/__tests__/slots.test.ts` (owner sees the card, member does not) and `src/features/invoices/__tests__/invoices-isolation.integration.test.ts` (two organizations: issue, unpaid list, upload delete hook through `deleteUploadCommand`, member-removed subscriber through `emitEvent`).
 
 ---
 

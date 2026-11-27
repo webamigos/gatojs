@@ -1,7 +1,7 @@
 {
-  "kitVersion": "0.36.0",
+  "kitVersion": "0.38.0",
   "kitRepo": "https://github.com/webamigos/gatojs.git",
-  "kitFormat": 10,
+  "kitFormat": 11,
   "project": {
     "name": "WA App",
     "slug": "wa-app"
@@ -12,10 +12,10 @@
   ],
   "modules": {
     "api-keys": {
-      "version": "0.2.1",
+      "version": "0.4.0",
       "manifest": {
         "name": "api-keys",
-        "version": "0.2.1",
+        "version": "0.4.0",
         "description": "Organization API keys: ApiKey model, peppered secret and scopes",
         "requires": [],
         "files": [
@@ -53,10 +53,10 @@
       "files": {}
     },
     "audit-logs": {
-      "version": "0.2.0",
+      "version": "0.3.0",
       "manifest": {
         "name": "audit-logs",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "description": "Organization audit log: AuditLog model, sink and redaction of sensitive data",
         "requires": [],
         "files": [
@@ -87,10 +87,10 @@
       "files": {}
     },
     "core": {
-      "version": "0.34.1",
+      "version": "0.35.2",
       "manifest": {
         "name": "core",
-        "version": "0.34.1",
+        "version": "0.35.2",
         "description": "GatoJS core: auth, organizations, users, account, dashboard",
         "requires": [],
         "files": [
@@ -273,10 +273,10 @@
       "files": {}
     },
     "encryption": {
-      "version": "0.1.3",
+      "version": "0.2.0",
       "manifest": {
         "name": "encryption",
-        "version": "0.1.3",
+        "version": "0.2.0",
         "description": "Per-organization envelope encryption (AES-256-GCM) with data keys wrapped by a master key",
         "requires": [],
         "files": [
@@ -314,10 +314,10 @@
       "files": {}
     },
     "uploads": {
-      "version": "0.6.0",
+      "version": "0.7.0",
       "manifest": {
         "name": "uploads",
-        "version": "0.6.0",
+        "version": "0.7.0",
         "description": "Organization files on disk or in S3 storage",
         "requires": [],
         "files": [

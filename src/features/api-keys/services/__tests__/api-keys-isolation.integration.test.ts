@@ -32,11 +32,14 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 vi.mock("@/i18n/routing", () => ({
-  redirect: vi.fn(() => {
-    throw new Error("NEXT_REDIRECT");
+  redirect: vi.fn(({ href }: { href: string }) => {
+    throw Object.assign(new Error("NEXT_REDIRECT"), {
+      digest: `NEXT_REDIRECT;replace;${href};307;`,
+    });
   }),
 }));
 
+import { redirect } from "@/i18n/routing";
 import { auth } from "@/shared/lib/auth";
 import { prisma } from "@/shared/lib/prisma";
 import { withoutTenantScope } from "@/shared/lib/tenant-scope";
@@ -360,12 +363,14 @@ describe("klucze API na prawdziwej bazie", () => {
     const key = await seedKey(world.orgA.id);
     await signInAs(world.carol, world.orgA);
 
-    await expect(revokeApiKeyCommand({ id: key.id })).rejects.toThrow(
-      "NEXT_NOT_FOUND",
-    );
-    await expect(deleteApiKeyCommand({ id: key.id })).rejects.toThrow(
-      "NEXT_NOT_FOUND",
-    );
+    expect(await revokeApiKeyCommand({ id: key.id })).toEqual({
+      success: false,
+      error: "Nie udało się unieważnić klucza",
+    });
+    expect(await deleteApiKeyCommand({ id: key.id })).toEqual({
+      success: false,
+      error: "Nie udało się usunąć klucza",
+    });
 
     const row = await prisma.apiKey.findUniqueOrThrow({
       where: { id: key.id, organizationId: world.orgA.id },
@@ -376,9 +381,10 @@ describe("klucze API na prawdziwej bazie", () => {
   it("member nie tworzy ani nie listuje kluczy", async () => {
     await signInAs(world.carol, world.orgA);
 
-    await expect(createApiKeyCommand(VALID_INPUT)).rejects.toThrow(
-      "NEXT_NOT_FOUND",
-    );
+    expect(await createApiKeyCommand(VALID_INPUT)).toEqual({
+      success: false,
+      error: "Nie udało się utworzyć klucza",
+    });
     await expect(listApiKeysQuery()).rejects.toThrow("NEXT_NOT_FOUND");
 
     expect(
@@ -713,6 +719,76 @@ describe("klucze API na prawdziwej bazie", () => {
       serviceMode: true,
     });
   });
+});
+
+describe("redirects without a session or an active organization", () => {
+  const commands = [
+    {
+      name: "createApiKeyCommand",
+      call: () => createApiKeyCommand(VALID_INPUT),
+    },
+    {
+      name: "revokeApiKeyCommand",
+      call: (keyId: string) => revokeApiKeyCommand({ id: keyId }),
+    },
+    {
+      name: "deleteApiKeyCommand",
+      call: (keyId: string) => deleteApiKeyCommand({ id: keyId }),
+    },
+  ];
+
+  beforeEach(() => {
+    vi.mocked(redirect).mockClear();
+  });
+
+  async function expectSeededKeyUntouched(keyId: string) {
+    const rows = await withoutTenantScope("test assertion", () =>
+      prisma.apiKey.findMany({ select: { id: true, revokedAt: true } }),
+    );
+    expect(rows).toEqual([{ id: keyId, revokedAt: null }]);
+    expect(mockTrackAudit).not.toHaveBeenCalled();
+  }
+
+  it.each(commands)(
+    "$name without a session rejects with NEXT_REDIRECT to /sign-in and changes no rows",
+    async ({ call }) => {
+      const key = await seedKey(world.orgA.id);
+      currentSession.value = null;
+
+      await expect(call(key.id)).rejects.toThrow("NEXT_REDIRECT");
+
+      expect(vi.mocked(redirect)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(redirect)).toHaveBeenCalledWith({
+        href: "/sign-in",
+        locale: "pl",
+      });
+      await expectSeededKeyUntouched(key.id);
+    },
+  );
+
+  it.each(commands)(
+    "$name without an active organization rejects with NEXT_REDIRECT to /no-organization and changes no rows",
+    async ({ call }) => {
+      const key = await seedKey(world.orgA.id);
+      const session = await createSession({
+        userId: world.alice.id,
+        activeOrganizationId: world.orgA.id,
+      });
+      currentSession.value = {
+        user: { id: world.alice.id, role: "user" },
+        session: { id: session.id, activeOrganizationId: null },
+      };
+
+      await expect(call(key.id)).rejects.toThrow("NEXT_REDIRECT");
+
+      expect(vi.mocked(redirect)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(redirect)).toHaveBeenCalledWith({
+        href: "/no-organization",
+        locale: "pl",
+      });
+      await expectSeededKeyUntouched(key.id);
+    },
+  );
 });
 
 describe("zmiana wiersza między odczytem a zapisem", () => {
