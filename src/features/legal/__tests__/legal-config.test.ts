@@ -20,7 +20,12 @@ describe("defineLegalConfig", () => {
   it("accepts a config without cookie categories", () => {
     expect(
       defineLegalConfig({ cookieCategories: [], consentVersion: 1 }),
-    ).toEqual({ cookieCategories: [], consentVersion: 1 });
+    ).toEqual({
+      cookieCategories: [],
+      consentVersion: 1,
+      consentCookieName: "cookie_consent",
+      consentMaxAgeDays: 180,
+    });
   });
 
   it("accepts declared categories and a higher version", () => {
@@ -32,6 +37,8 @@ describe("defineLegalConfig", () => {
     ).toEqual({
       cookieCategories: ["analytics", "marketing"],
       consentVersion: 3,
+      consentCookieName: "cookie_consent",
+      consentMaxAgeDays: 180,
     });
   });
 
@@ -44,6 +51,8 @@ describe("defineLegalConfig", () => {
     ).toEqual({
       cookieCategories: ["preferences", "analytics", "marketing"],
       consentVersion: 1,
+      consentCookieName: "cookie_consent",
+      consentMaxAgeDays: 180,
     });
   });
 
@@ -109,6 +118,89 @@ describe("defineLegalConfig", () => {
 
   it("the thrown error carries the name LegalConfigError", () => {
     const error = thrownBy({ cookieCategories: [], consentVersion: 0 });
+
+    expect((error as Error).name).toBe("LegalConfigError");
+  });
+});
+
+describe("defineLegalConfig consent cookie settings", () => {
+  it("keeps a custom cookie name and lifetime", () => {
+    expect(
+      defineLegalConfig({
+        cookieCategories: [],
+        consentVersion: 1,
+        consentCookieName: "acme_consent",
+        consentMaxAgeDays: 30,
+      }),
+    ).toEqual({
+      cookieCategories: [],
+      consentVersion: 1,
+      consentCookieName: "acme_consent",
+      consentMaxAgeDays: 30,
+    });
+  });
+
+  it.each(["a", "A-1_b", "a".repeat(64)])(
+    "accepts the cookie name %s",
+    (consentCookieName) => {
+      expect(
+        defineLegalConfig({
+          cookieCategories: [],
+          consentVersion: 1,
+          consentCookieName,
+        }).consentCookieName,
+      ).toBe(consentCookieName);
+    },
+  );
+
+  it.each(["", "a b", "a;b", "ä", "a=b", "a".repeat(65)])(
+    "rejects the cookie name %j",
+    (consentCookieName) => {
+      const error = thrownBy({
+        cookieCategories: [],
+        consentVersion: 1,
+        consentCookieName,
+      });
+
+      expect(error).toBeInstanceOf(LegalConfigError);
+      expect((error as Error).message).toContain(
+        "consentCookieName must be 1-64 letters, digits, _ or -",
+      );
+    },
+  );
+
+  it.each([1, 395])("accepts a lifetime of %i days", (consentMaxAgeDays) => {
+    expect(
+      defineLegalConfig({
+        cookieCategories: [],
+        consentVersion: 1,
+        consentMaxAgeDays,
+      }).consentMaxAgeDays,
+    ).toBe(consentMaxAgeDays);
+  });
+
+  it.each([0, 396, 1.5, -1])(
+    "rejects a lifetime of %s days",
+    (consentMaxAgeDays) => {
+      const error = thrownBy({
+        cookieCategories: [],
+        consentVersion: 1,
+        consentMaxAgeDays,
+      });
+
+      expect(error).toBeInstanceOf(LegalConfigError);
+      expect((error as Error).message).toContain(
+        "consentMaxAgeDays must be an integer from 1 to 395",
+      );
+    },
+  );
+
+  it("a cookie problem keeps the LegalConfigError name", () => {
+    const error = thrownBy({
+      cookieCategories: [],
+      consentVersion: 1,
+      consentMaxAgeDays: 0,
+    });
 
     expect((error as Error).name).toBe("LegalConfigError");
   });

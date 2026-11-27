@@ -16,22 +16,7 @@ describe("legal module definition", () => {
     expect(legalModule.adminOnly).toBeUndefined();
   });
 
-  it("adds the privacy and terms links to the navigation", () => {
-    expect(legalModule.nav).toEqual([
-      {
-        id: "legal.privacy",
-        href: "/privacy",
-        labelKey: "nav-privacy",
-        icon: "shield",
-        order: 900,
-      },
-      {
-        id: "legal.terms",
-        href: "/terms",
-        labelKey: "nav-terms",
-        icon: "file-text",
-        order: 910,
-      },
-    ]);
+  it("adds no navigation entries: the links come through slots", () => {
+    expect(legalModule.nav).toEqual([]);
   });
 });

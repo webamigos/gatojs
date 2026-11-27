@@ -207,6 +207,55 @@ describe("consentCookieValue", () => {
   });
 });
 
+describe("consentCookieValue with a custom name", () => {
+  it("reads the cookie of the given name", () => {
+    expect(consentCookieValue("cookie_consent=x; acme=y", "acme")).toBe("y");
+  });
+
+  it("ignores the default cookie when another name is given", () => {
+    expect(consentCookieValue("cookie_consent=x", "acme")).toBeUndefined();
+  });
+
+  it("ignores a cookie whose name only ends with the given name", () => {
+    expect(consentCookieValue("my_acme=x", "acme")).toBeUndefined();
+  });
+});
+
+describe("consentCookieString with a custom name and lifetime", () => {
+  it("writes the given name and Max-Age", () => {
+    expect(
+      consentCookieString(
+        { version: 1, choices: {}, decidedAt: 1 },
+        { secure: false, name: "acme", maxAgeSeconds: 86400 },
+      ),
+    ).toBe(
+      "acme=%7B%22v%22%3A1%2C%22c%22%3A%7B%7D%2C%22t%22%3A1%7D; Path=/; Max-Age=86400; SameSite=Lax",
+    );
+  });
+
+  it("with only a name keeps the default lifetime and adds Secure on HTTPS", () => {
+    expect(
+      consentCookieString(
+        { version: 1, choices: {}, decidedAt: 1 },
+        { secure: true, name: "acme" },
+      ),
+    ).toBe(
+      "acme=%7B%22v%22%3A1%2C%22c%22%3A%7B%7D%2C%22t%22%3A1%7D; Path=/; Max-Age=15552000; SameSite=Lax; Secure",
+    );
+  });
+
+  it("with only a lifetime keeps the default name", () => {
+    expect(
+      consentCookieString(
+        { version: 1, choices: {}, decidedAt: 1 },
+        { secure: false, maxAgeSeconds: 60 },
+      ),
+    ).toBe(
+      "cookie_consent=%7B%22v%22%3A1%2C%22c%22%3A%7B%7D%2C%22t%22%3A1%7D; Path=/; Max-Age=60; SameSite=Lax",
+    );
+  });
+});
+
 describe("consentCookieString", () => {
   const record: ConsentRecord = {
     version: 1,

@@ -282,3 +282,117 @@ describe("consent store", () => {
     expect(consentSnapshot()).toBeNull();
   });
 });
+
+describe("consent store with a custom cookie name and lifetime", () => {
+  const acmeConfig: LegalConfig = {
+    cookieCategories: ["analytics"],
+    consentVersion: 1,
+    consentCookieName: "acme",
+    consentMaxAgeDays: 30,
+  };
+
+  const defaultNameConfig: LegalConfig = {
+    cookieCategories: ["analytics"],
+    consentVersion: 1,
+  };
+
+  const ACME_VALUE =
+    "%7B%22v%22%3A1%2C%22c%22%3A%7B%22analytics%22%3Atrue%7D%2C%22t%22%3A1%7D";
+
+  function clearAll() {
+    document.cookie = "acme=; Max-Age=0; Path=/";
+    clearConsentCookie();
+  }
+
+  beforeEach(() => {
+    clearAll();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    clearAll();
+  });
+
+  it("writes the cookie under the configured name with the configured lifetime in seconds", () => {
+    const setter = vi.spyOn(document, "cookie", "set");
+
+    writeConsent({ analytics: true }, acmeConfig, 1);
+
+    expect(setter.mock.calls.at(-1)?.[0]).toBe(
+      `acme=${ACME_VALUE}; Path=/; Max-Age=2592000; SameSite=Lax`,
+    );
+  });
+
+  it("a lifetime of one day is 86400 seconds", () => {
+    const setter = vi.spyOn(document, "cookie", "set");
+
+    writeConsent(
+      { analytics: true },
+      { ...acmeConfig, consentMaxAgeDays: 1 },
+      1,
+    );
+
+    expect(setter.mock.calls.at(-1)?.[0]).toContain("; Max-Age=86400;");
+  });
+
+  it("without a configured name and lifetime writes cookie_consent for 180 days", () => {
+    const setter = vi.spyOn(document, "cookie", "set");
+
+    writeConsent({ analytics: true }, defaultNameConfig, 1);
+
+    expect(setter.mock.calls.at(-1)?.[0]).toBe(
+      `cookie_consent=${ACME_VALUE}; Path=/; Max-Age=15552000; SameSite=Lax`,
+    );
+  });
+
+  it("after writing under the configured name the category is granted", () => {
+    writeConsent({ analytics: true }, acmeConfig, 1);
+
+    expect(hasConsent("analytics", acmeConfig)).toBe(true);
+    expect(document.cookie).not.toContain("cookie_consent=");
+  });
+
+  it("a valid cookie_consent cookie is ignored under another name", () => {
+    setConsentCookie('{"v":1,"c":{"analytics":true},"t":1}');
+
+    expect(hasConsent("analytics", acmeConfig)).toBe(false);
+    expect(hasConsent("analytics", defaultNameConfig)).toBe(true);
+  });
+
+  it("reads the configured cookie even when cookie_consent holds garbage", () => {
+    document.cookie = "cookie_consent=garbage; Path=/";
+    document.cookie = `acme=${ACME_VALUE}; Path=/`;
+
+    expect(hasConsent("analytics", acmeConfig)).toBe(true);
+  });
+
+  it("consentSnapshot is keyed by the cookie name", () => {
+    setConsentCookie('{"v":1,"c":{"analytics":false},"t":2}');
+    document.cookie = `acme=${ACME_VALUE}; Path=/`;
+
+    expect(consentSnapshot(defaultNameConfig)).toEqual({
+      version: 1,
+      choices: { analytics: false },
+      decidedAt: 2,
+    });
+    expect(consentSnapshot(acmeConfig)).toEqual({
+      version: 1,
+      choices: { analytics: true },
+      decidedAt: 1,
+    });
+    expect(consentSnapshot(defaultNameConfig)).toEqual({
+      version: 1,
+      choices: { analytics: false },
+      decidedAt: 2,
+    });
+  });
+
+  it("consentSnapshot for a custom name is stable while its cookie is unchanged", () => {
+    document.cookie = `acme=${ACME_VALUE}; Path=/`;
+
+    const first = consentSnapshot(acmeConfig);
+
+    expect(first).not.toBeNull();
+    expect(consentSnapshot(acmeConfig)).toBe(first);
+  });
+});
