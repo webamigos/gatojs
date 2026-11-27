@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { E2E_ADMIN } from "./env";
-import { signIn } from "./helpers";
+import { signInThroughApi } from "./helpers";
 
 const ONE_PIXEL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
@@ -22,7 +22,7 @@ test.describe("withoutTenantScope in the production build", () => {
     page,
     baseURL,
   }) => {
-    await signIn(page, E2E_ADMIN.email, E2E_ADMIN.password);
+    await signInThroughApi(page, baseURL!, E2E_ADMIN.email, E2E_ADMIN.password);
 
     const upload = await page.request.post("/api/uploads", {
       headers: { origin: baseURL! },
@@ -48,8 +48,9 @@ test.describe("withoutTenantScope in the production build", () => {
   test("an API key created in the UI authenticates GET /api/v1/organization", async ({
     page,
     request,
+    baseURL,
   }) => {
-    await signIn(page, E2E_ADMIN.email, E2E_ADMIN.password);
+    await signInThroughApi(page, baseURL!, E2E_ADMIN.email, E2E_ADMIN.password);
 
     await page.goto("/api-keys");
     await page.getByRole("button", { name: API_KEY_LABELS.create }).click();

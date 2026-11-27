@@ -82,6 +82,28 @@ export async function signIn(
   await page.waitForURL("**/dashboard");
 }
 
+const SIGN_IN_RATE_LIMIT_WINDOW_MS = 10_000;
+
+export async function signInThroughApi(
+  page: Page,
+  baseURL: string,
+  email: string,
+  password: string,
+): Promise<void> {
+  // WHY: better-auth allows 3 sign-ins per 10 s per IP in production builds; specs that
+  // run after core-auth.spec.ts in the same worker hit 429 and must wait for the window.
+  await expect(async () => {
+    const response = await page.request.post("/api/auth/sign-in/email", {
+      headers: { origin: baseURL },
+      data: { email, password },
+    });
+    expect(response.status()).toBe(200);
+  }).toPass({
+    intervals: [1_000, 2_000, 4_000],
+    timeout: SIGN_IN_RATE_LIMIT_WINDOW_MS + 5_000,
+  });
+}
+
 export async function signUp(
   page: Page,
   user: { name: string; email: string; password: string },
