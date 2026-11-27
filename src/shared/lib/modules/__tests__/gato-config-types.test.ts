@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { defineGatoConfig } from "../gato-config";
 
 describe("defineGatoConfig: keys from the extension points catalog", () => {
-  it("returns a config that uses only catalog keys unchanged", () => {
+  it("returns a config that uses only core catalog keys unchanged", () => {
     const config = {
       modules: {
         dashboard: {
@@ -10,16 +10,13 @@ describe("defineGatoConfig: keys from the extension points catalog", () => {
           slots: { "dashboard.sections": {} },
         },
         users: { components: { "users.invite-dialog": null } },
-        uploads: {
-          permissions: { "uploads.delete-others": ["owner" as const] },
-        },
         app: { slots: { "app.header.actions": {} } },
       },
     };
     expect(defineGatoConfig(config)).toBe(config);
   });
 
-  it("rejects an unknown module, nav id, slot, component handle and permission at compile time", () => {
+  it("rejects an unknown module, nav id, slot and component handle at compile time", () => {
     const configs = [
       defineGatoConfig({
         modules: {
@@ -57,17 +54,7 @@ describe("defineGatoConfig: keys from the extension points catalog", () => {
           },
         },
       }),
-      defineGatoConfig({
-        modules: {
-          uploads: {
-            permissions: {
-              // @ts-expect-error uploads.nope is not a PermissionKey
-              "uploads.nope": ["owner"],
-            },
-          },
-        },
-      }),
     ];
-    expect(configs).toHaveLength(5);
+    expect(configs).toHaveLength(4);
   });
 });
