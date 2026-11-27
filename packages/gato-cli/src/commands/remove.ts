@@ -219,6 +219,7 @@ export async function remove(
     remaining,
   );
 
+  const kept = await keptSeedFiles(projectDir, entry.files);
   for (const path of absolutePaths) {
     await rm(path, { force: true });
     await removeEmptyParents(projectDir, path);
@@ -237,7 +238,6 @@ export async function remove(
       );
     }
   }
-  const kept = await keptSeedFiles(projectDir, entry.files);
   if (kept.length > 0) {
     log(`Kept seed files of ${module} (yours, edit or delete them):`);
     for (const file of kept) {

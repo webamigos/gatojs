@@ -22339,6 +22339,7 @@ ${changed.map((file2) => `  ${file2}`).join("\n")}`
     entry2.manifest,
     remaining
   );
+  const kept = await keptSeedFiles(projectDir, entry2.files);
   for (const path2 of absolutePaths) {
     await rm3(path2, { force: true });
     await removeEmptyParents(projectDir, path2);
@@ -22355,7 +22356,6 @@ ${changed.map((file2) => `  ${file2}`).join("\n")}`
       );
     }
   }
-  const kept = await keptSeedFiles(projectDir, entry2.files);
   if (kept.length > 0) {
     log(`Kept seed files of ${module} (yours, edit or delete them):`);
     for (const file2 of kept) {
