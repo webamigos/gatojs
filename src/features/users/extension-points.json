@@ -1,0 +1,46 @@
+{
+  "stability": "stable",
+  "description": "Users page: user list, invitations, roles and impersonation",
+  "nav": {
+    "users.list": {
+      "stability": "stable",
+      "description": "Users link in the sidebar (Members when MULTI_ORG is on)"
+    }
+  },
+  "slots": {
+    "users.table.row-actions": {
+      "stability": "stable",
+      "description": "Client actions in each row of the users table"
+    },
+    "users.table.columns": {
+      "stability": "experimental",
+      "description": "Client columns added to the users table"
+    }
+  },
+  "components": {
+    "users.invite-dialog": {
+      "stability": "stable",
+      "description": "Dialog that invites a user by email"
+    }
+  },
+  "events": {
+    "users.invited": {
+      "stability": "stable",
+      "description": "A user was invited to the organization by email"
+    },
+    "users.invitation-accepted": {
+      "stability": "stable",
+      "description": "An invitation was accepted by its recipient"
+    },
+    "users.invitation-canceled": {
+      "stability": "stable",
+      "description": "An invitation was canceled before it was accepted"
+    }
+  },
+  "commands": {
+    "users.invite": {
+      "stability": "stable",
+      "description": "Invite a user by email to the organization with a role"
+    }
+  }
+}

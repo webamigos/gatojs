@@ -1,11 +1,11 @@
 "use server";
 
 import { auditActor, trackAudit } from "@/shared/lib/audit";
-import { requireModuleAccess } from "@/shared/lib/auth/require-module-access";
-import { assertServiceModeConfirmed } from "@/shared/lib/auth/service-mode";
+import { defineCommand } from "@/shared/lib/commands/define-command";
+import { runCommand } from "@/shared/lib/commands/run-command";
 import { prisma } from "@/shared/lib/prisma";
 import type { OperationResult } from "@/shared/types/common";
-import { DomainError, handleCommandError } from "@/shared/utils/error-handling";
+import { DomainError } from "@/shared/utils/error-handling";
 import {
   apiKeyIdSchema,
   createApiKeySchema,
@@ -29,14 +29,18 @@ async function findOrganizationKey(id: string, organizationId: string) {
   return key;
 }
 
-export async function createApiKeyCommand(
-  input: unknown,
-  confirmation?: unknown,
-): Promise<OperationResult<{ id: string; plaintext: string }>> {
-  const context = await requireModuleAccess(MODULE_KEY);
-  try {
-    assertServiceModeConfirmed(context, confirmation);
-    const parsed = createApiKeySchema().parse(input);
+const createApiKey = defineCommand({
+  key: "api-keys.create",
+  module: MODULE_KEY,
+  access: "module",
+  input: createApiKeySchema(),
+  failureMessage: "Nie udało się utworzyć klucza",
+  events: ["api-keys.created"],
+  run: async (
+    parsed,
+    context,
+    emit,
+  ): Promise<OperationResult<{ id: string; plaintext: string }>> => {
     const now = new Date();
     const expiresAt =
       parsed.expiresInDays === null
@@ -75,20 +79,23 @@ export async function createApiKeyCommand(
       entityId: created.id,
       newData: { name: parsed.name, scopes: parsed.scopes, displayPrefix },
     });
+    emit("api-keys.created", {
+      apiKeyId: created.id,
+      name: parsed.name,
+      scopes: parsed.scopes,
+    });
     return { success: true, data: { id: created.id, plaintext } };
-  } catch (error) {
-    return handleCommandError(error, "Nie udało się utworzyć klucza");
-  }
-}
+  },
+});
 
-export async function revokeApiKeyCommand(
-  input: unknown,
-  confirmation?: unknown,
-): Promise<OperationResult> {
-  const context = await requireModuleAccess(MODULE_KEY);
-  try {
-    assertServiceModeConfirmed(context, confirmation);
-    const { id } = apiKeyIdSchema.parse(input);
+const revokeApiKey = defineCommand({
+  key: "api-keys.revoke",
+  module: MODULE_KEY,
+  access: "module",
+  input: apiKeyIdSchema,
+  failureMessage: "Nie udało się unieważnić klucza",
+  events: ["api-keys.revoked"],
+  run: async ({ id }, context, emit): Promise<OperationResult> => {
     const key = await findOrganizationKey(id, context.organizationId);
     if (key.revokedAt !== null) {
       return { success: true };
@@ -105,21 +112,20 @@ export async function revokeApiKeyCommand(
         entityId: id,
         oldData: { name: key.name, displayPrefix: key.displayPrefix },
       });
+      emit("api-keys.revoked", { apiKeyId: id });
     }
     return { success: true };
-  } catch (error) {
-    return handleCommandError(error, "Nie udało się unieważnić klucza");
-  }
-}
+  },
+});
 
-export async function deleteApiKeyCommand(
-  input: unknown,
-  confirmation?: unknown,
-): Promise<OperationResult> {
-  const context = await requireModuleAccess(MODULE_KEY);
-  try {
-    assertServiceModeConfirmed(context, confirmation);
-    const { id } = apiKeyIdSchema.parse(input);
+const deleteApiKey = defineCommand({
+  key: "api-keys.delete",
+  module: MODULE_KEY,
+  access: "module",
+  input: apiKeyIdSchema,
+  failureMessage: "Nie udało się usunąć klucza",
+  events: ["api-keys.deleted"],
+  run: async ({ id }, context, emit): Promise<OperationResult> => {
     const key = await findOrganizationKey(id, context.organizationId);
     const { count } = await prisma.apiKey.deleteMany({
       where: { id, organizationId: context.organizationId },
@@ -132,9 +138,29 @@ export async function deleteApiKeyCommand(
         entityId: id,
         oldData: { name: key.name, displayPrefix: key.displayPrefix },
       });
+      emit("api-keys.deleted", { apiKeyId: id });
     }
     return { success: true };
-  } catch (error) {
-    return handleCommandError(error, "Nie udało się usunąć klucza");
-  }
+  },
+});
+
+export async function createApiKeyCommand(
+  input: unknown,
+  confirmation?: unknown,
+): Promise<OperationResult<{ id: string; plaintext: string }>> {
+  return runCommand(createApiKey, input, confirmation);
+}
+
+export async function revokeApiKeyCommand(
+  input: unknown,
+  confirmation?: unknown,
+): Promise<OperationResult> {
+  return runCommand(revokeApiKey, input, confirmation);
+}
+
+export async function deleteApiKeyCommand(
+  input: unknown,
+  confirmation?: unknown,
+): Promise<OperationResult> {
+  return runCommand(deleteApiKey, input, confirmation);
 }

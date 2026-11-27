@@ -1,0 +1,10 @@
+{
+  "stability": "experimental",
+  "description": "Notes fixture module used by the project-module CI check",
+  "events": {
+    "notes.created": {
+      "stability": "experimental",
+      "description": "A note was created in the organization"
+    }
+  }
+}

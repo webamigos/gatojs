@@ -6,7 +6,8 @@ Po przeczytaniu będziesz wiedzieć:
 - dlaczego funkcja projektu potrzebuje wpisu w `projectModules` w `.wa/kit.json` i po czym poznasz, że go brakuje;
 - jak dodać tabelę domenową z `organizationId`, relację zwrotną i migrację;
 - jak zaplanować i napisać testy komendy i test izolacji, zanim powstanie kod;
-- jakie błędy Prismy i Vitest pojawiają się w tych krokach i co z nimi zrobić.
+- jakie błędy Prismy i Vitest pojawiają się w tych krokach i co z nimi zrobić;
+- jak wygląda pełny moduł `invoices`, który korzysta z punktów rozszerzeń bez edycji plików GatoJS.
 
 Zweryfikowano z kodem: 25adbb8, 2026-10-28
 
@@ -783,6 +784,59 @@ export default function InviteDialogWithNotes({ Base, ...props }: WrapperProps<I
 - Po dodaniu albo usunięciu `components.ts` uruchom `npm run wa -- generate`.
 - Uchwyt ma tylko wybrany komponent; nowy dodaje GatoJS na prośbę (issue w `webamigos/gatojs`). Moduł GatoJS deklaruje swój uchwyt w `components.ts` (`export const componentHandles = [defineComponentHandle("<x>.<nazwa>")]` i typ propsów w `declare module "@/shared/lib/modules/component-overrides" { interface ComponentHandleMap { … } }`, jak `src/features/users/components.ts`), a komponent eksportuje jako `overridable("<x>.<nazwa>", KomponentBase)` z `src/shared/lib/modules/overridable.tsx`. Zwrócony komponent przyjmuje propsy uchwytu i dodatkowo `viewer` (`{ userRole, orgRole, multiOrg }`, jak `ClientSlot`), np. `<InviteUserDialog viewer={viewer} />` w `UsersManager`; `viewer` nie trafia ani do komponentu GatoJS, ani do nadpisania.
 - Testy rdzenia, które sprawdzają komponent GatoJS z uchwytem, przypinają go mockiem `vi.mock("@/shared/lib/modules/overridable", () => ({ overridable: (_handle, Base) => Base }))`, więc przechodzą także w projekcie, który ten uchwyt nadpisuje.
+
+<a id="punkty-rozszerzen"></a>
+
+## Katalog punktów rozszerzeń
+
+Wszystkie klucze, przez które projekt zmienia zachowanie GatoJS (moduły, pozycje nawigacji, sloty, uchwyty komponentów, zdarzenia, komendy z hookami `before`, ścieżki better-auth, uprawnienia), są w `EXTENSION_POINTS.md` w katalogu głównym projektu, z modułem, etykietą `stable` albo `experimental` i jednym zdaniem opisu ([ADR-63](adrs/63-extension-points-are-namespaced-labelled-and-catalogued.md)). Klucz `stable` zmienia się tylko z podbiciem `kitFormat` i notą wydania, `experimental` może się zmienić w każdym wydaniu. Agent zaczyna od skilla `gato-extend` (`.claude/skills/gato-extend/SKILL.md`), a gdy żaden punkt nie pasuje: `npm run wa -- eject <plik> --reason "<powód>"` i szkic issue w `webamigos/gatojs`.
+
+Własne punkty modułu projektu opisujesz w `src/features/<x>/extension-points.json` i uruchamiasz `npm run wa -- generate`, który przepisuje `EXTENSION_POINTS.md` i `src/extension-points.generated.ts`:
+
+```json
+{
+  "stability": "stable",
+  "description": "Notatki organizacji",
+  "nav": { "notes.list": { "stability": "stable", "description": "Link do notatek w menu" } },
+  "events": { "notes.created": { "stability": "experimental", "description": "Utworzono notatkę" } }
+}
+```
+
+Pola: `stability` i `description` modułu, potem mapy `nav`, `slots`, `components`, `events`, `commands`, `authPaths`, `permissions` z wpisami `{ "stability", "description" }`. Każdy klucz zaczyna się od `<moduł>.`. Test `src/__tests__/architecture/extension-points-exist.test.ts` porównuje katalog z kodem w obie strony i wypisuje klucz z plikiem, np. `notes.list: no nav item (expected in src/features/notes/module.ts)` albo `notes.created: missing from EXTENSION_POINTS.md (src/features/notes/events.ts)`. Klucz z katalogu, którego nie ma w kodzie, to błąd, nie ostrzeżenie. Moduł bez pliku dostaje w katalogu wiersz `experimental` bez opisu. Literówka w kluczu w `src/gato.config.ts` zatrzymuje też `npm run typecheck`, bo `defineGatoConfig` przyjmuje tylko klucze z katalogu.
+
+<a id="przyklad-invoices"></a>
+
+## Przykład: moduł `invoices` bez edycji plików GatoJS
+
+Pełny moduł projektu, który korzysta z punktów rozszerzeń, leży w repozytorium kitu w `packages/gato-cli/src/__tests__/fixtures/invoices-module/`. Job `assemble` w `.github/workflows/kit.yml` (kombinacje `uploads` i `all`) kopiuje go do złożonego projektu, dopisuje `manifest.json` do `projectModules`, uruchamia `npm run wa -- generate`, `npx prisma migrate dev --name add-invoices`, `npm run wa -- doctor --files` (oczekuje `GatoJS files: no changes`), testy jednostkowe i integracyjne oraz `npm run build`. Jeśli GatoJS zmieni klucz, z którego moduł korzysta, ten krok przestaje przechodzić.
+
+| Plik | Punkt rozszerzenia | Co robi |
+| --- | --- | --- |
+| `manifest.json` | wpis w `projectModules` | `requires: ["uploads"]`, `files` z `prisma/schema/invoices.prisma`, `src/features/invoices/**` i strony `/invoices`, relacja `invoices Invoice[]` na `Organization` |
+| `prisma/schema/invoices.prisma` | region `wa:relations` | model `Invoice` z `organizationId`; `pdfUploadId` to zwykła kolumna, bo `Upload` nie ma regionu relacji |
+| `src/features/invoices/module.ts` | moduł, pozycja nawigacji `invoices.list`, komenda `invoices.issue` | role, akcja audytu `invoice.issued`, cel uploadu `invoice-pdf` |
+| `src/features/invoices/extension-points.json` | katalog | własne klucze modułu: `invoices.list`, `invoices.issued`, `invoices.issue` (`experimental`) |
+| `services/commands/issue-invoice-command.ts` | `defineCommand` | wystawia szkic faktury aktywnej organizacji, emituje `invoices.issued`; UI woła ją przez `useServiceModeAction().run` |
+| `slots.ts` | slot `dashboard.sections` | karta nieopłaconych faktur tylko dla `owner` i `admin` |
+| `subscribers.ts` | zdarzenie `organizations.member-removed` | faktury usuniętego członka tracą `assigneeId` w jego organizacji |
+| `command-hooks.ts` | hook `before` na `uploads.delete` | PDF wystawionej faktury nie da się usunąć: `This file is attached to an issued invoice` |
+| `src/gato.config.ts` | pozycja nawigacji `dashboard.home` | przesuwa pulpit na `order: 5`, niczego nie wyłącza |
+
+Test izolacji (`invoices-isolation.integration.test.ts`) zakłada dwie organizacje i sprawdza każdą ścieżkę danych: wystawienie, listę nieopłaconych, hook na usunięciu pliku i subskrybenta. Hook i subskrybent filtrują po organizacji, którą dostają (`context.organizationId`, `event.organizationId`), tak jak każde inne zapytanie.
+
+Czego nie robić:
+
+| Nigdy | Dlaczego | Zamiast tego |
+| --- | --- | --- |
+| Edytować pliku GatoJS (ścieżki z hashem w `.wa/kit.json`) | każda aktualizacja go scala, poprawki bezpieczeństwa mogą wejść w konflikt | punkt z `EXTENSION_POINTS.md`; gdy żaden nie pasuje, `npm run wa -- eject <plik> --reason "<powód>"` i issue z prośbą o punkt |
+| Edytować `src/modules.generated.ts`, `src/modules.client.generated.ts` albo regionu `wa:*` | nadpisze je `generate` i każda aktualizacja | zmień manifest albo pliki modułu i uruchom `npm run wa -- generate` |
+| Czytać `activeOrganizationId` z sesji | pomija sprawdzenie członkostwa i tryb serwisowy | `getOrgContext()` z `src/shared/lib/auth/org-context.ts` |
+| Brać `organizationId` z wejścia | pozwala zapisać dane innej organizacji | `context.organizationId` w każdym `where` i `data` |
+| Pominąć `assertServiceModeConfirmed(context, confirmation)` w komendzie | superadmin zmienia dane klienta bez potwierdzenia | `defineCommand` i `runCommand` robią to za ciebie; ręcznie: zaraz po guardzie, przed Prismą |
+| Wołać komendę z UI bezpośrednio | w trybie serwisowym kończy się błędem, którego żaden test nie złapie | `useServiceModeAction().run(command, input)` |
+| Używać `withoutTenantScope` bez powodu | ukrywa odczyt między organizacjami | tylko świadomy odczyt między organizacjami, z powodem |
+| Wkładać kod serwerowy (Prisma, `getOrgContext()`) do `module.ts`, `client-slots.ts`, `components.ts` albo `src/gato.config.ts` | trafiają do paczki przeglądarki | kod serwerowy w `subscribers.ts`, `command-hooks.ts`, `setup.ts`, `services/`; komponent w `slots.ts` woła query |
+| Nazwać klucz bez przedrostka modułu | klucze modułów się zderzają | `invoices.<nazwa>` |
 
 <a id="dalej"></a>
 

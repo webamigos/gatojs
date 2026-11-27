@@ -1,0 +1,23 @@
+{
+  "name": "invoices",
+  "version": "0.1.0",
+  "description": "Invoices with PDF attachments",
+  "requires": ["uploads"],
+  "files": [
+    "prisma/schema/invoices.prisma",
+    "src/features/invoices/**",
+    "src/app/[locale]/(app)/invoices/**"
+  ],
+  "dependencies": {},
+  "devDependencies": {},
+  "env": [],
+  "schemaRelations": [
+    {
+      "model": "Organization",
+      "field": "invoices Invoice[]"
+    }
+  ],
+  "compose": null,
+  "ciSteps": null,
+  "workspaces": []
+}

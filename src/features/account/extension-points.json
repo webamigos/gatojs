@@ -1,0 +1,16 @@
+{
+  "stability": "stable",
+  "description": "Account page with the user details and the password change form",
+  "nav": {
+    "account.home": {
+      "stability": "stable",
+      "description": "Account link in the sidebar"
+    }
+  },
+  "slots": {
+    "account.sections": {
+      "stability": "stable",
+      "description": "Server sections on the account page, rendered with the signed-in user id"
+    }
+  }
+}

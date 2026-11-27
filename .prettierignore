@@ -10,6 +10,8 @@ volumes
 src/modules.generated.ts
 src/modules.client.generated.ts
 src/i18n/locales.generated.ts
+src/extension-points.generated.ts
+EXTENSION_POINTS.md
 reports
 .stryker-tmp
 .wa/bin

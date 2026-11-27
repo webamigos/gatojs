@@ -1,0 +1,22 @@
+{
+  "stability": "stable",
+  "description": "Organization files on disk or in S3 storage",
+  "events": {
+    "uploads.deleted": {
+      "stability": "stable",
+      "description": "A file was deleted from the organization and its storage"
+    }
+  },
+  "commands": {
+    "uploads.delete": {
+      "stability": "stable",
+      "description": "Delete a file of the organization from the database and storage"
+    }
+  },
+  "permissions": {
+    "uploads.delete-others": {
+      "stability": "stable",
+      "description": "Delete files uploaded by other members (default: owner, admin)"
+    }
+  }
+}

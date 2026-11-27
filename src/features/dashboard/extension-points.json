@@ -1,0 +1,16 @@
+{
+  "stability": "stable",
+  "description": "Dashboard page and its sections",
+  "nav": {
+    "dashboard.home": {
+      "stability": "stable",
+      "description": "Dashboard link in the sidebar"
+    }
+  },
+  "slots": {
+    "dashboard.sections": {
+      "stability": "stable",
+      "description": "Server sections under the dashboard heading, rendered with the organization id"
+    }
+  }
+}

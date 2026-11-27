@@ -1,0 +1,22 @@
+{
+  "stability": "experimental",
+  "description": "Invoices fixture module used by the assemble job as a contract test of the extension points",
+  "nav": {
+    "invoices.list": {
+      "stability": "experimental",
+      "description": "Invoices link in the sidebar"
+    }
+  },
+  "events": {
+    "invoices.issued": {
+      "stability": "experimental",
+      "description": "A draft invoice was issued"
+    }
+  },
+  "commands": {
+    "invoices.issue": {
+      "stability": "experimental",
+      "description": "Issue a draft invoice of the organization"
+    }
+  }
+}

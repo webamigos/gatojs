@@ -1,10 +1,11 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import { SmallestFileFirstSequencer } from "./vitest.sequencer.js";
 
 export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    exclude: [...configDefaults.exclude, "src/__tests__/fixtures/**"],
     setupFiles: ["./vitest.setup.ts"],
     passWithNoTests: true,
     sequence: {

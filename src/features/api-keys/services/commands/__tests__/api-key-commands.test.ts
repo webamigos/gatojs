@@ -64,6 +64,10 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/shared/config/project", () => ({
   project: { name: "WA App", slug: "wa-app" },
 }));
+vi.mock("@/modules.generated", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/modules.generated")>()),
+  moduleCommandHooks: [],
+}));
 
 import {
   createApiKeyCommand,
@@ -312,16 +316,19 @@ describe("createApiKeyCommand", () => {
     expect(result.success).toBe(true);
   });
 
-  it("member dostaje notFound i nic nie zapisuje", async () => {
+  it("member dostaje błąd operacji po odmowie dostępu do modułu i nic nie zapisuje", async () => {
     mockGetOrgContext.mockResolvedValue({
       ...OWNER_CONTEXT,
       orgRole: "member",
     });
 
-    await expect(createApiKeyCommand(validInput)).rejects.toThrow(
-      "NEXT_NOT_FOUND",
-    );
+    const result = await createApiKeyCommand(validInput);
 
+    expect(result).toEqual({
+      success: false,
+      error: "Nie udało się utworzyć klucza",
+    });
+    expect(mockNotFound).toHaveBeenCalledTimes(1);
     expectNoWrites();
   });
 
@@ -403,16 +410,19 @@ describe("revokeApiKeyCommand", () => {
     expectNoWrites();
   });
 
-  it("member dostaje notFound i nic nie zapisuje", async () => {
+  it("member dostaje błąd operacji po odmowie dostępu do modułu i nic nie zapisuje", async () => {
     mockGetOrgContext.mockResolvedValue({
       ...OWNER_CONTEXT,
       orgRole: "member",
     });
 
-    await expect(revokeApiKeyCommand({ id: KEY_ID })).rejects.toThrow(
-      "NEXT_NOT_FOUND",
-    );
+    const result = await revokeApiKeyCommand({ id: KEY_ID });
 
+    expect(result).toEqual({
+      success: false,
+      error: "Nie udało się unieważnić klucza",
+    });
+    expect(mockNotFound).toHaveBeenCalledTimes(1);
     expectNoWrites();
   });
 
@@ -434,16 +444,19 @@ describe("deleteApiKeyCommand", () => {
     expectNoWrites();
   });
 
-  it("member dostaje notFound i nic nie zapisuje", async () => {
+  it("member dostaje błąd operacji po odmowie dostępu do modułu i nic nie zapisuje", async () => {
     mockGetOrgContext.mockResolvedValue({
       ...OWNER_CONTEXT,
       orgRole: "member",
     });
 
-    await expect(deleteApiKeyCommand({ id: KEY_ID })).rejects.toThrow(
-      "NEXT_NOT_FOUND",
-    );
+    const result = await deleteApiKeyCommand({ id: KEY_ID });
 
+    expect(result).toEqual({
+      success: false,
+      error: "Nie udało się usunąć klucza",
+    });
+    expect(mockNotFound).toHaveBeenCalledTimes(1);
     expectNoWrites();
   });
 

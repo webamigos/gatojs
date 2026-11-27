@@ -310,6 +310,18 @@ describe("eject", () => {
       "src/i18n/locales.generated.ts is generated; change the manifest or module files and run npm run wa -- generate",
     ],
     [
+      "EXTENSION_POINTS.md",
+      "EXTENSION_POINTS.md",
+      "x",
+      "EXTENSION_POINTS.md is generated; change the manifest or module files and run npm run wa -- generate",
+    ],
+    [
+      "src/extension-points.generated.ts",
+      "src/extension-points.generated.ts",
+      "x",
+      "src/extension-points.generated.ts is generated; change the manifest or module files and run npm run wa -- generate",
+    ],
+    [
       "a managed file",
       "package.json",
       "x",

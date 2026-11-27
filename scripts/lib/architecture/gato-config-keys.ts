@@ -28,11 +28,11 @@ async function importDefault<T>(file: string): Promise<T> {
   return imported.default;
 }
 
-async function importModule<T>(file: string): Promise<T> {
+export async function importModule<T>(file: string): Promise<T> {
   return (await import(pathToFileURL(file).href)) as T;
 }
 
-type ModuleFile = { directory: string; file: string };
+export type ModuleFile = { directory: string; file: string };
 
 function featureDirectories(root: string): string[] {
   const features = path.join(root, FEATURES_DIRECTORY);
@@ -46,7 +46,7 @@ function featureDirectories(root: string): string[] {
     .sort();
 }
 
-function featureFiles(root: string, fileName: string): ModuleFile[] {
+export function featureFiles(root: string, fileName: string): ModuleFile[] {
   return featureDirectories(root)
     .map((directory) => ({
       directory,

@@ -1,0 +1,4 @@
+{
+  "stability": "stable",
+  "description": "Per-organization envelope encryption with data keys wrapped by a master key"
+}

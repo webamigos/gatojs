@@ -304,6 +304,41 @@ jobs:
           npm test
           npm run build
 
+      - name: Invoices project module uses the extension points without editing Gato files
+        if: matrix.combo.name == 'uploads' || matrix.combo.name == 'all'
+        working-directory: ${{ runner.temp }}/matrix-app
+        env:
+          FIXTURE: ${{ github.workspace }}/packages/gato-cli/src/__tests__/fixtures/invoices-module
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/matrix_e2e
+          INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/matrix_app_test
+          INTEGRATION_S3_ENDPOINT: http://localhost:9000
+          INTEGRATION_S3_BUCKET: matrix-app-uploads
+        run: |
+          cp -R "$FIXTURE/prisma" "$FIXTURE/src" .
+          node -e '
+            const fs = require("node:fs");
+            const manifest = JSON.parse(fs.readFileSync(process.env.FIXTURE + "/manifest.json", "utf8"));
+            const state = JSON.parse(fs.readFileSync(".wa/kit.json", "utf8"));
+            state.projectModules = { ...state.projectModules, invoices: { manifest } };
+            fs.writeFileSync(".wa/kit.json", JSON.stringify(state, null, 2) + "\n");
+          '
+          npm run wa -- generate
+          npx prisma migrate dev --name add-invoices
+          npx prisma generate
+          git add -A
+          doctor=$(npm run --silent wa -- doctor --files)
+          echo "$doctor"
+          if [ "$doctor" != "GatoJS files: no changes" ]; then
+            echo "The invoices fixture changed a Gato file; use an extension point instead." >&2
+            exit 1
+          fi
+          npm run typecheck
+          npm test
+          npm run test:integration
+          npm run build
+          npm run wa -- generate
+          git diff --exit-code
+
   # The S3 presets in docs/15-modul-uploads.md marked "verified in CI" run here.
   storage-presets:
     name: Storage preset (${{ matrix.store.name }})
