@@ -143,11 +143,15 @@ describe("import specifier extraction", () => {
   });
 });
 
-describe.runIf(fs.existsSync(path.join(repoRoot, "kit/kit.json")))(
+const hasKit = fs.existsSync(path.join(repoRoot, "kit/kit.json"));
+
+describe.runIf(hasKit)(
   "seed files stand alone after the module is removed",
   () => {
-    const seeds = readJson("kit/kit.json").seedFiles as string[];
-    const dirs = featureDirsOfModules();
+    const seeds = hasKit
+      ? (readJson("kit/kit.json").seedFiles as string[])
+      : [];
+    const dirs = hasKit ? featureDirsOfModules() : new Map<string, string>();
     const moduleSeeds = seeds.filter((seed) => ownerDir(seed, dirs) !== null);
 
     it("finds the legal seed files under src/features/legal", () => {
