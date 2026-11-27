@@ -1,0 +1,8 @@
+{
+  "slots": {
+    "app.header.actions": {
+      "stability": "stable",
+      "description": "Server actions in the app header, rendered with the organization id"
+    }
+  }
+}

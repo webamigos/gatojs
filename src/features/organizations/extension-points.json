@@ -1,0 +1,52 @@
+{
+  "stability": "stable",
+  "description": "Organizations, memberships, invitation acceptance and the no-organization page",
+  "events": {
+    "organizations.created": {
+      "stability": "stable",
+      "description": "An organization was created with its owner"
+    },
+    "organizations.member-added": {
+      "stability": "stable",
+      "description": "A user became a member of the organization"
+    },
+    "organizations.member-removed": {
+      "stability": "stable",
+      "description": "A member was removed from the organization or left it"
+    },
+    "organizations.member-role-changed": {
+      "stability": "stable",
+      "description": "The organization role of a member changed"
+    }
+  },
+  "authPaths": {
+    "/organization/create": {
+      "stability": "stable",
+      "description": "better-auth creates an organization; emits organizations.created"
+    },
+    "/organization/invite-member": {
+      "stability": "stable",
+      "description": "better-auth invites a member by email; emits users.invited"
+    },
+    "/organization/cancel-invitation": {
+      "stability": "stable",
+      "description": "better-auth cancels an invitation; emits users.invitation-canceled"
+    },
+    "/organization/accept-invitation": {
+      "stability": "stable",
+      "description": "better-auth accepts an invitation; emits users.invitation-accepted and organizations.member-added"
+    },
+    "/organization/update-member-role": {
+      "stability": "stable",
+      "description": "better-auth changes a member role; emits organizations.member-role-changed"
+    },
+    "/organization/remove-member": {
+      "stability": "stable",
+      "description": "better-auth removes a member; emits organizations.member-removed"
+    },
+    "/organization/leave": {
+      "stability": "stable",
+      "description": "better-auth lets a member leave the organization; emits organizations.member-removed"
+    }
+  }
+}

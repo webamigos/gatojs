@@ -516,6 +516,18 @@ Kroki opisują, co zrobił plan 3 ([plan](superpowers/plans/2026-10-29-wa-kit-pl
 
 Testy rdzenia, które porównują rejestr z literałem, filtrują go do modułów rdzenia (`src/test/core-modules.ts`), więc nowy moduł ich nie psuje ([D37](decyzje.md#d37)). Spójność całego rejestru, z nowym modułem, sprawdza `src/shared/lib/modules/__tests__/registry-consistency.test.ts`.
 
+<a id="punkt-rozszerzen"></a>
+
+## Jak dodać punkt rozszerzenia
+
+Punkt rozszerzenia to klucz, przez który projekt zmienia zachowanie GatoJS bez edycji pliku Gato: pozycja nawigacji, slot, uchwyt komponentu, zdarzenie, komenda z hookami `before`, ścieżka better-auth, uprawnienie ([ADR-63](adrs/63-extension-points-are-namespaced-labelled-and-catalogued.md)). Każdy jest w katalogu `EXTENSION_POINTS.md`, generowanym z plików `extension-points.json`.
+
+1. **Klucz z prefiksem modułu.** `<moduł>.<nazwa>` (`users.invite-dialog`, `uploads.delete`); slot hostowany przez rdzeń (layout aplikacji) ma właściciela `app` (`app.header.actions`). Ścieżki better-auth to ścieżki endpointów (`/organization/remove-member`).
+2. **Deklaracja w kodzie.** Slot: `defineSlot` w `src/features/<x>/slots.ts` (rdzeń: `coreSlotDefinitions` w `src/shared/lib/modules/slots.ts`) i render przez `<Slot>`, `<ClientSlot>` albo `visibleContributions`. Uchwyt: `defineComponentHandle` w `components.ts` i `overridable("<klucz>", Base)`. Zdarzenie: `defineEvents` w `src/features/<x>/events.ts` (zdarzenia rdzenia: `src/shared/lib/events/core-events.ts`) i emisja przez `emitEvent` albo `events` komendy. Komenda: `defineCommand` i klucz w `commands` w `module.ts`. Uprawnienie i pozycja nawigacji: `permissions` i `nav[].id` w `module.ts`. Ścieżka better-auth: `ORGANIZATION_EVENT_PATHS` w `src/shared/lib/auth/organization-events.ts`.
+3. **Etykieta i opis** w `src/features/<x>/extension-points.json` (rdzeń: `src/shared/lib/modules/extension-points.json`): `stable`, gdy GatoJS obiecuje nie zmieniać klucza bez podbicia `kitFormat` i noty wydania, `experimental`, gdy kształt może się jeszcze zmienić (dziś tylko `users.table.columns`). Opis to jedno zdanie po angielsku, do 160 znaków, bez `|`.
+4. **`npm run wa -- generate`**, commit `EXTENSION_POINTS.md` i `src/extension-points.generated.ts` razem z kodem; podbij `version` modułu (minor). Test `extension-points-exist.test.ts` pada, gdy klucz jest tylko w kodzie albo tylko w katalogu.
+5. **Zmiana albo usunięcie klucza `stable`** to zmiana łamiąca: podbij `kitFormat` w `kit/kit.json` (i `SUPPORTED_KIT_FORMATS`), a w opisie PR i commicie `feat!:`/`BREAKING CHANGE:` podaj stary i nowy klucz, bo `src/gato.config.ts` i moduły projektów odwołujące się do starego klucza przestaną się budować.
+
 <a id="referencja"></a>
 
 ## Referencja
@@ -533,7 +545,7 @@ Schemat `kitConfigSchema` z `packages/gato-cli/src/kit/kit-config.ts`. Wszystkie
 | `kitOnly` | `string[]`, wzorce | 8 wzorców ([wyżej](#kit-a-projekt)) | `create`, `add` (pomijane przy kopiowaniu), test własności (pomijane) |
 | `placeholders` | `{ projectName, projectSlug, projectSnake }` | `WA App`, `wa-app`, `wa_app` | `create`, `add` (podmiana), `kit sync` (`project`) |
 | `placeholderFiles` | `string[]`, dokładne ścieżki | 12 plików ([wyżej](#placeholdery)) | `create`, `add` |
-| `generatedFiles` | `string[]`, wzorce | `src/modules.generated.ts`, `src/modules.client.generated.ts`, `src/i18n/locales.generated.ts` | `create`, `add` (pomijane przy kopiowaniu), test własności (pomijane) |
+| `generatedFiles` | `string[]`, wzorce | `src/modules.generated.ts`, `src/modules.client.generated.ts`, `src/i18n/locales.generated.ts`, `src/extension-points.generated.ts`, `EXTENSION_POINTS.md` | `create`, `add` (pomijane przy kopiowaniu), test własności (pomijane) |
 | `managedFiles` | `string[]`, dokładne ścieżki | `package.json`, `package-lock.json` | `create`, `add` (wartość `managed` zamiast hasha) |
 
 `kitOnly` i `generatedFiles` są dopasowywane jak wzorce `files` (`matchFiles`), a `placeholderFiles` i `managedFiles` porównywane dosłownie z ścieżką pliku.

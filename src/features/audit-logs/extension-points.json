@@ -1,0 +1,10 @@
+{
+  "stability": "stable",
+  "description": "Organization audit log with a sink and redaction of sensitive data",
+  "nav": {
+    "audit-logs.list": {
+      "stability": "stable",
+      "description": "Audit log link in the sidebar"
+    }
+  }
+}

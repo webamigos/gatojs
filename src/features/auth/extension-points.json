@@ -1,0 +1,10 @@
+{
+  "stability": "stable",
+  "description": "Sign-in, sign-up, password reset and set-password pages",
+  "events": {
+    "auth.signed-up": {
+      "stability": "stable",
+      "description": "A user signed up without an invitation and joined an organization"
+    }
+  }
+}

@@ -1,4 +1,11 @@
 import type { ComponentType } from "react";
+import type {
+  ComponentHandle,
+  ModuleKey,
+  NavItemId,
+  PermissionKey,
+  SlotId,
+} from "@/extension-points.generated";
 import type { OrgRole } from "@/shared/lib/auth/roles";
 import type {
   ModuleDef,
@@ -55,6 +62,27 @@ export interface GatoConfig {
   branding?: GatoBranding;
 }
 
+type CatalogKeyedMap<K extends string, V> = [K] extends [never]
+  ? Record<string, never>
+  : Partial<Record<K, V>>;
+
+export interface ProjectGatoModuleConfig extends Omit<
+  GatoModuleConfig,
+  "nav" | "permissions" | "slots" | "components"
+> {
+  nav?: CatalogKeyedMap<NavItemId, GatoNavOverride>;
+  permissions?: CatalogKeyedMap<PermissionKey, OrgRole[]>;
+  slots?: CatalogKeyedMap<SlotId, Record<string, GatoSlotOverride | null>>;
+  components?: CatalogKeyedMap<ComponentHandle, GatoComponentOverride | null>;
+}
+
+export interface ProjectGatoConfig extends Omit<GatoConfig, "modules"> {
+  modules?: CatalogKeyedMap<
+    ModuleKey | typeof CORE_SLOTS_CONFIG_KEY,
+    ProjectGatoModuleConfig
+  >;
+}
+
 export interface ModuleEntry<T> {
   module: string;
   value: T;
@@ -69,7 +97,7 @@ export const UNDISABLEABLE_MODULES: readonly string[] = [
   "organizations",
 ];
 
-export function defineGatoConfig(config: GatoConfig): GatoConfig {
+export function defineGatoConfig(config: ProjectGatoConfig): GatoConfig {
   return config;
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "api-keys",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Organization API keys: ApiKey model, peppered secret and scopes",
   "requires": [],
   "files": [
