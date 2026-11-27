@@ -4,7 +4,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-export const PROTECTION_MODE = "warn";
+export const PROTECTION_MODE = "block";
 
 const STATE_FILE = join(".wa", "kit.json");
 const GENERATED_HEADERS = [
@@ -63,6 +63,28 @@ export function decide(classification, mode, { path, module }) {
     };
   }
   return { action: "allow" };
+}
+
+export function hookOutput({ action, message }) {
+  if (action === "ask") {
+    return {
+      status: 0,
+      stdout: JSON.stringify({
+        systemMessage: message,
+        hookSpecificOutput: {
+          hookEventName: "PreToolUse",
+          permissionDecision: "ask",
+          permissionDecisionReason: message,
+          additionalContext: message,
+        },
+      }),
+      stderr: "",
+    };
+  }
+  if (action === "block") {
+    return { status: 2, stdout: "", stderr: `${message}\n` };
+  }
+  return { status: 0, stdout: "", stderr: "" };
 }
 
 function findUp(path, matches) {
@@ -146,22 +168,8 @@ const isEntrypoint =
   import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
 
 if (isEntrypoint) {
-  const { action, message } = decisionFor(readInput());
-  if (action === "ask") {
-    process.stdout.write(
-      JSON.stringify({
-        systemMessage: message,
-        hookSpecificOutput: {
-          hookEventName: "PreToolUse",
-          permissionDecision: "ask",
-          permissionDecisionReason: message,
-          additionalContext: message,
-        },
-      }),
-    );
-  }
-  if (action === "block") {
-    process.stderr.write(`${message}\n`);
-    process.exit(2);
-  }
+  const { status, stdout, stderr } = hookOutput(decisionFor(readInput()));
+  process.stdout.write(stdout);
+  process.stderr.write(stderr);
+  process.exitCode = status;
 }

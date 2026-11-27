@@ -113,7 +113,7 @@ npx prisma migrate dev --name <name>     # new migration
   - `.env.selfhost.example`: `# wa:modules:start/end`
 - Gato files (a content hash in `modules.*.files` of `.wa/kit.json`) are protected: use an extension point from
   `EXTENSION_POINTS.md`, or `npm run wa -- eject <file> --reason "<why>"`. The `.claude/hooks/protect-gato-files.mjs`
-  hook asks before an edit of one (warning mode) and blocks edits of generated files.
+  hook blocks edits of one and of generated files.
 - Don't edit generated files or regions by hand. Run `npm run wa -- generate`. CI checks that `generate` leaves no diff.
 - Features written in the project (not from the kit) have an entry in `projectModules` in `.wa/kit.json`: just a
   `manifest` (with `src/features/<x>/**` in `files`), no version or hashes. `wa generate` registers them after the kit

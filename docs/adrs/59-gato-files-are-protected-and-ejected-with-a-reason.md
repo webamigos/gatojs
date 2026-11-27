@@ -1,6 +1,6 @@
 # ADR-59: Gato files are protected, ejected with a recorded reason, and the CLI state carries a `kitFormat`
 
-**Status:** Accepted (warning mode; blocking from a later release, see extensibility plan Task 20)
+**Status:** Accepted (blocking since core 0.36.0 and gato-cli 0.15.0; warning mode in core 0.17–0.35 / gato-cli 0.5.0–0.14.0)
 **Date:** 2026-11-24
 **Decided by:** Patryk Omiotek, implemented by an agent
 
@@ -25,7 +25,7 @@ The CLI state carries the data for this:
 - The hash vocabulary gains `"seed"` next to `"managed"`: `fileHash` returns `"managed"` first, then `"seed"` for a path in `seedFiles`. A seed file is copied once by `create`; `wa update` never plans it, `wa remove` neither deletes it nor counts it as changed, and the marker is kept while the target kit still lists the path.
 - `kitFormat` changes whenever a contract the CLI reads changes: the `.wa/kit.json` or manifest schema, `wa:*` regions, the layout of generated files, the hash vocabulary. Filling a list such as `seedFiles` changes no contract.
 
-Enforcement of the groups starts as a warning (`gato doctor --files`, the `protect-gato-files` hook, `gato eject`, extensibility plan Tasks 2 and 3; the hook's warning is printed in the tool result, not only as an `ask` decision) and becomes blocking one release later (Task 20).
+Enforcement of the groups started as a warning (`gato doctor --files` from core 0.17.0 and gato-cli 0.5.0, the `protect-gato-files` hook from core 0.18.0, `gato eject`, extensibility plan Tasks 2 and 3; the hook's warning was printed in the tool result, not only as an `ask` decision) and became blocking in core 0.36.0 and gato-cli 0.15.0 (Task 20): `gato doctor --files` exits 1 and the hook blocks the edit with exit 2.
 
 ## Rejected alternatives
 

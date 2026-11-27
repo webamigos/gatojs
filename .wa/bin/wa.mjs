@@ -22171,7 +22171,7 @@ async function checkGatoFiles(input2) {
 }
 
 // src/doctor/mode.ts
-var FILE_PROTECTION_MODE = "warn";
+var FILE_PROTECTION_MODE = "block";
 
 // src/commands/remove.ts
 import {
@@ -25267,7 +25267,7 @@ function cliDependency(input2) {
 }
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.14.0" };
+var identity = { name: "wa", version: "0.15.0" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);

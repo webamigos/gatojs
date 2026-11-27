@@ -1,6 +1,6 @@
 ---
 name: gato-extend
-description: Change how GatoJS behaves in a project without editing Gato files - find the extension point in `EXTENSION_POINTS.md` (project config, nav item, slot, component handle, event, command hook, better-auth hook, permission, organization setup), and eject a file with a reason only when none fits. Use before editing a file owned by a GatoJS module, when the protect-gato-files hook warns, or when asked to change, hide, replace, disable, react to or block core behaviour. Triggers - "change the dashboard", "hide the menu item", "replace the invite dialog", "when a member is removed", "block deleting a file", "disable api keys", "zmień zachowanie rdzenia", "podmień komponent", "ukryj moduł".
+description: Change how GatoJS behaves in a project without editing Gato files - find the extension point in `EXTENSION_POINTS.md` (project config, nav item, slot, component handle, event, command hook, better-auth hook, permission, organization setup), and eject a file with a reason only when none fits. Use before editing a file owned by a GatoJS module, when the protect-gato-files hook blocks an edit, or when asked to change, hide, replace, disable, react to or block core behaviour. Triggers - "change the dashboard", "hide the menu item", "replace the invite dialog", "when a member is removed", "block deleting a file", "disable api keys", "zmień zachowanie rdzenia", "podmień komponent", "ukryj moduł".
 ---
 
 # Extending GatoJS without editing Gato files

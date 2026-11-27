@@ -62,7 +62,7 @@ CLI to jeden plik, `.wa/bin/wa.mjs`, zapisany w repozytorium kitu i w każdym pr
 | `wa remove <moduł> [--force] [--no-install]` | w projekcie | Usuwa pliki modułu kitu i jego zależności npm ([wa remove](#wa-remove)). | nie |
 | `wa list [--kit <źródło>]` | w projekcie | Wypisuje moduły zainstalowane, dostępne w kicie i moduły projektu ([wa list](#wa-list)). | tylko do listy „Dostępne” |
 | `wa update <wersja> [--kit <źródło>] [--dry-run] [--no-install]` | w projekcie | Przenosi rdzeń i wszystkie moduły kitu na wersję `<wersja>`, scalając zmiany kitu z lokalnymi zmianami projektu ([wa update](#wa-update)). | tak, w wersji projektu i w wersji docelowej |
-| `wa doctor --files` | w projekcie i w kicie | Wypisuje zmienione, usunięte i wyjęte (ejected) pliki GatoJS; w okresie ostrzeżeń kończy się kodem 0 ([wa doctor](#wa-doctor)). | nie |
+| `wa doctor --files` | w projekcie i w kicie | Wypisuje zmienione, usunięte i wyjęte (ejected) pliki GatoJS; kończy się kodem 1, gdy plik jest zmieniony, usunięty albo wpis w `ejected` jest nieaktualny ([wa doctor](#wa-doctor)). | nie |
 | `wa eject <plik> --reason "<powód>"`, `wa eject --undo <plik> [--kit <źródło>]` | w projekcie | Zapisuje plik GatoJS jako zmieniany świadomie albo przywraca jego wersję z kitu ([wa eject](#wa-eject)). | tylko `--undo`, w wersji projektu |
 | `wa generate` | w projekcie i w kicie | Odświeża pliki generowane i regiony `wa:*` ([02b](02b-rejestr-i-generator.md#wa-generate)). | nie |
 | `wa kit sync` | tylko w kicie | Przepisuje `.wa/kit.json` kitu z manifestów ([16b](16b-rozwoj-kitu.md)). | działa w kicie |
@@ -701,9 +701,9 @@ Plik GatoJS to ścieżka z hashem treści w `modules.<moduł>.files` w `.wa/kit.
 | `ejected   <plik> (changed\|unchanged): <powód>` | plik ma wpis w `ejected`; `unchanged` znaczy, że wpis jest już zbędny | nic albo `wa eject --undo <plik>` |
 | `stale     <plik>: …` | wpis w `ejected` dla ścieżki, która nie jest już plikiem GatoJS | usuń wpis z `ejected` w `.wa/kit.json` |
 
-Przy każdym znalezisku CLI dopisuje wskazówkę o punktach rozszerzeń w `EXTENSION_POINTS.md` (gdy plik istnieje), a w okresie ostrzeżeń linię `This is a warning for now; …`. Projekt bez znalezisk dostaje `GatoJS files: no changes`. Komendy w podpowiedziach mają przedrostek `npm run wa --` w bundlu i `gato` w pakiecie npm.
+Przy każdym znalezisku CLI dopisuje wskazówkę o punktach rozszerzeń w `EXTENSION_POINTS.md` (gdy plik istnieje), a w trybie `"warn"` także linię `This is a warning for now; …` (w domyślnym trybie `"block"` jej nie ma). Projekt bez znalezisk dostaje `GatoJS files: no changes`. Komendy w podpowiedziach mają przedrostek `npm run wa --` w bundlu i `gato` w pakiecie npm.
 
-Kod wyjścia zależy od stałej `FILE_PROTECTION_MODE` w `packages/gato-cli/src/doctor/mode.ts`: dziś `"warn"`, więc zawsze 0; po przełączeniu na `"block"` (zadanie T20 planu rozszerzalności) 1, gdy jest choć jeden plik `modified`, `deleted` albo `stale`. Wyjęte pliki nigdy nie zmieniają kodu wyjścia. `npm run verify` kończy się krokiem `npm run wa -- doctor --files`; w repozytorium GatoJS `files` modułów jest puste, więc krok niczego nie zgłasza. `wa doctor` bez `--files` kończy się błędem `Only wa doctor --files is implemented; run it with --files`.
+Kod wyjścia zależy od stałej `FILE_PROTECTION_MODE` w `packages/gato-cli/src/doctor/mode.ts`: od gato-cli 0.15.0 `"block"`, więc 1, gdy jest choć jeden plik `modified`, `deleted` albo `stale`, a inaczej 0. Tryb `"warn"` (zawsze 0) był domyślny do gato-cli 0.14.0 i zostaje w kodzie, ale nie jest już domyślny. Wyjęte pliki nigdy nie zmieniają kodu wyjścia. `npm run verify` kończy się krokiem `npm run wa -- doctor --files`; w repozytorium GatoJS `files` modułów jest puste, więc krok niczego nie zgłasza. `wa doctor` bez `--files` kończy się błędem `Only wa doctor --files is implemented; run it with --files`.
 
 <a id="wa-eject"></a>
 
@@ -786,8 +786,8 @@ Zmienna środowiskowa `WA_KIT_SOURCE` działa jak `--kit` w `add`, `list` i `upd
 
 | Kod | Kiedy |
 | --- | --- |
-| 0 | Komenda się udała, także z liniami `Uwaga: …`. `wa doctor --files` w trybie `"warn"`, także ze znaleziskami. `wa list`, także gdy kitu nie dało się pobrać. `wa update` bez konfliktów i bez plików „do decyzji”, `wa update --dry-run` (także z konfliktami w planie) i `wa update` do wersji, którą projekt już ma. |
-| 1 | Każdy komunikat z tabeli niżej, każdy surowy błąd (Node, Zod, JSON, proces) i linia `Użycie: …`. `wa update` z konfliktem albo plikiem „do decyzji”, mimo zapisanych zmian (sprawdzone dla konfliktu). `wa doctor --files` w trybie `"block"` z plikiem `modified`, `deleted` albo `stale`. |
+| 0 | Komenda się udała, także z liniami `Uwaga: …`. `wa doctor --files` bez plików `modified`, `deleted` i `stale` (wyjęte pliki się nie liczą); w trybie `"warn"`, który nie jest domyślny, także ze znaleziskami. `wa list`, także gdy kitu nie dało się pobrać. `wa update` bez konfliktów i bez plików „do decyzji”, `wa update --dry-run` (także z konfliktami w planie) i `wa update` do wersji, którą projekt już ma. |
+| 1 | Każdy komunikat z tabeli niżej, każdy surowy błąd (Node, Zod, JSON, proces) i linia `Użycie: …`. `wa update` z konfliktem albo plikiem „do decyzji”, mimo zapisanych zmian (sprawdzone dla konfliktu). `wa doctor --files` (domyślny tryb `"block"`) z plikiem `modified`, `deleted` albo `stale`. |
 
 `npm run wa -- …` kończy się tym samym kodem co bundel (sprawdzone dla kodu 1 z npm 11.21.1).
 
