@@ -127,16 +127,36 @@ function scan(
   }
 }
 
+function withoutComments(text: string): string {
+  let result = "";
+  let index = 0;
+  while (index < text.length) {
+    const afterComment = skipComment(text, index);
+    if (afterComment !== index) {
+      index = afterComment;
+      continue;
+    }
+    const char = text[index];
+    const end =
+      char === '"' || char === "'" || char === "`"
+        ? skipString(text, index)
+        : index + 1;
+    result += text.slice(index, end);
+    index = end;
+  }
+  return result;
+}
+
 function callArguments(text: string, openParen: number): string[] {
   const args: string[] = [];
   let argumentStart = openParen + 1;
   scan(text, openParen, (char, index, depth) => {
     if (char === "," && depth === 1) {
-      args.push(text.slice(argumentStart, index).trim());
+      args.push(withoutComments(text.slice(argumentStart, index)).trim());
       argumentStart = index + 1;
     }
     if (char === ")" && depth === 0) {
-      args.push(text.slice(argumentStart, index).trim());
+      args.push(withoutComments(text.slice(argumentStart, index)).trim());
       return true;
     }
     return false;
