@@ -597,21 +597,44 @@ async function createAdmin(stack: Stack): Promise<string> {
   return password;
 }
 
+type PassFailure = { stage: "stack" | "scenario"; error: unknown };
+
 type SealedRun = {
   captureLines: string[];
   canary: string;
   routed: boolean;
   holders: ReadonlyMap<string, readonly string[]>;
-  scenarioError?: unknown;
+  failure?: PassFailure;
 };
 
-async function runScenarioSafely(
+type ServiceState = {
+  Service?: string;
+  State?: string;
+  Health?: string;
+  ExitCode?: number;
+};
+
+const FAILED_SERVICE_LOG_LINES = "30";
+
+async function startStack(stack: Stack): Promise<string> {
+  console.log("starting the sealed stack");
+  await stack.compose(["up", "-d", "--wait"]);
+  return createAdmin(stack);
+}
+
+async function runPass(
   stack: Stack,
   images: Images,
   resolver: string,
-): Promise<unknown> {
+): Promise<PassFailure | undefined> {
+  let password: string;
   try {
-    const password = await createAdmin(stack);
+    password = await startStack(stack);
+  } catch (error) {
+    console.error(`stack failed: ${errorMessage(error)}`);
+    return { stage: "stack", error };
+  }
+  try {
     await runScenario({
       http: curlClient(stack.network, resolver, images.check),
       appUrl: APP_URL,
@@ -623,8 +646,56 @@ async function runScenarioSafely(
     return undefined;
   } catch (error) {
     console.error(`scenario failed: ${errorMessage(error)}`);
-    return error;
+    return { stage: "scenario", error };
   }
+}
+
+function parseServiceStates(text: string): ServiceState[] {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return [];
+  }
+  if (trimmed.startsWith("[")) {
+    return JSON.parse(trimmed) as ServiceState[];
+  }
+  return trimmed
+    .split("\n")
+    .filter((line) => line.trim())
+    .map((line) => JSON.parse(line) as ServiceState);
+}
+
+function hasFailed(state: ServiceState): boolean {
+  const exitedBadly = state.State === "exited" && (state.ExitCode ?? 0) !== 0;
+  return state.Health === "unhealthy" || exitedBadly;
+}
+
+async function failedServices(stack: Stack): Promise<string[]> {
+  const { stdout } = await stack.compose(["ps", "-a", "--format", "json"], {
+    quiet: true,
+  });
+  const services = parseServiceStates(stdout.toString())
+    .filter(hasFailed)
+    .map((state) => state.Service)
+    .filter((service): service is string => service !== undefined);
+  return [...new Set(services)];
+}
+
+async function describeFailedStack(stack: Stack): Promise<void> {
+  await bestEffort("compose ps", () => stack.compose(["ps", "-a"]));
+  await bestEffort("reading failed service logs", async () => {
+    for (const service of await failedServices(stack)) {
+      console.error(
+        `last ${FAILED_SERVICE_LOG_LINES} log lines of ${service}:`,
+      );
+      await stack.tryCompose([
+        "logs",
+        "--no-color",
+        "--tail",
+        FAILED_SERVICE_LOG_LINES,
+        service,
+      ]);
+    }
+  });
 }
 
 async function runSealed(
@@ -645,11 +716,12 @@ async function runSealed(
     const routed = await canaryIsRouted(stack);
     const canary = await canaryAddress(stack);
     console.log(`canary ${canary}, default route: ${routed ? "yes" : "no"}`);
-    console.log("starting the sealed stack");
-    await stack.compose(["up", "-d", "--wait"]);
-    const scenarioError = await runScenarioSafely(stack, images, resolver);
+    const failure = await runPass(stack, images, resolver);
     await sleep(TRAILING_CAPTURE_MS);
     await sampler.sample();
+    if (failure) {
+      await describeFailedStack(stack);
+    }
     const { stdout } = await mustRun("docker", ["logs", captureId], {
       quiet: true,
     });
@@ -658,7 +730,7 @@ async function runSealed(
       canary,
       routed,
       holders: sampler.holders,
-      scenarioError,
+      failure,
     };
   } finally {
     await sampler.stop();
@@ -676,9 +748,9 @@ function report(run: SealedRun, options: Options, resolver: string): 0 | 1 {
   for (const line of result.lines) {
     print(line);
   }
-  if (run.scenarioError !== undefined) {
+  if (run.failure) {
     console.error(
-      `scenario did not complete: ${errorMessage(run.scenarioError)}`,
+      `${run.failure.stage} did not complete: ${errorMessage(run.failure.error)}`,
     );
     return 1;
   }
