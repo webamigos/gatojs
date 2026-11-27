@@ -1,5 +1,5 @@
 {
-  "kitVersion": "0.39.1",
+  "kitVersion": "0.40.0",
   "kitRepo": "https://github.com/webamigos/gatojs.git",
   "kitFormat": 11,
   "project": {
@@ -87,10 +87,10 @@
       "files": {}
     },
     "core": {
-      "version": "0.35.4",
+      "version": "0.36.1",
       "manifest": {
         "name": "core",
-        "version": "0.35.4",
+        "version": "0.36.1",
         "description": "GatoJS core: auth, organizations, users, account, dashboard",
         "requires": [],
         "files": [
