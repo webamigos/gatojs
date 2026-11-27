@@ -380,6 +380,14 @@ describe("readExtensionPoints", () => {
     },
   );
 
+  it("rejects a feature whose extension-points.json is a directory instead of treating it as absent", async () => {
+    const dir = await project({});
+    await mkdir(join(dir, DEMO_FILE), { recursive: true });
+    await expect(
+      readExtensionPoints(dir, [{ name: "demo", hasModuleTs: true }]),
+    ).rejects.toThrow(/EISDIR/);
+  });
+
   it("accepts a description of 160 characters unchanged", async () => {
     const dir = await project({
       [DEMO_FILE]: {

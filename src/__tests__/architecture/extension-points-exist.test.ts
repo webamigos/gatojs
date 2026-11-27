@@ -681,6 +681,187 @@ export async function restoreUpload(origin) {
     );
   });
 
+  describe("scanner edge cases", () => {
+    const NEVER_RENDERED =
+      "dashboard.sections: declared in src/features/dashboard/slots.ts but never rendered";
+    const NEVER_EMITTED =
+      "uploads.deleted: declared in src/features/uploads/events.ts but never emitted";
+    const NO_OVERRIDABLE =
+      "users.invite-dialog: no overridable (expected in src/features/users/)";
+
+    const dashboardPage = (jsx: string) =>
+      write(
+        "src/app/dashboard/page.tsx",
+        `export default function DashboardPage() {\n  return ${jsx};\n}\n`,
+      );
+
+    const deleteUpload = (body: string) =>
+      write(
+        DELETE_UPLOAD_FILE,
+        `export async function deleteUpload(origin) {\n${body}\n}\n`,
+      );
+
+    it.each([
+      ['<Slot render={() => "a > b"} id="dashboard.sections" />'],
+      ['<Slot fallback="a > b" id="dashboard.sections" />'],
+      ['<Slot fallback="say \\"hi\\" > b" id="dashboard.sections" />'],
+    ])("skips a > inside a string before id in %s", async (jsx) => {
+      dashboardPage(jsx);
+      await expect(problems()).resolves.toEqual([]);
+    });
+
+    it("skips a ( inside a line comment between emitEvent arguments", async () => {
+      deleteUpload(`  await emitEvent(
+    origin, // see (
+    "uploads.deleted",
+    {},
+  );`);
+      await expect(problems()).resolves.toEqual([]);
+    });
+
+    it("skips a ( inside a block comment between emitEvent arguments", async () => {
+      deleteUpload(`  await emitEvent(
+    origin /* ( */,
+    "uploads.deleted",
+    {},
+  );`);
+      await expect(problems()).resolves.toEqual([]);
+    });
+
+    it("stops reading an emitEvent call at its closing parenthesis", async () => {
+      deleteUpload(
+        '  await emitEvent(origin, "uploads.deleted", {}); log(x, "uploads.ghost");',
+      );
+      await expect(problems()).resolves.toEqual([]);
+    });
+
+    it("counts visibleContributions whose first argument has a nested comma and parenthesis as a render", async () => {
+      write(
+        "src/features/users/slots.ts",
+        'export const slotDefinitions = [{ id: "users.table.columns", kind: "client" }];\n',
+      );
+      write(
+        "src/features/users/components/users-manager.tsx",
+        `export function UsersManager({ viewer, a, b }) {
+  const columns = visibleContributions(pick(a, b), "users.table.columns", viewer);
+  return columns.length;
+}
+`,
+      );
+      catalogWith({
+        slots: [...BASE_CATALOG.slots, row("users.table.columns", "users")],
+      });
+      await expect(problems()).resolves.toEqual([]);
+    });
+
+    it("counts an emitEvent whose event is the last argument as an emit", async () => {
+      deleteUpload('  await emitEvent(origin, "uploads.deleted");');
+      await expect(problems()).resolves.toEqual([]);
+    });
+
+    it("counts a multi-line emitEvent whose event is the last argument before the closing parenthesis as an emit", async () => {
+      deleteUpload(`  await emitEvent(
+    origin,
+    "uploads.deleted"
+  );`);
+      await expect(problems()).resolves.toEqual([]);
+    });
+
+    it("does not count an id of the next element after a Slot without id as a render", async () => {
+      dashboardPage(`(
+    <>
+      <Slot context={{}} />
+      <p id="dashboard.sections" />
+    </>
+  )`);
+      await expect(problems()).resolves.toEqual([NEVER_RENDERED]);
+    });
+
+    it("counts a Slot whose arrow function attribute precedes id as a render", async () => {
+      dashboardPage('<Slot render={() => null} id="dashboard.sections" />');
+      await expect(problems()).resolves.toEqual([]);
+    });
+
+    it.each([
+      ['overridable(prefix + "users.invite-dialog", Base)'],
+      ['overridable("users.invite-dialog" + suffix, Base)'],
+    ])("does not count %s as a handle", async (call) => {
+      write(
+        "src/features/users/components/invite-user-dialog.tsx",
+        `export const InviteUserDialog = ${call};\n`,
+      );
+      await expect(problems()).resolves.toEqual([NO_OVERRIDABLE]);
+    });
+
+    it.each([
+      "src/app/dashboard/page.tsx.orig",
+      "e2e/page.tsx",
+      "scripts/x.ts",
+    ])("does not count a render only in %s", async (file) => {
+      remove("src/app/dashboard/page.tsx");
+      write(file, DASHBOARD_PAGE);
+      await expect(problems()).resolves.toEqual([NEVER_RENDERED]);
+    });
+
+    it("accepts organization-events.ts without ORGANIZATION_EVENT_PATHS when the catalog has no auth paths", async () => {
+      write(
+        ORGANIZATION_EVENTS_FILE,
+        `export function organizationCreated(origin) {
+  return {
+    origin: origin,
+    name: "organizations.created",
+    payload: {},
+  };
+}
+`,
+      );
+      catalogWith({ authPaths: [] });
+      await expect(problems()).resolves.toEqual([]);
+    });
+
+    it("detects an events array written without a space after the colon", async () => {
+      remove(DELETE_UPLOAD_FILE);
+      write(
+        COMMANDS_FILE,
+        `export const deleteUpload = defineCommand({
+  key: "uploads.delete",
+  module: "uploads",
+  events:["uploads.deleted"],
+  run: async () => null,
+});
+`,
+      );
+      await expect(problems()).resolves.toEqual([]);
+    });
+
+    it("detects a core event name written without a space after the colon", async () => {
+      write(
+        ORGANIZATION_EVENTS_FILE,
+        ORGANIZATION_EVENTS.replace(
+          'name: "organizations.created"',
+          'name:"organizations.created"',
+        ),
+      );
+      await expect(problems()).resolves.toEqual([]);
+    });
+
+    it("detects a defineCommand key written without a space after the colon", async () => {
+      write(
+        COMMANDS_FILE,
+        UPLOAD_COMMANDS.replace(
+          'key: "uploads.delete"',
+          'key:"uploads.delete"',
+        ),
+      );
+      await expect(problems()).resolves.toEqual([]);
+    });
+
+    it("reports the feature event as never emitted when the only emit is removed", async () => {
+      remove(DELETE_UPLOAD_FILE);
+      await expect(problems()).resolves.toEqual([NEVER_EMITTED]);
+    });
+  });
+
   describe("order", () => {
     it("returns problems in kind order, then by key in code point order, then by message", async () => {
       write(
