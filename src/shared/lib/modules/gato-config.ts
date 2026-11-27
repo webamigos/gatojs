@@ -1,4 +1,11 @@
 import type { ComponentType } from "react";
+import type {
+  ComponentHandle,
+  ModuleKey,
+  NavItemId,
+  PermissionKey,
+  SlotId,
+} from "@/extension-points.generated";
 import type { OrgRole } from "@/shared/lib/auth/roles";
 import type {
   ModuleDef,
@@ -55,6 +62,22 @@ export interface GatoConfig {
   branding?: GatoBranding;
 }
 
+export interface ProjectGatoModuleConfig extends Omit<
+  GatoModuleConfig,
+  "nav" | "permissions" | "slots" | "components"
+> {
+  nav?: Partial<Record<NavItemId, GatoNavOverride>>;
+  permissions?: Partial<Record<PermissionKey, OrgRole[]>>;
+  slots?: Partial<Record<SlotId, Record<string, GatoSlotOverride | null>>>;
+  components?: Partial<Record<ComponentHandle, GatoComponentOverride | null>>;
+}
+
+export interface ProjectGatoConfig extends Omit<GatoConfig, "modules"> {
+  modules?: Partial<
+    Record<ModuleKey | typeof CORE_SLOTS_CONFIG_KEY, ProjectGatoModuleConfig>
+  >;
+}
+
 export interface ModuleEntry<T> {
   module: string;
   value: T;
@@ -69,7 +92,7 @@ export const UNDISABLEABLE_MODULES: readonly string[] = [
   "organizations",
 ];
 
-export function defineGatoConfig(config: GatoConfig): GatoConfig {
+export function defineGatoConfig(config: ProjectGatoConfig): GatoConfig {
   return config;
 }
 
