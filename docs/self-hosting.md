@@ -61,7 +61,7 @@ The TLS examples and the upgrade path have not been run (not verified).
 | [Published images](#published-images) | written, not run (the first publish happens on `main` after merge) |
 | [Railway](#railway) | written, not deployed |
 | [Kubernetes (Helm)](#kubernetes-helm) | written; chart lint, helm-unittest and kubeconform verified 2026-11-26, install on a cluster not verified |
-| [Prove nothing leaves the machine](#prove-nothing-leaves-the-machine) | placeholder until the egress check (self-hosting Task 7) |
+| [Prove nothing leaves the machine](#prove-nothing-leaves-the-machine) | written, both legs verified 2026-11-27 on Docker 24; Docker 28 runs in CI |
 
 ## What runs
 
@@ -664,6 +664,13 @@ at runtime the app connects only to what you configured (database, mail relay, S
 in the GatoJS repository (`kit/egress-check`, not copied into projects) and runs in CI on pull requests that touch the
 `Dockerfile`, this Compose file, `.env.selfhost.example`, the mailer, uploads, `packages/env` or the lockfile
 (`.github/workflows/egress-check.yml`, legs `local` and `s3`).
+
+Both legs (`--storage local` and `--storage s3`) ended with `no container tried to leave the network` on 2026-11-27,
+on Docker Engine 24.0.2 with Compose v2.19.1 (macOS arm64) (verified 2026-11-27). The first `s3` run found MinIO
+looking up `dl.min.io` (its update check); `MINIO_UPDATE: "off"` in the `uploads` fragment stopped it. The first
+`local` run found a download failing with `TenantScopeError` in the production build, fixed separately. The DNS design
+was checked on Docker 28.5.2 in a `docker:28-dind` container; the full run on Docker 28 is the CI job (not verified
+locally).
 
 ### What it runs
 
