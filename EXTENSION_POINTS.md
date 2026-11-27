@@ -15,6 +15,7 @@ Configure under `modules.<key>` in `src/gato.config.ts`.
 | `auth` | auth | stable | Sign-in, sign-up, password reset and set-password pages |
 | `dashboard` | dashboard | stable | Dashboard page and its sections |
 | `encryption` | encryption | stable | Per-organization envelope encryption with data keys wrapped by a master key |
+| `legal` | legal | stable | Public terms and privacy pages and an opt-in cookie consent banner |
 | `organizations` | organizations | stable | Organizations, memberships, invitation acceptance and the no-organization page |
 | `uploads` | uploads | stable | Organization files on disk or in S3 storage |
 | `users` | users | stable | Users page: user list, invitations, roles and impersonation |
@@ -29,6 +30,8 @@ Reorder or hide under `modules.<module>.nav` in `src/gato.config.ts`.
 | `api-keys.list` | api-keys | stable | API keys link in the sidebar |
 | `audit-logs.list` | audit-logs | stable | Audit log link in the sidebar |
 | `dashboard.home` | dashboard | stable | Dashboard link in the sidebar |
+| `legal.privacy` | legal | stable | Privacy policy link in the sidebar |
+| `legal.terms` | legal | stable | Terms link in the sidebar |
 | `users.list` | users | stable | Users link in the sidebar (Members when MULTI_ORG is on) |
 
 ## Slots

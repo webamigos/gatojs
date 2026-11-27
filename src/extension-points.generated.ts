@@ -16,6 +16,7 @@ export const extensionPoints = {
     { key: "auth", module: "auth", stability: "stable", description: "Sign-in, sign-up, password reset and set-password pages" },
     { key: "dashboard", module: "dashboard", stability: "stable", description: "Dashboard page and its sections" },
     { key: "encryption", module: "encryption", stability: "stable", description: "Per-organization envelope encryption with data keys wrapped by a master key" },
+    { key: "legal", module: "legal", stability: "stable", description: "Public terms and privacy pages and an opt-in cookie consent banner" },
     { key: "organizations", module: "organizations", stability: "stable", description: "Organizations, memberships, invitation acceptance and the no-organization page" },
     { key: "uploads", module: "uploads", stability: "stable", description: "Organization files on disk or in S3 storage" },
     { key: "users", module: "users", stability: "stable", description: "Users page: user list, invitations, roles and impersonation" },
@@ -25,6 +26,8 @@ export const extensionPoints = {
     { key: "api-keys.list", module: "api-keys", stability: "stable", description: "API keys link in the sidebar" },
     { key: "audit-logs.list", module: "audit-logs", stability: "stable", description: "Audit log link in the sidebar" },
     { key: "dashboard.home", module: "dashboard", stability: "stable", description: "Dashboard link in the sidebar" },
+    { key: "legal.privacy", module: "legal", stability: "stable", description: "Privacy policy link in the sidebar" },
+    { key: "legal.terms", module: "legal", stability: "stable", description: "Terms link in the sidebar" },
     { key: "users.list", module: "users", stability: "stable", description: "Users link in the sidebar (Members when MULTI_ORG is on)" },
   ],
   slots: [
@@ -72,8 +75,8 @@ export const extensionPoints = {
   ],
 } as const satisfies Record<string, readonly ExtensionPoint[]>;
 
-export type ModuleKey = "account" | "api-keys" | "audit-logs" | "auth" | "dashboard" | "encryption" | "organizations" | "uploads" | "users";
-export type NavItemId = "account.home" | "api-keys.list" | "audit-logs.list" | "dashboard.home" | "users.list";
+export type ModuleKey = "account" | "api-keys" | "audit-logs" | "auth" | "dashboard" | "encryption" | "legal" | "organizations" | "uploads" | "users";
+export type NavItemId = "account.home" | "api-keys.list" | "audit-logs.list" | "dashboard.home" | "legal.privacy" | "legal.terms" | "users.list";
 export type SlotId = "account.sections" | "app.header.actions" | "dashboard.sections" | "users.table.columns" | "users.table.row-actions";
 export type ComponentHandle = "users.invite-dialog";
 export type EventName = "api-keys.created" | "api-keys.deleted" | "api-keys.revoked" | "auth.signed-up" | "organizations.created" | "organizations.member-added" | "organizations.member-removed" | "organizations.member-role-changed" | "uploads.deleted" | "users.invitation-accepted" | "users.invitation-canceled" | "users.invited";

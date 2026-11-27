@@ -157,8 +157,10 @@ jobs:
             modules: "uploads"
           - name: encryption
             modules: "encryption"
+          - name: legal
+            modules: "legal"
           - name: all
-            modules: "audit-logs,api-keys,uploads,encryption"
+            modules: "audit-logs,api-keys,uploads,encryption,legal"
     services:
       postgres:
         image: postgres:16

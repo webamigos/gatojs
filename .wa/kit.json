@@ -313,6 +313,28 @@
       },
       "files": {}
     },
+    "legal": {
+      "version": "0.1.0",
+      "manifest": {
+        "name": "legal",
+        "version": "0.1.0",
+        "description": "Public terms and privacy pages and an opt-in cookie consent banner",
+        "requires": [],
+        "files": [
+          "src/features/legal/**",
+          "src/app/[locale]/(legal)/**"
+        ],
+        "dependencies": {},
+        "devDependencies": {},
+        "env": [],
+        "schemaRelations": [],
+        "compose": null,
+        "selfhostCompose": null,
+        "ciSteps": null,
+        "workspaces": []
+      },
+      "files": {}
+    },
     "uploads": {
       "version": "0.7.1",
       "manifest": {
