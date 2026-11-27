@@ -812,6 +812,19 @@ When a slot frees up, the next task of its lane starts if its dependencies have 
 
 **Done when:** the `assemble` job is green for `uploads` and `all` on the PR.
 
+**Contract fixed before the tests (2026-11-27):**
+- Fixture root `packages/gato-cli/src/__tests__/fixtures/invoices-module/`: `manifest.json` (the `projectModules.invoices.manifest` value, `requires: ["uploads"]`), and `prisma/` and `src/` copied into the project as they are; `manifest.json` stays in the GatoJS repo.
+- `src/features/invoices/module.ts`: key `invoices`, nav `{ id: "invoices.list", href: "/invoices", labelKey: "nav", icon: "receipt", order: 30 }`, roles `owner`, `admin`, `member`, audit action `invoice.issued`, upload purpose `invoice-pdf`, `commands: ["invoices.issue"]`. `extension-points.json` lists the nav id, the event `invoices.issued` and the command `invoices.issue`, all `experimental`.
+- `events.ts`: `invoices.issued` with payload `{ invoiceId: string }`.
+- `services/commands/issue-invoice-command.ts` (`"use server"`): `issueInvoiceCommand(input: unknown, confirmation?: unknown): Promise<OperationResult<{ id: string }>>` through `defineCommand` (`key: "invoices.issue"`, `access: "module"`, input `{ id: string }`, failure `Could not issue the invoice`, events `["invoices.issued"]`). A draft invoice of the active organization → `issued`, `{ success: true, data: { id } }`; any other id (another organization's, already issued, unknown) → `{ success: false, error: "Invoice not found or already issued" }` and no change.
+- `services/queries/list-unpaid-invoices-query.ts`: `listUnpaidInvoicesQuery(): Promise<{ id: string; number: string }[]>`, the active organization's `issued` invoices sorted by `number`. `services/queries/list-invoices-query.ts`: `listInvoicesQuery()` with `{ id, number, status }` for the page.
+- `command-hooks.ts`: `commandHooks` with `"uploads.delete": { id: "invoices.keep-issued-pdf", before }`; `before({ id }, context)` throws `DomainError("This file is attached to an issued invoice")` when an `issued` invoice of `context.organizationId` has `pdfUploadId === id`, else returns nothing.
+- `subscribers.ts`: `organizations.member-removed` → `invoices.unassign-removed-member` sets `assigneeId: null` on the event organization's invoices assigned to `payload.userId`.
+- `slots.ts`: `dashboard.sections` contribution `invoices.unpaid-card`, priority 20, roles `owner`, `admin`, component `components/unpaid-invoices-card.tsx` (server component, prop `organizationId`).
+- `src/gato.config.ts`: `modules.dashboard.nav["dashboard.home"].order = 5`; nothing disabled.
+- Page `src/app/[locale]/(app)/invoices/page.tsx` (`requireModuleAccess("invoices")`) with a client list that issues through `useServiceModeAction().run(issueInvoiceCommand, { id })`.
+- Tests in the fixture: `src/features/invoices/__tests__/command-hooks.test.ts` (unit, Prisma mocked as I/O), `src/features/invoices/__tests__/slots.test.ts` (owner sees the card, member does not) and `src/features/invoices/__tests__/invoices-isolation.integration.test.ts` (two organizations: issue, unpaid list, upload delete hook through `deleteUploadCommand`, member-removed subscriber through `emitEvent`).
+
 ---
 
 ### Task 20: Protection becomes blocking
