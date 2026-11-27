@@ -6,7 +6,7 @@
     },
     "app.root": {
       "stability": "experimental",
-      "description": "Server contributions rendered once at the end of every page, for an anonymous viewer (public modules only)"
+      "description": "End of every page, once (public modules only). Contributions render for anonymous visitors: a component must not read the session to show user data here."
     },
     "app.sidebar.footer": {
       "stability": "experimental",

@@ -10,7 +10,7 @@
   "slots": {
     "auth.footer": {
       "stability": "experimental",
-      "description": "Server contributions in the footer of the sign-in, sign-up and password pages, for an anonymous viewer"
+      "description": "Footer of the sign-in, sign-up and password pages. Contributions render for anonymous visitors: a component must not read the session to show user data here."
     }
   }
 }
