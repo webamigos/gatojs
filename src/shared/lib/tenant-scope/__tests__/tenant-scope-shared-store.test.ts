@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { AsyncLocalStorage } from "node:async_hooks";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockLogger } = vi.hoisted(() => ({
@@ -206,5 +207,28 @@ describe("withoutTenantScope with several module copies in one process", () => {
 
     expect(result).toBe(2);
     expect(query.mock.calls[0]?.[0]).toBe(args);
+  });
+  it("a copy uses the bypass store already registered under the gatojs.tenant-scope.bypass global key", async () => {
+    clearSharedBypassStore();
+    const injected = new AsyncLocalStorage<{ reason: string }>();
+    Reflect.set(globalThis, Symbol.for("gatojs.tenant-scope.bypass"), injected);
+    const copy = await loadModuleCopy();
+    const insideQuery = vi.fn(async () => [{ id: "row" }]);
+    const outsideQuery = vi.fn(async () => []);
+
+    const result = await injected.run({ reason: "preexisting" }, () =>
+      unscopedQuery(copy, insideQuery),
+    );
+
+    expect(result).toEqual([{ id: "row" }]);
+    expect(insideQuery).toHaveBeenCalledTimes(1);
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      "Query without organization filter inside withoutTenantScope",
+      { model: "Scoped", operation: "findMany", reason: "preexisting" },
+    );
+    await expect(unscopedQuery(copy, outsideQuery)).rejects.toBeInstanceOf(
+      copy.TenantScopeError,
+    );
+    expect(outsideQuery).not.toHaveBeenCalled();
   });
 });
