@@ -21,6 +21,7 @@ vi.mock("@/modules.client.generated", () => {
       routePrefixes: ["/reports"],
       roles: ["owner"],
     },
+    { key: "pages", nav: [], routePrefixes: ["/pages"], public: true },
   ];
   return {
     authClientPlugins: [],
@@ -30,7 +31,11 @@ vi.mock("@/modules.client.generated", () => {
   };
 });
 
-import { moduleVisibleTo, visibleContributions } from "../slot-access";
+import {
+  anonymousViewer,
+  moduleVisibleTo,
+  visibleContributions,
+} from "../slot-access";
 
 const Card: ComponentType<{ organizationId: string }> = () => null;
 const loader = () => Promise.resolve({ default: Card });
@@ -265,5 +270,56 @@ describe("moduleVisibleTo", () => {
     expect(moduleVisibleTo("invoices", viewer({ orgRole: "owner" }))).toBe(
       false,
     );
+  });
+});
+
+describe("anonymousViewer", () => {
+  it("is a plain user without an organization role, with MULTI_ORG on", () => {
+    expect(anonymousViewer(true)).toEqual({
+      userRole: "user",
+      orgRole: null,
+      multiOrg: true,
+    });
+  });
+
+  it("is a plain user without an organization role, with MULTI_ORG off", () => {
+    expect(anonymousViewer(false)).toEqual({
+      userRole: "user",
+      orgRole: null,
+      multiOrg: false,
+    });
+  });
+
+  it("sees a contribution of a public module without roles in app.root", () => {
+    const result = visibleContributions(
+      [registered("pages", "pages.banner", "app.root")],
+      "app.root",
+      anonymousViewer(false),
+    );
+    expect(ids(result)).toEqual(["pages.banner"]);
+  });
+
+  it("does not see a contribution of a module that is not public", () => {
+    const result = visibleContributions(
+      [
+        registered("dashboard", "dashboard.banner", "app.root"),
+        registered("pages", "pages.banner", "app.root"),
+      ],
+      "app.root",
+      anonymousViewer(true),
+    );
+    expect(ids(result)).toEqual(["pages.banner"]);
+  });
+
+  it("does not see a public module's contribution limited to owners", () => {
+    const result = visibleContributions(
+      [
+        registered("pages", "pages.owner-only", "app.root", ["owner"]),
+        registered("pages", "pages.banner", "app.root"),
+      ],
+      "app.root",
+      anonymousViewer(false),
+    );
+    expect(ids(result)).toEqual(["pages.banner"]);
   });
 });
