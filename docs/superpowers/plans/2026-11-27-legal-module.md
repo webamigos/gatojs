@@ -411,3 +411,96 @@ project owns and edits them.
 Enforcing acceptance needs a field in the core sign-up form (`sign-up-form.tsx` has a fixed Zod schema and payload, no
 slot) and a way to send it with `authClient.signUp.email`. That core extension point does not exist, so nothing is
 implemented; the spec and PR record the follow-up.
+
+---
+
+# Revision 3: review fixes (PR #134 review, 2026-11-28)
+
+Core changes (Task 12) go in their own commit with a core patch bump (0.37.0 → 0.37.1); the CLI change (Task 13) bumps
+`gato-cli` 0.15.0 → 0.16.0 (rebuild `.wa/bin/wa.mjs`), and the `create-gato-app` pin with it (0.3.13 → 0.3.14).
+
+## Task 10 — seed files import nothing from the module (M1, L1)
+
+`wa remove legal` keeps seed files (ADR-59, `remove.test.ts` "leaves an unchanged seed file on disk"). Today the seeds
+import module files (`legal.config.ts` → `./legal-config`, `content/index.ts` → `../services/legal-documents`,
+`privacy.*.tsx` → `../components/cookie-settings-button`), so after a remove the project no longer typechecks.
+
+- `legal.config.ts` (seed) becomes plain data without imports:
+  `export const legalConfig = { cookieCategories: [], consentVersion: 1 };`
+- New module file `src/features/legal/legal-settings.ts` (client-safe):
+  ```ts
+  export const legalSettings: { config: LegalConfig; error: LegalConfigError | null } = resolveLegalConfig(legalConfig);
+  ```
+  and `legal-config.ts` gains
+  ```ts
+  export const LEGAL_CONFIG_FILE = "src/features/legal/legal.config.ts";
+  export function resolveLegalConfig(input: unknown): { config: LegalConfig; error: LegalConfigError | null };
+  ```
+  Valid input → `{ config: <parsed with defaults>, error: null }`. Invalid → **fail closed**:
+  `{ config: { cookieCategories: [], consentVersion: 1, consentCookieName: "cookie_consent", consentMaxAgeDays: 180 }, error }`
+  where `error.message` is `Invalid src/features/legal/legal.config.ts: <problems joined by "; ">` and every problem
+  names its field: `<path>: <message>` with the Zod issue path joined by `.` (e.g.
+  `consentMaxAgeDays: consentMaxAgeDays must be an integer from 1 to 395`, `cookieCategories.1: duplicate cookie category: analytics`,
+  `cookieCategories: …` when it is not an array, `(root): …` when the input is not an object).
+  `defineLegalConfig` keeps throwing, now with the same `<path>: <message>` problems.
+- Every module default that read `legalConfig` from `../legal.config` reads `legalSettings.config` instead.
+- `content/index.ts` (seed) loses its type import (plain object of loaders); the `privacy.*.tsx` seeds lose the
+  `CookieSettingsButton`: `LegalDocumentPage` renders `<CookieSettingsButton label="page" />` after the article when
+  `document === "privacy"`. Seeds may import only core paths (`@/shared/**`, `@/components/**`, `@/i18n/**`) or other
+  seed files.
+- The legal pages and layout throw `legalSettings.error` when it is set (the legal pages answer 500 with that message
+  in the server log); the root banner slot renders nothing and logs `logger.error("Invalid legal config", { error })`
+  instead of breaking every page; `hasConsent` stays `false` everywhere (no categories).
+
+### Behaviours
+- `resolveLegalConfig({ cookieCategories: ["analytics"], consentVersion: 2 })` → config `{ cookieCategories: ["analytics"], consentVersion: 2, consentCookieName: "cookie_consent", consentMaxAgeDays: 180 }`, error `null`.
+- `resolveLegalConfig({ cookieCategories: ["analytics"], consentVersion: 1, consentMaxAgeDays: 0 })` → config is the fail-closed literal above, `error` is a `LegalConfigError` whose message is exactly
+  `Invalid src/features/legal/legal.config.ts: consentMaxAgeDays: consentMaxAgeDays must be an integer from 1 to 395`.
+- `resolveLegalConfig(null)` → fail-closed config, error message starts with `Invalid src/features/legal/legal.config.ts: `.
+- `resolveLegalConfig({ cookieCategories: ["analytics", "analytics"], consentVersion: 1 })` → message contains `cookieCategories.1: duplicate cookie category: analytics`.
+- Privacy page (`LegalDocumentPage` document `privacy`, categories declared) shows the button `Zmień ustawienia cookies` after the article; `terms` does not.
+- Legal page/layout with an invalid config (mock `legal-settings` with an error) rejects with that error; the banner slot renders nothing and calls `logger.error` once with `"Invalid legal config"`.
+- Architecture (kit-only, in `seed-files-are-declared.test.ts`): every `seedFiles` entry owned by a module imports nothing
+  under that module's `src/features/<x>/` except other seed files (static `import`/`export … from` and dynamic `import()`
+  specifiers, relative or `@/`).
+
+### Mutations to kill
+- fail-open (returning the invalid input or categories) on an invalid config; error dropped; path missing from a problem.
+- the privacy button rendered for `terms` or not at all.
+
+## Task 11 — kit-only content tests load seeds lazily (M2)
+
+`content.test.tsx` imports the seed files at top level, so a project that reshapes or deletes them breaks a Gato test
+even though the assertions are skipped. Load them with `await import(...)` inside the `describe.runIf(kit/kit.json)` block
+(`beforeAll` or per test). Behaviour: with `kit/kit.json` absent the file collects no import of `../index`,
+`../*.tsx` or `../../legal.config`.
+
+## Task 12 — core: consent cookie name, anonymous slots note (L2, Info), core 0.37.1
+
+- `consentCookieName` (Zod, `contracts/legal-config.schemas.ts`) also rejects `NEXT_LOCALE` (any case), names starting
+  with `better-auth` (any case) and the `__Host-`/`__Secure-` prefixes (any case), message
+  `consentCookieName must not be NEXT_LOCALE, a better-auth cookie or use the __Host- or __Secure- prefix`.
+  Accepted: `cookie_consent`, `acme_consent`, `_consent`, `host_consent`.
+- ADR-68 amendment and the catalog descriptions of `app.root` and `auth.footer` gain: "Contributions render for
+  anonymous visitors: a component must not read the session to show user data here." (`EXTENSION_POINTS.md` regenerated.)
+  (This item is a legal-module test + core doc/catalog change; the catalog JSON is core.)
+
+## Task 13 — `wa remove` lists the seed files it keeps (M1), gato-cli 0.16.0
+
+`remove` logs, after removing, `Kept seed files of <module> (yours, edit or delete them):` followed by one line
+`  <path>` per seed file of the module that exists on disk, sorted; nothing when there is none.
+
+### Behaviours
+- Fixture with seed `src/features/demo/module.ts`: `remove` → log contains `Kept seed files of demo (yours, edit or delete them):` and `  src/features/demo/module.ts`; the file stays.
+- Module without seed files → no `Kept seed files` line.
+- A seed file already deleted by the project → not listed.
+
+## Task 14 — legal layout and metadata check the module first (L3)
+
+`src/app/[locale]/(legal)/layout.tsx` and both pages' `generateMetadata`: `isModuleEnabled("legal")` is checked before
+`getTranslations`; disabled → layout calls `notFound()`, `generateMetadata` returns `{}` without calling
+`getTranslations`.
+
+### Behaviours
+- Disabled module: layout rejects with `NEXT_NOT_FOUND` and `getTranslations` is not called; `generateMetadata` resolves `{}` and `getTranslations` is not called.
+- Enabled: unchanged titles.
