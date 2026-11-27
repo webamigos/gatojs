@@ -221,48 +221,6 @@
       "reason": "log only: context of the warning about a failed lastUsedAt update; authentication behaves the same"
     },
     {
-      "file": "src/features/api-keys/services/commands/api-key-commands.ts",
-      "mutator": "StringLiteral",
-      "original": "\"Nie znaleziono klucza\"",
-      "replacement": "\"\"",
-      "reason": "message only: the denial for a key outside the organization is tested, the message text is not a contract"
-    },
-    {
-      "file": "src/features/api-keys/services/commands/api-key-commands.ts",
-      "mutator": "StringLiteral",
-      "original": "\"Nie udało się utworzyć klucza\"",
-      "replacement": "\"\"",
-      "reason": "message only: handleCommandError default message"
-    },
-    {
-      "file": "src/features/api-keys/services/commands/api-key-commands.ts",
-      "mutator": "StringLiteral",
-      "original": "\"Nie udało się unieważnić klucza\"",
-      "replacement": "\"\"",
-      "reason": "message only: handleCommandError default message"
-    },
-    {
-      "file": "src/features/api-keys/services/commands/api-key-commands.ts",
-      "mutator": "StringLiteral",
-      "original": "\"Nie udało się usunąć klucza\"",
-      "replacement": "\"\"",
-      "reason": "message only: handleCommandError default message"
-    },
-    {
-      "file": "src/features/api-keys/services/commands/api-key-commands.ts",
-      "mutator": "ConditionalExpression",
-      "original": "key.revokedAt !== null",
-      "replacement": "false",
-      "reason": "equivalent: for a revoked key, updateMany with revokedAt: null returns count 0, so the result is also { success: true } without an audit entry; the early return only saves a query"
-    },
-    {
-      "file": "src/features/api-keys/services/commands/api-key-commands.ts",
-      "mutator": "BlockStatement",
-      "original": "{\n      return { success: true };\n    }",
-      "replacement": "{}",
-      "reason": "equivalent: as above, without the early return updateMany returns count 0 and the command ends with { success: true } without an audit entry"
-    },
-    {
       "file": "src/shared/lib/tenant-scope/tenant-scope.ts",
       "mutator": "ArrayDeclaration",
       "original": "[]",
