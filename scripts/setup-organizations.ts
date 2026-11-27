@@ -1,7 +1,7 @@
 /* eslint-disable no-console -- a command-line script: the console is its output */
 import dotenv from "dotenv";
 
-dotenv.config({ path: [".env.local", ".env"] });
+dotenv.config({ path: [".env.local", ".env"], quiet: true });
 
 async function main(): Promise<number> {
   const { setupOrganizationsCommand } =

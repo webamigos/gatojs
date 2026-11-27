@@ -4,7 +4,7 @@ import { createInterface } from "node:readline/promises";
 import dotenv from "dotenv";
 import type { AdminCreateOptions } from "./lib/admin-create";
 
-dotenv.config({ path: [".env.local", ".env"] });
+dotenv.config({ path: [".env.local", ".env"], quiet: true });
 
 async function confirm(question: string): Promise<boolean> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });

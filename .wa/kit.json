@@ -87,10 +87,10 @@
       "files": {}
     },
     "core": {
-      "version": "0.35.2",
+      "version": "0.35.3",
       "manifest": {
         "name": "core",
-        "version": "0.35.2",
+        "version": "0.35.3",
         "description": "GatoJS core: auth, organizations, users, account, dashboard",
         "requires": [],
         "files": [
