@@ -58,14 +58,14 @@ afterEach(() => {
   vi.resetModules();
 });
 
-describe("withoutTenantScope przy kilku kopiach modułu w jednym procesie", () => {
-  it("kopie są osobnymi instancjami modułu", () => {
+describe("withoutTenantScope with several module copies in one process", () => {
+  it("the copies are separate module instances", () => {
     expect(copyA.guardTenantQuery).not.toBe(copyB.guardTenantQuery);
     expect(copyA.withoutTenantScope).not.toBe(copyB.withoutTenantScope);
     expect(copyA.TenantScopeError).not.toBe(copyB.TenantScopeError);
   });
 
-  it("zwolnienie kopii A przepuszcza zapytanie bez filtra przez guard kopii B i loguje powód", async () => {
+  it("copy A's bypass lets an unscoped query through copy B's guard and logs the reason", async () => {
     const query = vi.fn(async () => [{ id: "upload_1" }]);
 
     const result = await copyA.withoutTenantScope("reason", () =>
@@ -80,7 +80,7 @@ describe("withoutTenantScope przy kilku kopiach modułu w jednym procesie", () =
     );
   });
 
-  it("zwolnienie kopii B przepuszcza zapytanie bez filtra przez guard kopii A i loguje powód", async () => {
+  it("copy B's bypass lets an unscoped query through copy A's guard and logs the reason", async () => {
     const query = vi.fn(async () => 5);
 
     const result = await copyB.withoutTenantScope("api key lookup", () =>
@@ -95,7 +95,7 @@ describe("withoutTenantScope przy kilku kopiach modułu w jednym procesie", () =
     );
   });
 
-  it("zagnieżdżone zwolnienia z różnych kopii logują powód najbliższego zwolnienia", async () => {
+  it("nested bypasses from different copies log the reason of the innermost bypass", async () => {
     const query = vi.fn(async () => []);
 
     await copyA.withoutTenantScope("outer", async () => {
@@ -112,7 +112,7 @@ describe("withoutTenantScope przy kilku kopiach modułu w jednym procesie", () =
     ]);
   });
 
-  it("guard kopii B poza zwolnieniem odrzuca zapytanie bez filtra TenantScopeError i nie wywołuje zapytania", async () => {
+  it("copy B's guard outside a bypass rejects an unscoped query with TenantScopeError and does not run it", async () => {
     const query = vi.fn(async () => [{ id: "row" }]);
 
     const result = unscopedQuery(copyB, query);
@@ -127,7 +127,7 @@ describe("withoutTenantScope przy kilku kopiach modułu w jednym procesie", () =
     expect(mockLogger.debug).not.toHaveBeenCalled();
   });
 
-  it("guard kopii A poza zwolnieniem odrzuca zapytanie bez filtra TenantScopeError i nie wywołuje zapytania", async () => {
+  it("copy A's guard outside a bypass rejects an unscoped query with TenantScopeError and does not run it", async () => {
     const query = vi.fn(async () => 1);
 
     await expect(
@@ -148,7 +148,7 @@ describe("withoutTenantScope przy kilku kopiach modułu w jednym procesie", () =
     expect(query).not.toHaveBeenCalled();
   });
 
-  it("po powrocie z withoutTenantScope kopii A guard kopii B znów odrzuca", async () => {
+  it("after copy A's withoutTenantScope returns, copy B's guard rejects again", async () => {
     const query = vi.fn(async () => []);
     await expect(
       copyA.withoutTenantScope("reason", async () => "done"),
@@ -162,7 +162,7 @@ describe("withoutTenantScope przy kilku kopiach modułu w jednym procesie", () =
     expect(query).not.toHaveBeenCalled();
   });
 
-  it("po błędzie fn w withoutTenantScope kopii A guard kopii B znów odrzuca", async () => {
+  it("after fn throws in copy A's withoutTenantScope, copy B's guard rejects again", async () => {
     const query = vi.fn(async () => []);
     await expect(
       copyA.withoutTenantScope("reason", async () => {
@@ -176,7 +176,7 @@ describe("withoutTenantScope przy kilku kopiach modułu w jednym procesie", () =
     expect(query).not.toHaveBeenCalled();
   });
 
-  it("zwolnienie kopii A nie przecieka do równoległego łańcucha guarda kopii B", async () => {
+  it("copy A's bypass does not leak into a parallel chain through copy B's guard", async () => {
     let release: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
@@ -195,7 +195,7 @@ describe("withoutTenantScope przy kilku kopiach modułu w jednym procesie", () =
     expect(query).not.toHaveBeenCalled();
   });
 
-  it("zapytanie z filtrem organizacji przez guard kopii B przechodzi bez zwolnienia z niezmienionymi args", async () => {
+  it("a query with an organization filter passes copy B's guard without a bypass with unchanged args", async () => {
     const args = { where: { organizationId: "org_a" } };
     const query = vi.fn<(args: unknown) => Promise<number>>(async () => 2);
 
