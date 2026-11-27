@@ -62,19 +62,24 @@ export interface GatoConfig {
   branding?: GatoBranding;
 }
 
+type CatalogKeyedMap<K extends string, V> = [K] extends [never]
+  ? Record<string, never>
+  : Partial<Record<K, V>>;
+
 export interface ProjectGatoModuleConfig extends Omit<
   GatoModuleConfig,
   "nav" | "permissions" | "slots" | "components"
 > {
-  nav?: Partial<Record<NavItemId, GatoNavOverride>>;
-  permissions?: Partial<Record<PermissionKey, OrgRole[]>>;
-  slots?: Partial<Record<SlotId, Record<string, GatoSlotOverride | null>>>;
-  components?: Partial<Record<ComponentHandle, GatoComponentOverride | null>>;
+  nav?: CatalogKeyedMap<NavItemId, GatoNavOverride>;
+  permissions?: CatalogKeyedMap<PermissionKey, OrgRole[]>;
+  slots?: CatalogKeyedMap<SlotId, Record<string, GatoSlotOverride | null>>;
+  components?: CatalogKeyedMap<ComponentHandle, GatoComponentOverride | null>;
 }
 
 export interface ProjectGatoConfig extends Omit<GatoConfig, "modules"> {
-  modules?: Partial<
-    Record<ModuleKey | typeof CORE_SLOTS_CONFIG_KEY, ProjectGatoModuleConfig>
+  modules?: CatalogKeyedMap<
+    ModuleKey | typeof CORE_SLOTS_CONFIG_KEY,
+    ProjectGatoModuleConfig
   >;
 }
 
