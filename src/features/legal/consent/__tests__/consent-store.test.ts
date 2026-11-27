@@ -48,7 +48,7 @@ describe("consent store", () => {
   });
 
   it("without a cookie there is no record and no consent", () => {
-    expect(readConsent()).toBeNull();
+    expect(readConsent(config)).toBeNull();
     expect(hasConsent("analytics", config)).toBe(false);
   });
 
@@ -73,7 +73,7 @@ describe("consent store", () => {
   it("readConsent returns the record written before", () => {
     writeConsent({ marketing: true }, config, 42);
 
-    expect(readConsent()).toEqual({
+    expect(readConsent(config)).toEqual({
       version: 2,
       choices: { analytics: false, marketing: true },
       decidedAt: 42,
@@ -133,7 +133,7 @@ describe("consent store", () => {
   it("a garbage cookie reads as no record", () => {
     document.cookie = "cookie_consent=garbage; Path=/";
 
-    expect(readConsent()).toBeNull();
+    expect(readConsent(config)).toBeNull();
     expect(hasConsent("analytics", config)).toBe(false);
   });
 
@@ -217,8 +217,8 @@ describe("consent store", () => {
   it("consentSnapshot is the identical object while the cookie is unchanged", () => {
     writeConsent({ analytics: true }, config, 1);
 
-    const first = consentSnapshot();
-    const second = consentSnapshot();
+    const first = consentSnapshot(config);
+    const second = consentSnapshot(config);
 
     expect(first).not.toBeNull();
     expect(second).toBe(first);
@@ -226,10 +226,10 @@ describe("consent store", () => {
 
   it("consentSnapshot changes after a write", () => {
     writeConsent({ analytics: true }, config, 1);
-    const before = consentSnapshot();
+    const before = consentSnapshot(config);
 
     writeConsent({ analytics: false }, config, 2);
-    const after = consentSnapshot();
+    const after = consentSnapshot(config);
 
     expect(after).not.toBe(before);
     expect(after).toEqual({
@@ -242,7 +242,7 @@ describe("consent store", () => {
   it("consentSnapshot follows a cookie set outside the store", () => {
     setConsentCookie('{"v":2,"c":{"analytics":true,"marketing":true},"t":7}');
 
-    expect(consentSnapshot()).toEqual({
+    expect(consentSnapshot(config)).toEqual({
       version: 2,
       choices: { analytics: true, marketing: true },
       decidedAt: 7,
@@ -271,7 +271,7 @@ describe("consent store", () => {
     setConsentCookie('{"v":2,"c":{"analytics":true,"marketing":true},"t":1}');
     vi.stubGlobal("document", undefined);
 
-    expect(readConsent()).toBeNull();
+    expect(readConsent(config)).toBeNull();
     expect(hasConsent("analytics", config)).toBe(false);
   });
 
@@ -279,7 +279,7 @@ describe("consent store", () => {
     writeConsent({ analytics: true }, config, 1);
     clearConsentCookie();
 
-    expect(consentSnapshot()).toBeNull();
+    expect(consentSnapshot(config)).toBeNull();
   });
 });
 

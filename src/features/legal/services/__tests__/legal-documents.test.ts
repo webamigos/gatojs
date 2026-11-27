@@ -6,6 +6,19 @@ import {
   type LegalDocumentModule,
 } from "../legal-documents";
 
+const { ShippedTermsPl } = vi.hoisted(() => ({
+  ShippedTermsPl: () => null,
+}));
+
+vi.mock("../../content", () => ({
+  legalDocuments: {
+    terms: {
+      pl: async () => ({ default: ShippedTermsPl, updatedAt: "2026-05-05" }),
+    },
+    privacy: {},
+  },
+}));
+
 function TermsPl() {
   return null;
 }
@@ -136,10 +149,11 @@ describe("resolveLegalDocument", () => {
     ).rejects.toBeInstanceOf(LegalDocumentMissingError);
   });
 
-  it("without loaders reads the shipped content and falls back to pl for an unknown locale", async () => {
-    const resolved = await resolveLegalDocument("terms", "de");
-
-    expect(resolved.locale).toBe("pl");
-    expect(resolved.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  it("without loaders reads the content map and falls back to pl for an unknown locale", async () => {
+    await expect(resolveLegalDocument("terms", "de")).resolves.toEqual({
+      Content: ShippedTermsPl,
+      updatedAt: "2026-05-05",
+      locale: "pl",
+    });
   });
 });

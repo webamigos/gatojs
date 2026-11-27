@@ -152,7 +152,7 @@ describe("CookieBanner", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(hasConsent("analytics", config)).toBe(false);
     expect(hasConsent("marketing", config)).toBe(false);
-    expect(readConsent()).toMatchObject({
+    expect(readConsent(config)).toMatchObject({
       version: 2,
       choices: { analytics: false, marketing: false },
     });
@@ -243,7 +243,7 @@ describe("CookieBanner", () => {
     );
 
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(readConsent()).toMatchObject({
+    expect(readConsent(config)).toMatchObject({
       version: 2,
       choices: { analytics: false, marketing: false },
     });
@@ -335,7 +335,7 @@ describe("CookieBanner", () => {
     expect(
       screen.getByRole("dialog", { name: "Pliki cookie" }),
     ).toBeInTheDocument();
-    expect(readConsent()).toBeNull();
+    expect(readConsent(config)).toBeNull();
   });
 
   it("a valid cookie of the current version shows no banner", async () => {
