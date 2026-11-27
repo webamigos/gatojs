@@ -1,8 +1,5 @@
-import {
-  COOKIE_CATEGORIES,
-  type CookieCategory,
-  type LegalConfig,
-} from "../legal-config";
+import { consentCookieSchema } from "../contracts/consent.schemas";
+import { type CookieCategory, type LegalConfig } from "../legal-config";
 
 export const CONSENT_COOKIE_NAME = "cookie_consent";
 
@@ -16,18 +13,6 @@ export interface ConsentRecord {
   decidedAt: number;
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isPositiveInteger(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 1;
-}
-
-function isNonNegativeInteger(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0;
-}
-
 function decodeJson(raw: string): unknown {
   try {
     return JSON.parse(decodeURIComponent(raw));
@@ -36,42 +21,17 @@ function decodeJson(raw: string): unknown {
   }
 }
 
-function parseChoices(value: unknown): ConsentChoices | null {
-  if (!isPlainObject(value)) {
-    return null;
-  }
-  const choices: ConsentChoices = {};
-  for (const category of COOKIE_CATEGORIES) {
-    if (!(category in value)) {
-      continue;
-    }
-    const choice = value[category];
-    if (typeof choice !== "boolean") {
-      return null;
-    }
-    choices[category] = choice;
-  }
-  return choices;
-}
-
 export function parseConsent(
   raw: string | null | undefined,
 ): ConsentRecord | null {
   if (!raw) {
     return null;
   }
-  const decoded = decodeJson(raw);
-  if (!isPlainObject(decoded)) {
+  const parsed = consentCookieSchema.safeParse(decodeJson(raw));
+  if (!parsed.success) {
     return null;
   }
-  const { v: version, c, t: decidedAt } = decoded;
-  if (!isPositiveInteger(version) || !isNonNegativeInteger(decidedAt)) {
-    return null;
-  }
-  const choices = parseChoices(c);
-  if (choices === null) {
-    return null;
-  }
+  const { v: version, c: choices, t: decidedAt } = parsed.data;
   return { version, choices, decidedAt };
 }
 
