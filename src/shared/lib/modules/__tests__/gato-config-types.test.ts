@@ -16,7 +16,7 @@ describe("defineGatoConfig: keys from the extension points catalog", () => {
     expect(defineGatoConfig(config)).toBe(config);
   });
 
-  it("rejects an unknown module, nav id, slot and component handle at compile time", () => {
+  it("rejects an unknown module, nav id, slot, component handle and permission at compile time", () => {
     const configs = [
       defineGatoConfig({
         modules: {
@@ -54,7 +54,17 @@ describe("defineGatoConfig: keys from the extension points catalog", () => {
           },
         },
       }),
+      defineGatoConfig({
+        modules: {
+          dashboard: {
+            permissions: {
+              // @ts-expect-error dashboard.nope is not a PermissionKey
+              "dashboard.nope": ["owner"],
+            },
+          },
+        },
+      }),
     ];
-    expect(configs).toHaveLength(4);
+    expect(configs).toHaveLength(5);
   });
 });
