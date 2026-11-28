@@ -946,7 +946,8 @@ var SUPPORTED_KIT_FORMATS = [
   8,
   9,
   10,
-  11
+  11,
+  12
 ];
 function assertSupportedKitFormat(format) {
   if (!SUPPORTED_KIT_FORMATS.includes(format)) {
@@ -20861,6 +20862,17 @@ function configImports(options, helpers) {
     helpers: helpers.length === 0 ? [] : [`import { ${helpers.join(", ")} } from "${GATO_CONFIG_MODULE}";`]
   };
 }
+function authImport(module) {
+  const exported = module.hasAuthPlugins ? "authPlugins" : "authPlugin";
+  const local = identifier(
+    module.name,
+    module.hasAuthPlugins ? "AuthPlugins" : "AuthPlugin"
+  );
+  return `import { ${exported} as ${local} } from "@/features/${module.name}/auth";`;
+}
+function authEntry(module) {
+  return module.hasAuthPlugins ? `...${identifier(module.name, "AuthPlugins")}.map((value) => ({ module: "${module.name}", value }))` : entry(module, identifier(module.name, "AuthPlugin"));
+}
 function setupEntry(module) {
   return `{ module: "${module.name}", version: "${module.version}", value: ${identifier(module.name, "Setup")} }`;
 }
@@ -20935,9 +20947,7 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
     ...withEnv.map(
       (m) => `import { envSchema as ${identifier(m.name, "EnvSchema")} } from "@/features/${m.name}/env";`
     ),
-    ...withAuth.map(
-      (m) => `import { authPlugin as ${identifier(m.name, "AuthPlugin")} } from "@/features/${m.name}/auth";`
-    ),
+    ...withAuth.map(authImport),
     ...withAuditSink.map(
       (m) => `import { auditSink as ${identifier(m.name, "AuditSink")} } from "@/features/${m.name}/audit-sink";`
     ),
@@ -20964,10 +20974,7 @@ function renderRegistry(modules, locales, options = { hasGatoConfig: false }) {
       "moduleEnvSchemas",
       withEnv.map((m) => entry(m, identifier(m.name, "EnvSchema")))
     ),
-    enabledList(
-      "authPlugins",
-      withAuth.map((m) => entry(m, identifier(m.name, "AuthPlugin")))
-    ),
+    enabledList("authPlugins", withAuth.map(authEntry)),
     enabledList(
       "auditSinks",
       withAuditSink.map((m) => entry(m, identifier(m.name, "AuditSink")))
@@ -21335,6 +21342,36 @@ async function exists(path2) {
     return false;
   }
 }
+var EXPORT_LIST = /^\s*export\s*\{([^}]*)\}/gm;
+function exportsName(source, name) {
+  const declaration = new RegExp(
+    `^\\s*export\\s+(?:async\\s+)?(?:(?:const|let|var|function)\\s+|function\\s*\\*\\s*)${name}(?![\\w$])`,
+    "m"
+  );
+  if (declaration.test(source)) {
+    return true;
+  }
+  return [...source.matchAll(EXPORT_LIST)].some(
+    ([, list2]) => list2.split(",").map(
+      (specifier) => specifier.trim().split(/\s+as\s+/).pop()
+    ).includes(name)
+  );
+}
+async function detectAuth(base, name) {
+  const file2 = join5(base, "auth.ts");
+  if (!await exists(file2)) {
+    return { hasAuth: false, hasAuthPlugins: false };
+  }
+  const source = await readFile5(file2, "utf8");
+  const hasAuthPlugin = exportsName(source, "authPlugin");
+  const hasAuthPlugins = exportsName(source, "authPlugins");
+  if (hasAuthPlugin && hasAuthPlugins) {
+    throw new Error(
+      `src/features/${name}/auth.ts exports both authPlugin and authPlugins`
+    );
+  }
+  return { hasAuth: true, hasAuthPlugins };
+}
 async function detectFeature(projectDir, name, version2, configuredLocales) {
   const base = join5(projectDir, "src", "features", name);
   const locales = [];
@@ -21347,7 +21384,7 @@ async function detectFeature(projectDir, name, version2, configuredLocales) {
     name,
     hasModuleTs: await exists(join5(base, "module.ts")),
     hasEnv: await exists(join5(base, "env.ts")),
-    hasAuth: await exists(join5(base, "auth.ts")),
+    ...await detectAuth(base, name),
     hasAuthClient: await exists(join5(base, "auth-client.ts")),
     hasAuditSink: await exists(join5(base, "audit-sink.ts")),
     hasEvents: await exists(join5(base, "events.ts")),
@@ -25286,7 +25323,7 @@ function cliDependency(input2) {
 }
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.16.0" };
+var identity = { name: "wa", version: "0.17.0" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);
