@@ -48,6 +48,7 @@
     ".github/workflows/ci.yml",
     ".github/workflows/mutation.yml",
     "src/test/integration/database-url.ts",
+    "src/test/integration/__tests__/database-url.test.ts",
     "README.md",
     "docker/uploads.compose.yml",
     "docker/uploads.selfhost.compose.yml",
