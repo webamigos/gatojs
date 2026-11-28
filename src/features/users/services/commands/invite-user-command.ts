@@ -30,7 +30,7 @@ const inviteUser = defineCommand({
   deniedMessage: "Brak uprawnień",
   invalidInputMessage: (error) =>
     error.issues[0]?.message ?? "Nieprawidłowe dane",
-  events: ["users.invited"],
+  events: ["users.invited", "organizations.member-added"],
   run: async (
     { name, email, role },
     context,
@@ -63,7 +63,23 @@ const inviteUser = defineCommand({
       { name, email, invitationId: invitation.id },
       requestHeaders,
     );
+    const member = await prisma.member.findUnique({
+      where: {
+        organizationId_userId: {
+          organizationId: context.organizationId,
+          userId,
+        },
+      },
+      select: { id: true },
+    });
     emit("users.invited", { invitationId: invitation.id, email, role });
+    if (member) {
+      emit("organizations.member-added", {
+        memberId: member.id,
+        userId,
+        role,
+      });
+    }
 
     const mailSent = await sendWelcomeEmailBestEffort({ name, email, userId });
 
