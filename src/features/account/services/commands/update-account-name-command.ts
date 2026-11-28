@@ -6,6 +6,7 @@ import { requireModuleEnabled } from "@/shared/lib/modules/require-module-enable
 import type { OperationResult } from "@/shared/types/common";
 import { handleCommandError } from "@/shared/utils/error-handling";
 import { accountNameSchema } from "../../contracts/account.schemas";
+import { forwardAuthCookies } from "../forward-auth-cookies";
 
 export async function updateAccountNameCommand(
   input: unknown,
@@ -28,7 +29,12 @@ export async function updateAccountNameCommand(
     }
 
     const { name } = parsed.data;
-    await auth.api.updateUser({ body: { name }, headers: requestHeaders });
+    const response = await auth.api.updateUser({
+      body: { name },
+      headers: requestHeaders,
+      returnHeaders: true,
+    });
+    await forwardAuthCookies(response.headers);
 
     return { success: true, data: { name } };
   } catch (error) {
