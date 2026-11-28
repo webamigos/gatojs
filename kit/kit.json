@@ -64,5 +64,14 @@
     "EXTENSION_POINTS.md"
   ],
   "managedFiles": ["package.json", "package-lock.json"],
-  "seedFiles": ["README.md", "src/theme.css"]
+  "seedFiles": [
+    "README.md",
+    "src/theme.css",
+    "src/features/legal/legal.config.ts",
+    "src/features/legal/content/index.ts",
+    "src/features/legal/content/terms.pl.tsx",
+    "src/features/legal/content/terms.en.tsx",
+    "src/features/legal/content/privacy.pl.tsx",
+    "src/features/legal/content/privacy.en.tsx"
+  ]
 }

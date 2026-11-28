@@ -791,3 +791,106 @@ describe("remove: ejected and seed files", () => {
     expect(existsSync(join(dir, "src/features/demo/env.ts"))).toBe(false);
   });
 });
+
+async function recordDemoFilesAsSeedsInOrder(
+  dir: string,
+  seeds: string[],
+): Promise<void> {
+  const path = join(dir, ".wa/kit.json");
+  const json = JSON.parse(await readFile(path, "utf8")) as {
+    modules: Record<string, { files: Record<string, string> }>;
+  };
+  const demo = json.modules["demo"];
+  if (demo) {
+    const others = Object.entries(demo.files).filter(
+      ([file]) => !seeds.includes(file),
+    );
+    demo.files = Object.fromEntries([
+      ...seeds.map((seed) => [seed, "seed"] as const),
+      ...others,
+    ]);
+  }
+  await writeFile(path, `${JSON.stringify(json, null, 2)}\n`);
+}
+
+function loggedText(): string {
+  return log.mock.calls.map(([line]) => line).join("\n");
+}
+
+describe("remove: kept seed files in the log", () => {
+  it("lists a kept seed file under the module header", async () => {
+    const dir = await createProject("app", ["demo"]);
+    await recordDemoModuleAsSeed(dir);
+    await remove(removeOptions(dir, "demo"));
+
+    expect(loggedText()).toContain(
+      "Kept seed files of demo (yours, edit or delete them):\n  src/features/demo/module.ts",
+    );
+    expect(existsSync(join(dir, "src/features/demo/module.ts"))).toBe(true);
+  });
+
+  it("lists several kept seed files sorted, one per line", async () => {
+    const dir = await createProject("app", ["demo"]);
+    await recordDemoFilesAsSeedsInOrder(dir, [
+      "src/features/demo/module.ts",
+      "src/features/demo/env.ts",
+    ]);
+    await remove(removeOptions(dir, "demo"));
+
+    expect(loggedText()).toContain(
+      "Kept seed files of demo (yours, edit or delete them):\n  src/features/demo/env.ts\n  src/features/demo/module.ts\n",
+    );
+    expect(loggedText()).not.toContain("  src/features/demo/i18n/pl.json");
+  });
+
+  it("logs no kept seed files line for a module without seed files", async () => {
+    const dir = await createProject("app", ["demo"]);
+    await remove(removeOptions(dir, "demo"));
+
+    expect(loggedText()).not.toContain("Kept seed files");
+  });
+
+  it("does not list a seed file the project already deleted", async () => {
+    const dir = await createProject("app", ["demo"]);
+    await recordDemoFilesAsSeedsInOrder(dir, [
+      "src/features/demo/module.ts",
+      "src/features/demo/env.ts",
+    ]);
+    await rm(join(dir, "src/features/demo/env.ts"));
+    await remove(removeOptions(dir, "demo"));
+
+    expect(loggedText()).toContain(
+      "Kept seed files of demo (yours, edit or delete them):\n  src/features/demo/module.ts",
+    );
+    expect(loggedText()).not.toContain("  src/features/demo/env.ts");
+  });
+
+  it("logs no kept seed files line when every seed file was deleted", async () => {
+    const dir = await createProject("app", ["demo"]);
+    await recordDemoModuleAsSeed(dir);
+    await rm(join(dir, "src/features/demo/module.ts"));
+    await remove(removeOptions(dir, "demo"));
+
+    expect(loggedText()).not.toContain("Kept seed files");
+  });
+
+  it("lists the kept seed files also with --force", async () => {
+    const dir = await createProject("app", ["demo"]);
+    await recordDemoModuleAsSeed(dir);
+    await remove(removeOptions(dir, "demo", { force: true }));
+
+    expect(loggedText()).toContain(
+      "Kept seed files of demo (yours, edit or delete them):\n  src/features/demo/module.ts",
+    );
+  });
+
+  it("keeps the migration command as the last log line", async () => {
+    const dir = await createProject("app", ["demo"]);
+    await recordDemoModuleAsSeed(dir);
+    await remove(removeOptions(dir, "demo"));
+
+    expect(log.mock.calls.at(-1)).toEqual([
+      "npx prisma migrate dev --name remove-demo",
+    ]);
+  });
+});
