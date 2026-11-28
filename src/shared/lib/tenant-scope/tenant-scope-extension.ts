@@ -1,10 +1,13 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { Prisma } from "@/generated/prisma/client";
 import { logger } from "@/shared/lib/logger";
+import { currentOrganizationScope } from "./organization-scope";
 import {
   TenantScopeError,
+  hasOrganizationColumn,
   isTenantScopeSatisfied,
   isTenantScoped,
+  isWithinOrganization,
 } from "./tenant-scope";
 
 interface TenantScopeBypass {
@@ -37,6 +40,9 @@ export async function withoutTenantScope<T>(
   if (reason.trim() === "") {
     throw new Error("withoutTenantScope wymaga niepustego powodu");
   }
+  if (currentOrganizationScope() !== undefined) {
+    throw new Error("withoutTenantScope is not allowed in an organization job");
+  }
   // WHY: Prisma queries are lazy thenables; awaiting inside run() executes them within the bypass context.
   return bypassStorage.run({ reason }, async () => await fn());
 }
@@ -48,10 +54,30 @@ interface TenantQueryParams<T> {
   query: (args: unknown) => Promise<T>;
 }
 
-export async function guardTenantQuery<T>(
+function guardOrganizationJobQuery<T>(
   { model, operation, args, query }: TenantQueryParams<T>,
-  isScoped: (model: string) => boolean = isTenantScoped,
+  organizationId: string,
+  hasOrganization: (model: string) => boolean,
 ): Promise<T> {
+  if (
+    hasOrganization(model) &&
+    !isWithinOrganization(operation, args, organizationId)
+  ) {
+    throw new TenantScopeError(model, operation, "outside-job-organization");
+  }
+  return query(args);
+}
+
+export async function guardTenantQuery<T>(
+  params: TenantQueryParams<T>,
+  isScoped: (model: string) => boolean = isTenantScoped,
+  hasOrganization: (model: string) => boolean = hasOrganizationColumn,
+): Promise<T> {
+  const organizationId = currentOrganizationScope();
+  if (organizationId !== undefined) {
+    return guardOrganizationJobQuery(params, organizationId, hasOrganization);
+  }
+  const { model, operation, args, query } = params;
   if (!isScoped(model) || isTenantScopeSatisfied(operation, args)) {
     return query(args);
   }

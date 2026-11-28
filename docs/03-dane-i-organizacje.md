@@ -350,9 +350,21 @@ Nie liczą się: `NOT`, filtr relacji (`organization: { id }`), `{ not }`, `{ no
 
 `reason` to niepusty napis; pusty kończy się błędem przed wywołaniem `fn`. Zwolnienie działa przez `AsyncLocalStorage` tylko w obrębie `fn` (także zagnieżdżone) i znika po jej zakończeniu, również po błędzie. Każde zapytanie bez filtra wewnątrz `fn` zapisuje `logger.debug` z modelem, operacją i powodem. W kicie `withoutTenantScope` mają dwa miejsca: odczyt klucza API po skrócie ([14-modul-api-keys.md](14-modul-api-keys.md#authenticate)) i odczyt pliku po `id` przed sprawdzeniem widoczności ([15-modul-uploads.md](15-modul-uploads.md#get)). Testy integracyjne używają go w asercjach, które sprawdzają stan bazy niezależnie od organizacji.
 
+<a id="zakres-organizacji-zadania"></a>
+
+**Zakres organizacji zadania.** Zadanie w tle jednej organizacji (moduł `jobs`) działa wewnątrz `runInOrganizationScope(organizationId, fn)` z `@/shared/lib/tenant-scope`. Zakres to `AsyncLocalStorage` współdzielony przez `globalThis` pod `Symbol.for("gatojs.organization-scope")`, tak jak magazyn `withoutTenantScope`; `currentOrganizationScope()` zwraca jego identyfikator albo `undefined`. Pusty identyfikator i zagnieżdżony zakres innej organizacji kończą się błędem przed wywołaniem `fn`; zagnieżdżony zakres tej samej organizacji działa.
+
+W zakresie guard sprawdza **wartość** filtra, nie tylko jego obecność (`isWithinOrganization` w `tenant-scope.ts`), na każdym modelu z kolumną `organizationId`, także na `Member` i `Invitation`:
+
+- `where` musi przypinać identyfikator zakresu: napis, `{ equals: id }` albo `{ in: [id] }` (każdy element równy `id`), selektor złożony z tą wartością, jeden element `AND` albo każda gałąź `OR`;
+- `create` wymaga `data.organizationId` równego `id`, `createMany` i `createManyAndReturn` w każdym wierszu, `upsert` filtra w `where`, `create.organizationId` i czystego `update`;
+- w zapisywanych danych (`data`, `update`, także zagnieżdżonych) każde `organizationId` musi być równe `id` (dopuszczalne `{ set: id }`), a relacja `organization` tylko jako `{ connect: { id } }`.
+
+Inna organizacja, `in` z inną wartością, `{ not }`, brak filtra albo zapis przenoszący wiersz do innej organizacji kończą się `TenantScopeError` z komunikatem `<model>.<operacja> outside job organization` (na przykład `auditLog.findMany outside job organization`), a zapytanie nie trafia do bazy. `withoutTenantScope` wewnątrz zakresu rzuca `withoutTenantScope is not allowed in an organization job`, a zwolnienie otwarte przed zakresem w nim nie działa: zadanie organizacji nigdy nie czyta między organizacjami. Modele bez kolumny `organizationId` (`User`, `Organization`) zakres pomija, a `connect` innej relacji niż `organization` nie jest sprawdzany. Poza zakresem guard działa jak wyżej, bez zmian.
+
 **Ograniczenia.** Guard nie widzi `$queryRaw`, `$executeRaw` ani zapytań przez relację zagnieżdżoną (`include`, `select` relacji, zapis zagnieżdżony z modelu nadrzędnego, na przykład `organization.findUnique({ include: { apiKeys: true } })`). Nie sprawdza też, czy filtr wskazuje aktywną organizację, tylko czy jakiś filtr jest ([znane-ograniczenia.md](znane-ograniczenia.md#guard-organizacji)).
 
-Testy: `src/shared/lib/tenant-scope/__tests__/` (reguły filtra na literałach, `withoutTenantScope`, `guardTenantQuery`) i w modułach `src/features/<moduł>/services/__tests__/tenant-scope-*.test.ts`, w tym `src/features/api-keys/services/__tests__/tenant-scope-guard.integration.test.ts` na prawdziwej bazie.
+Testy: `src/shared/lib/tenant-scope/__tests__/` (reguły filtra na literałach, `withoutTenantScope`, `guardTenantQuery`, zakres organizacji zadania, także `organization-scope.integration.test.ts` na prawdziwej bazie) i w modułach `src/features/<moduł>/services/__tests__/tenant-scope-*.test.ts`, w tym `src/features/api-keys/services/__tests__/tenant-scope-guard.integration.test.ts` na prawdziwej bazie.
 
 <a id="izolacja"></a>
 
@@ -575,7 +587,7 @@ Rejestracja z `invitationId` przyjmuje tylko zaproszenie ze statusem `pending`, 
 
 | Błąd | Skąd | Kiedy | Wynik |
 | --- | --- | --- | --- |
-| `TenantScopeError` (`Error`, komunikat „Zapytanie <Model>.<operacja> bez filtra organizationId…”) | rozszerzenie `tenantScopeExtension` klienta `prisma` | Zapytanie na modelu objętym guardem bez filtra organizacji, poza `withoutTenantScope` ([Guard w runtime](#guard-w-runtime)). | Wyjątek, zapytanie nie trafia do bazy. `handleCommandError` zapisuje `logger.error` i zwraca komunikat domyślny komendy. |
+| `TenantScopeError` (`Error`, komunikat „Zapytanie <Model>.<operacja> bez filtra organizationId…”) | rozszerzenie `tenantScopeExtension` klienta `prisma` | Zapytanie na modelu objętym guardem bez filtra organizacji, poza `withoutTenantScope` ([Guard w runtime](#guard-w-runtime)); w zakresie organizacji zadania zapytanie o inną organizację (komunikat „<model>.<operacja> outside job organization”, [zakres](#zakres-organizacji-zadania)). | Wyjątek, zapytanie nie trafia do bazy. `handleCommandError` zapisuje `logger.error` i zwraca komunikat domyślny komendy. |
 | `NoOrganizationError` (`Error`, komunikat „Użytkownik nie należy do aktywnej organizacji”) | `getOrgContext` | Brak aktywnej organizacji; brak członkostwa poza superadminem; superadmin z organizacją, której nie ma w bazie. | [Kto obsługuje](#no-organization-error). |
 | Przekierowanie na `/sign-in` (`NEXT_REDIRECT`) | `getOrgContext`, `requireUser` | Brak sesji. | Next.js przekierowuje. `handleCommandError` rzuca je dalej. |
 | `ServiceModeConfirmationError` (`DomainError`, „Potwierdź zmianę w trybie serwisowym”) | `assertServiceModeConfirmed` w `service-mode.ts` | W trybie serwisowym: brak potwierdzenia aktywnej organizacji. W każdym trybie: przekazane potwierdzenie nie wskazuje aktywnej organizacji, na przykład z karty otwartej przed przełączeniem organizacji. | `{ success: false, error: "Potwierdź zmianę w trybie serwisowym" }` ([04b-superadmin-i-tryb-serwisowy.md](04b-superadmin-i-tryb-serwisowy.md#kontrakt-potwierdzenia)). |
