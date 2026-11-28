@@ -21,6 +21,7 @@ const {
   mockPrisma: {
     user: { findUnique: vi.fn(), update: vi.fn() },
     invitation: { create: vi.fn(), delete: vi.fn() },
+    member: { findUnique: vi.fn() },
   },
   mockGetAdminUserOrNull: vi.fn(),
   mockGetOrgContext: vi.fn(),
@@ -77,6 +78,13 @@ vi.mock("@/modules.generated", () => ({
           id: "probe.record",
           run: (event: unknown) => {
             timeline.push("event");
+            emitted.push(event);
+          },
+        },
+        "organizations.member-added": {
+          id: "probe.member-added",
+          run: (event: unknown) => {
+            timeline.push("member-added");
             emitted.push(event);
           },
         },
@@ -173,6 +181,18 @@ beforeEach(() => {
   mockPrisma.user.update.mockResolvedValue({});
   mockPrisma.invitation.create.mockResolvedValue({ id: "inv-1" });
   mockPrisma.invitation.delete.mockResolvedValue({});
+  mockPrisma.member.findUnique.mockImplementation(
+    async (args: {
+      where?: {
+        organizationId_userId?: { organizationId?: string; userId?: string };
+      };
+    }) => {
+      const key = args.where?.organizationId_userId;
+      return key?.organizationId === "org-1" && key.userId === "new-user-1"
+        ? { id: "mem-new-1" }
+        : null;
+    },
+  );
   mockAuthApi.signUpEmail.mockResolvedValue({ user: { id: "new-user-1" } });
   mockCreateWelcomeUrl.mockResolvedValue("http://localhost:3000/welcome");
   mockSendWelcomeEmail.mockResolvedValue({ data: { id: "mail-1" } });
@@ -209,6 +229,17 @@ describe("users.invite: a before hook changes the input", () => {
         payload: {
           invitationId: "inv-1",
           email: "jan@firma.pl",
+          role: "admin",
+        },
+      },
+      {
+        name: "organizations.member-added",
+        organizationId: "org-1",
+        actorUserId: "admin-1",
+        serviceMode: false,
+        payload: {
+          memberId: "mem-new-1",
+          userId: "new-user-1",
           role: "admin",
         },
       },
@@ -261,7 +292,14 @@ describe("users.invite: a before hook changes the input", () => {
       expect.objectContaining({ organizationId: "org-1" }),
     ]);
     expect(emitted).toEqual([
-      expect.objectContaining({ organizationId: "org-1" }),
+      expect.objectContaining({
+        name: "users.invited",
+        organizationId: "org-1",
+      }),
+      expect.objectContaining({
+        name: "organizations.member-added",
+        organizationId: "org-1",
+      }),
     ]);
   });
 
@@ -282,6 +320,12 @@ describe("users.invite: a before hook changes the input", () => {
     ]);
     expect(emitted).toEqual([
       expect.objectContaining({
+        name: "users.invited",
+        organizationId: "org-1",
+        actorUserId: "admin-1",
+      }),
+      expect.objectContaining({
+        name: "organizations.member-added",
         organizationId: "org-1",
         actorUserId: "admin-1",
       }),
@@ -344,7 +388,7 @@ describe("users.invite: a before hook changes the input", () => {
       data: { userId: "new-user-1" },
       warning: "mail-failed",
     });
-    expect(emitted).toHaveLength(1);
+    expect(emitted).toHaveLength(2);
   });
 });
 
@@ -576,10 +620,10 @@ describe("users.invite: users.invited is emitted only after a successful run", (
 
     await inviteUserCommand(validInput);
 
-    expect(timeline).toEqual(["mail", "event"]);
+    expect(timeline).toEqual(["mail", "event", "member-added"]);
   });
 
-  it("a user update that would fail does not affect the invite: it succeeds and emits users.invited once", async () => {
+  it("a user update that would fail does not affect the invite: it succeeds and emits users.invited once, then organizations.member-added", async () => {
     mockPrisma.user.update.mockRejectedValue(new Error("db down"));
 
     const result = await inviteUserCommand(validInput);
@@ -595,6 +639,17 @@ describe("users.invite: users.invited is emitted only after a successful run", (
         payload: {
           invitationId: "inv-1",
           email: "jan@firma.pl",
+          role: "member",
+        },
+      },
+      {
+        name: "organizations.member-added",
+        organizationId: "org-1",
+        actorUserId: "admin-1",
+        serviceMode: false,
+        payload: {
+          memberId: "mem-new-1",
+          userId: "new-user-1",
           role: "member",
         },
       },
