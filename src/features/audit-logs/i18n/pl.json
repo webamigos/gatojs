@@ -28,5 +28,6 @@
   "detail-after": "Po",
   "badge-service-mode": "Tryb serwisowy",
   "badge-api": "API",
-  "source-system": "System"
+  "source-system": "System",
+  "description": "Historia zmian w organizacji."
 }

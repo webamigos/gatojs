@@ -7,16 +7,10 @@ import { Users as UsersIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations, useLocale } from "next-intl";
 import { DataTable } from "@/components/ui/data-table";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardAction,
-  CardContent,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { useRouter } from "@/i18n/routing";
 import { clientModuleSlots } from "@/modules.client.generated";
+import { PageHeader } from "@/shared/components/page-header";
 import { authClient } from "@/shared/lib/auth/client";
 import type { OrgRole, UserRole } from "@/shared/lib/auth/roles";
 import { visibleContributions } from "@/shared/lib/modules/slot-access";
@@ -124,31 +118,24 @@ export function UsersManager({
   ]);
 
   return (
-    <Card>
-      <CardHeader className="border-b">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-            <UsersIcon className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <CardTitle>{t("title")}</CardTitle>
-            <CardDescription>{t("description")}</CardDescription>
-          </div>
-        </div>
-        <CardAction>
-          <InviteUserDialog viewer={viewer} />
-        </CardAction>
-      </CardHeader>
-      <CardContent className="space-y-4 pt-6">
-        {users.length === 0 ? (
-          <div className="py-12 text-center text-muted-foreground">
-            <UsersIcon className="mx-auto mb-2 h-8 w-8" />
-            {t("no-users")}
-          </div>
-        ) : (
-          <DataTable columns={columns} data={users} />
-        )}
-      </CardContent>
-    </Card>
+    <div className="space-y-6">
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        actions={<InviteUserDialog viewer={viewer} />}
+      />
+      <Card>
+        <CardContent className="space-y-4">
+          {users.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">
+              <UsersIcon className="mx-auto mb-2 h-8 w-8" />
+              {t("no-users")}
+            </div>
+          ) : (
+            <DataTable columns={columns} data={users} />
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

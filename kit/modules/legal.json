@@ -1,0 +1,13 @@
+{
+  "name": "legal",
+  "version": "0.1.0",
+  "description": "Public terms and privacy pages and an opt-in cookie consent banner",
+  "requires": [],
+  "files": ["src/features/legal/**", "src/app/[locale]/(legal)/**"],
+  "dependencies": {},
+  "devDependencies": {},
+  "env": [],
+  "schemaRelations": [],
+  "compose": null,
+  "workspaces": []
+}

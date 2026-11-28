@@ -341,7 +341,10 @@ describe("plugin admin: role", () => {
       }),
     );
     mockPrisma.organization.findFirst.mockResolvedValue({ id: "org-only" });
-    mockPrisma.member.create.mockImplementation((args: unknown) => args);
+    mockPrisma.member.create.mockImplementation((args: unknown) => ({
+      ...(args as object),
+      id: "mem-new",
+    }));
     mockPrisma.$transaction.mockImplementation(async (ops: unknown) =>
       Array.isArray(ops) ? ops : undefined,
     );

@@ -19,8 +19,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useRouter } from "@/i18n/routing";
 import { clientModules } from "@/modules.client.generated";
+import { PageHeader } from "@/shared/components/page-header";
 import { useServiceModeAction } from "@/shared/components/service-mode/use-service-mode-action";
 import type { ModuleDef } from "@/shared/lib/modules/define-module";
 import type { OperationResult } from "@/shared/types/common";
@@ -37,13 +39,26 @@ const DATE_FNS_LOCALES: Record<string, DateFnsLocale> = { pl, en: enUS };
 const registry: readonly ModuleDef[] = clientModules;
 
 type ExpiryDays = 30 | 90 | 365 | null;
+type ExpiryOptionValue = "30" | "90" | "365" | "never";
 
-const EXPIRY_OPTIONS: { value: ExpiryDays; labelKey: string }[] = [
-  { value: 30, labelKey: "expiry-30" },
-  { value: 90, labelKey: "expiry-90" },
-  { value: 365, labelKey: "expiry-365" },
-  { value: null, labelKey: "expiry-never" },
+const EXPIRY_OPTIONS: {
+  value: ExpiryOptionValue;
+  days: ExpiryDays;
+  labelKey: string;
+}[] = [
+  { value: "30", days: 30, labelKey: "expiry-30" },
+  { value: "90", days: 90, labelKey: "expiry-90" },
+  { value: "365", days: 365, labelKey: "expiry-365" },
+  { value: "never", days: null, labelKey: "expiry-never" },
 ];
+
+function expiryOptionValue(days: ExpiryDays): ExpiryOptionValue {
+  return days === null ? "never" : (String(days) as ExpiryOptionValue);
+}
+
+function expiryDaysOf(value: ExpiryOptionValue): ExpiryDays {
+  return EXPIRY_OPTIONS.find((option) => option.value === value)?.days ?? null;
+}
 
 const DEFAULT_EXPIRY: ExpiryDays = 90;
 
@@ -154,12 +169,16 @@ export function ApiKeysManager({ keys }: { keys: ApiKeyRow[] }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <Button onClick={() => setFormOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          {t("create")}
-        </Button>
-      </div>
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        actions={
+          <Button onClick={() => setFormOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            {t("create")}
+          </Button>
+        }
+      />
 
       {keys.length === 0 ? (
         <div className="py-12 text-center text-muted-foreground">
@@ -207,24 +226,30 @@ export function ApiKeysManager({ keys }: { keys: ApiKeyRow[] }) {
               })}
             </fieldset>
             <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">
+              <legend
+                id="api-key-expiry-legend"
+                className="text-sm font-medium"
+              >
                 {t("form-expiry")}
               </legend>
-              {EXPIRY_OPTIONS.map((option) => {
-                const id = `api-key-expiry-${option.value ?? "never"}`;
-                return (
-                  <div key={id} className="flex items-center gap-2">
-                    <input
-                      id={id}
-                      type="radio"
-                      name="api-key-expiry"
-                      checked={expiresInDays === option.value}
-                      onChange={() => setExpiresInDays(option.value)}
-                    />
-                    <Label htmlFor={id}>{t(option.labelKey)}</Label>
-                  </div>
-                );
-              })}
+              <RadioGroup
+                aria-labelledby="api-key-expiry-legend"
+                name="api-key-expiry"
+                value={expiryOptionValue(expiresInDays)}
+                onValueChange={(value: ExpiryOptionValue) =>
+                  setExpiresInDays(expiryDaysOf(value))
+                }
+              >
+                {EXPIRY_OPTIONS.map((option) => {
+                  const id = `api-key-expiry-${option.value}`;
+                  return (
+                    <div key={id} className="flex items-center gap-2">
+                      <RadioGroupItem id={id} value={option.value} />
+                      <Label htmlFor={id}>{t(option.labelKey)}</Label>
+                    </div>
+                  );
+                })}
+              </RadioGroup>
             </fieldset>
           </div>
           <DialogFooter>

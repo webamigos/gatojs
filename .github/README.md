@@ -78,9 +78,9 @@ Add them when a project needs them, remove them when it doesn't. A module only a
 | `api-keys` | Organization API keys with scopes, stored as hashes; your endpoints declare the scopes they need and get the organization from the key | Ready |
 | `uploads` | Organization files on local disk or S3-compatible storage, with public and private files | Ready |
 | `encryption` | Per-organization encryption of sensitive fields (AES-256-GCM, one data key per organization under a master key) | Ready |
+| `legal` | Public terms and privacy pages from your own content, and a cookie banner that appears only when you declare optional cookies | Ready |
 | Background jobs | A job queue and scheduled tasks, including retention and cleanup | Planned |
 | MCP | Expose your app to AI assistants over MCP with OAuth, built on better-auth 1.7 | Planned |
-| Legal pages | Terms, privacy policy and a cookie banner | Planned |
 
 ```bash
 npx gato add uploads

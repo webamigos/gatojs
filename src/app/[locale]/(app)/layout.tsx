@@ -72,6 +72,13 @@ export default async function AppLayout({ children, params }: AppLayoutProps) {
             accessContext={accessContext}
             userName={user.name}
             userEmail={user.email}
+            footer={
+              <Slot
+                id="app.sidebar.footer"
+                context={{ organizationId: orgContext.organizationId }}
+                viewer={accessContext}
+              />
+            }
           />
           <div className="flex min-w-0 flex-1 flex-col">
             <MobileHeader />

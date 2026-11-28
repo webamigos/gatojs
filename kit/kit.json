@@ -1,5 +1,5 @@
 {
-  "version": "0.40.0",
+  "version": "0.43.0",
   "repo": "https://github.com/webamigos/gatojs.git",
   "kitFormat": 11,
   "kitOnly": [
@@ -48,6 +48,7 @@
     ".github/workflows/ci.yml",
     ".github/workflows/mutation.yml",
     "src/test/integration/database-url.ts",
+    "src/test/integration/__tests__/database-url.test.ts",
     "README.md",
     "docker/uploads.compose.yml",
     "docker/uploads.selfhost.compose.yml",
@@ -63,5 +64,14 @@
     "EXTENSION_POINTS.md"
   ],
   "managedFiles": ["package.json", "package-lock.json"],
-  "seedFiles": ["README.md", "src/theme.css"]
+  "seedFiles": [
+    "README.md",
+    "src/theme.css",
+    "src/features/legal/legal.config.ts",
+    "src/features/legal/content/index.ts",
+    "src/features/legal/content/terms.pl.tsx",
+    "src/features/legal/content/terms.en.tsx",
+    "src/features/legal/content/privacy.pl.tsx",
+    "src/features/legal/content/privacy.en.tsx"
+  ]
 }

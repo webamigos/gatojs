@@ -22300,6 +22300,18 @@ async function removeEmptyParents(projectDir, start) {
     current = dirname5(current);
   }
 }
+async function keptSeedFiles(projectDir, files) {
+  const kept = [];
+  for (const [file2, hash2] of Object.entries(files)) {
+    if (hash2 !== SEED) {
+      continue;
+    }
+    if (await lstatIfExists(await insideProject(projectDir, file2)) !== null) {
+      kept.push(file2);
+    }
+  }
+  return kept.sort(compareCodePoint);
+}
 async function remove(options) {
   const { projectDir, module, runner, log } = options;
   const state = await readKitState(projectDir);
@@ -22327,6 +22339,7 @@ ${changed.map((file2) => `  ${file2}`).join("\n")}`
     entry2.manifest,
     remaining
   );
+  const kept = await keptSeedFiles(projectDir, entry2.files);
   for (const path2 of absolutePaths) {
     await rm3(path2, { force: true });
     await removeEmptyParents(projectDir, path2);
@@ -22341,6 +22354,12 @@ ${changed.map((file2) => `  ${file2}`).join("\n")}`
       throw new Error(
         "Module removed, but npm install failed. Run: npm install"
       );
+    }
+  }
+  if (kept.length > 0) {
+    log(`Kept seed files of ${module} (yours, edit or delete them):`);
+    for (const file2 of kept) {
+      log(`  ${file2}`);
     }
   }
   log(`npx prisma migrate dev --name remove-${module}`);
@@ -25267,7 +25286,7 @@ function cliDependency(input2) {
 }
 
 // src/bin.ts
-var identity = { name: "wa", version: "0.15.0" };
+var identity = { name: "wa", version: "0.16.0" };
 async function listCommand(kit) {
   const projectDir = process.cwd();
   const state = await readKitState(projectDir);

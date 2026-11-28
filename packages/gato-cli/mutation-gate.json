@@ -93,20 +93,6 @@
       "reason": "equivalent: on an error other than ENOENT, writeFile throws the same error; at most the place of the error changes"
     },
     {
-      "file": "src/commands/remove.ts",
-      "mutator": "ConditionalExpression",
-      "original": "(error as NodeJS.ErrnoException).code === \"ENOENT\"",
-      "replacement": "true",
-      "reason": "equivalent: every file system error other than ENOENT fails earlier during path validation with realpath; only a race with an external process remains"
-    },
-    {
-      "file": "src/commands/remove.ts",
-      "mutator": "ArrayDeclaration",
-      "original": "[]",
-      "replacement": "[\"Stryker was here\"]",
-      "reason": "equivalent: managedFiles in HASH_CONFIG changes the hash only for listed paths; the path \"Stryker was here\" is not a file of any module"
-    },
-    {
       "file": "src/commands/create.ts",
       "mutator": "ObjectLiteral",
       "original": "{ mode: 0o600 }",
