@@ -13,6 +13,7 @@ const {
   mockPrisma: {
     user: { findUnique: vi.fn(), update: vi.fn() },
     invitation: { create: vi.fn(), delete: vi.fn() },
+    member: { findUnique: vi.fn() },
   },
   mockGetAdminUserOrNull: vi.fn(),
   mockGetOrgContext: vi.fn(),
@@ -88,6 +89,27 @@ vi.mock("@/modules.generated", () => ({
             },
           },
         ],
+        "organizations.member-added": {
+          id: "probe.member-added",
+          run: (event: unknown) => {
+            timeline.push("member-added");
+            emitted.push(event);
+          },
+        },
+        "users.invitation-accepted": {
+          id: "probe.invitation-accepted",
+          run: (event: unknown) => {
+            timeline.push("invitation-accepted");
+            emitted.push(event);
+          },
+        },
+        "auth.signed-up": {
+          id: "probe.signed-up",
+          run: (event: unknown) => {
+            timeline.push("signed-up");
+            emitted.push(event);
+          },
+        },
       },
     },
   ],
@@ -121,6 +143,21 @@ const SERVICE_MODE_ERROR = {
   error: "Potwierdź zmianę w trybie serwisowym",
 };
 
+const MEMBER_IDS: Record<string, string> = {
+  "org-1/new-user-1": "mem-new-1",
+  "org-9/new-user-1": "mem-org9-new-1",
+};
+
+function memberRowFor(args: {
+  where?: {
+    organizationId_userId?: { organizationId?: string; userId?: string };
+  };
+}) {
+  const key = args.where?.organizationId_userId;
+  const id = MEMBER_IDS[`${key?.organizationId}/${key?.userId}`];
+  return id ? { id } : null;
+}
+
 const validInput = {
   name: "Jan Kowalski",
   email: "jan@firma.pl",
@@ -133,6 +170,9 @@ beforeEach(() => {
   mockPrisma.invitation.create.mockResolvedValue({ id: "inv-1" });
   mockPrisma.invitation.delete.mockResolvedValue({});
   mockPrisma.user.update.mockResolvedValue({});
+  mockPrisma.member.findUnique.mockImplementation(async (args) =>
+    memberRowFor(args),
+  );
   mockAuthApi.signUpEmail.mockResolvedValue({ user: { id: "new-user-1" } });
   mockCreateWelcomeUrl.mockResolvedValue(WELCOME_URL);
   mockSendWelcomeEmail.mockResolvedValue({ data: { id: "mail-1" } });
@@ -540,7 +580,7 @@ describe("inviteUserCommand", () => {
 
       expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
       expect(mockTrackAudit).not.toHaveBeenCalled();
-      expect(emitted).toHaveLength(1);
+      expect(emitted).toHaveLength(2);
     });
 
     it("a confirmed service-mode invitation does not call trackAudit itself", async () => {
@@ -557,10 +597,10 @@ describe("inviteUserCommand", () => {
 
       expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
       expect(mockTrackAudit).not.toHaveBeenCalled();
-      expect(emitted).toHaveLength(1);
+      expect(emitted).toHaveLength(2);
     });
 
-    it("an undelivered welcome email still succeeds with a warning and one users.invited", async () => {
+    it("an undelivered welcome email still succeeds with a warning, users.invited and organizations.member-added", async () => {
       mockSendWelcomeEmail.mockRejectedValue(new Error("smtp down"));
 
       const result = await inviteUserCommand(validInput);
@@ -570,7 +610,7 @@ describe("inviteUserCommand", () => {
         data: { userId: "new-user-1" },
         warning: "mail-failed",
       });
-      expect(emitted).toHaveLength(1);
+      expect(emitted).toHaveLength(2);
       expect(mockTrackAudit).not.toHaveBeenCalled();
     });
 
@@ -596,7 +636,45 @@ describe("inviteUserCommand", () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
     });
 
-    it("a successful invitation emits exactly one users.invited with the context organization, actor and the invitation", async () => {
+    it("a successful invitation emits users.invited and then organizations.member-added with the invitee's member row, both with the context organization and the admin as actor", async () => {
+      const result = await inviteUserCommand(validInput);
+
+      expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
+      expect(emitted).toEqual([
+        {
+          name: "users.invited",
+          organizationId: "org-1",
+          actorUserId: "admin-1",
+          serviceMode: false,
+          payload: {
+            invitationId: "inv-1",
+            email: "jan@firma.pl",
+            role: "member",
+          },
+        },
+        {
+          name: "organizations.member-added",
+          organizationId: "org-1",
+          actorUserId: "admin-1",
+          serviceMode: false,
+          payload: {
+            memberId: "mem-new-1",
+            userId: "new-user-1",
+            role: "member",
+          },
+        },
+      ]);
+    });
+
+    it("an admin invite never emits users.invitation-accepted or auth.signed-up", async () => {
+      await inviteUserCommand(validInput);
+
+      expect(timeline).toEqual(["event", "member-added"]);
+    });
+
+    it("a missing member row of the invitee emits only users.invited", async () => {
+      mockPrisma.member.findUnique.mockResolvedValue(null);
+
       const result = await inviteUserCommand(validInput);
 
       expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
@@ -613,6 +691,16 @@ describe("inviteUserCommand", () => {
           },
         },
       ]);
+    });
+
+    it("the member row is looked up in the context organization for the registered user, so a row elsewhere emits no member-added", async () => {
+      mockAuthApi.signUpEmail.mockResolvedValue({
+        user: { id: "user-without-row" },
+      });
+
+      await inviteUserCommand(validInput);
+
+      expect(timeline).toEqual(["event"]);
     });
 
     it("the organization, actor and serviceMode come from the context, the email and role from the parsed input", async () => {
@@ -643,6 +731,17 @@ describe("inviteUserCommand", () => {
             role: "admin",
           },
         },
+        {
+          name: "organizations.member-added",
+          organizationId: "org-9",
+          actorUserId: "super-1",
+          serviceMode: true,
+          payload: {
+            memberId: "mem-org9-new-1",
+            userId: "new-user-1",
+            role: "admin",
+          },
+        },
       ]);
     });
 
@@ -656,7 +755,12 @@ describe("inviteUserCommand", () => {
 
       await inviteUserCommand(validInput);
 
-      expect(timeline).toEqual(["signup:start", "signup:end", "event"]);
+      expect(timeline).toEqual([
+        "signup:start",
+        "signup:end",
+        "event",
+        "member-added",
+      ]);
     });
 
     it("an existing email emits no event", async () => {
@@ -701,7 +805,7 @@ describe("inviteUserCommand", () => {
       const result = await inviteUserCommand(validInput);
 
       expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
-      expect(emitted).toHaveLength(1);
+      expect(emitted).toHaveLength(2);
       expect(mockSendWelcomeEmail).toHaveBeenCalledTimes(1);
     });
   });
@@ -753,7 +857,7 @@ describe("inviteUserCommand", () => {
     it("the users.invited subscribers run outside the invite scope", async () => {
       await inviteUserCommand(validInput);
 
-      expect(emitted).toHaveLength(1);
+      expect(emitted).toHaveLength(2);
       expect(scopeInSubscriber).toEqual([false]);
     });
 

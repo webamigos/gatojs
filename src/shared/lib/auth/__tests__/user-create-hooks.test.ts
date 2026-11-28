@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockPrisma, mockEnv, signedUp, created, timeline } = vi.hoisted(() => ({
+const {
+  mockPrisma,
+  mockEnv,
+  signedUp,
+  created,
+  invitationAccepted,
+  memberAdded,
+  timeline,
+} = vi.hoisted(() => ({
   mockPrisma: {
     invitation: { findFirst: vi.fn(), update: vi.fn() },
     organization: { findFirst: vi.fn(), create: vi.fn() },
@@ -18,6 +26,8 @@ const { mockPrisma, mockEnv, signedUp, created, timeline } = vi.hoisted(() => ({
   },
   signedUp: [] as unknown[],
   created: [] as unknown[],
+  invitationAccepted: [] as unknown[],
+  memberAdded: [] as unknown[],
   timeline: [] as string[],
 }));
 
@@ -47,6 +57,20 @@ vi.mock("@/modules.generated", () => ({
           run: (event: unknown) => {
             timeline.push("organizations.created");
             created.push(event);
+          },
+        },
+        "users.invitation-accepted": {
+          id: "probe.invitation-accepted",
+          run: (event: unknown) => {
+            timeline.push("users.invitation-accepted");
+            invitationAccepted.push(event);
+          },
+        },
+        "organizations.member-added": {
+          id: "probe.member-added",
+          run: (event: unknown) => {
+            timeline.push("organizations.member-added");
+            memberAdded.push(event);
           },
         },
       },
@@ -129,8 +153,16 @@ function stubUserPersistence() {
     id: "org-new",
     slug: "jan-organizacja-abcd1234",
   });
-  mockPrisma.member.create.mockImplementation((args: unknown) => args);
-  mockPrisma.invitation.update.mockImplementation((args: unknown) => args);
+  mockPrisma.member.create.mockImplementation(
+    (args: { data: { userId: string } }) => ({
+      ...args,
+      id: `mem-of-${args.data.userId}`,
+    }),
+  );
+  mockPrisma.invitation.update.mockImplementation((args: unknown) => ({
+    ...(args as object),
+    id: "inv-updated",
+  }));
   mockPrisma.$transaction.mockImplementation(async (ops: unknown) =>
     Array.isArray(ops) ? ops : undefined,
   );
@@ -142,6 +174,8 @@ beforeEach(() => {
   mockEnv.MULTI_ORG = false;
   signedUp.length = 0;
   created.length = 0;
+  invitationAccepted.length = 0;
+  memberAdded.length = 0;
   timeline.length = 0;
   stubUserPersistence();
 });
@@ -162,6 +196,69 @@ describe("databaseHooks.user.create.after: auth.signed-up", () => {
       },
     ]);
     expect(created).toEqual([]);
+  });
+
+  it("joining the only organization emits organizations.member-added with the joined member id and role member after auth.signed-up, without users.invitation-accepted", async () => {
+    mockPrisma.organization.findFirst.mockResolvedValue({ id: "org-only" });
+
+    await auth.api.signUpEmail({ body: signupBody });
+
+    expect(memberAdded).toEqual([
+      {
+        name: "organizations.member-added",
+        organizationId: "org-only",
+        actorUserId: "user-new",
+        serviceMode: false,
+        payload: {
+          memberId: "mem-of-user-new",
+          userId: "user-new",
+          role: "member",
+        },
+      },
+    ]);
+    expect(invitationAccepted).toEqual([]);
+    expect(timeline).toEqual(["auth.signed-up", "organizations.member-added"]);
+  });
+
+  it("signing up with an invitation emits auth.signed-up, users.invitation-accepted and organizations.member-added in that order", async () => {
+    mockEnv.AUTH_PUBLIC_SIGNUP = false;
+    mockPrisma.invitation.findFirst.mockResolvedValue({
+      id: "inv-1",
+      organizationId: "org-invited",
+      role: "admin",
+    });
+
+    await auth.api.signUpEmail({
+      body: { ...signupBody, invitationId: "inv-1" } as typeof signupBody,
+    });
+
+    expect(timeline).toEqual([
+      "auth.signed-up",
+      "users.invitation-accepted",
+      "organizations.member-added",
+    ]);
+    expect(invitationAccepted).toEqual([
+      {
+        name: "users.invitation-accepted",
+        organizationId: "org-invited",
+        actorUserId: "user-new",
+        serviceMode: false,
+        payload: { invitationId: "inv-1", userId: "user-new" },
+      },
+    ]);
+    expect(memberAdded).toEqual([
+      {
+        name: "organizations.member-added",
+        organizationId: "org-invited",
+        actorUserId: "user-new",
+        serviceMode: false,
+        payload: {
+          memberId: "mem-of-user-new",
+          userId: "user-new",
+          role: "admin",
+        },
+      },
+    ]);
   });
 
   it("signing up with an invitation emits auth.signed-up for the invitation's organization", async () => {
@@ -215,6 +312,8 @@ describe("databaseHooks.user.create.after: auth.signed-up", () => {
       },
     ]);
     expect(timeline).toEqual(["organizations.created", "auth.signed-up"]);
+    expect(memberAdded).toEqual([]);
+    expect(invitationAccepted).toEqual([]);
   });
 
   it("a user created by admin createUser has no membership and emits nothing", async () => {
@@ -230,6 +329,7 @@ describe("databaseHooks.user.create.after: auth.signed-up", () => {
 
     expect(signedUp).toEqual([]);
     expect(created).toEqual([]);
+    expect(timeline).toEqual([]);
   });
 
   it("a failing membership write when joining the only organization emits no auth.signed-up", async () => {
@@ -240,6 +340,7 @@ describe("databaseHooks.user.create.after: auth.signed-up", () => {
 
     expect(mockPrisma.member.create).toHaveBeenCalledTimes(1);
     expect(signedUp).toEqual([]);
+    expect(timeline).toEqual([]);
   });
 
   it("a failing membership transaction when joining by invitation emits no auth.signed-up", async () => {
@@ -259,6 +360,9 @@ describe("databaseHooks.user.create.after: auth.signed-up", () => {
 
     expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
     expect(signedUp).toEqual([]);
+    expect(invitationAccepted).toEqual([]);
+    expect(memberAdded).toEqual([]);
+    expect(timeline).toEqual([]);
   });
 
   it("a failing organization create on MULTI_ORG=true emits neither organizations.created nor auth.signed-up", async () => {
@@ -290,11 +394,65 @@ describe("databaseHooks.user.create.after: auth.signed-up", () => {
         payload: { userId: "user-direct", email: "direct@example.com" },
       },
     ]);
+    expect(memberAdded).toEqual([
+      {
+        name: "organizations.member-added",
+        organizationId: "org-7",
+        actorUserId: "user-direct",
+        serviceMode: false,
+        payload: {
+          memberId: "mem-of-user-direct",
+          userId: "user-direct",
+          role: "member",
+        },
+      },
+    ]);
+    expect(invitationAccepted).toEqual([]);
+  });
+
+  it("the hook called with a join membership carrying an invitation emits users.invitation-accepted with the membership's invitation id", async () => {
+    await afterUserCreate()(createdUser, {
+      signupMembership: {
+        action: "join",
+        organizationId: "org-7",
+        role: "owner",
+        invitationId: "inv-77",
+      },
+    } as unknown as Parameters<AfterUserCreate>[1]);
+
+    expect(timeline).toEqual([
+      "auth.signed-up",
+      "users.invitation-accepted",
+      "organizations.member-added",
+    ]);
+    expect(invitationAccepted).toEqual([
+      {
+        name: "users.invitation-accepted",
+        organizationId: "org-7",
+        actorUserId: "user-direct",
+        serviceMode: false,
+        payload: { invitationId: "inv-77", userId: "user-direct" },
+      },
+    ]);
+    expect(memberAdded).toEqual([
+      {
+        name: "organizations.member-added",
+        organizationId: "org-7",
+        actorUserId: "user-direct",
+        serviceMode: false,
+        payload: {
+          memberId: "mem-of-user-direct",
+          userId: "user-direct",
+          role: "owner",
+        },
+      },
+    ]);
   });
 
   it("the hook called without a context emits nothing", async () => {
     await afterUserCreate()(createdUser, null);
 
+    expect(timeline).toEqual([]);
     expect(signedUp).toEqual([]);
     expect(mockPrisma.member.create).not.toHaveBeenCalled();
   });
@@ -306,6 +464,7 @@ describe("databaseHooks.user.create.after: auth.signed-up", () => {
     );
 
     expect(signedUp).toEqual([]);
+    expect(timeline).toEqual([]);
   });
 });
 
@@ -328,6 +487,9 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
 
     expect(signedUp).toEqual([]);
     expect(created).toEqual([]);
+    expect(invitationAccepted).toEqual([]);
+    expect(memberAdded).toEqual([]);
+    expect(timeline).toEqual([]);
     expect(mockPrisma.member.create).toHaveBeenCalledTimes(1);
     expect(mockPrisma.member.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -351,6 +513,7 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
     );
 
     expect(signedUp).toEqual([]);
+    expect(timeline).toEqual([]);
     expect(mockPrisma.member.create).toHaveBeenCalledTimes(1);
     expect(mockPrisma.member.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -387,6 +550,20 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
         payload: { userId: "user-new", email: "ewa@example.com" },
       },
     ]);
+    expect(timeline).toEqual([
+      "auth.signed-up",
+      "users.invitation-accepted",
+      "organizations.member-added",
+    ]);
+    expect(invitationAccepted).toEqual([
+      {
+        name: "users.invitation-accepted",
+        organizationId: "org-invited",
+        actorUserId: "user-new",
+        serviceMode: false,
+        payload: { invitationId: "inv-1", userId: "user-new" },
+      },
+    ]);
   });
 
   it("a public sign-up running concurrently with an invite scope still emits its own auth.signed-up", async () => {
@@ -419,6 +596,20 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
         payload: { userId: "user-ewa", email: "ewa@example.com" },
       },
     ]);
+    expect(memberAdded).toEqual([
+      {
+        name: "organizations.member-added",
+        organizationId: "org-only",
+        actorUserId: "user-ewa",
+        serviceMode: false,
+        payload: {
+          memberId: "mem-of-user-ewa",
+          userId: "user-ewa",
+          role: "member",
+        },
+      },
+    ]);
+    expect(invitationAccepted).toEqual([]);
   });
 
   it("a public sign-up with forged inviteSignup, adminInvite and isInviteSignup body fields still emits one auth.signed-up", async () => {
@@ -442,6 +633,7 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
         payload: { userId: "user-new", email: "jan@example.com" },
       },
     ]);
+    expect(timeline).toEqual(["auth.signed-up", "organizations.member-added"]);
   });
 
   it("a public sign-up by invitation with forged marker fields in the body still emits auth.signed-up for the invitation's organization", async () => {
@@ -467,6 +659,33 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
         payload: { userId: "user-new", email: "jan@example.com" },
       },
     ]);
+    expect(timeline).toEqual([
+      "auth.signed-up",
+      "users.invitation-accepted",
+      "organizations.member-added",
+    ]);
+    expect(invitationAccepted).toEqual([
+      {
+        name: "users.invitation-accepted",
+        organizationId: "org-invited",
+        actorUserId: "user-new",
+        serviceMode: false,
+        payload: { invitationId: "inv-1", userId: "user-new" },
+      },
+    ]);
+    expect(memberAdded).toEqual([
+      {
+        name: "organizations.member-added",
+        organizationId: "org-invited",
+        actorUserId: "user-new",
+        serviceMode: false,
+        payload: {
+          memberId: "mem-of-user-new",
+          userId: "user-new",
+          role: "admin",
+        },
+      },
+    ]);
   });
 
   it("a public sign-up with forged marker headers still emits one auth.signed-up", async () => {
@@ -489,6 +708,27 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
         serviceMode: false,
         payload: { userId: "user-new", email: "jan@example.com" },
       },
+    ]);
+    expect(timeline).toEqual(["auth.signed-up", "organizations.member-added"]);
+  });
+
+  it("a public sign-up by invitation with forged marker headers still emits the three sign-up events", async () => {
+    mockEnv.AUTH_PUBLIC_SIGNUP = false;
+    mockPrisma.invitation.findFirst.mockResolvedValue(INVITATION);
+
+    await auth.api.signUpEmail({
+      body: { ...signupBody, invitationId: "inv-1" } as typeof signupBody,
+      headers: new Headers({
+        "x-invite-signup": "true",
+        "x-admin-invite": "true",
+        "invite-signup": "1",
+      }),
+    });
+
+    expect(timeline).toEqual([
+      "auth.signed-up",
+      "users.invitation-accepted",
+      "organizations.member-added",
     ]);
   });
 });
