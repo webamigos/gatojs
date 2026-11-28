@@ -1,19 +1,35 @@
 import { cloneElement, isValidElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 import type { ModuleDef } from "@/shared/lib/modules/define-module";
 
-const { mockRequireModuleAccess, mockRequireUser, mockEnv, moduleSlots } =
-  vi.hoisted(() => ({
-    mockRequireModuleAccess: vi.fn(),
-    mockRequireUser: vi.fn(),
-    mockEnv: { MULTI_ORG: false },
-    moduleSlots: [] as Record<string, unknown>[],
-  }));
+const {
+  mockRequireModuleAccess,
+  mockRequireUser,
+  mockEnv,
+  moduleSlots,
+  SERVER_MESSAGES,
+} = vi.hoisted(() => ({
+  mockRequireModuleAccess: vi.fn(),
+  mockRequireUser: vi.fn(),
+  mockEnv: { MULTI_ORG: false },
+  moduleSlots: [] as Record<string, unknown>[],
+  SERVER_MESSAGES: {
+    "account.title": "Konto",
+    "account.description": "Zarządzaj swoimi danymi i hasłem.",
+  } as Record<string, string>,
+}));
 
 vi.mock("next-intl/server", () => ({
   setRequestLocale: vi.fn(),
-  getTranslations: vi.fn(async () => (key: string) => `account.${key}`),
+  getTranslations: vi.fn(
+    async (scope?: string | { namespace?: string }) => (key: string) => {
+      const namespace = typeof scope === "string" ? scope : scope?.namespace;
+      const value = SERVER_MESSAGES[`${namespace ?? ""}.${key}`];
+      return value ?? `${namespace ?? ""}.${key}`;
+    },
+  ),
 }));
 vi.mock("@/env", () => ({ env: mockEnv }));
 vi.mock("@/shared/lib/auth/require-module-access", () => ({
@@ -22,12 +38,15 @@ vi.mock("@/shared/lib/auth/require-module-access", () => ({
 vi.mock("@/shared/lib/auth/helpers", () => ({
   requireUser: mockRequireUser,
 }));
-vi.mock("@/features/account/components/account-details", () => ({
-  AccountDetails: ({ name, email }: { name: string; email: string }) => (
-    <div>
-      account details {name} {email}
-    </div>
-  ),
+vi.mock(
+  "@/features/account/services/commands/update-account-name-command",
+  () => ({ updateAccountNameCommand: vi.fn() }),
+);
+vi.mock("@/i18n/routing", () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+}));
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
 }));
 vi.mock("@/features/auth/components/change-password-form", () => ({
   ChangePasswordForm: () => <form aria-label="change password" />,
@@ -87,8 +106,27 @@ async function resolveSlots(node: ReactNode): Promise<ReactNode> {
   return cloneElement(node, undefined, await resolveSlots(node.props.children));
 }
 
+const CLIENT_MESSAGES = {
+  account: {
+    nav: "Konto",
+    title: "Konto",
+    "user-data": "Dane użytkownika",
+    name: "Imię i nazwisko",
+    email: "Email",
+    description: "Zarządzaj swoimi danymi i hasłem.",
+    "save-name": "Zapisz",
+    "name-saved": "Zapisano imię i nazwisko",
+    "name-invalid": "Podaj imię i nazwisko (od 1 do 100 znaków).",
+  },
+};
+
 async function renderPage() {
-  return render(await resolveSlots(await AccountPage({ params })));
+  const page = await resolveSlots(await AccountPage({ params }));
+  return render(
+    <NextIntlClientProvider locale="pl" messages={CLIENT_MESSAGES}>
+      {page}
+    </NextIntlClientProvider>,
+  );
 }
 
 function memberContext(overrides: Record<string, unknown> = {}) {
@@ -119,10 +157,58 @@ describe("/account", () => {
     expect(mockRequireModuleAccess).toHaveBeenCalledWith("account");
   });
 
+  it("ma jeden nagłówek h1 Konto w nagłówku strony", async () => {
+    const { container } = await renderPage();
+    const headings = screen.getAllByRole("heading", { level: 1 });
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toHaveTextContent("Konto");
+    expect(
+      container.querySelector('header[data-slot="page-header"]'),
+    ).toContainElement(headings[0]);
+  });
+
+  it("pokazuje opis strony w nagłówku strony", async () => {
+    const { container } = await renderPage();
+    const description = screen.getByText("Zarządzaj swoimi danymi i hasłem.");
+    expect(
+      container.querySelector('header[data-slot="page-header"]'),
+    ).toContainElement(description);
+  });
+
+  it("formularz imienia i nazwiska ma imię zalogowanego użytkownika", async () => {
+    await renderPage();
+    expect(
+      screen.getByRole("textbox", { name: "Imię i nazwisko" }),
+    ).toHaveValue("Jan");
+    expect(screen.getByRole("button", { name: "Zapisz" })).toBeInTheDocument();
+  });
+
+  it("użytkownik bez imienia dostaje pusty formularz", async () => {
+    mockRequireUser.mockResolvedValue({
+      id: "user-1",
+      name: null,
+      email: "jan@firma.pl",
+    });
+    await renderPage();
+    expect(
+      screen.getByRole("textbox", { name: "Imię i nazwisko" }),
+    ).toHaveValue("");
+  });
+
+  it("nagłówek strony jest przed formularzem imienia i nazwiska", async () => {
+    await renderPage();
+    const heading = screen.getByRole("heading", { level: 1 });
+    const input = screen.getByRole("textbox", { name: "Imię i nazwisko" });
+    expect(
+      heading.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("with no contribution shows the details and the password form only", async () => {
     await renderPage();
     expect(
-      screen.getByText("account details Jan jan@firma.pl"),
+      screen.queryByText("jan@firma.pl") ??
+        screen.queryByDisplayValue("jan@firma.pl"),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("form", { name: "change password" }),
