@@ -1,21 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ModuleDisabledError } from "@/shared/lib/modules/module-disabled-error";
 
-const { mockAuthApi, mockLogger, mockRequireModuleEnabled, REQUEST_HEADERS } =
-  vi.hoisted(() => ({
-    mockAuthApi: {
-      getSession: vi.fn(),
-      updateUser: vi.fn(),
-    },
-    mockLogger: {
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    },
-    mockRequireModuleEnabled: vi.fn(),
-    REQUEST_HEADERS: new Headers({ cookie: "session=abc" }),
-  }));
+const {
+  mockAuthApi,
+  mockLogger,
+  mockRequireModuleEnabled,
+  mockForwardAuthCookies,
+  REQUEST_HEADERS,
+  RESPONSE_HEADERS,
+} = vi.hoisted(() => ({
+  mockAuthApi: {
+    getSession: vi.fn(),
+    updateUser: vi.fn(),
+  },
+  mockLogger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+  mockRequireModuleEnabled: vi.fn(),
+  mockForwardAuthCookies: vi.fn(),
+  REQUEST_HEADERS: new Headers({ cookie: "session=abc" }),
+  RESPONSE_HEADERS: new Headers({
+    "set-cookie":
+      "better-auth.session_data=fresh; Path=/; Max-Age=300; HttpOnly; SameSite=Lax",
+  }),
+}));
 
 vi.mock("@/shared/lib/auth", () => ({ auth: { api: mockAuthApi } }));
 vi.mock("@/shared/lib/logger", () => ({ logger: mockLogger }));
@@ -32,6 +43,10 @@ vi.mock(
   }),
 );
 
+vi.mock("../../forward-auth-cookies", () => ({
+  forwardAuthCookies: mockForwardAuthCookies,
+}));
+
 import { updateAccountNameCommand } from "../update-account-name-command";
 
 const SESSION = { session: { id: "session-1" }, user: { id: "user-1" } };
@@ -39,7 +54,11 @@ const INVALID = "Podaj imię i nazwisko (od 1 do 100 znaków).";
 const SESSION_EXPIRED = "Sesja wygasła. Zaloguj się ponownie.";
 const SAVE_FAILED = "Nie udało się zapisać imienia i nazwiska.";
 
-function updateUserArgument(): { body: unknown; headers: unknown } {
+function updateUserArgument(): {
+  body: unknown;
+  headers: unknown;
+  returnHeaders?: unknown;
+} {
   expect(mockAuthApi.updateUser).toHaveBeenCalledTimes(1);
   return mockAuthApi.updateUser.mock.calls[0][0];
 }
@@ -48,7 +67,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockRequireModuleEnabled.mockImplementation(() => undefined);
   mockAuthApi.getSession.mockResolvedValue(SESSION);
-  mockAuthApi.updateUser.mockResolvedValue({ status: true });
+  mockAuthApi.updateUser.mockResolvedValue({
+    headers: RESPONSE_HEADERS,
+    response: { status: true },
+  });
+  mockForwardAuthCookies.mockResolvedValue(undefined);
 });
 
 describe("updateAccountNameCommand", () => {
@@ -121,6 +144,7 @@ describe("updateAccountNameCommand", () => {
       expect(result).toEqual({ success: false, error: INVALID });
       expect(mockAuthApi.updateUser).not.toHaveBeenCalled();
       expect(mockAuthApi.getSession).not.toHaveBeenCalled();
+      expect(mockForwardAuthCookies).not.toHaveBeenCalled();
     },
   );
 
@@ -131,6 +155,7 @@ describe("updateAccountNameCommand", () => {
 
     expect(result).toEqual({ success: false, error: SESSION_EXPIRED });
     expect(mockAuthApi.updateUser).not.toHaveBeenCalled();
+    expect(mockForwardAuthCookies).not.toHaveBeenCalled();
   });
 
   it("błąd updateUser → ogólny komunikat o nieudanym zapisie, bez sukcesu", async () => {
@@ -139,6 +164,7 @@ describe("updateAccountNameCommand", () => {
     const result = await updateAccountNameCommand({ name: "Jan Kowalski" });
 
     expect(result).toEqual({ success: false, error: SAVE_FAILED });
+    expect(mockForwardAuthCookies).not.toHaveBeenCalled();
   });
 
   it("nieoczekiwany błąd updateUser jest logowany, a nie połykany", async () => {
@@ -158,6 +184,7 @@ describe("updateAccountNameCommand", () => {
 
     expect(result).toEqual({ success: false, error: SAVE_FAILED });
     expect(mockAuthApi.updateUser).not.toHaveBeenCalled();
+    expect(mockForwardAuthCookies).not.toHaveBeenCalled();
   });
 
   it("sprawdza, czy moduł account jest włączony", async () => {
@@ -189,6 +216,7 @@ describe("updateAccountNameCommand", () => {
     expect(result).toEqual({ success: false, error: SAVE_FAILED });
     expect(mockAuthApi.getSession).not.toHaveBeenCalled();
     expect(mockAuthApi.updateUser).not.toHaveBeenCalled();
+    expect(mockForwardAuthCookies).not.toHaveBeenCalled();
   });
 
   it("wyłączony moduł ma pierwszeństwo przed walidacją wejścia", async () => {
@@ -197,6 +225,64 @@ describe("updateAccountNameCommand", () => {
     });
 
     const result = await updateAccountNameCommand({ name: "" });
+
+    expect(result).toEqual({ success: false, error: SAVE_FAILED });
+  });
+
+  it("wywołuje updateUser z returnHeaders: true", async () => {
+    await updateAccountNameCommand({ name: "Jan Kowalski" });
+
+    expect(updateUserArgument().returnHeaders).toBe(true);
+    expect(mockAuthApi.updateUser).toHaveBeenCalledWith({
+      body: { name: "Jan Kowalski" },
+      headers: REQUEST_HEADERS,
+      returnHeaders: true,
+    });
+  });
+
+  it("przekazuje nagłówki odpowiedzi updateUser do forwardAuthCookies dokładnie raz", async () => {
+    const result = await updateAccountNameCommand({ name: "Jan Kowalski" });
+
+    expect(mockForwardAuthCookies).toHaveBeenCalledTimes(1);
+    expect(mockForwardAuthCookies.mock.calls[0][0]).toBe(RESPONSE_HEADERS);
+    expect(result).toEqual({ success: true, data: { name: "Jan Kowalski" } });
+  });
+
+  it("ciasteczka są przekazywane dopiero po updateUser", async () => {
+    await updateAccountNameCommand({ name: "Jan Kowalski" });
+
+    expect(mockAuthApi.updateUser.mock.invocationCallOrder[0]).toBeLessThan(
+      mockForwardAuthCookies.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("forwardAuthCookies dostaje nagłówki odpowiedzi, nie nagłówki żądania", async () => {
+    await updateAccountNameCommand({ name: "Jan Kowalski" });
+
+    expect(mockForwardAuthCookies.mock.calls[0][0]).not.toBe(REQUEST_HEADERS);
+    expect(mockForwardAuthCookies.mock.calls[0][0].get("set-cookie")).toBe(
+      "better-auth.session_data=fresh; Path=/; Max-Age=300; HttpOnly; SameSite=Lax",
+    );
+  });
+
+  it("czeka na zapis ciasteczek przed zwróceniem sukcesu", async () => {
+    let cookiesWritten = false;
+    mockForwardAuthCookies.mockImplementation(async () => {
+      await Promise.resolve();
+      cookiesWritten = true;
+    });
+
+    await updateAccountNameCommand({ name: "Jan Kowalski" });
+
+    expect(cookiesWritten).toBe(true);
+  });
+
+  it("błąd przekazania ciasteczek → ogólny komunikat o nieudanym zapisie", async () => {
+    mockForwardAuthCookies.mockRejectedValue(
+      new Error("cookies() poza żądaniem"),
+    );
+
+    const result = await updateAccountNameCommand({ name: "Jan Kowalski" });
 
     expect(result).toEqual({ success: false, error: SAVE_FAILED });
   });

@@ -28,7 +28,10 @@ Core (`kit/modules/core.json`, minor bump):
   `export const accountNameSchema = z.object({ name: z.string().trim().min(1).max(100) })`, `export type AccountNameValues = z.infer<typeof accountNameSchema>`.
 - `src/features/account/services/commands/update-account-name-command.ts` (new, `"use server"`):
   `export async function updateAccountNameCommand(input: unknown): Promise<OperationResult<{ name: string }>>`.
-  Order: `requireModuleEnabled("account")` → `accountNameSchema.safeParse(input)` (invalid → `{ success: false, error: "Podaj imię i nazwisko (od 1 do 100 znaków)." }`, no better-auth call) → `auth.api.getSession({ headers })` (`null` → `{ success: false, error: "Sesja wygasła. Zaloguj się ponownie." }`, no update) → `auth.api.updateUser({ body: { name }, headers })` with the trimmed name → `{ success: true, data: { name } }`. Any thrown error → `handleCommandError(error, "Nie udało się zapisać imienia i nazwiska.")`.
+  Order: `requireModuleEnabled("account")` → `accountNameSchema.safeParse(input)` (invalid → `{ success: false, error: "Podaj imię i nazwisko (od 1 do 100 znaków)." }`, no better-auth call) → `auth.api.getSession({ headers })` (`null` → `{ success: false, error: "Sesja wygasła. Zaloguj się ponownie." }`, no update) → `auth.api.updateUser({ body: { name }, headers, returnHeaders: true })` with the trimmed name → `forwardAuthCookies(response.headers)` → `{ success: true, data: { name } }`. Any thrown error → `handleCommandError(error, "Nie udało się zapisać imienia i nazwiska.")`.
+- `src/features/account/services/forward-auth-cookies.ts` (new, server-only):
+  `export async function forwardAuthCookies(responseHeaders: Headers): Promise<void>`. Reads `set-cookie` from the headers better-auth returned, parses it with `parseSetCookieHeader` and sets every cookie through `(await cookies()).set(name, value, toCookieOptions(attributes))` from `next/headers` (`better-auth/cookies` helpers; the same thing better-auth's `nextCookies` plugin does). No `set-cookie` header → no `cookies()` write.
+  Why: the kit's auth has no `nextCookies` plugin, so a server-side `auth.api.updateUser` drops the refreshed `session_data` cookie and the 5-minute cookie cache (`session.cookieCache`) keeps serving the old name in the sidebar. Found in the after-screenshot run.
 - `src/features/account/components/account-name-form.tsx` (new, `"use client"`):
   `export function AccountNameForm({ defaultName }: { defaultName: string })`. `react-hook-form` with `zodResolver(accountNameSchema)`; input `id="account-name"` labelled `t("name")`; submit button `t("save-name")`. Success: `toast.success(t("name-saved"))` and `router.refresh()` (from `@/i18n/routing`). Failure: `toast.error(result.error)`. Invalid value: `t("name-invalid")` under the input, no command call.
 - `src/features/account/components/account-details.tsx`: no `<h1>`; the card shows `AccountNameForm` (default value `name ?? ""`) and the read-only email.
@@ -80,7 +83,14 @@ PageHeader:
 - valid session, input `{ name: "  Jan Kowalski  " }` → `auth.api.updateUser` called once with `body: { name: "Jan Kowalski" }` (and headers); result `{ success: true, data: { name: "Jan Kowalski" } }`.
 - input `{ name: "" }`, `{ name: "a".repeat(101) }`, `null`, `"Jan"` → `{ success: false, error: "Podaj imię i nazwisko (od 1 do 100 znaków)." }`; `updateUser` not called.
 - no session (`getSession` → `null`) → `{ success: false, error: "Sesja wygasła. Zaloguj się ponownie." }`; `updateUser` not called.
-- `updateUser` throws → `{ success: false, error: "Nie udało się zapisać imienia i nazwiska." }`.
+- `updateUser` throws → `{ success: false, error: "Nie udało się zapisać imienia i nazwiska." }`; no cookie is forwarded.
+- `updateUser` is called with `returnHeaders: true`, and the `Headers` it returns are passed to `forwardAuthCookies` once, after the update; the result is still `{ success: true, data: { name } }`.
+
+`forwardAuthCookies`:
+
+- headers with `set-cookie: better-auth.session_data=abc; Path=/; Max-Age=300; HttpOnly; SameSite=Lax` → `cookies().set` called once with `"better-auth.session_data"`, `"abc"` and options containing `path: "/"`, `maxAge: 300`, `httpOnly: true`, `sameSite: "lax"`.
+- two cookies in one `set-cookie` value (`a=1; Path=/, b=2; Path=/`) → two `set` calls, `a`=`1` and `b`=`2`.
+- headers without `set-cookie` → `cookies().set` never called.
 - `account` module disabled (`requireModuleEnabled` throws `ModuleDisabledError`) → `{ success: false, error: "Nie udało się zapisać imienia i nazwiska." }`; neither `getSession` nor `updateUser` called.
 - the input object is not trusted for anything but the name: `{ name: "Jan", email: "x@y.z", role: "admin" }` → `updateUser` body is exactly `{ name: "Jan" }`.
 - the architecture tests (`server-entrypoints-guard`, `module-entry-points-check-enabled`) pass with the new file and without new exceptions.
@@ -106,6 +116,7 @@ Pages and managers:
 ## Mutations to kill
 
 - `updateAccountNameCommand`: removing the session check; removing `safeParse` (passing raw input through); dropping `.trim()`; changing `max(100)` or `min(1)`; spreading the whole input into the `updateUser` body; returning `success: true` without `data`; returning success when `updateUser` throws; removing `requireModuleEnabled("account")` or moving it after `updateUser`.
+- `forwardAuthCookies` / the command: dropping `returnHeaders: true`; not calling `forwardAuthCookies`; forwarding before `updateUser` succeeded; setting only the first cookie; dropping the cookie options.
 - `AccountNameForm`: calling the command without the form value; skipping `router.refresh()` on success; showing the success toast on failure.
 - `PageHeader`: always rendering the description `<p>` or the actions wrapper; rendering the title in something other than `<h1>`.
 - `ApiKeysManager`: mapping `"never"` to anything other than `null`; changing the default from 90; dropping the radiogroup label.
@@ -113,7 +124,7 @@ Pages and managers:
 ## Verification
 
 - `npm test` on the touched tests; `npm run lint`; `npm run typecheck`.
-- `npm run test:mutation:task -- src/features/account/services/commands/update-account-name-command.ts,src/features/account/contracts/account.schemas.ts,src/features/account/components/account-name-form.tsx,src/shared/components/page-header.tsx,src/features/api-keys/components/api-keys-manager.tsx` (`--concurrency 4`), then `npm run test:mutation:gate`.
+- `npm run test:mutation:task -- src/features/account/services/commands/update-account-name-command.ts,src/features/account/contracts/account.schemas.ts,src/features/account/components/account-name-form.tsx,src/features/account/services/forward-auth-cookies.ts,src/shared/components/page-header.tsx,src/features/api-keys/components/api-keys-manager.tsx` (`--concurrency 4`), then `npm run test:mutation:gate`.
 - `npm run wa -- kit sync`, `npm run wa -- generate`, `git diff --exit-code`; one `npm run verify`.
 - Screenshots before and after of the account, users, API keys (with the dialog), audit log and dashboard pages, from a built app on a throwaway Postgres container.
 
