@@ -48,12 +48,7 @@ function exportsName(source: string, name: string): boolean {
   return [...source.matchAll(EXPORT_LIST)].some(([, list]) =>
     list
       .split(",")
-      .map((specifier) =>
-        specifier
-          .trim()
-          .split(/\s+as\s+/)
-          .pop(),
-      )
+      .map((specifier) => specifier.trim().split(/\s+/).pop())
       .includes(name),
   );
 }
@@ -61,10 +56,10 @@ function exportsName(source: string, name: string): boolean {
 async function detectAuth(
   base: string,
   name: string,
-): Promise<{ hasAuth: boolean; hasAuthPlugins: boolean }> {
+): Promise<Pick<RegistryModule, "hasAuth" | "hasAuthPlugins">> {
   const file = join(base, "auth.ts");
   if (!(await exists(file))) {
-    return { hasAuth: false, hasAuthPlugins: false };
+    return { hasAuth: false };
   }
   const source = await readFile(file, "utf8");
   const hasAuthPlugin = exportsName(source, "authPlugin");
