@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { useRouter } from "@/i18n/routing";
+import { PageHeader } from "@/shared/components/page-header";
 import { authClient } from "@/shared/lib/auth/client";
 import { ORG_ROLES } from "@/shared/lib/auth/roles";
 import { Button } from "@/components/ui/button";
@@ -147,7 +148,7 @@ export function OrganizationMembers({
 
   return (
     <div className="max-w-3xl space-y-6">
-      <h1 className="text-2xl font-bold">{organizationName}</h1>
+      <PageHeader title={organizationName} />
 
       <Card>
         <CardHeader>

@@ -38,5 +38,6 @@
   "revoked-success": "Key revoked",
   "deleted-success": "Key deleted",
   "revoke-confirm": "Revoke key “{name}”? Applications using it will lose access.",
-  "delete-confirm": "Delete key “{name}”? This cannot be undone."
+  "delete-confirm": "Delete key “{name}”? This cannot be undone.",
+  "description": "Keys for the organization API. The secret is shown only once, when the key is created."
 }

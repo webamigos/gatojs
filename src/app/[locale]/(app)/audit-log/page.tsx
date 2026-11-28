@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { requireModuleAccess } from "@/shared/lib/auth/require-module-access";
+import { PageHeader } from "@/shared/components/page-header";
 import { AuditLogView } from "@/features/audit-logs/components/audit-log-view";
 import { auditLogFiltersSchema } from "@/features/audit-logs/contracts/audit-log.schemas";
 import {
@@ -30,7 +31,7 @@ export default async function AuditLogPage({
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">{t("title")}</h1>
+      <PageHeader title={t("title")} description={t("description")} />
       <AuditLogView result={result} filters={filters} actors={actors} />
     </div>
   );

@@ -3,5 +3,9 @@
   "title": "Account",
   "user-data": "User details",
   "name": "Name",
-  "email": "Email"
+  "email": "Email",
+  "description": "Manage your details and password.",
+  "save-name": "Save",
+  "name-saved": "Name saved",
+  "name-invalid": "Enter a name (1 to 100 characters)."
 }
