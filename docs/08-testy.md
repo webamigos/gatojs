@@ -245,14 +245,18 @@ Adres bazy pochodzi z `e2e/env.ts`:
 `e2e/env.ts`
 
 ```ts
-const dbPort = process.env.DB_PORT ?? "5432";
+const {
+  db: dbPort,
+  mailpitUi: mailpitUiPort,
+  mailpitSmtp: mailpitSmtpPort,
+} = localServicePorts();
 // …
 export const E2E_DATABASE_URL =
   process.env.DATABASE_URL ??
   `postgresql://postgres:postgres@localhost:${dbPort}/wa_app_e2e`;
 ```
 
-`playwright.config.ts` i pliki w `e2e/` nie wczytują `.env`. Procesy uruchamiane w `globalSetup` (Prisma i `admin:create`) wczytują go przez dotenv, ale dotenv nie nadpisuje zmiennych, które już są ustawione, a `globalSetup` przekazuje im adres bazy e2e. `DATABASE_URL` z `.env` (baza deweloperska) tu więc nie trafia. Liczy się tylko `DATABASE_URL` wyeksportowany w powłoce, na przykład przez direnv. `globalSetup` najpierw sprawdza nazwę, a dopiero potem resetuje:
+`localServicePorts()` z `src/test/service-ports.ts` bierze porty usług Dockera (`DB_PORT`, `MAILPIT_UI_PORT`, `MAILPIT_SMTP_PORT`, `MINIO_PORT`) z powłoki, potem z `.env.local`, potem z `.env`, a bez nich domyślne 5432, 8025, 1025 i 9000. Dzięki temu porty, które `npm create gato-app` przeniósł i zapisał w `.env`, trafiają też do `npm run test:e2e` i `npm run test:integration`, a testy nie łączą się z innym serwerem, który trzyma domyślny port (na przykład lokalnym Postgresem). Wartość, która nie jest portem 1–65535, zatrzymuje testy błędem z nazwą zmiennej, zamiast cicho wrócić do portu domyślnego. Z plików `.env` czytane są tylko te cztery zmienne i nic nie trafia do `process.env`; poza tym `playwright.config.ts` i pliki w `e2e/` nie wczytują `.env`. Procesy uruchamiane w `globalSetup` (Prisma i `admin:create`) wczytują go przez dotenv, ale dotenv nie nadpisuje zmiennych, które już są ustawione, a `globalSetup` przekazuje im adres bazy e2e. `DATABASE_URL` z `.env` (baza deweloperska) tu więc nie trafia. Liczy się tylko `DATABASE_URL` wyeksportowany w powłoce, na przykład przez direnv. `globalSetup` najpierw sprawdza nazwę, a dopiero potem resetuje:
 
 `e2e/global-setup.ts`
 
@@ -293,12 +297,16 @@ Poza bazą `globalSetup` usuwa wszystkie maile ze skrzynki mailpit pod `MAILPIT_
 ```ts
 export const TEST_DATABASE_SUFFIX = "_test";
 
-export const DEFAULT_INTEGRATION_DATABASE_URL =
-  "postgresql://postgres:postgres@localhost:5432/wa_app_test";
+export function defaultIntegrationDatabaseUrl(dbPort: number): string {
+  return `postgresql://postgres:postgres@localhost:${dbPort}/wa_app_test`;
+}
 
-export function integrationDatabaseUrl(): string {
+export function integrationDatabaseUrl(
+  env: Record<string, string | undefined> = process.env,
+): string {
   return (
-    process.env.INTEGRATION_DATABASE_URL ?? DEFAULT_INTEGRATION_DATABASE_URL
+    env.INTEGRATION_DATABASE_URL ??
+    defaultIntegrationDatabaseUrl(servicePorts(readServicePortEnv({ env })).db)
   );
 }
 
@@ -578,15 +586,15 @@ Skrypty z `package.json` w katalogu głównym, chyba że zaznaczono inaczej.
 
 ### Zmienne środowiskowe testów
 
-Wszystkie czytane są tylko ze zmiennych powłoki. Ani Vitest w konfiguracji integracyjnej, ani Playwright nie wczytują `.env`.
+Wszystkie czytane są ze zmiennych powłoki. Ani Vitest w konfiguracji integracyjnej, ani Playwright nie wczytują `.env`; wyjątkiem są porty usług (`DB_PORT`, `MAILPIT_UI_PORT`, `MAILPIT_SMTP_PORT`, `MINIO_PORT`), które `src/test/service-ports.ts` czyta też z `.env.local` i `.env` (powłoka wygrywa).
 
 | Zmienna | Czyta | Wartość domyślna | Uwagi |
 | --- | --- | --- | --- |
-| `INTEGRATION_DATABASE_URL` | `src/test/integration/database-url.ts` | `postgresql://postgres:postgres@localhost:5432/wa_app_test` | Nazwa bazy musi kończyć się na `_test`. |
-| `INTEGRATION_S3_ENDPOINT`, `INTEGRATION_S3_BUCKET` | `src/test/integration/setup-env.ts`, `storage.integration.test.ts` | `http://localhost:9000`, `<slug>-uploads` | Adres MinIO i bucket testów integracyjnych. |
+| `INTEGRATION_DATABASE_URL` | `src/test/integration/database-url.ts` | `postgresql://postgres:postgres@localhost:<DB_PORT>/wa_app_test` | Nazwa bazy musi kończyć się na `_test`. |
+| `INTEGRATION_S3_ENDPOINT`, `INTEGRATION_S3_BUCKET` | `src/test/integration/setup-env.ts`, `storage.integration.test.ts` | `http://localhost:<MINIO_PORT>` (9000), `<slug>-uploads` | Adres MinIO i bucket testów integracyjnych. |
 | `E2E_UPLOADS_DIR` | `e2e/env.ts` | `<katalog tymczasowy systemu>/wa-app-e2e-uploads` | `STORAGE_LOCAL_PATH` serwerów e2e; `globalSetup` go nie czyści. Musi być ścieżką bezwzględną: serwery e2e działają w trybie produkcyjnym poza Railway, więc ścieżka względna zatrzymuje ich start ([15-modul-uploads.md](15-modul-uploads.md#reguly-produkcyjne)). |
 | `DATABASE_URL` | `e2e/env.ts` | `postgresql://postgres:postgres@localhost:${dbPort}/wa_app_e2e` | Nazwa bazy musi kończyć się na `_e2e`. W testach integracyjnych `setup-env.ts` nadpisuje ją adresem testowym. |
-| `DB_PORT` | `e2e/env.ts` | `5432` | Tylko do domyślnego adresu bazy e2e. |
+| `DB_PORT`, `MINIO_PORT` | `src/test/service-ports.ts` (powłoka, `.env.local`, `.env`) | `5432`, `9000` | Do domyślnych adresów bazy e2e i integracyjnej oraz MinIO testów integracyjnych. |
 | `MAILPIT_UI_PORT`, `MAILPIT_URL` | `e2e/env.ts` | `8025`, `http://localhost:${mailpitUiPort}` | API mailpit dla `getLastMail` i `clearMailbox`. |
 | `MAILPIT_SMTP_PORT`, `SMTP_URL` | `e2e/env.ts` | `1025`, `smtp://localhost:${mailpitSmtpPort}` | SMTP serwerów e2e. |
 | `E2E_CORE_PORT`, `E2E_MULTI_ORG_PORT` | `e2e/env.ts` | `3000`, `3001` | Porty serwerów projektów `core-auth` i `multi-org`. |

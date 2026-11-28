@@ -2,9 +2,9 @@ import { connect, createServer } from "node:net";
 
 const CONNECT_TIMEOUT_MS = 300;
 
-function acceptsConnections(port: number): Promise<boolean> {
+function acceptsConnections(port: number, host: string): Promise<boolean> {
   return new Promise((resolve) => {
-    const socket = connect({ port, host: "127.0.0.1" });
+    const socket = connect({ port, host });
     const finish = (busy: boolean): void => {
       socket.destroy();
       resolve(busy);
@@ -29,7 +29,11 @@ function refusesListening(port: number): Promise<boolean> {
 }
 
 export async function isPortBusy(port: number): Promise<boolean> {
-  // WHY: Node listens with SO_REUSEADDR, so on macOS a wildcard bind can succeed next to a process
-  // already bound to 127.0.0.1; a connect probe catches that case, the listen probe catches the rest.
-  return (await acceptsConnections(port)) || (await refusesListening(port));
+  // WHY: Node listens with SO_REUSEADDR, so on macOS a wildcard bind can succeed next to a process bound
+  // to 127.0.0.1 or ::1; connect probes catch those (a host without IPv6 fails ::1 as free), listen the rest.
+  return (
+    (await acceptsConnections(port, "127.0.0.1")) ||
+    (await acceptsConnections(port, "::1")) ||
+    (await refusesListening(port))
+  );
 }

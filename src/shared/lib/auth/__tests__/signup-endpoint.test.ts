@@ -47,8 +47,14 @@ function stubUserPersistence() {
     id: "org-new",
     slug: "jan-organizacja-abcd1234",
   });
-  mockPrisma.member.create.mockImplementation((args: unknown) => args);
-  mockPrisma.invitation.update.mockImplementation((args: unknown) => args);
+  mockPrisma.member.create.mockImplementation((args: unknown) => ({
+    ...(args as object),
+    id: "mem-new",
+  }));
+  mockPrisma.invitation.update.mockImplementation((args: unknown) => ({
+    ...(args as object),
+    id: "inv-updated",
+  }));
   mockPrisma.$transaction.mockImplementation(async (ops: unknown) =>
     Array.isArray(ops) ? ops : undefined,
   );

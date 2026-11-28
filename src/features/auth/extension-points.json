@@ -4,7 +4,7 @@
   "events": {
     "auth.signed-up": {
       "stability": "stable",
-      "description": "A user signed up without an invitation and joined an organization"
+      "description": "A user signed up, with or without an invitation, and got a membership; not emitted for an admin invite"
     }
   },
   "slots": {

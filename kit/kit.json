@@ -1,5 +1,5 @@
 {
-  "version": "0.40.0",
+  "version": "0.41.0",
   "repo": "https://github.com/webamigos/gatojs.git",
   "kitFormat": 11,
   "kitOnly": [
@@ -48,6 +48,7 @@
     ".github/workflows/ci.yml",
     ".github/workflows/mutation.yml",
     "src/test/integration/database-url.ts",
+    "src/test/integration/__tests__/database-url.test.ts",
     "README.md",
     "docker/uploads.compose.yml",
     "docker/uploads.selfhost.compose.yml",

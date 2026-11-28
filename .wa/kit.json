@@ -1,5 +1,5 @@
 {
-  "kitVersion": "0.40.0",
+  "kitVersion": "0.41.0",
   "kitRepo": "https://github.com/webamigos/gatojs.git",
   "kitFormat": 11,
   "project": {
@@ -162,6 +162,7 @@
           "src/__tests__/theme-css.test.ts",
           "src/__tests__/vitest-setup.test.ts",
           "src/app/*",
+          "src/app/__tests__/**",
           "src/app/api/auth/**",
           "src/app/api/healthcheck/**",
           "src/app/emails/**",

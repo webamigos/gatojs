@@ -427,7 +427,7 @@ Nowy katalog w `src/features/` to zawsze nowy feature i nowy wzorzec w `.wa/kit.
 | Komunikat | Kiedy | Co zrobić |
 | --- | --- | --- |
 | `Bez zmian` po dodaniu `module.ts` | Feature bez wzorca w `.wa/kit.json`. | [Krok 3](09-nowy-modul.md#krok-3). |
-| `404 This page could not be found.` na stronie feature | Feature poza rejestrem albo inny klucz w `requireModuleAccess` niż `key` w `module.ts`. | Sprawdź wpis, przebieg generatora i klucz ([objaw](09-nowy-modul.md#objaw-braku-wpisu)). |
+| Strona 404 „Nie znaleziono strony” na stronie feature | Feature poza rejestrem albo inny klucz w `requireModuleAccess` niż `key` w `module.ts`. | Sprawdź wpis, przebieg generatora i klucz ([objaw](09-nowy-modul.md#objaw-braku-wpisu)). |
 | `Type "Note" is neither a built-in type, nor refers to another model, composite type, or enum.` | Region ma już relację, a pliku schematu modułu nie ma. | Zapisz plik schematu ([krok 4](09-nowy-modul.md#krok-4)). |
 | ``The relation field `organization` on model `Note` is missing an opposite relation field on the model `Organization`. Either run `prisma format` or add it manually.`` | Plik schematu jest, a `schemaRelations` albo przebiegu generatora brak. | Uzupełnij `schemaRelations` i uruchom generator. Nie uruchamiaj `prisma format` ([pułapka](09-nowy-modul.md#pulapka-relacji)). |
 | `Field "notes" is already defined on model "Organization".` | Relacja dopisana ręcznie albo przez `prisma format` i drugi raz przez generator. | Usuń linię spoza regionu `wa:relations`. |

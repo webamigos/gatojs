@@ -1,9 +1,12 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { localServicePorts } from "../src/test/service-ports";
 
-const dbPort = process.env.DB_PORT ?? "5432";
-const mailpitUiPort = process.env.MAILPIT_UI_PORT ?? "8025";
-const mailpitSmtpPort = process.env.MAILPIT_SMTP_PORT ?? "1025";
+const {
+  db: dbPort,
+  mailpitUi: mailpitUiPort,
+  mailpitSmtp: mailpitSmtpPort,
+} = localServicePorts();
 
 export const E2E_PORTS = {
   core: Number(process.env.E2E_CORE_PORT ?? 3000),
