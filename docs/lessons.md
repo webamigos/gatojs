@@ -62,6 +62,14 @@ After a nontrivial correction or a non-obvious gotcha:
 
 - [Prisma 7 runs an `upsert` with an empty `update` as a read and an insert, so concurrent first writers fail with `P2002`](lessons/prisma-upsert-with-an-empty-update-races-on-postgres.md)
 
+### mcp
+
+- [An MCP client asks the authorization server only for the scopes named in the 401 challenge, so a write scope missing from `WWW-Authenticate` is never granted](lessons/mcp-clients-request-only-the-scopes-of-the-401-challenge.md)
+- [The better-auth OAuth provider serves OpenID discovery only when `openid` is a configured scope; without it the exported metadata helper throws and the route answers 500](lessons/oidc-discovery-needs-the-openid-scope.md)
+- [An `@modelcontextprotocol/client` 2.x client speaks the 2025 `initialize` handshake unless it opts into negotiation, so an MCP server that rejects legacy traffic rejects the SDK default](lessons/mcp-sdk-v2-clients-default-to-the-legacy-handshake.md)
+- [During an OAuth sign-in the better-auth client navigates to the returned URL by itself, so a sign-in form that also pushes `/dashboard` races it and drops the authorization](lessons/the-oauth-sign-in-response-navigates-by-itself.md)
+- [The OAuth token models reference `Session`, which has no `wa:relations` region; drop that Prisma relation in the module schema, the better-auth schema check still passes](lessons/oauth-token-tables-need-no-session-relation.md)
+
 ### deploy
 
 - [Compose interpolates every service, even one behind an inactive profile, so a `${VAR:?}` in a profile service stops installs that never use it](lessons/compose-interpolates-services-outside-the-active-profile.md)
