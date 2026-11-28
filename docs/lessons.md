@@ -57,6 +57,12 @@ After a nontrivial correction or a non-obvious gotcha:
 - [A side effect written inside a nested call (better-auth sign-up, a database hook) lands before the command's deferred events and under the nested actor; emit it from the command or gate it on the scope](lessons/a-write-inside-a-nested-call-lands-before-the-commands-deferred-events.md)
 - [A lazy `import()` in a file the client registry imports still ships its target to the browser; server-only contributions go in files only the server registry imports](lessons/a-lazy-import-in-the-client-registry-still-ships-to-the-browser.md)
 - [A server-side `auth.api` call drops better-auth's `Set-Cookie`, so the 5-minute cookie cache keeps serving the old user; forward the cookies from `returnHeaders`](lessons/server-side-auth-api-drops-the-refreshed-session-cookie.md)
+- [The worker reaches the app registries through seven core files, and `permissions.ts` reads the client registry; find them with the bundle metafile, not by grep](lessons/the-worker-reaches-the-registry-through-seven-core-files.md)
+- [esbuild follows a literal `import()` into the bundle, so a lazy import does not keep Next out of the worker; stub the module instead](lessons/esbuild-bundles-a-literal-dynamic-import.md)
+- [Mail templates bring React into the worker legitimately; the bundle check forbids components and Next, not React itself](lessons/mail-templates-bring-react-into-the-worker.md)
+- [Under `tsx` the app code runs as CommonJS, so resolve hooks miss `require` and the registry cycle hits a TDZ; run the development worker as an esbuild watch bundle under `node --watch`](lessons/tsx-runs-app-code-as-commonjs-so-the-dev-worker-is-a-bundle.md)
+- [`@gatojs/*` workspace packages export TypeScript source, so a worker bundle that leaves packages external fails at run time; bundle them](lessons/workspace-packages-export-typescript-so-the-worker-bundles-them.md)
+- [A job that calls a session-based command gets the command's generic failure message, because `handleCommandError` swallows the worker stub's error](lessons/handle-command-error-hides-the-worker-stub-error.md)
 
 ### data
 
@@ -65,6 +71,8 @@ After a nontrivial correction or a non-obvious gotcha:
 ### deploy
 
 - [Compose interpolates every service, even one behind an inactive profile, so a `${VAR:?}` in a profile service stops installs that never use it](lessons/compose-interpolates-services-outside-the-active-profile.md)
+- [A worker bundled with its npm packages, Prisma 7 runtime included, runs without `node_modules`; keep only native and optional modules external](lessons/a-fully-bundled-worker-needs-no-node-modules.md)
+- [`docker stop` kills the worker after 10 seconds and its in-flight job stays locked until it stalls; give the worker a 30-second grace period](lessons/docker-stop-kills-an-in-flight-job-after-ten-seconds.md)
 
 ### dependencies
 
@@ -72,6 +80,7 @@ After a nontrivial correction or a non-obvious gotcha:
 - [Since better-auth 1.7.3 a schema mismatch rejects sign-in at runtime, in production too; a plugin with tables fails at login, not at build](lessons/better-auth-checks-the-prisma-schema-at-startup.md)
 - [npm keeps a workspace link from a copied lockfile even when the folder is gone, so a project lockfile must not list kit-only workspaces](lessons/npm-keeps-a-lockfile-workspace-link-to-a-missing-folder.md)
 - [The pinned npm rewrites unrelated lockfile entries (it drops `libc` from `@next/swc-linux-*`); restore them to keep the diff about your change](lessons/pinned-npm-drops-libc-fields-from-the-lockfile.md)
+- [BullMQ 6 makes `ioredis` a peer dependency and today resolves `ioredis` 6; pin both in the manifest](lessons/bullmq-6-makes-ioredis-a-peer-dependency.md)
 
 ### frontend
 
