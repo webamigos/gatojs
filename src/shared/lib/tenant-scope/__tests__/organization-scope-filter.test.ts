@@ -327,3 +327,223 @@ describe("hasOrganizationColumn", () => {
     },
   );
 });
+
+describe("isWithinOrganization: przypadki brzegowe where", () => {
+  it.each([
+    ["NOT z organizacją zadania", { NOT: { organizationId: "org-a" } }],
+    [
+      "filtr relacji z organizacją zadania",
+      { parent: { organizationId: "org-a" } },
+    ],
+    [
+      "organizationId zagnieżdżone w wartości organizationId",
+      { organizationId: { organizationId: "org-a" } },
+    ],
+    ["pusty OR", { OR: [] }],
+  ])("%s wychodzi poza org-a", (_label, where) => {
+    expect(isWithinOrganization("findMany", { where }, "org-a")).toBe(false);
+  });
+
+  it("OR z dwiema gałęziami przypiętymi do org-a mieści się w org-a", () => {
+    expect(
+      isWithinOrganization(
+        "findMany",
+        {
+          where: {
+            OR: [
+              { organizationId: "org-a", id: "x" },
+              { organizationId: "org-a", id: "y" },
+            ],
+          },
+        },
+        "org-a",
+      ),
+    ).toBe(true);
+  });
+
+  it("args undefined wychodzi poza org-a", () => {
+    expect(isWithinOrganization("findMany", undefined, "org-a")).toBe(false);
+  });
+
+  it("nieznana operacja findRaw z where i create w org-a wychodzi poza org-a", () => {
+    expect(
+      isWithinOrganization(
+        "findRaw",
+        {
+          where: { organizationId: "org-a" },
+          create: { organizationId: "org-a" },
+        },
+        "org-a",
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("isWithinOrganization: przypadki brzegowe zapisów", () => {
+  it.each([
+    ["organizationId { set: org-a }", { organizationId: { set: "org-a" } }],
+    [
+      "organization.connect do org-a",
+      { organization: { connect: { id: "org-a" } } },
+    ],
+  ])("update z %s mieści się w org-a", (_label, data) => {
+    expect(
+      isWithinOrganization(
+        "update",
+        { where: { id: "x", organizationId: "org-a" }, data },
+        "org-a",
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["organizationId { set: org-b }", { organizationId: { set: "org-b" } }],
+    [
+      "organization.connect do org-a z create org-b",
+      {
+        organization: { connect: { id: "org-a" }, create: { id: "org-b" } },
+      },
+    ],
+    ["organization jako napis org-b", { organization: "org-b" }],
+  ])("update z %s wychodzi poza org-a", (_label, data) => {
+    expect(
+      isWithinOrganization(
+        "update",
+        { where: { id: "x", organizationId: "org-a" }, data },
+        "org-a",
+      ),
+    ).toBe(false);
+  });
+
+  it("create z zagnieżdżoną listą, w której drugi wiersz jest w org-b, wychodzi poza org-a", () => {
+    expect(
+      isWithinOrganization(
+        "create",
+        {
+          data: {
+            organizationId: "org-a",
+            items: {
+              create: [
+                { organizationId: "org-a" },
+                { organizationId: "org-b" },
+              ],
+            },
+          },
+        },
+        "org-a",
+      ),
+    ).toBe(false);
+  });
+
+  it("create z zagnieżdżonym wierszem org-a mieści się w org-a", () => {
+    expect(
+      isWithinOrganization(
+        "create",
+        {
+          data: {
+            organizationId: "org-a",
+            items: { create: [{ organizationId: "org-a" }] },
+          },
+        },
+        "org-a",
+      ),
+    ).toBe(true);
+  });
+
+  it("create z polem listowym napisów obok organizacji zadania mieści się w org-a", () => {
+    expect(
+      isWithinOrganization(
+        "create",
+        {
+          data: {
+            organizationId: "org-a",
+            tags: ["x"],
+            items: { create: [{ organizationId: "org-a" }] },
+          },
+        },
+        "org-a",
+      ),
+    ).toBe(true);
+  });
+
+  it("createMany z pojedynczym obiektem org-b wychodzi poza org-a", () => {
+    expect(
+      isWithinOrganization(
+        "createMany",
+        { data: { organizationId: "org-b" } },
+        "org-a",
+      ),
+    ).toBe(false);
+  });
+
+  it("createMany z pojedynczym obiektem org-a mieści się w org-a", () => {
+    expect(
+      isWithinOrganization(
+        "createMany",
+        { data: { organizationId: "org-a" } },
+        "org-a",
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["organizationId org-b", { organizationId: "org-b" }],
+    [
+      "organization.connect do org-b",
+      { organization: { connect: { id: "org-b" } } },
+    ],
+  ])("upsert z update %s wychodzi poza org-a", (_label, update) => {
+    expect(
+      isWithinOrganization(
+        "upsert",
+        {
+          where: { id: "x", organizationId: "org-a" },
+          create: { organizationId: "org-a" },
+          update,
+        },
+        "org-a",
+      ),
+    ).toBe(false);
+  });
+});
+
+type NestedPayload = Record<string, unknown>;
+
+function leakingLeaf(kind: number, other: string): NestedPayload {
+  if (kind === 0) {
+    return { organizationId: other };
+  }
+  if (kind === 1) {
+    return { organizationId: { set: other } };
+  }
+  return { organization: { connect: { id: other } } };
+}
+
+function nestAtDepth(leaf: NestedPayload, depth: number): NestedPayload {
+  if (depth === 0) {
+    return leaf;
+  }
+  return { name: "n", items: { create: [nestAtDepth(leaf, depth - 1)] } };
+}
+
+describe("isWithinOrganization: wyciek na dowolnej głębokości", () => {
+  test.prop([
+    twoOrganizations,
+    fc.integer({ min: 0, max: 2 }),
+    fc.nat({ max: 4 }),
+    fc.boolean(),
+  ])(
+    "id innej organizacji na dowolnej głębokości data wychodzi poza organizację zadania",
+    ([a, b], kind, depth, asSecondElement) => {
+      const leaked = nestAtDepth(leakingLeaf(kind, b), depth);
+      const rows = asSecondElement ? [{ organizationId: a }, leaked] : [leaked];
+      expect(
+        isWithinOrganization(
+          "create",
+          { data: { organizationId: a, items: { create: rows } } },
+          a,
+        ),
+      ).toBe(false);
+    },
+  );
+});

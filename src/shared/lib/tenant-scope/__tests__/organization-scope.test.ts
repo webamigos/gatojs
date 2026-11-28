@@ -528,6 +528,116 @@ describe("guard w zakresie organizacji zadania na prawdziwych modelach", () => {
   });
 });
 
+describe("guard w zakresie organizacji zadania: wycieki w danych zapisu", () => {
+  it.each([
+    [
+      "update",
+      {
+        where: { id: "x", organizationId: "org-a" },
+        data: { organizationId: { set: "org-b" } },
+      },
+      "auditLog.update outside job organization",
+    ],
+    [
+      "update",
+      {
+        where: { id: "x", organizationId: "org-a" },
+        data: {
+          organization: { connect: { id: "org-a" }, create: { id: "org-b" } },
+        },
+      },
+      "auditLog.update outside job organization",
+    ],
+    [
+      "update",
+      {
+        where: { id: "x", organizationId: "org-a" },
+        data: { organization: "org-b" },
+      },
+      "auditLog.update outside job organization",
+    ],
+    [
+      "create",
+      {
+        data: {
+          organizationId: "org-a",
+          items: {
+            create: [{ organizationId: "org-a" }, { organizationId: "org-b" }],
+          },
+        },
+      },
+      "auditLog.create outside job organization",
+    ],
+    [
+      "createMany",
+      { data: { organizationId: "org-b" } },
+      "auditLog.createMany outside job organization",
+    ],
+    [
+      "upsert",
+      {
+        where: { id: "x", organizationId: "org-a" },
+        create: { organizationId: "org-a" },
+        update: { organizationId: "org-b" },
+      },
+      "auditLog.upsert outside job organization",
+    ],
+    [
+      "upsert",
+      {
+        where: { id: "x", organizationId: "org-a" },
+        create: { organizationId: "org-a" },
+        update: { organization: { connect: { id: "org-b" } } },
+      },
+      "auditLog.upsert outside job organization",
+    ],
+  ])(
+    "AuditLog.%s z %j rzuca TenantScopeError i nie wywołuje query",
+    async (operation, args, message) => {
+      const query = vi.fn(async () => "ok");
+
+      const result = runInOrganizationScope("org-a", () =>
+        guardReal("AuditLog", operation, args, query),
+      );
+
+      await expect(result).rejects.toMatchObject({
+        name: "TenantScopeError",
+        model: "AuditLog",
+        operation,
+        message,
+      });
+      expect(query).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    [
+      "update",
+      {
+        where: { id: "x", organizationId: "org-a" },
+        data: { organizationId: { set: "org-a" } },
+      },
+    ],
+    [
+      "update",
+      {
+        where: { id: "x", organizationId: "org-a" },
+        data: { organization: { connect: { id: "org-a" } } },
+      },
+    ],
+    ["createMany", { data: { organizationId: "org-a" } }],
+  ])("AuditLog.%s z %j przechodzi w org-a", async (operation, args) => {
+    const query = vi.fn(async () => "ok");
+
+    await expect(
+      runInOrganizationScope("org-a", () =>
+        guardReal("AuditLog", operation, args, query),
+      ),
+    ).resolves.toBe("ok");
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("withoutTenantScope a zakres organizacji zadania", () => {
   it("withoutTenantScope w zakresie odrzuca i nie wywołuje fn", async () => {
     const fn = vi.fn(async () => "x");
