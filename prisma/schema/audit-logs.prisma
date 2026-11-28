@@ -1,6 +1,7 @@
 enum AuditChannel {
   WEB
   API
+  MCP
 }
 
 model AuditLog {

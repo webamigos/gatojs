@@ -36,7 +36,7 @@ export interface AuditLogRow {
   actor: AuditLogActor | null;
   oldData: unknown;
   newData: unknown;
-  channel: "WEB" | "API";
+  channel: "WEB" | "API" | "MCP";
   serviceMode: boolean;
 }
 

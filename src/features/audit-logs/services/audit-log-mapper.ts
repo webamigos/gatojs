@@ -14,7 +14,7 @@ interface AuditLogRecord {
   entityId: string | null;
   oldData: unknown;
   newData: unknown;
-  channel: "WEB" | "API";
+  channel: "WEB" | "API" | "MCP";
   serviceMode: boolean;
   user: AuditLogRow["actor"];
 }
