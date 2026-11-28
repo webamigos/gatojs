@@ -1,7 +1,7 @@
 # Background jobs: a `jobs` module on BullMQ, with retention and cleanup as its first consumers
 
 Date: 2026-11-28, against `main` at `dd8214d` (GatoJS `0.40.0`, `kitFormat` 11). Drafted by an agent for Patryk. Status:
-**draft, waiting for the owner's answers in section 17.** A plan follows once they are in.
+**draft; the owner's decisions so far are in section 17.1, the remaining questions in 17.2.** A plan follows once they are in.
 
 Roadmap item: *"Background jobs: a job queue and scheduled tasks, including retention and cleanup, e.g. pruning old audit
 log entries and orphaned uploads."* Decision already made by the owner: **BullMQ on Redis**, as in his other projects.
@@ -143,7 +143,6 @@ run"*. A module that must work without jobs checks `isModuleEnabled("jobs")` and
     { "name": "JOBS_ROLE", "example": "all", "selfhostExample": "web", "required": false },
     { "name": "JOBS_CONCURRENCY", "example": "5", "required": false },
     { "name": "JOBS_PREFIX", "example": "{{projectSlug}}", "required": false },
-    { "name": "JOBS_TIMEZONE", "example": "UTC", "required": false },
     { "name": "JOBS_SHUTDOWN_TIMEOUT_MS", "example": "25000", "required": false }
   ],
   "schemaRelations": [],
@@ -194,10 +193,10 @@ inside BullMQ later, as justnails' `loadEnv` does):
 | `JOBS_ROLE` | `all` in development, `web` in production | `web` (enqueue only), `worker` (consume and schedule), `all` (both; development and one-container installs). |
 | `JOBS_CONCURRENCY` | `5` | Default per-worker concurrency for jobs that do not declare one. Counts whole jobs (Ragen's unit lesson). |
 | `JOBS_PREFIX` | project slug | BullMQ key prefix, so two GatoJS apps can share one Redis without reading each other's queues. Must match `^[a-z0-9_-]+$`. |
-| `JOBS_TIMEZONE` | `UTC` | Default IANA timezone for schedules that do not set one. Validated with `Intl.DateTimeFormat`. |
 | `JOBS_SHUTDOWN_TIMEOUT_MS` | `25000` | How long `SIGTERM` waits for in-flight jobs before forcing close. Below Kubernetes' default 30 s grace. |
 
-No dashboard credentials in v1 (section 12).
+No dashboard credentials in v1 (section 12). No timezone variable either: the schedule timezone is project
+configuration in `src/gato.config.ts` (section 7.7), never the environment or the container's `TZ`.
 
 ### 5.4 Compose
 
@@ -205,7 +204,7 @@ Development `docker/jobs.compose.yml` (into `# wa:services` of `docker-compose.y
 
 ```yaml
   redis:
-    image: <section 17, Q1>
+    image: redis:7-alpine@sha256:<pinned at implementation>
     restart: always
     command: ["redis-server", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
     ports:
@@ -219,8 +218,9 @@ Development `docker/jobs.compose.yml` (into `# wa:services` of `docker-compose.y
       retries: 10
 ```
 
-Self-hosted `docker/jobs.selfhost.compose.yml` (into `# wa:services` of `docker-compose.selfhost.yml`): `redis` without a
-published port, with `requirepass ${REDIS_PASSWORD}` (section 17, Q12), a bind mount `./volumes/redis` (a region cannot
+The Redis image is `redis:7-alpine`, as in the owner's projects (decision 17.1), pinned by digest in both files like
+`minio`. Self-hosted `docker/jobs.selfhost.compose.yml` (into `# wa:services` of `docker-compose.selfhost.yml`): `redis` without a
+published port, with `requirepass ${REDIS_PASSWORD}` (section 17.2, Q9), a bind mount `./volumes/redis` (a region cannot
 declare a top-level named volume, ADR-65), and the worker:
 
 ```yaml
@@ -266,7 +266,7 @@ Docker's default stop timeout is 10 s, which would kill a job that `close()` was
   `false`), `worker.replicaCount`, `worker.resources`, and a `templates/worker-deployment.yaml` that reuses the app's
   image, env and secret with `JOBS_ROLE=worker`, `terminationGracePeriodSeconds: 35`, no Service and no Ingress.
   Redis is external (`env.REDIS_URL` through `existingSecret`); whether the chart should ship an in-cluster Redis like
-  Ragen's is Q8.
+  Ragen's is Q5.
 
 ### 5.6 Egress check (ADR-66)
 
@@ -367,7 +367,7 @@ A job definition:
 | `retain` | Default `{ completed: { ageSeconds: 86400, count: 1000 }, failed: { ageSeconds: 604800, count: 5000 } }`. |
 
 A schedule definition: key `<module>.<name>`, `job` (must be a `system` job of the same module; organization fan-out is
-the job's business, section 9.3), `cron` (five fields only), optional `timezone`, `enabledByDefault`, optional
+the job's business, section 9.3), `cron` (five fields only), optional `timezone` (IANA name, section 7.7), `enabledByDefault`, optional
 `settings` schema and `defaultSettings` (become the job payload, overridable in `gato.config.ts`).
 
 ### 7.2 Registry check
@@ -382,7 +382,7 @@ one `JobRegistryError` listing every problem (the `createEventBus` and `commandH
 - schedule of an unknown job, of a job in another module, or of an `organization` job;
 - a cron that is not five fields or that BullMQ's parser rejects (Ragen's six-field lesson: six fields mean
   seconds-first in BullMQ, which is never what a retention schedule wants);
-- an invalid timezone;
+- a schedule `timezone` that is not an IANA name (section 7.7);
 - `defaultSettings` that fail `settings`, or a `gato.config.ts` override (7.3) that fails it.
 
 A test builds the registry from the real `@/modules.generated`, so a bad declaration fails `npm test`, as events do.
@@ -452,6 +452,36 @@ by an older release with a different shape, company-budget's `crm-sync` case) fa
 silently skipped. Changing a payload incompatibly is a migration: accept both shapes in the schema (a union) for one
 release, or drain the queue first; `docs/18b` says so.
 
+### 7.7 Timezones
+
+Schedules never depend on the server's or the container's timezone (decision 17.1).
+
+- **App-wide default.** `GatoConfig` gains a top-level, client-safe `jobs` field:
+  `defineGatoConfig({ jobs: { timezone: "Europe/Warsaw" }, … })`. It is validated with Zod
+  (`z.string().refine(isIanaTimeZone)`, where `isIanaTimeZone` accepts `"UTC"` and every name in
+  `Intl.supportedValuesOf("timeZone")`), default `"UTC"`. An invalid name fails `applyGatoConfig` at import with
+  `- jobs.timezone: not an IANA time zone: <value>` (ADR-60), so `next build`, `npm run dev` and every worker boot stop.
+- **Per schedule.** `defineSchedules({ "<id>": { cron, timezone?: "Europe/Warsaw" } })` overrides the default for one
+  schedule, and `modules.<module>.schedules.<id>.timezone` in `gato.config.ts` overrides both. Resolution order:
+  config override → schedule declaration → `jobs.timezone` → `"UTC"`.
+- **Always explicit to BullMQ.** The resolved name is passed as `repeat.tz` to `upsertJobScheduler` on every schedule,
+  never omitted: without `tz`, BullMQ's cron parser falls back to the process's local time, which is exactly the
+  dependency this rule removes. A changed timezone changes the scheduler and reconciliation (8.5) re-upserts it.
+- **Containers run in UTC and `TZ` is ignored.** The image, Compose files, Helm chart and Railway runbook set no `TZ`;
+  `docs/18` says that the server timezone has no effect on schedules and that the way to change one is
+  `gato.config.ts`. An integration test boots the worker with `TZ=America/New_York` and asserts that a schedule with
+  `timezone: "Europe/Warsaw"` and `0 3 * * *` gets its next run at 03:00 Warsaw time.
+- **Job code computes in UTC.** Retention cutoffs and grace periods are UTC instants (10.1, 10.2); `ctx` exposes the
+  schedule's resolved timezone (`ctx.timezone`) for jobs that need local calendar boundaries.
+- **DST.** The kit's own schedules default to UTC, so DST cannot shift or skip them. A project that picks a DST zone
+  should avoid local times between 01:00 and 03:00 (a slot in the skipped spring hour does not fire that day, the
+  repeated autumn hour can fire twice); `docs/18b` says so and the handlers are idempotent anyway (8.3).
+- The admin page (12) shows each schedule's timezone and its next run in that timezone and in UTC.
+
+Future work, not in this spec (17.2, Q12): a per-organization timezone stored on `Organization`, used by
+organization-facing schedules (a dispatcher would compute each organization's due slot in its own zone, for example a
+daily digest at 08:00 local time) and by date display in the UI.
+
 ## 8. Running jobs
 
 ### 8.1 The handler context
@@ -463,6 +493,7 @@ release, or drain the queue first; `docs/18b` says so.
 | `organizationId` | `string` for `organization` jobs, absent for `system` jobs (typed per scope). Always from the envelope. |
 | `actorUserId`, `serviceMode` | From the origin; jobs that write audit rows pass them on. |
 | `jobId`, `attempt`, `maxAttempts` | For logs and idempotency keys. |
+| `timezone` | The resolved IANA timezone of the schedule that produced the job, else `jobs.timezone` (section 7.7). |
 | `signal` | `AbortSignal`: aborted on `timeoutMs` and on forced shutdown. |
 | `log` | The GatoJS logger bound to `{ job, jobId, organizationId, attempt }`. |
 | `progress(stage)` | `job.updateProgress({ stage })`; a Redis error here is logged, never fails the job (Ragen). |
@@ -503,7 +534,7 @@ enqueue succeeds and the transaction rolls back, the job runs for data that does
   let a scheduled sweep re-enqueue rows still `PENDING` after N minutes (company-budget's `agent-proposal-sweep`);
 - when it does not (a cache rebuild), log the enqueue failure and move on.
 
-A generic outbox table is Q9.
+A generic outbox table is Q6.
 
 ### 8.5 Schedules
 
@@ -549,7 +580,7 @@ stops routing), `worker.close()` on every worker in parallel (BullMQ waits for i
   except through `systemOrigin` plus an explicit fan-out (9.3).
 - Every Prisma query in a handler filters by `ctx.organizationId`; the tenant-scope guard (D51) applies unchanged inside
   the worker, because the worker runs the same Prisma client with the same extension.
-- Recommended hardening (Q11): while an organization job runs, an `AsyncLocalStorage` scope holds `ctx.organizationId`
+- Recommended hardening (Q8): while an organization job runs, an `AsyncLocalStorage` scope holds `ctx.organizationId`
   and the tenant-scope guard also rejects a scoped query whose `organizationId` filter is a different literal. The guard
   then catches not only a missing filter but a wrong one. Core change in `src/shared/lib/tenant-scope/` (critical).
 
@@ -561,7 +592,7 @@ stops routing), `worker.close()` on every worker in parallel (BullMQ waits for i
 - No organization data UI in this module. The admin page's commands (retry, run now) are `access: "global-admin"`
   commands (ADR-62): they act on the platform's queue, not on an organization's data, and run without a service-mode
   dialog, like the users admin. Each writes a log line with the admin's id; whether they also write an audit row is
-  Q10.
+  Q7.
 
 ### 9.3 Cross-organization maintenance
 
@@ -591,10 +622,10 @@ An architecture test (section 14.4) rejects `withoutTenantScope` in an `organiza
   repeated until fewer than 5 000 rows come back or `ctx.signal` aborts. Short transactions, no table-wide lock,
   naturally idempotent. The cutoff is computed once per job run from the job's start time
   (`startOfDay(now) - olderThanDays` in UTC), so a retry an hour later deletes the same set.
-- Logs `{ organizationId, deleted, cutoff }`. No audit row per organization per night by default (Q10).
+- Logs `{ organizationId, deleted, cutoff }`. No audit row per organization per night by default (Q7).
 - Schedule `audit-logs.prune-daily`, `0 3 * * *`, `enabledByDefault: false`, default `olderThanDays: 365`. Deleting
   audit history is irreversible and a legal decision (retention periods differ per client and jurisdiction), so the
-  project turns it on (Q4).
+  project turns it on (Q2).
 - The existing `@@index([organizationId, createdAt])` serves the query; no migration.
 
 ### 10.2 Orphaned uploads (`uploads` module)
@@ -623,7 +654,7 @@ Changes:
   fails unrecoverably, so a bug or a pointed-at-the-wrong-database worker cannot wipe a bucket.
 - Schedule `uploads.orphans-daily`, `30 3 * * *`, `enabledByDefault: true` (it only deletes objects no row refers to,
   after a grace period); `settings: { graceHours, maxObjectsPerRun, maxOrganizationsPerRun, purgeDeletedOrganizations }`.
-  Whether `purgeDeletedOrganizations` defaults to `true` is Q5.
+  Whether `purgeDeletedOrganizations` defaults to `true` is Q3.
 - Out of scope: `Upload` rows whose object is missing (logged as a warning count, not repaired) and rows that nothing
   in the domain references (needs an attach/reference API, a later spec).
 
@@ -633,7 +664,7 @@ Changes:
   The subscriber stays fast and in-process (ADR-61's rules unchanged); the job brings retries.
 - If the enqueue throws, the subscriber error is logged by the bus and the operation still succeeds (ADR-61), so the
   job is lost; subscribers that must not lose work use the row-first pattern (8.4).
-- Later (Q13, not v1): `defineSubscribers({ "e": { id, queued: { job: "x.y" } } })` as sugar, and a `jobs.failed` event
+- Later (Q10, not v1): `defineSubscribers({ "e": { id, queued: { job: "x.y" } } })` as sugar, and a `jobs.failed` event
   (organization jobs only) after the last attempt, so a project can notify someone.
 
 ## 12. Admin UI
@@ -650,7 +681,7 @@ Recommendation: **a small in-app page, no bull-board in v1.**
   is a second credential outside better-auth (Ragen named this itself), it needs an Express server on a separate port
   in the worker, which the egress check and the Helm chart then have to know about, and proxying it through a Next route
   is real work (Ragen deferred it). The small page covers "is it stuck, what failed, run it again". bull-board stays
-  possible as an opt-in later (Q6).
+  possible as an opt-in later (Q4).
 
 ## 13. Security
 
@@ -660,7 +691,7 @@ Recommendation: **a small in-app page, no bull-board in v1.**
   recipient (justnails' email job is the counter-example).
 - **Failure reasons** may contain PII from an exception message. The admin page truncates them; logs go through the
   existing logger redaction. `removeOnFail` keeps them 7 days by default.
-- **Redis access:** `rediss://` supported; self-hosted Redis gets a password (Q12) and no published port; `JOBS_PREFIX`
+- **Redis access:** `rediss://` supported; self-hosted Redis gets a password (Q9) and no published port; `JOBS_PREFIX`
   isolates apps sharing an instance. Redis is a configured endpoint (ADR-66).
 - **No secrets in the worker that the web does not have.** Same image, same env file; no `CRON_SECRET`-style
   callback, because the worker runs the app's code directly.
@@ -728,12 +759,12 @@ Each is its own commit with a `core` (or owning module) version bump, as `kit/CL
 | --- | --- | --- |
 | Seam `src/shared/lib/jobs/` | new | core |
 | `jobRuntimes` call in `register()` | `src/instrumentation.ts` | core |
-| `schedules` in `GatoModuleConfig`, validation | `src/shared/lib/modules/gato-config.ts` | core |
+| `schedules` in `GatoModuleConfig`, top-level `jobs.timezone`, validation | `src/shared/lib/modules/gato-config.ts` | core |
 | `serverExternalPackages: ["bullmq", "ioredis"]` | `next.config.ts` | core (harmless without the module) |
 | Generator: `jobs.ts`, `job-runtime.ts`, extension-point sections, `kitFormat` 12 | `packages/gato-cli/src/generate/**`, `kit/kit.json`, `kit-format.ts` | kit |
 | `doctor` warning for schedules without the `jobs` module | `packages/gato-cli/src/doctor/**` | kit |
 | Helm `worker.*` values and `worker-deployment.yaml` | `deploy/helm/gatojs/` | core |
-| Tenant-scope expected-organization check (if Q11 = yes) | `src/shared/lib/tenant-scope/` | core |
+| Tenant-scope expected-organization check (if Q8 = yes) | `src/shared/lib/tenant-scope/` | core |
 | `redisUrl` helper | `packages/env` | core |
 | `ObjectStorage.list` | `src/features/uploads/` | uploads |
 | ADR-66 endpoint list, egress-check `jobs` leg | `docs/adrs/66-…`, `kit/egress-check/`, workflow | kit |
@@ -786,8 +817,15 @@ from the job id hash; scope check inverted.
 schedule`; `null` disables; `settings` failing the schema → registry error naming the path; generated registry lines
 pinned; `EXTENSION_POINTS.md` lists the new sections; a project without `jobs` gets `jobRuntimes: never[] = []`.
 
+Timezones (7.7): no `jobs.timezone` → schedules resolve to `"UTC"`; `jobs: { timezone: "Europe/Warsaw" }` → a
+schedule without its own timezone resolves to `"Europe/Warsaw"`; schedule `timezone: "America/New_York"` wins over the
+default; a config override `timezone: "Asia/Tokyo"` wins over both; `jobs.timezone: "CET+1"` or `"Mars/Base"` →
+`GatoConfigError` with `- jobs.timezone: not an IANA time zone: Mars/Base`; the `upsertJobScheduler` call always carries
+a non-empty `tz`.
+
 **Mutacje do zabicia:** override merged instead of replacing `cron`; `null` treated as "keep"; disabled module's
-schedules kept.
+schedules kept; resolution order of the timezone swapped; `tz` omitted when it equals `"UTC"`; IANA check replaced by a
+non-empty string check.
 
 ### Phase 2: the `jobs` module runtime
 
@@ -870,35 +908,43 @@ reports a clean run and fails when the worker resolves an outside name (canary-s
 
 ### Phase 5: later (not planned)
 
-Queued subscribers and `jobs.failed` (Q13), bull-board opt-in (Q6), outbox (Q9), option B entrypoint if the worker's
+Queued subscribers and `jobs.failed` (Q10), bull-board opt-in (Q4), outbox (Q6), option B entrypoint if the worker's
 memory matters, organization-configurable retention.
 
-## 17. Open questions for the owner
+## 17. Decisions and open questions
 
-1. **Redis image and licence.** Redis 7.4+ is under RSALv2/SSPL, Redis 8 adds AGPLv3; Valkey 8 is BSD and BullMQ
-   supports it. Recommendation: **Valkey 8** pinned by digest for the self-hosted stack (GatoJS is sold to clients who
-   self-host), `redis:7-alpine` acceptable in development. Or keep `redis:7-alpine` everywhere as in your projects?
-2. **Redis at all?** BullMQ 6 has a PostgreSQL backend (Ragen's research table: about 1.5 to 2 times fewer jobs per
-   second than Redis). It would mean no new service, no egress change and no eviction trap. You chose Redis; confirm
-   that is final, or should the `JobRuntime` port leave the Postgres backend as a later option?
-3. **Worker shape.** Option C (same image, `JOBS_ROLE`) as recommended, or B (separate bundled entrypoint, like
+### 17.1 Decisions (Patryk, 2026-11-28)
+
+1. **Redis, not Valkey.** The stack uses the `redis` image as in the owner's projects (`redis:7-alpine`, pinned by
+   digest in `docker/jobs.compose.yml` and `docker/jobs.selfhost.compose.yml`).
+2. **Redis is final.** No BullMQ-on-PostgreSQL backend; the `JobRuntime` port does not plan for one.
+3. **Schedules do not depend on the server timezone.** An app-wide default `jobs.timezone` in `src/gato.config.ts`
+   (IANA name, validated with Zod, default `"UTC"`), a per-schedule `timezone` in `defineSchedules` (overridable per
+   schedule in `gato.config.ts`), always passed to BullMQ as `repeat.tz`. Containers run in UTC and their `TZ` is
+   ignored. Design in section 7.7; `JOBS_TIMEZONE` is dropped from the env schema.
+
+### 17.2 Open questions for the owner
+
+1. **Worker shape.** Option C (same image, `JOBS_ROLE`) as recommended, or B (separate bundled entrypoint, like
    justnails/company-budget)?
-4. **Audit retention default.** Ship `audit-logs.prune-daily` disabled (recommended) or enabled with 365 days?
-5. **Deleted organizations' storage.** Purge `orgs/<id>/` of deleted organizations by default (recommended: yes, with
+2. **Audit retention default.** Ship `audit-logs.prune-daily` disabled (recommended) or enabled with 365 days?
+3. **Deleted organizations' storage.** Purge `orgs/<id>/` of deleted organizations by default (recommended: yes, with
    the circuit breaker), or only report it?
-6. **Admin UI.** Small in-app page (recommended) only, or also bull-board behind Basic Auth on the worker, off by
+4. **Admin UI.** Small in-app page (recommended) only, or also bull-board behind Basic Auth on the worker, off by
    default?
-7. **Default timezone.** `UTC` (recommended for a kit) or `Europe/Warsaw` (all three projects)?
-8. **Helm Redis.** External only (recommended), or an in-cluster Redis in the chart like Ragen's?
-9. **Outbox.** Accept "enqueue after commit + row-first pattern" for v1 (recommended), or build a `job_outbox` table now?
-10. **Audit rows from jobs.** Should retention write an `audit-log.pruned` row per organization per run (justnails
-    logs one), and should `jobs.retry`/`run-now` write one? A new `AuditChannel` value `SYSTEM` for job-written rows?
-11. **Strict organization scope in jobs.** Add the expected-organization check to the tenant-scope guard (9.1)? It is a
-    critical core change with real protection; recommended, but it can be a follow-up.
-12. **Redis password in the self-hosted stack.** `REDIS_PASSWORD` required (recommended) even on an internal network?
-13. **Queued subscribers and `jobs.failed`.** In v1, or later as listed?
-14. **Development loop.** Accept "restart `npm run dev` after changing a job handler" (option C), or also ship a
+5. **Helm Redis.** External only (recommended), or an in-cluster Redis in the chart like Ragen's?
+6. **Outbox.** Accept "enqueue after commit + row-first pattern" for v1 (recommended), or build a `job_outbox` table now?
+7. **Audit rows from jobs.** Should retention write an `audit-log.pruned` row per organization per run (justnails
+   logs one), and should `jobs.retry`/`run-now` write one? A new `AuditChannel` value `SYSTEM` for job-written rows?
+8. **Strict organization scope in jobs.** Add the expected-organization check to the tenant-scope guard (9.1)? It is a
+   critical core change with real protection; recommended, but it can be a follow-up.
+9. **Redis password in the self-hosted stack.** `REDIS_PASSWORD` required (recommended) even on an internal network?
+10. **Queued subscribers and `jobs.failed`.** In v1, or later as listed?
+11. **Development loop.** Accept "restart `npm run dev` after changing a job handler" (option C), or also ship a
     `tsx watch` worker for development only?
+12. **Per-organization timezone (future work).** Store a timezone on `Organization` for organization-facing schedules
+    and date display (7.7)? And should the app shell expose a timezone setting (organization settings, the user's
+    account page, or both), or stay with the app-wide `jobs.timezone` until a project asks?
 
 ## 18. Docs, ADR and skill
 
