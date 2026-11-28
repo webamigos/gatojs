@@ -257,7 +257,6 @@ function isOrganizationRelationWithin(
   const keys = Object.keys(value);
   return (
     keys.length === 1 &&
-    keys[0] === "connect" &&
     isRecord(value.connect) &&
     value.connect.id === organizationId
   );
