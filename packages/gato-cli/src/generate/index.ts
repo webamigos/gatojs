@@ -35,6 +35,48 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
+const EXPORT_LIST = /^\s*export\s*\{([^}]*)\}/gm;
+
+function exportsName(source: string, name: string): boolean {
+  const declaration = new RegExp(
+    `^\\s*export\\s+(?:async\\s+)?(?:(?:const|let|var|function)\\s+|function\\s*\\*\\s*)${name}(?![\\w$])`,
+    "m",
+  );
+  if (declaration.test(source)) {
+    return true;
+  }
+  return [...source.matchAll(EXPORT_LIST)].some(([, list]) =>
+    list
+      .split(",")
+      .map((specifier) =>
+        specifier
+          .trim()
+          .split(/\s+as\s+/)
+          .pop(),
+      )
+      .includes(name),
+  );
+}
+
+async function detectAuth(
+  base: string,
+  name: string,
+): Promise<{ hasAuth: boolean; hasAuthPlugins: boolean }> {
+  const file = join(base, "auth.ts");
+  if (!(await exists(file))) {
+    return { hasAuth: false, hasAuthPlugins: false };
+  }
+  const source = await readFile(file, "utf8");
+  const hasAuthPlugin = exportsName(source, "authPlugin");
+  const hasAuthPlugins = exportsName(source, "authPlugins");
+  if (hasAuthPlugin && hasAuthPlugins) {
+    throw new Error(
+      `src/features/${name}/auth.ts exports both authPlugin and authPlugins`,
+    );
+  }
+  return { hasAuth: true, hasAuthPlugins };
+}
+
 async function detectFeature(
   projectDir: string,
   name: string,
@@ -52,7 +94,7 @@ async function detectFeature(
     name,
     hasModuleTs: await exists(join(base, "module.ts")),
     hasEnv: await exists(join(base, "env.ts")),
-    hasAuth: await exists(join(base, "auth.ts")),
+    ...(await detectAuth(base, name)),
     hasAuthClient: await exists(join(base, "auth-client.ts")),
     hasAuditSink: await exists(join(base, "audit-sink.ts")),
     hasEvents: await exists(join(base, "events.ts")),

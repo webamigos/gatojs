@@ -3,6 +3,7 @@ export type RegistryModule = {
   hasModuleTs: boolean;
   hasEnv: boolean;
   hasAuth: boolean;
+  hasAuthPlugins?: boolean;
   hasAuthClient: boolean;
   hasAuditSink: boolean;
   hasEvents: boolean;
@@ -84,6 +85,21 @@ function configImports(
         ? []
         : [`import { ${helpers.join(", ")} } from "${GATO_CONFIG_MODULE}";`],
   };
+}
+
+function authImport(module: RegistryModule): string {
+  const exported = module.hasAuthPlugins ? "authPlugins" : "authPlugin";
+  const local = identifier(
+    module.name,
+    module.hasAuthPlugins ? "AuthPlugins" : "AuthPlugin",
+  );
+  return `import { ${exported} as ${local} } from "@/features/${module.name}/auth";`;
+}
+
+function authEntry(module: RegistryModule): string {
+  return module.hasAuthPlugins
+    ? `...${identifier(module.name, "AuthPlugins")}.map((value) => ({ module: "${module.name}", value }))`
+    : entry(module, identifier(module.name, "AuthPlugin"));
 }
 
 function setupEntry(module: RegistryModule): string {
@@ -182,10 +198,7 @@ export function renderRegistry(
       (m) =>
         `import { envSchema as ${identifier(m.name, "EnvSchema")} } from "@/features/${m.name}/env";`,
     ),
-    ...withAuth.map(
-      (m) =>
-        `import { authPlugin as ${identifier(m.name, "AuthPlugin")} } from "@/features/${m.name}/auth";`,
-    ),
+    ...withAuth.map(authImport),
     ...withAuditSink.map(
       (m) =>
         `import { auditSink as ${identifier(m.name, "AuditSink")} } from "@/features/${m.name}/audit-sink";`,
@@ -217,10 +230,7 @@ export function renderRegistry(
       "moduleEnvSchemas",
       withEnv.map((m) => entry(m, identifier(m.name, "EnvSchema"))),
     ),
-    enabledList(
-      "authPlugins",
-      withAuth.map((m) => entry(m, identifier(m.name, "AuthPlugin"))),
-    ),
+    enabledList("authPlugins", withAuth.map(authEntry)),
     enabledList(
       "auditSinks",
       withAuditSink.map((m) => entry(m, identifier(m.name, "AuditSink"))),
