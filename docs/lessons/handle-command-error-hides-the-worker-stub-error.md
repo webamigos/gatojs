@@ -1,7 +1,7 @@
 ---
-title: 'A job that calls a session-based command gets the command''s generic failure message, because `handleCommandError` swallows the worker stub''s error'
-areas: ['architecture']
-topics: ['jobs', 'worker', 'commands', 'error-handling']
+title: "A job that calls a session-based command gets the command's generic failure message, because `handleCommandError` swallows the worker stub's error"
+areas: ["architecture"]
+topics: ["jobs", "worker", "commands", "error-handling"]
 ---
 
 # A job that calls a session-based command gets the command's generic failure message, because `handleCommandError` swallows the worker stub's error

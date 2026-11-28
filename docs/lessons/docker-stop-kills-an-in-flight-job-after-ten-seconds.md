@@ -1,7 +1,7 @@
 ---
-title: '`docker stop` kills the worker after 10 seconds and its in-flight job stays locked until it stalls; give the worker a 30-second grace period'
-areas: ['deploy']
-topics: ['jobs', 'worker', 'docker', 'bullmq', 'shutdown']
+title: "`docker stop` kills the worker after 10 seconds and its in-flight job stays locked until it stalls; give the worker a 30-second grace period"
+areas: ["deploy"]
+topics: ["jobs", "worker", "docker", "bullmq", "shutdown"]
 ---
 
 # `docker stop` kills the worker after 10 seconds and its in-flight job stays locked until it stalls; give the worker a 30-second grace period

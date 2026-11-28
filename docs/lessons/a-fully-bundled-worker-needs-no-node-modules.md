@@ -1,7 +1,7 @@
 ---
-title: 'A worker bundled with its npm packages, Prisma 7 runtime included, runs without `node_modules`; keep only native and optional modules external'
-areas: ['deploy']
-topics: ['jobs', 'worker', 'docker', 'esbuild', 'prisma']
+title: "A worker bundled with its npm packages, Prisma 7 runtime included, runs without `node_modules`; keep only native and optional modules external"
+areas: ["deploy"]
+topics: ["jobs", "worker", "docker", "esbuild", "prisma"]
 ---
 
 # A worker bundled with its npm packages, Prisma 7 runtime included, runs without `node_modules`; keep only native and optional modules external

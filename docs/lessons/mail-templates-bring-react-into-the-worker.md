@@ -1,7 +1,7 @@
 ---
-title: 'Mail templates bring React into the worker legitimately; the bundle check forbids components and Next, not React itself'
-areas: ['architecture']
-topics: ['jobs', 'worker', 'esbuild', 'react', 'mail']
+title: "Mail templates bring React into the worker legitimately; the bundle check forbids components and Next, not React itself"
+areas: ["architecture"]
+topics: ["jobs", "worker", "esbuild", "react", "mail"]
 ---
 
 # Mail templates bring React into the worker legitimately; the bundle check forbids components and Next, not React itself

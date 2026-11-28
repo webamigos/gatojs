@@ -7,8 +7,8 @@ ship as the first consumers.
 
 **Spec:** [docs/superpowers/specs/2026-11-28-jobs-module.md](../specs/2026-11-28-jobs-module.md) (#135), every
 question answered by the owner (§17.1, decisions 1–24). Section numbers below (§6.3, §8.4, …) point into it. The spike
-of Task 0 changes a few details of §6 (section "Spike results"); where this plan and the spec disagree on those, this
-plan wins and Task 19 amends the spec text.
+of Task 0 changed a few details of §6 (section "Spike results"); the coordinator approved them on the owner's
+go-ahead and the spec records them as decisions 25 to 31.
 
 **Execution:** Orca workers, one task per worker, each on its own branch from `main`, one PR per task. Task 0 (this
 branch, `feat/jobs-plan-and-spike`) delivers the plan, the spike results and the spike lessons; no product code.
@@ -39,16 +39,16 @@ T19 docs, ADRs, skill                                      ← all
 
 Waves (at most three workers at once, never two on the same hot file, see "Lane coordination"):
 
-| Wave | Tasks | Why together |
-| --- | --- | --- |
-| 1 | T1, T4, T7a | new `src/shared/lib/jobs/`, `tenant-scope/`, `events/` + `auth/events-plugin.ts`: disjoint files |
-| 2 | T2, T3 | T2 stays in `src/shared/lib/jobs/`; T3 owns the generator and the registry files |
-| 3 | T5, T6 | T5 owns `gato-config.ts` and `timezone/`; T6 only adds module files and the manifest |
-| 4 | T7, T10 | `src/features/jobs/runtime/` vs `organizations` + `org-context.ts` |
-| 5 | T8, T13, T7b, T11 | jobs runtime vs `events/` vs jobs subscribers vs display pages; T7b waits for T7 and T7a |
-| 6 | T9, T12 | worker build vs organization schedules (T12 starts after T8 merged) |
-| 7 | T14, T15, T16, T17 | audit-logs vs uploads vs admin page vs worker HTTP |
-| 8 | T18, then T19 | operations, then docs |
+| Wave | Tasks              | Why together                                                                                     |
+| ---- | ------------------ | ------------------------------------------------------------------------------------------------ |
+| 1    | T1, T4, T7a        | new `src/shared/lib/jobs/`, `tenant-scope/`, `events/` + `auth/events-plugin.ts`: disjoint files |
+| 2    | T2, T3             | T2 stays in `src/shared/lib/jobs/`; T3 owns the generator and the registry files                 |
+| 3    | T5, T6             | T5 owns `gato-config.ts` and `timezone/`; T6 only adds module files and the manifest             |
+| 4    | T7, T10            | `src/features/jobs/runtime/` vs `organizations` + `org-context.ts`                               |
+| 5    | T8, T13, T7b, T11  | jobs runtime vs `events/` vs jobs subscribers vs display pages; T7b waits for T7 and T7a         |
+| 6    | T9, T12            | worker build vs organization schedules (T12 starts after T8 merged)                              |
+| 7    | T14, T15, T16, T17 | audit-logs vs uploads vs admin page vs worker HTTP                                               |
+| 8    | T18, then T19      | operations, then docs                                                                            |
 
 ## Lane coordination with the MCP module
 
@@ -56,17 +56,17 @@ An MCP lane runs in parallel ([spec](../specs/2026-11-28-mcp-module.md), #136). 
 three places. Rule: **a task marked "serialize with MCP" does not start while the MCP task it names is open, and the
 second one to merge rebases and takes the next free numbers.** The coordinator holds the order.
 
-| Hot file or contract | Jobs tasks | MCP tasks (spec §13) | What collides | Order |
-| --- | --- | --- | --- | --- |
-| Generator `packages/gato-cli/src/generate/**`, `.wa/bin/wa.mjs`, `gato-cli` version, `create-gato-app` pin, `kitFormat` | T3, T18 (`doctor`) | 0.2 (`authPlugins` arrays), 0.4 (`mcp-tools.ts`, `moduleMcpTools`) | registry emitter, kitFormat value, bundle | **Serialize.** T3 first if possible: MCP 0.4 emits `moduleMcpTools` "in the server registry only", which T3 creates. If MCP 0.4 lands first, T3 moves `moduleMcpTools` into the server registry instead of creating the line. |
-| `src/shared/lib/auth/org-context.ts` (`getOrgContext`, `OrgContext`) | T10 (`OrgContext.timezone`) | 0.1 (request principal) | both change the returned context | **Serialize.** The second adds its field to the other's branch: the principal branch must also return `timezone`. |
-| `src/shared/lib/auth/helpers.ts`, `require-module-access.ts`, `auth/index.ts`, `permissions.ts` | T3 (registry import lines), T9 (worker stubs cover them) | 0.1 (`getAdminUserOrNull`, `ModuleAccessDeniedError`), 0.2 (plugin spread) | import lines; T9's stub list must cover any new `next/*` import MCP adds there | T3 serialize with 0.1/0.2 (small textual); T9 re-runs the metafile check after any MCP merge. |
-| `src/shared/lib/audit.ts` (`AuditChannel`, `auditActor`, `AuditEvent`) and `prisma/schema/audit-logs.prisma` enum + migrations (`audit-logs` module) | T3 (import line), T14 (`SYSTEM`, job default channel) | 0.1 (`MCP` channel in `auditActor`), 0.6 (`correlationId`, `correlation_id` column) | same enum, same function, two migrations in one module | **Serialize T14 with MCP 0.1 and 0.6.** Channel precedence (fixed here for both lanes): explicit `event.channel` → MCP principal (`MCP`) → job scope (`SYSTEM`) → `WEB`. Migrations are generated after rebasing, never hand-merged. |
-| `src/shared/lib/modules/gato-config.ts`, `src/gato.config.ts` | T5 (`timezone`, `modules.<m>.schedules`) | 0.5 (`mcp.instructions`), 0.5b (`mcp.tools`) | `GatoConfig` type, `gatoConfigProblems` | **Serialize T5 with 0.5 and 0.5b.** |
-| Audit-log page (`src/features/audit-logs/components/`, page) | T11 (`formatDateTime`), T14 (label "System") | 0.6 (correlation id, `mcp.tool_called` filter) | same table component | Serialize T11 and T14 with 0.6. |
-| `deploy/helm/gatojs/values.yaml`, templates | T18 (`worker.*`) | Q15 replica count read by the `mcp` boot warning | `values.yaml` keys | Serialize T18 with the MCP task that edits the chart. |
-| Numbers | ADR-72..75, `docs/19`, `docs/19b`, `kitFormat` 12, `core` minor | ADR-72, `docs/20`, `docs/20b`, `kitFormat` | MCP spec also names ADR-72 | Always the next free number at merge time. |
-| `mutation-gate.json` `critical`, `AGENTS.md` Task Router, `kit/modules/core.json` `version` | many | many | one-line textual conflicts | Rebase, take the next free version; `AGENTS.md` stays inside `agent-instructions-fit-the-budget`. |
+| Hot file or contract                                                                                                                                 | Jobs tasks                                                      | MCP tasks (spec §13)                                                                | What collides                                                                  | Order                                                                                                                                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Generator `packages/gato-cli/src/generate/**`, `.wa/bin/wa.mjs`, `gato-cli` version, `create-gato-app` pin, `kitFormat`                              | T3, T18 (`doctor`)                                              | 0.2 (`authPlugins` arrays), 0.4 (`mcp-tools.ts`, `moduleMcpTools`)                  | registry emitter, kitFormat value, bundle                                      | **Serialize.** T3 first if possible: MCP 0.4 emits `moduleMcpTools` "in the server registry only", which T3 creates. If MCP 0.4 lands first, T3 moves `moduleMcpTools` into the server registry instead of creating the line.        |
+| `src/shared/lib/auth/org-context.ts` (`getOrgContext`, `OrgContext`)                                                                                 | T10 (`OrgContext.timezone`)                                     | 0.1 (request principal)                                                             | both change the returned context                                               | **Serialize.** The second adds its field to the other's branch: the principal branch must also return `timezone`.                                                                                                                    |
+| `src/shared/lib/auth/helpers.ts`, `require-module-access.ts`, `auth/index.ts`, `permissions.ts`                                                      | T3 (registry import lines), T9 (worker stubs cover them)        | 0.1 (`getAdminUserOrNull`, `ModuleAccessDeniedError`), 0.2 (plugin spread)          | import lines; T9's stub list must cover any new `next/*` import MCP adds there | T3 serialize with 0.1/0.2 (small textual); T9 re-runs the metafile check after any MCP merge.                                                                                                                                        |
+| `src/shared/lib/audit.ts` (`AuditChannel`, `auditActor`, `AuditEvent`) and `prisma/schema/audit-logs.prisma` enum + migrations (`audit-logs` module) | T3 (import line), T14 (`SYSTEM`, job default channel)           | 0.1 (`MCP` channel in `auditActor`), 0.6 (`correlationId`, `correlation_id` column) | same enum, same function, two migrations in one module                         | **Serialize T14 with MCP 0.1 and 0.6.** Channel precedence (fixed here for both lanes): explicit `event.channel` → MCP principal (`MCP`) → job scope (`SYSTEM`) → `WEB`. Migrations are generated after rebasing, never hand-merged. |
+| `src/shared/lib/modules/gato-config.ts`, `src/gato.config.ts`                                                                                        | T5 (`timezone`, `modules.<m>.schedules`)                        | 0.5 (`mcp.instructions`), 0.5b (`mcp.tools`)                                        | `GatoConfig` type, `gatoConfigProblems`                                        | **Serialize T5 with 0.5 and 0.5b.**                                                                                                                                                                                                  |
+| Audit-log page (`src/features/audit-logs/components/`, page)                                                                                         | T11 (`formatDateTime`), T14 (label "System")                    | 0.6 (correlation id, `mcp.tool_called` filter)                                      | same table component                                                           | Serialize T11 and T14 with 0.6.                                                                                                                                                                                                      |
+| `deploy/helm/gatojs/values.yaml`, templates                                                                                                          | T18 (`worker.*`)                                                | Q15 replica count read by the `mcp` boot warning                                    | `values.yaml` keys                                                             | Serialize T18 with the MCP task that edits the chart.                                                                                                                                                                                |
+| Numbers                                                                                                                                              | ADR-72..75, `docs/19`, `docs/19b`, `kitFormat` 12, `core` minor | ADR-72, `docs/20`, `docs/20b`, `kitFormat`                                          | MCP spec also names ADR-72                                                     | Always the next free number at merge time.                                                                                                                                                                                           |
+| `mutation-gate.json` `critical`, `AGENTS.md` Task Router, `kit/modules/core.json` `version`                                                          | many                                                            | many                                                                                | one-line textual conflicts                                                     | Rebase, take the next free version; `AGENTS.md` stays inside `agent-instructions-fit-the-budget`.                                                                                                                                    |
 
 Tasks with no MCP collision: T1, T2, T4, T6, T7, T7a (it edits `events-plugin.ts`, which no MCP task names; re-check
 before starting), T7b, T8, T12, T13, T15, T16, T17.
@@ -136,18 +136,18 @@ What ran (spike code was deleted before committing; only this section and the le
 
 Results:
 
-| Check (spec Task 0) | Result |
-| --- | --- |
-| Job completes | Yes: `trackAudit` row and the `member.removed` row from the event subscriber, both written from the worker. Rows carry `channel: "WEB"` (T14 must default `SYSTEM` inside jobs). |
-| Metafile free of `next`, `react`, `react-dom`, `next-intl` | Clean only after three changes: the wider registry split, `next-intl` stubs, and allowing React reached from `src/app/emails/` (findings 1–3). |
-| `server-only` and `next/cache` resolve to stubs | Yes. `revalidatePath("/")` returned `undefined`; `headers()` threw `next/headers is not available in the worker`. |
-| Prisma's runtime files load from the image | Yes, and simpler than feared: Prisma 7's generated client plus `@prisma/client/runtime` bundle into the worker file, PostgreSQL query compiler wasm inlined; no files to copy, no native engine. Ran on `node:22-alpine` linux/arm64 (musl). |
-| `--check` | Exit 0 with a valid env; in the container with `NODE_ENV=production` the core env rules fired exactly as in the app (example secrets and a relative `STORAGE_LOCAL_PATH` refused). |
-| Eviction check | With `maxmemory-policy allkeys-lru` the worker refused to start (exit 1). |
-| `docker stop` waits for a 20 s job and exits 0 | Yes with `docker stop -t 30`: `SIGTERM` → `worker.close()` waited, closed after 13.0 s, exit 0. With the default 10 s: `SIGKILL`, exit 137, the job left in `active` with its lock (finding 7). |
-| `tsx watch` with `dev-hooks.mjs` runs the same entry | **No** (finding 4). Replaced by esbuild watch + `node --watch`, verified: ~100 ms rebuild, restart on a changed bundle. |
-| Idle RSS, image size | RSS 141 MiB in `node:22-alpine` after one job (≈ 196 MiB on macOS). Worker file: 209 kB with npm packages external, 17.2 MB fully bundled. Image estimate: `node:22-alpine` 164 MB + 17 MB bundle ≈ 181 MB, versus ≈ 283 MB with a minimal external `node_modules` (111 MB) and far more with the root `npm ci --omit=dev` (`next` alone is 206 MB). |
-| Built in `docker/worker.Dockerfile` on amd64 and arm64 | **Not verified.** `docker build` (BuildKit 0.11.7 and the legacy builder) hung on the machine; the image was emulated with `docker run node:22-alpine` + the bundle + `npm install` of the externals, arm64 only. T9 proves the Dockerfile on both architectures through `docker-platforms.yml`. |
+| Check (spec Task 0)                                        | Result                                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Job completes                                              | Yes: `trackAudit` row and the `member.removed` row from the event subscriber, both written from the worker. Rows carry `channel: "WEB"` (T14 must default `SYSTEM` inside jobs).                                                                                                                                                                     |
+| Metafile free of `next`, `react`, `react-dom`, `next-intl` | Clean only after three changes: the wider registry split, `next-intl` stubs, and allowing React reached from `src/app/emails/` (findings 1–3).                                                                                                                                                                                                       |
+| `server-only` and `next/cache` resolve to stubs            | Yes. `revalidatePath("/")` returned `undefined`; `headers()` threw `next/headers is not available in the worker`.                                                                                                                                                                                                                                    |
+| Prisma's runtime files load from the image                 | Yes, and simpler than feared: Prisma 7's generated client plus `@prisma/client/runtime` bundle into the worker file, PostgreSQL query compiler wasm inlined; no files to copy, no native engine. Ran on `node:22-alpine` linux/arm64 (musl).                                                                                                         |
+| `--check`                                                  | Exit 0 with a valid env; in the container with `NODE_ENV=production` the core env rules fired exactly as in the app (example secrets and a relative `STORAGE_LOCAL_PATH` refused).                                                                                                                                                                   |
+| Eviction check                                             | With `maxmemory-policy allkeys-lru` the worker refused to start (exit 1).                                                                                                                                                                                                                                                                            |
+| `docker stop` waits for a 20 s job and exits 0             | Yes with `docker stop -t 30`: `SIGTERM` → `worker.close()` waited, closed after 13.0 s, exit 0. With the default 10 s: `SIGKILL`, exit 137, the job left in `active` with its lock (finding 7).                                                                                                                                                      |
+| `tsx watch` with `dev-hooks.mjs` runs the same entry       | **No** (finding 4). Replaced by esbuild watch + `node --watch`, verified: ~100 ms rebuild, restart on a changed bundle.                                                                                                                                                                                                                              |
+| Idle RSS, image size                                       | RSS 141 MiB in `node:22-alpine` after one job (≈ 196 MiB on macOS). Worker file: 209 kB with npm packages external, 17.2 MB fully bundled. Image estimate: `node:22-alpine` 164 MB + 17 MB bundle ≈ 181 MB, versus ≈ 283 MB with a minimal external `node_modules` (111 MB) and far more with the root `npm ci --omit=dev` (`next` alone is 206 MB). |
+| Built in `docker/worker.Dockerfile` on amd64 and arm64     | **Not verified.** `docker build` (BuildKit 0.11.7 and the legacy builder) hung on the machine; the image was emulated with `docker run node:22-alpine` + the bundle + `npm install` of the externals, arm64 only. T9 proves the Dockerfile on both architectures through `docker-platforms.yml`.                                                     |
 
 Findings, each with its lesson, and what they change in this plan:
 
@@ -182,10 +182,10 @@ Findings, each with its lesson, and what they change in this plan:
    `handle-command-error-hides-the-worker-stub-error`). → T9 adds a core `WorkerUnavailableError` that the stubs throw
    and `handleCommandError` rethrows.
 
-Spec amendments to record in T19 (proposed here, the owner may revise): §5.1 `scripts.worker:dev` and the
-`devDependencies`/`dependencies` pins; §5.2 drop `dev-hooks.mjs`; §6.3 the wider split; §6.4 the stub list, the
-forbidden list, bundled npm packages, one module format; §6.5 no `prod-deps` stage; §6.6 the dev command; §14.2 the
-"both formats" sentence.
+Recorded in the spec in the same PR as decisions 25 to 31 ("decided by the coordinator", 2026-11-28, the owner may
+revise): §5.1 `scripts` and pins, §5.2 no `dev-hooks.mjs`, §6.3 the wider split, §6.4 the stub list, the forbidden list
+and bundled npm packages, §6.5 no `prod-deps` stage, §6.6 the dev command, §14.2 one module format, §14.4 the rule
+also covers `setup.ts` and `auth.ts`.
 
 ---
 
@@ -194,6 +194,7 @@ forbidden list, bundled npm packages, one module format; §6.5 no `prod-deps` st
 **Branch:** `feat/jobs-seam-registry` · **Depends on:** nothing · **Wave 1** · MCP: none
 
 **Files:**
+
 - `src/shared/lib/jobs/define-jobs.ts` (new): `defineJobs<const T extends JobMap>(jobs: T): T`,
   `defineSchedules<const T extends ScheduleMap>(schedules: T): T`; types `JobDefinition<Scope, Payload>`
   (`scope: "organization" | "system"`, `payload: z.ZodObject`, `run`, `attempts?`, `backoff?`, `concurrency?`,
@@ -214,6 +215,7 @@ forbidden list, bundled npm packages, one module format; §6.5 no `prod-deps` st
 - `kit/modules/core.json`: minor bump. `mutation-gate.json`: propose `src/shared/lib/jobs/` as critical.
 
 **Zachowania:**
+
 - `jobs` key `"notes.prune"` declared in module `audit-logs` → `- notes.prune: job key is not owned by module audit-logs`.
 - key `"audit-logs.Prune"` → `- audit-logs.Prune: key must match ^[a-z0-9-]+\.[a-z0-9-]+$`; the same key in two modules
   → `- audit-logs.prune: declared twice`.
@@ -250,11 +252,12 @@ replaced by `>= 5`; scope/timezone-mode check inverted; sensitive regex made cas
 **Branch:** `feat/jobs-seam-enqueue` · **Depends on:** T1 · **Wave 2** · MCP: none
 
 **Files:**
+
 - `src/shared/lib/jobs/origin.ts`: `jobOrigin(context: OrgContext | DomainEvent)` →
   `{ organizationId, actorUserId, serviceMode }`; `systemOrigin(reason: string, actorUserId?: string)` →
   `{ organizationId: null, actorUserId: actorUserId ?? null, serviceMode: false, reason }`.
 - `src/shared/lib/jobs/envelope.ts`: `envelopeSchema` (strict, `v: z.literal(1)`, §7.6), `buildEnvelope(origin,
-  payload, { trace, cause })`, `parseEnvelope(job, data)` → `{ envelope, payload }` or throws `JobPayloadMismatchError`
+payload, { trace, cause })`, `parseEnvelope(job, data)` → `{ envelope, payload }` or throws `JobPayloadMismatchError`
   (`"payload does not match <job> v1"`, no payload in the message).
 - `src/shared/lib/jobs/job-id.ts`: `jobKeyHash(job, organizationId, key)` → `<job>-<40 hex chars of sha256>`.
 - `src/shared/lib/jobs/enqueue.ts`: `enqueueJob(origin, name, payload, options?)` (`tx`, `jobKey`, `coalesceKey`,
@@ -272,6 +275,7 @@ replaced by `>= 5`; scope/timezone-mode check inverted; sensitive regex made cas
 - `kit/modules/core.json`: minor bump.
 
 **Zachowania:**
+
 - `jobOrigin({ organizationId: "org-a", userId: "u1", serviceMode: false, … })` →
   `{ organizationId: "org-a", actorUserId: "u1", serviceMode: false }`.
 - `enqueueJob(jobOrigin(ctxA), "invoices.render-pdf", { invoiceId: "i1", organizationId: "org-b" })` with the memory
@@ -287,7 +291,7 @@ replaced by `>= 5`; scope/timezone-mode check inverted; sensitive regex made cas
 - `{ coalesceKey: "c", delayMs: 1000 }` → `JobOptionsError`; either alone accepted.
 - payload failing its schema → `JobPayloadError`, runtime not called.
 - memory runtime: a handler throwing twice with `attempts: 3` runs three times and completes; `JobFailure("x",
-  { retryable: false })` runs once.
+{ retryable: false })` runs once.
 
 **Mutacje do zabicia:** organization taken from the payload; strip replaced by passthrough; organization left out of the
 key hash; scope check inverted; trace written into the payload; coalesce/delay check removed; payload parsed after the
@@ -303,6 +307,7 @@ runtime call.
 (generator), and with 0.1 for the `auth/` import lines**
 
 **Files:**
+
 - `packages/gato-cli/src/generate/registry.ts`, `index.ts`, `targets.ts`, `extension-points.ts`:
   - new `src/modules.data.generated.ts`: `modules = applyGatoConfig([...], gatoConfig)` only (plain data, imports
     `module.ts` files and `gato.config.ts`); imported by both registries and `permissions.ts` (spike finding 1);
@@ -335,6 +340,7 @@ runtime call.
   (manifest `scripts`, `verify`).
 
 **Zachowania:**
+
 - `src/server-registry.generated.ts` for the GatoJS repo pinned line by line in a generator test; it contains no
   `slots`, `i18n`, `components` or `auth-client` import.
 - `@/modules.generated` exports the same names as before plus nothing removed (a test compares the export list).
@@ -373,11 +379,12 @@ like the bypass store; `tenant-scope-extension.ts` value checks; `tenant-scope.t
 a scope). `kit/modules/core.json` minor. Docs: `docs/03-dane-i-organizacje.md` (organization job scope).
 
 **Zachowania** (inside `runInOrganizationScope("org-a")`, model `AuditLog` and a model with `organizationId`):
+
 - `findMany({ where: { organizationId: "org-a" } })`, `{ organizationId: { equals: "org-a" } }`,
   `{ organizationId: { in: ["org-a"] } }` pass.
 - `{ organizationId: "org-b" }`, `{ organizationId: { in: ["org-a", "org-b"] } }`, `{ organizationId: { not: "org-b" } }`,
   no filter, `create({ data: { organizationId: "org-b" } })`, `createMany({ data: [{ organizationId: "org-a" },
-  { organizationId: "org-b" }] })`, `updateMany` and `deleteMany` with `org-b` → `TenantScopeError` with message
+{ organizationId: "org-b" }] })`, `updateMany` and `deleteMany` with `org-b` → `TenantScopeError` with message
   `auditLog.findMany outside job organization` (operation named).
 - `withoutTenantScope("x", fn)` inside the scope → throws `withoutTenantScope is not allowed in an organization job`.
 - `Member` and `Invitation` keep their existing exemption outside a scope and are value-checked inside one.
@@ -404,6 +411,7 @@ Record<ScheduleId, ScheduleOverride | null>`, validation in `gatoConfigProblems`
 `kit/modules/core.json` minor. Docs: `docs/11-praca-z-kitem.md` config keys.
 
 **Zachowania:**
+
 - no `timezone` → effective `"UTC"`; `timezone: "Europe/Warsaw"` → a schedule without its own zone resolves to it; a
   schedule zone beats it; a config override beats both.
 - `timezone: "CET+1"` → `GatoConfigError` containing the line `- timezone: not an IANA time zone: CET+1`.
@@ -426,6 +434,7 @@ for `"UTC"`; unknown schedule id accepted.
 **Branch:** `feat/jobs-module-outbox` · **Depends on:** T2, T3 · **Wave 3** · MCP: none
 
 **Files:**
+
 - `kit/modules/jobs.json` (new, §5.1, `version` 0.1.0, `experimental`): `files` with every path the module will own
   (including `src/app/[locale]/(app)/admin/jobs/**`, `docker/worker.Dockerfile`, `docker/jobs*.compose.yml`,
   `ci/jobs.integration-steps.yml`); `dependencies` `bullmq` 6.7.x and `ioredis` 6.x pinned exactly, `@bull-board/*`
@@ -447,6 +456,7 @@ for `"UTC"`; unknown schedule id accepted.
 - `mutation-gate.json`: propose `src/features/jobs/outbox/` critical.
 
 **Zachowania:**
+
 - insert inside a `tx` that rolls back → no row and no notification received by a listening client; inside a committed
   `tx` → one row and one notification.
 - duplicate `jobKey` in the same organization → `{ outboxId: <first id>, duplicate: true }`, one row; the same `jobKey`
@@ -485,6 +495,7 @@ sweep, in-flight id set, signal then stamp), `redis-health.ts` (eviction check),
 critical.
 
 **Zachowania:**
+
 - `JobFailure("x", { retryable: false })` → BullMQ `UnrecoverableError`; a plain `Error` → retried; job name with no
   handler → `UnrecoverableError("no handler for x.y")`.
 - last failed attempt of an organization job → exactly one `jobs.failed` `{ job, jobId, attempts: 3, reason }` with
@@ -499,7 +510,7 @@ critical.
 - the handler runs in a span `job x.y` of kind `consumer` whose parent is the envelope's traceparent; no carrier → a
   root span; span attributes never contain the payload.
 - eviction check: `["maxmemory-policy", "allkeys-lru"]` → refuses (`redis maxmemory-policy is allkeys-lru, expected
-  noeviction`); `["maxmemory-policy", "noeviction"]` and the object form → ok; `CONFIG` forbidden → warning, starts.
+noeviction`); `["maxmemory-policy", "noeviction"]` and the object form → ok; `CONFIG` forbidden → warning, starts.
 - `planWorkerConcurrency({ budget: 5, jobs: { a: 5, b: 5, c: 1 } })` → `{ budget: 3, totalRequested: 11, clamped: true }`
   with every job ≥ 1 (budget = pool max − 2); within budget unchanged; budget below the queue count → flagged.
 - shutdown: second `SIGTERM` ignored; order relay → workers (`close()`, then `close(true)` after the timeout, aborting
@@ -525,6 +536,7 @@ actorUserId: <session user> }`), the core extension-point catalog entry and the 
 amendment (delete now emits). `kit/modules/core.json` minor.
 
 **Zachowania:**
+
 - a successful `/organization/delete` of `org-a` (`name: "Acme"`) by `u1` → exactly one `organizations.deleted`
   `{ name: "Acme" }` with `organizationId: "org-a"`, `actorUserId: "u1"`, `serviceMode: false`.
 - a failed delete (not a member, unknown id) → nothing emitted.
@@ -546,6 +558,7 @@ amendment (delete now emits). `kit/modules/core.json` minor.
 `kit/modules/jobs.json` minor.
 
 **Zachowania:**
+
 - the subscriber writes one outbox row for `jobs.purge-organization` `{ removedOrganizationId: "org-a" }` with
   `organizationId: null`; after the organization's cascade the row still exists.
 - the job removes `org-a`'s waiting, delayed and prioritized jobs in every queue under the prefix and leaves `org-b`'s
@@ -568,6 +581,7 @@ event's organization origin (row cascades away); prefix ignored.
 over generated five-field crons). `kit/modules/jobs.json` minor.
 
 **Zachowania:**
+
 - `planScheduleChanges(["audit-logs.prune-daily", "old.gone"], ["audit-logs.prune-daily"])` →
   `{ upsert: ["audit-logs.prune-daily"], remove: ["old.gone"] }`.
 - schedulers of another prefix are never listed or removed.
@@ -590,6 +604,7 @@ changed; `tz` omitted for `"UTC"`.
 MCP merge into `auth/`)
 
 Applies spike findings 2–7 and 9. **Files:**
+
 - `src/features/jobs/worker/main.ts` (§6.2 order), `http.ts` (`/health` only here; dashboard in T17),
   `heartbeat.ts` (`<prefix>:workers:<host>-<pid>`, every 10 s, TTL 30 s), `purge.ts` (`jobs:purge`).
 - `src/features/jobs/worker/build.ts`: esbuild, ESM, `node22`, bundles `@/*`, `@gatojs/*` and npm packages; external:
@@ -604,7 +619,7 @@ Applies spike findings 2–7 and 9. **Files:**
   `handleCommandError` rethrows it.
 - `kit/modules/jobs.json`: `scripts` `worker:dev` (`tsx src/features/jobs/worker/build.ts --dev`), `worker:build`,
   `worker:start` (`node .worker/worker.mjs`), `worker:check` (`node --env-file-if-exists=.env .worker/worker.mjs
-  --check`), `jobs:purge`; `verify` `npm run worker:build && npm run worker:check`.
+--check`), `jobs:purge`; `verify` `npm run worker:build && npm run worker:check`.
 - `docker/worker.Dockerfile`: `deps` (`npm ci --ignore-scripts`, workspace region), `builder` (`prisma generate`,
   `npm run worker:build`), `runner` (`node:22-alpine`, non-root, `NODE_ENV=production`, `CHECKPOINT_DISABLE=1`, copies
   `.worker/` and `prisma/` only, `EXPOSE 3100`, `HEALTHCHECK` on `/health`, `CMD ["node", ".worker/worker.mjs"]`); a
@@ -616,6 +631,7 @@ Applies spike findings 2–7 and 9. **Files:**
 - `.gitignore`: `.worker/`. `kit/modules/jobs.json` minor; `core` minor for the core commits.
 
 **Zachowania:**
+
 - `node .worker/worker.mjs --check` exits 0 with a valid env; without `REDIS_URL` exits 1 and stderr names `REDIS_URL`.
 - the metafile check fails on a fixture module whose `subscribers.ts` imports a `.tsx` component; the error names
   `src/features/<fixture>/subscribers.ts` and the chain to `react`; it passes for a fixture that imports
@@ -659,9 +675,10 @@ the current UTC offset and "Use the app default (<zone>)"; `src/features/audit-l
 `organization.timezone_changed`. Versions: `core` minor, `audit-logs` minor.
 
 **Zachowania:**
+
 - a new organization has `timezone: null` and `context.timezone` equal to the app default.
 - owner sets `"Europe/Warsaw"` → success, one `organizations.timezone-changed` `{ previous: null,
-  timezone: "Europe/Warsaw" }` with the owner as actor, one `organization.timezone_changed` audit row.
+timezone: "Europe/Warsaw" }` with the owner as actor, one `organization.timezone_changed` audit row.
 - the same value again → success, no event.
 - `member` → failure result, no change; superadmin in service mode without confirmation → "Potwierdź zmianę w trybie
   serwisowym"; with confirmation → success and `serviceMode: true` on the audit row.
@@ -687,6 +704,7 @@ page)**
 `users` (pages and components), API key expiry conversion at the organization's midnight.
 
 **Zachowania:**
+
 - the audit log, API keys and users pages render `2026-03-29T01:30:00Z` for an organization in `"Europe/Warsaw"` as the
   03:30 literal and for `"America/New_York"` as the 21:30 (previous day) literal.
 - an API key expiry date chosen as `2026-12-01` in `"Europe/Warsaw"` → `expiresAt` `2026-12-01T23:00:00.000Z`.
@@ -710,6 +728,7 @@ page)**
 `kit/modules/jobs.json` minor.
 
 **Zachowania:**
+
 - `latestDueSlot("0 8 * * 1-5", "Europe/Warsaw", …)` literals: Monday 2026-11-30 07:00Z due; Saturday none; the spring
   DST day (2026-03-29) with `"30 2 * * *"` → no slot; the autumn day (2026-10-25) with `"30 2 * * *"` → one slot.
 - organizations in `"Europe/Warsaw"` and `"America/New_York"` get their 08:00 jobs at `07:00Z` and `13:00Z`.
@@ -736,6 +755,7 @@ unknown job, `system` job, module without `requires: ["jobs"]`, subscriber of `o
 amendment. `kit/modules/core.json` minor.
 
 **Zachowania:**
+
 - a queued subscriber of `uploads.deleted` writes one outbox row with the event's organization, actor and service mode.
 - the same event delivered twice → one row (default `jobKey` = hash of event name, subscriber id and payload); two
   events with different payloads → two rows.
@@ -765,6 +785,7 @@ schedule `audit-logs.prune-daily` `0 3 * * *`, disabled by default), `services/j
 `src/features/audit-logs/services/jobs/` critical.
 
 **Zachowania:**
+
 - clock `2026-11-28T10:00:00Z`, `olderThanDays: 365` → cutoff `2025-11-28T00:00:00Z`; a row at
   `2025-11-27T23:59:59Z` deleted, `2025-11-28T00:00:00Z` kept.
 - 12 001 old rows → three batches; afterwards exactly one `audit-log.pruned` row with `channel: "SYSTEM"`,
@@ -792,6 +813,7 @@ row written when nothing was deleted (`> 0` → `>= 0`); channel left `WEB` insi
 `30 3 * * *`, enabled), `services/jobs/`. Propose `src/features/uploads/services/jobs/` critical.
 
 **Zachowania:**
+
 - object 25 h old without a row → deleted; 23 h → kept; with a row → kept.
 - `orgs/not-an-id/` ignored; a deleted organization's prefix purged by default; `purgeDeletedOrganizations: false` →
   kept.
@@ -817,6 +839,7 @@ actions `job.retried`, `job.triggered`; core `next.config.ts` `serverExternalPac
 commit, `core` patch).
 
 **Zachowania:**
+
 - `member` and `owner` without global admin → 404; admin sees counts, schedules with zones, outbox stats and failed jobs
   without payloads; a 2 000-character `failedReason` shown as 500.
 - no heartbeat for 60 s → "No worker is running" warning; a fresh heartbeat → no warning.
@@ -892,7 +915,7 @@ literal tests.
 `docs/19-jobs-module.md`, `docs/19b-jobs-module-usage.md`; updates listed in spec §18; `AGENTS.md` Task Router rows
 (jobs, with "subscribers, audit sinks, command hooks, `setup.ts` and `auth.ts` must not use Next or React: they also
 run in the worker"; dates and timezone) inside the budget test; skill `gato-extend`; `EXTENSION_POINTS.md` regenerated;
-the spec amendments of "Spike results". Each task also updates the in-repo docs it names; T19 closes the gaps and
+decisions 25 to 31 reflected in the docs. Each task also updates the in-repo docs it names; T19 closes the gaps and
 lists the docs.gatojs.com pages for the coordinator.
 
 **Gates:** `npm run verify`.
@@ -910,5 +933,5 @@ lists the docs.gatojs.com pages for the coordinator.
 
 ## Open questions (not settled by the spec)
 
-None that block Phase 1. The spec amendments under "Spike results" are proposals for the owner; if any is rejected,
-T9 (and T3 for finding 1) change before they start.
+None that block Phase 1. Decisions 25 to 31 were taken by the coordinator on the owner's go-ahead; if the owner revises
+one, T9 (and T3 for decision 25) change before they start.

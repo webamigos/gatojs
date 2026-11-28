@@ -1,7 +1,7 @@
 ---
-title: 'The worker reaches the app registries through seven core files, and `permissions.ts` reads the client registry; find them with the bundle metafile, not by grep'
-areas: ['architecture']
-topics: ['jobs', 'worker', 'registry', 'esbuild', 'generator']
+title: "The worker reaches the app registries through seven core files, and `permissions.ts` reads the client registry; find them with the bundle metafile, not by grep"
+areas: ["architecture"]
+topics: ["jobs", "worker", "registry", "esbuild", "generator"]
 ---
 
 # The worker reaches the app registries through seven core files, and `permissions.ts` reads the client registry; find them with the bundle metafile, not by grep

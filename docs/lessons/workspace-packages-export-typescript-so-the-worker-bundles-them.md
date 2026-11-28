@@ -1,7 +1,7 @@
 ---
-title: '`@gatojs/*` workspace packages export TypeScript source, so a worker bundle that leaves packages external fails at run time; bundle them'
-areas: ['architecture']
-topics: ['jobs', 'worker', 'esbuild', 'workspaces']
+title: "`@gatojs/*` workspace packages export TypeScript source, so a worker bundle that leaves packages external fails at run time; bundle them"
+areas: ["architecture"]
+topics: ["jobs", "worker", "esbuild", "workspaces"]
 ---
 
 # `@gatojs/*` workspace packages export TypeScript source, so a worker bundle that leaves packages external fails at run time; bundle them

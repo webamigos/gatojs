@@ -1,7 +1,7 @@
 ---
-title: 'Under `tsx` the app code runs as CommonJS, so resolve hooks miss `require` and the registry cycle hits a TDZ; run the development worker as an esbuild watch bundle under `node --watch`'
-areas: ['architecture']
-topics: ['jobs', 'worker', 'tsx', 'esbuild', 'commonjs', 'development']
+title: "Under `tsx` the app code runs as CommonJS, so resolve hooks miss `require` and the registry cycle hits a TDZ; run the development worker as an esbuild watch bundle under `node --watch`"
+areas: ["architecture"]
+topics: ["jobs", "worker", "tsx", "esbuild", "commonjs", "development"]
 ---
 
 # Under `tsx` the app code runs as CommonJS, so resolve hooks miss `require` and the registry cycle hits a TDZ; run the development worker as an esbuild watch bundle under `node --watch`

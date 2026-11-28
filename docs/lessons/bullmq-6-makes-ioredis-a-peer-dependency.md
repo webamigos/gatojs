@@ -1,7 +1,7 @@
 ---
-title: 'BullMQ 6 makes `ioredis` a peer dependency and today resolves `ioredis` 6; pin both in the manifest'
-areas: ['dependencies']
-topics: ['jobs', 'bullmq', 'ioredis']
+title: "BullMQ 6 makes `ioredis` a peer dependency and today resolves `ioredis` 6; pin both in the manifest"
+areas: ["dependencies"]
+topics: ["jobs", "bullmq", "ioredis"]
 ---
 
 # BullMQ 6 makes `ioredis` a peer dependency and today resolves `ioredis` 6; pin both in the manifest

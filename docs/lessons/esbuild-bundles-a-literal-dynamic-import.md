@@ -1,7 +1,7 @@
 ---
-title: 'esbuild follows a literal `import()` into the bundle, so a lazy import does not keep Next out of the worker; stub the module instead'
-areas: ['architecture']
-topics: ['jobs', 'worker', 'esbuild', 'next', 'next-intl']
+title: "esbuild follows a literal `import()` into the bundle, so a lazy import does not keep Next out of the worker; stub the module instead"
+areas: ["architecture"]
+topics: ["jobs", "worker", "esbuild", "next", "next-intl"]
 ---
 
 # esbuild follows a literal `import()` into the bundle, so a lazy import does not keep Next out of the worker; stub the module instead
