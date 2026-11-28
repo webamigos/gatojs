@@ -2,7 +2,7 @@
 
 Date: 2026-11-28, against `main` at `dd8214d` (GatoJS `0.40.0`, `better-auth` `^1.7.27`, `next` `16.4.6`, `zod` `^4.3.6`).
 Drafted by an agent for Patryk. **Status: draft, decided.** Patryk decided Q1–Q15 on 2026-11-28 (section 15; Q7
-delegated to the coordinator). Q13, raised by those decisions, was decided the same day. Q14 and Q15, raised by the open-mercato additions, were decided the same day. Section 14 has no open questions. Section 13 is the plan
+delegated to the coordinator). Q13, raised by those decisions, was decided the same day. Q14 and Q15, raised by the open-mercato additions, were decided the same day. The spike refinements R1–R6 were decided the same day (section 15). Section 14 has no open questions. Section 13 is the plan
 outline.
 
 Roadmap row (`.github/README.md`): "MCP: expose your app to AI assistants over MCP with OAuth, built on better-auth 1.7".
@@ -101,18 +101,18 @@ the audit log. MCP adds a transport and a credential, never a second authorizati
 
 ## 3. What exists and what is missing (verified on `dd8214d`)
 
-| Need | Today | Gap |
-| --- | --- | --- |
-| Org context | `getOrgContext()` reads the better-auth session cookie through `headers()`, redirects to `/sign-in` without one | no way to run it for a bearer token; a redirect is wrong for an API |
-| Module guard | `requireModuleAccess(key)` → `notFound()`; `isModuleEnabled(key)` | fine; MCP needs a non-throwing check for `tools/list` |
-| Commands | `runCommand(command, input, confirmation)` with hooks, `can`, org check, events | works as is once the org context resolves from the token |
-| Permissions | `can(context, key)`, `ModuleDef.permissions`, `canAccessModule` | fine |
-| Audit | `AuditEvent.channel: "WEB" \| "API"`, `credentialId` exist; Prisma enum `AuditChannel` | no `MCP` channel; `auditActor()` cannot know the channel |
-| better-auth plugins from modules | `auth.ts` exports **one** `authPlugin`; `authPlugins` is filtered by enabled modules | MCP needs three (`jwt`, `mcp`, a Gato guard plugin) |
-| Well-known routes | `src/proxy.ts` matcher skips paths with a dot, so `/.well-known/*` reaches `src/app/.well-known/**` without the i18n middleware | none exist |
-| Sign-in page | `sign-in-form.tsx` always `router.push("/dashboard")` after success | breaks the OAuth continuation (lesson L6) |
-| External access pattern | `api-keys`: peppered hash, scopes from `ModuleDef.apiScopes`, `GET /api/v1/organization`, 404 when the module is disabled | org-scoped keys with no user; no `runCommand` path |
-| Rate limiting | none in GatoJS; better-auth's built-in limiter (in production, in memory) | nothing for `/api/mcp` |
+| Need                             | Today                                                                                                                           | Gap                                                                 |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Org context                      | `getOrgContext()` reads the better-auth session cookie through `headers()`, redirects to `/sign-in` without one                 | no way to run it for a bearer token; a redirect is wrong for an API |
+| Module guard                     | `requireModuleAccess(key)` → `notFound()`; `isModuleEnabled(key)`                                                               | fine; MCP needs a non-throwing check for `tools/list`               |
+| Commands                         | `runCommand(command, input, confirmation)` with hooks, `can`, org check, events                                                 | works as is once the org context resolves from the token            |
+| Permissions                      | `can(context, key)`, `ModuleDef.permissions`, `canAccessModule`                                                                 | fine                                                                |
+| Audit                            | `AuditEvent.channel: "WEB" \| "API"`, `credentialId` exist; Prisma enum `AuditChannel`                                          | no `MCP` channel; `auditActor()` cannot know the channel            |
+| better-auth plugins from modules | `auth.ts` exports **one** `authPlugin`; `authPlugins` is filtered by enabled modules                                            | MCP needs three (`jwt`, `mcp`, a Gato guard plugin)                 |
+| Well-known routes                | `src/proxy.ts` matcher skips paths with a dot, so `/.well-known/*` reaches `src/app/.well-known/**` without the i18n middleware | none exist                                                          |
+| Sign-in page                     | `sign-in-form.tsx` always `router.push("/dashboard")` after success                                                             | breaks the OAuth continuation (lesson L6)                           |
+| External access pattern          | `api-keys`: peppered hash, scopes from `ModuleDef.apiScopes`, `GET /api/v1/organization`, 404 when the module is disabled       | org-scoped keys with no user; no `runCommand` path                  |
+| Rate limiting                    | none in GatoJS; better-auth's built-in limiter (in production, in memory)                                                       | nothing for `/api/mcp`                                              |
 
 ## 4. Authorization design
 
@@ -120,7 +120,7 @@ the audit log. MCP adds a transport and a credential, never a second authorizati
 
 **Use `@better-auth/mcp` (`mcp()`), with `jwt()`, on better-auth 1.7.x.** In 1.7 the old in-core `mcp` and
 `oidcProvider` plugins are gone: `oidcProvider` is replaced by `oauthProvider` from `@better-auth/oauth-provider`, and
-`mcp()` moved to `@better-auth/mcp`, which is built on `oauthProvider` with MCP defaults (1.7 upgrade guide). `mcp()` *is*
+`mcp()` moved to `@better-auth/mcp`, which is built on `oauthProvider` with MCP defaults (1.7 upgrade guide). `mcp()` _is_
 the OAuth provider: do not register `oauthProvider()` next to it. The old 1.6 plugin stored tokens in plaintext, ignored
 the RFC 8707 `resource` parameter and had no organization hook; that is why the prior art moved.
 
@@ -146,21 +146,31 @@ What `mcp()` gives (MCP plugin docs, OAuth provider reference, source):
 ### 4.2 Configuration (the module's better-auth plugins)
 
 ```ts
-jwt({ disableSettingJwtHeader: true })
+jwt({ disableSettingJwtHeader: true });
 mcp({
   loginPage: "/sign-in",
   consentPage: "/oauth/consent",
   resource: `${APP_URL}/api/mcp`,
   scopes: ["mcp:read", "mcp:write", "offline_access"],
-  resources: [{ identifier: `${APP_URL}/api/mcp`, allowedScopes: ["mcp:read", "mcp:write", "offline_access"], accessTokenTtl: 300 }],
+  resources: [
+    {
+      identifier: `${APP_URL}/api/mcp`,
+      allowedScopes: ["mcp:read", "mcp:write", "offline_access"],
+      accessTokenTtl: 300,
+    },
+  ],
   refreshTokenReuseInterval: 0,
   allowDynamicClientRegistration: true,
   allowUnauthenticatedClientRegistration: true,
   clientRegistrationDefaultApplicationType: "infer",
-  postLogin: { page: "/oauth/organization", shouldRedirect, consentReferenceId },
+  postLogin: {
+    page: "/oauth/organization",
+    shouldRedirect,
+    consentReferenceId,
+  },
   customAccessTokenClaims,
-})
-gatoMcpGuardPlugin
+});
+gatoMcpGuardPlugin;
 ```
 
 Why each non-default:
@@ -197,14 +207,16 @@ not have:
 
 The MCP server's canonical URI is `${APP_URL}/api/mcp` (no trailing slash). The issuer is `${APP_URL}/api/auth`.
 
-| Document | Path | Served by |
-| --- | --- | --- |
-| Protected resource metadata (RFC 9728) | `/.well-known/oauth-protected-resource/api/mcp` and `/.well-known/oauth-protected-resource` | `src/app/.well-known/oauth-protected-resource/[[...path]]/route.ts` → `auth.handler(request)`; `mcp()` answers from its `onRequest` hook (source) |
-| Authorization server metadata (RFC 8414) | `/.well-known/oauth-authorization-server/api/auth` | `src/app/.well-known/oauth-authorization-server/[[...path]]/route.ts` → `oauthProviderAuthServerMetadata(auth)` |
-| OIDC discovery | `/.well-known/openid-configuration/api/auth` and `/api/auth/.well-known/openid-configuration` | `src/app/.well-known/openid-configuration/[[...path]]/route.ts` → `oauthProviderOpenIdConfigMetadata(auth)`; the second path through `/api/auth/[...all]` |
+| Document                                 | Path                                                                                                                                  | Served by                                                                                                                                         |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Protected resource metadata (RFC 9728)   | `/.well-known/oauth-protected-resource/api/mcp` and `/.well-known/oauth-protected-resource`                                           | `src/app/.well-known/oauth-protected-resource/[[...path]]/route.ts` → `auth.handler(request)`; `mcp()` answers from its `onRequest` hook (source) |
+| Authorization server metadata (RFC 8414) | `/.well-known/oauth-authorization-server/api/auth`                                                                                    | `src/app/.well-known/oauth-authorization-server/[[...path]]/route.ts` → `oauthProviderAuthServerMetadata(auth)`                                   |
+| OIDC discovery                           | not served (R3, section 15): better-auth serves it only with the `openid` scope, which the module does not use; both paths answer 404 | —                                                                                                                                                 |
 
-- The 401 from `/api/mcp` carries `WWW-Authenticate: Bearer resource_metadata="${APP_URL}/.well-known/oauth-protected-resource/api/mcp", scope="mcp:read"`
-  (clients try the header first, then the path-inserted URI, then the root).
+- The 401 from `/api/mcp` carries `WWW-Authenticate: Bearer resource_metadata="${APP_URL}/.well-known/oauth-protected-resource/api/mcp", scope="mcp:read mcp:write"`
+  (clients try the header first, then the path-inserted URI, then the root). The challenge names both scopes because
+  clients request exactly the challenged scopes (R1, section 15); `requiredScopes` stays `["mcp:read"]` and the consent
+  checkbox narrows the grant.
 - PRM lists `authorization_servers: [issuer]`, `scopes_supported: ["mcp:read", "mcp:write"]`,
   `bearer_methods_supported: ["header"]`.
 - AS metadata must carry `code_challenge_methods_supported: ["S256"]` (clients MUST refuse without it) and
@@ -312,10 +324,10 @@ the role is read per request, never from the token.
 
 Two OAuth scopes, mapped onto Gato's own checks:
 
-| Scope | Grants | Gato check on top |
-| --- | --- | --- |
-| `mcp:read` | read tools | tool's module visible to the user's role (`canAccessModule`), the tool's `permission` via `can` if set, the query's own guard |
-| `mcp:write` | write tools | everything above, plus the command's `access`, `permission` and hooks inside `runCommand` |
+| Scope       | Grants      | Gato check on top                                                                                                             |
+| ----------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `mcp:read`  | read tools  | tool's module visible to the user's role (`canAccessModule`), the tool's `permission` via `can` if set, the query's own guard |
+| `mcp:write` | write tools | everything above, plus the command's `access`, `permission` and hooks inside `runCommand`                                     |
 
 - Scopes say what the **user allowed the app** to do; `can()` and module roles say what the **user** may do. A tool runs
   only when both agree. A member with `mcp:write` still cannot call a command whose `permission` is owner-only.
@@ -378,7 +390,10 @@ POST /api/mcp
   3. Host not APP_URL's host                               → 421/403 (hostHeaderValidationResponse)
   4. requireMcpAuth(auth, …, { resource, requiredScopes: ["mcp:read"] })
        missing/invalid/expired/wrong aud/iss               → 401 + WWW-Authenticate resource_metadata, scope
-  5. token carries cnf (DPoP-bound)                        → 401 (not supported in this release)
+  5. token carries cnf (DPoP-bound)                        → full DPoP proof verification by requireMcpAuth
+     (R2, section 15): DPoP header JWT typ dpop+jwt, signature by its public jwk, htm, htu = ${APP_URL}/api/mcp,
+     iat window, jti not replayed (database replay store), ath = hash of the token, jwk thumbprint = cnf.jkt;
+     a bound token as Bearer or with a missing/invalid proof → 401. Tokens without cnf stay Bearer.
   6. correlationId = valid x-correlation-id header, else a fresh UUID (echoed as response header x-correlation-id)
   7. principal = resolveMcpPrincipal(claims, correlationId) → 403 when not a member, banned, or org gone
   8. rate limit (section 7)                                → 429 + Retry-After (audited as rate_limited)
@@ -415,7 +430,7 @@ The one core change that makes every existing query and command work over MCP un
   membership** (the same `prisma.member.findFirst` it does today) and never reads the session or calls `redirect`. No
   membership → `NoOrganizationError`. There is no superadmin branch under a principal.
 - **Global-admin cap (Q5).** `userRole` in that context is always `"user"`, whatever the account's stored role: it is
-  the *effective* global role of the request, not the account's. `OrgContext.userRole` is read only by authorization
+  the _effective_ global role of the request, not the account's. `OrgContext.userRole` is read only by authorization
   checks (`can`, `canAccessModule`, `requireModuleAccess`, `audit-trail-query.ts`, nav and slot visibility), so the cap
   needs no change in any of them. The principal keeps the stored role in `principal.accountRole` for logging only; no
   check reads it. `getAdminUserOrNull()` returns `null` when a principal is present. An architecture test fails when a
@@ -472,7 +487,10 @@ export const mcpTools = defineMcpTools("uploads", {
   "uploads.list": defineQueryTool({
     title: "List files",
     description: "Lists files uploaded in the organization, newest first.",
-    input: z.object({ limit: z.number().int().min(1).max(100).default(50), offset: z.number().int().min(0).default(0) }),
+    input: z.object({
+      limit: z.number().int().min(1).max(100).default(50),
+      offset: z.number().int().min(0).default(0),
+    }),
     output: uploadListSchema,
     run: (input) => listUploadsForMcp(input),
   }),
@@ -562,18 +580,18 @@ tools/call uploads_delete { id, confirm: true }
 
 ### 5.6 Error mapping
 
-| Situation | MCP answer |
-| --- | --- |
-| No/invalid/expired token, wrong audience | HTTP 401 + `WWW-Authenticate` (not a JSON-RPC result) |
-| Token lacks the scope for a tool called by name | HTTP 403 `insufficient_scope` challenge |
-| Not a member / banned / organization deleted | HTTP 403, JSON body `{ error: "forbidden" }` |
-| Unknown or hidden tool | JSON-RPC error `-32602` (SDK default for unknown tools) |
-| Input fails the schema | `isError: true`, text "Invalid input: <field>: <zod message>" |
-| `OperationResult` with `success: false` | `isError: true`, text = the command's user message (already safe: it is what the UI shows) |
-| `DomainError` thrown by a query | `isError: true`, its message |
-| `ModuleAccessDeniedError`, `NoOrganizationError` | `isError: true`, "This tool is not available to you in this organization" |
-| `TenantScopeError` or any other error | `isError: true`, "The operation failed. Reference: <correlationId>"; full error logged with the correlation id |
-| Over the rate limit | HTTP 429 + `Retry-After` |
+| Situation                                        | MCP answer                                                                                                     |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| No/invalid/expired token, wrong audience         | HTTP 401 + `WWW-Authenticate` (not a JSON-RPC result)                                                          |
+| Token lacks the scope for a tool called by name  | HTTP 403 `insufficient_scope` challenge                                                                        |
+| Not a member / banned / organization deleted     | HTTP 403, JSON body `{ error: "forbidden" }`                                                                   |
+| Unknown or hidden tool                           | JSON-RPC error `-32602` (SDK default for unknown tools)                                                        |
+| Input fails the schema                           | `isError: true`, text "Invalid input: <field>: <zod message>"                                                  |
+| `OperationResult` with `success: false`          | `isError: true`, text = the command's user message (already safe: it is what the UI shows)                     |
+| `DomainError` thrown by a query                  | `isError: true`, its message                                                                                   |
+| `ModuleAccessDeniedError`, `NoOrganizationError` | `isError: true`, "This tool is not available to you in this organization"                                      |
+| `TenantScopeError` or any other error            | `isError: true`, "The operation failed. Reference: <correlationId>"; full error logged with the correlation id |
+| Over the rate limit                              | HTTP 429 + `Retry-After`                                                                                       |
 
 Every row above that is reached with a verified principal is also audited with its outcome (section 8), including the
 refusals the SDK produces before a tool callback runs (unknown tool, schema failure).
@@ -595,12 +613,12 @@ migration, not this module.
 
 ### 6.2 Tools contributed to Gato modules (in each module's `mcp-tools.ts`, each module bumps its version)
 
-| Tool | Module | Kind | Notes |
-| --- | --- | --- | --- |
-| `uploads.list` | uploads | read | name, mime type, size, purpose, created at, uploader name; no storage keys, no URLs |
-| `uploads.delete` | uploads | write, destructive, `confirm` | wraps `uploads.delete`; hook and permission `uploads.delete-others` apply |
-| `audit-logs.list` | audit-logs | read | owner/admin (module roles); filters by action and date; `oldData`/`newData` left out (they can hold personal data) |
-| `users.list-members` | users | read | names and organization roles only; no emails for anyone (decision Q8) |
+| Tool                 | Module     | Kind                          | Notes                                                                                                              |
+| -------------------- | ---------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `uploads.list`       | uploads    | read                          | name, mime type, size, purpose, created at, uploader name; no storage keys, no URLs                                |
+| `uploads.delete`     | uploads    | write, destructive, `confirm` | wraps `uploads.delete`; hook and permission `uploads.delete-others` apply                                          |
+| `audit-logs.list`    | audit-logs | read                          | owner/admin (module roles); filters by action and date; `oldData`/`newData` left out (they can hold personal data) |
+| `users.list-members` | users      | read                          | names and organization roles only; no emails for anyone (decision Q8)                                              |
 
 Not exposed on purpose: `api-keys.*` (an assistant creating credentials is a privilege-escalation path),
 `users.invite` (decision Q8: it would send mail to an address the model chose), member emails in any tool (Q8),
@@ -715,7 +733,7 @@ registry and filtering; a resource read is a query tool by another name and runs
 - **Not audited:** requests that never reach a principal (no token, bad token, Origin refused, not a member): there is
   no organization to write the row to. They get the log line only.
 - **Log line:** `logger.info("MCP tool call", { tool, outcome, clientId, userId, organizationId, correlationId,
-  durationMs, argKeys })` for every call, refusals included; values never.
+durationMs, argKeys })` for every call, refusals included; values never.
 - **Volume and retention.** At the default limit (120 requests per minute per grant) a busy assistant can write
   thousands of rows a day per user. `audit-logs` has no retention today. With the jobs module (#135) installed, the
   `mcp` module registers a daily retention schedule deleting `mcp.tool_called` rows older than
@@ -723,7 +741,7 @@ registry and filtering; a resource read is a query tool by another name and runs
   accumulate, `docs/20-mcp-module.md` says so and shows the SQL an operator can schedule. The audit-log page filters
   `mcp.tool_called` out by default (one toggle shows them), so command rows stay readable.
 - Last use: the module keeps `McpGrantActivity { userId, clientId, organizationId,
-  lastUsedAt }`, updated at most once a minute per grant, for the "last used" column in the UI.
+lastUsedAt }`, updated at most once a minute per grant, for the "last used" column in the UI.
 
 ## 9. Data model and events
 
@@ -823,7 +841,7 @@ Each task follows the adversarial-testing rules (`docs/08b-testy-adwersarialne.m
 the code, literal expectations, mutation run per task.
 
 - **Unit (Vitest):** `request-principal` (`getOrgContext` under a principal: member → context with `serviceMode:
-  false`; non-member superadmin → `NoOrganizationError`, never service mode; no `redirect`, no session read; global
+false`; non-member superadmin → `NoOrganizationError`, never service mode; no `redirect`, no session read; global
   admins capped: a `superadmin` who is a `member` gets `userRole: "user"`, `can(context, "uploads.delete-others")` is
   false, `canAccessModule(audit-logs)` is false, `getAdminUserOrNull()` is null);
   `auditActor` channel; tool registry validation (prefix, duplicates, wire-name collisions, undeclared command,
@@ -917,6 +935,7 @@ mutations to kill. Core changes are separate commits with a `kit/modules/core.js
 **Task 0.1 Request principal in `getOrgContext()`**
 
 Zachowania:
+
 - principal `{ userId: "u1", organizationId: "o1" }`, member row role `admin` → `getOrgContext()` returns
   `{ userId: "u1", organizationId: "o1", orgRole: "admin", userRole: "user", serviceMode: false }` and does not call
   `auth.api.getSession`;
@@ -936,6 +955,7 @@ Zachowania:
   `owner`, not from `admin`).
 
 Mutacje do zabicia:
+
 - superadmin branch reachable under a principal (`serviceMode: true`);
 - `userRole` copied from the stored account role (global admin not capped);
 - `getAdminUserOrNull()` ignoring the principal;
@@ -1048,7 +1068,7 @@ granted when unticked; impersonation check removed.
 **Task 2.1 Route, principal resolver, Origin/Host, rate limit**
 
 Zachowania: no token → 401 with `resource_metadata="<APP_URL>/.well-known/oauth-protected-resource/api/mcp"`; token
-with `aud` of another resource → 401; session JWT → 401; `cnf` token → 401; non-member → 403; `Origin:
+with `aud` of another resource → 401; session JWT → 401; `cnf` token without a valid DPoP proof → 401, with one → 200 (R2); non-member → 403; `Origin:
 https://evil.example` → 403; no Origin → 200; GET → 405; module disabled → 404 before any token check; 121st request in
 a minute → 429 with `Retry-After`; `x-correlation-id: abc-1` → response header `x-correlation-id: abc-1`; `a b` → a
 UUID; `NODE_ENV=development` with every `MCP_*` variable set and no token → 401; `GATO_EXPECTED_INSTANCES=3` → one
@@ -1112,6 +1132,7 @@ organizations.
 **Task 3.4 Organization view and `mcp.revoke-connection`** (Q9)
 
 Zachowania (integration, two organizations A and B; users O owner of A, M member of A and B, client C):
+
 - O opens `/ai-connections` → a row "M · C" for A; M's grant for C in B is not listed;
 - O revokes M's grant for C → M's consent, access and refresh tokens for C with `referenceId` A are gone, M's B grant
   stays, M's next refresh for A → `invalid_grant`;
@@ -1152,7 +1173,7 @@ Planned, not in v1 (Q6 keeps `confirm: true` for v1). After open-mercato
 - In `approval` mode a write tool call runs every check up to the command's input parse (exposure, scope, `mcp.write`,
   schema), then stores an `McpPendingAction` (organization, requester, client, tool key, input, correlation id,
   expires in 24 hours) instead of running, and returns `structuredContent: { status: "pending_approval",
-  pendingActionId, expiresAt, approvalPath }` with outcome `pending_approval`.
+pendingActionId, expiresAt, approvalPath }` with outcome `pending_approval`.
 - Page "Pending AI actions" (`/ai-actions`): the requester and members with a new permission `mcp.approve-actions`
   (default owner, admin) approve or reject. Approval re-checks that the tool is still exposed, the requester is still a
   member with `mcp.write`, and the approver may run the command; then `runCommand` runs **as the approver** in the
@@ -1163,19 +1184,19 @@ Planned, not in v1 (Q6 keeps `confirm: true` for v1). After open-mercato
 
 ### Extension points (`src/features/mcp/extension-points.json`)
 
-| Kind | Key | Stability | Description |
-| --- | --- | --- | --- |
-| module | `mcp` | experimental | MCP server at /api/mcp with OAuth 2.1 sign-in on better-auth |
-| events | `mcp.connected` | experimental | A user connected an AI app to the organization |
-| events | `mcp.disconnected` | experimental | An AI app connection to the organization was revoked |
-| commands | `mcp.disconnect` | experimental | Revoke the signed-in user's connection of one AI app |
-| commands | `mcp.revoke-connection` | experimental | Revoke a member's AI app connection in the organization |
-| nav | `mcp.connections` | experimental | AI connections link in the sidebar (owners and admins) |
-| permissions | `mcp.connect` | experimental | Connect an AI app to the organization (default: owner, admin, member) |
-| permissions | `mcp.write` | experimental | Grant AI apps write access (default: owner, admin, member) |
-| permissions | `mcp.manage-connections` | experimental | See and revoke all members' AI connections (default: owner, admin) |
-| authPaths | `/oauth2/consent` | experimental | better-auth grants consent; emits mcp.connected |
-| mcpTools | `mcp.whoami` | experimental | The connected user, organization, role and scopes |
+| Kind        | Key                      | Stability    | Description                                                           |
+| ----------- | ------------------------ | ------------ | --------------------------------------------------------------------- |
+| module      | `mcp`                    | experimental | MCP server at /api/mcp with OAuth 2.1 sign-in on better-auth          |
+| events      | `mcp.connected`          | experimental | A user connected an AI app to the organization                        |
+| events      | `mcp.disconnected`       | experimental | An AI app connection to the organization was revoked                  |
+| commands    | `mcp.disconnect`         | experimental | Revoke the signed-in user's connection of one AI app                  |
+| commands    | `mcp.revoke-connection`  | experimental | Revoke a member's AI app connection in the organization               |
+| nav         | `mcp.connections`        | experimental | AI connections link in the sidebar (owners and admins)                |
+| permissions | `mcp.connect`            | experimental | Connect an AI app to the organization (default: owner, admin, member) |
+| permissions | `mcp.write`              | experimental | Grant AI apps write access (default: owner, admin, member)            |
+| permissions | `mcp.manage-connections` | experimental | See and revoke all members' AI connections (default: owner, admin)    |
+| authPaths   | `/oauth2/consent`        | experimental | better-auth grants consent; emits mcp.connected                       |
+| mcpTools    | `mcp.whoami`             | experimental | The connected user, organization, role and scopes                     |
 
 Tool keys of other modules (`uploads.list`, `uploads.delete`, `audit-logs.list`, `users.list-members`) go into those
 modules' JSON files under `mcpTools`. Everything starts `experimental`; it becomes `stable` after one release of real
@@ -1246,6 +1267,25 @@ None. Q1–Q15 are decided (section 15).
    keys, correlation id, no values); retention through the jobs module (section 8, Q14).
 8. Q6 stays `confirm: true` in v1; human approval mode is Phase 5.
 9. Prior art and what to avoid is recorded (section 12.1).
+
+### Spike refinements R1–R6 (decided by the coordinator on the owner's go-ahead, 2026-11-28; the owner may revise)
+
+The phase 0 spike (plan `docs/superpowers/plans/2026-11-28-mcp-module.md`, "Spike results") found six details of this
+spec that the current packages contradict. None changes a decision Q1–Q15.
+
+- **R1 Challenge scopes:** the 401 advertises `scope="mcp:read mcp:write"` (section 4.3); MCP clients request exactly
+  the challenged scopes, so `scope="mcp:read"` would make every connection read-only.
+- **R2 DPoP:** `mcp()` always advertises DPoP and issues DPoP-bound tokens to clients that ask, so refusing `cnf`
+  tokens would break them after consent. DPoP-bound tokens are accepted **only with full proof verification** through
+  `requireMcpAuth` (section 5.2 step 5: signature with the proof's `jwk`, `htm`/`htu`/`iat`/`jti` freshness, `ath`,
+  `cnf.jkt` thumbprint, `jti` replay store); a bound token without a valid proof is 401. Bearer tokens stay accepted.
+- **R3 No OIDC discovery:** served by better-auth only with the `openid` scope; the module ships RFC 9728 and RFC 8414
+  metadata only (section 4.3).
+- **R4 Grant types:** `grantTypes: ["authorization_code", "refresh_token"]`; `client_credentials` is not offered.
+- **R5 `Session` relation:** the OAuth token models keep `sessionId` without a Prisma relation to `Session`, which has
+  no `wa:relations` region; the better-auth schema check passes.
+- **R6 Pins:** `@better-auth/mcp` and `@better-auth/oauth-provider` pinned exactly to the resolved `better-auth`
+  version; root `zod` floor `^4.5.4`.
 
 ### Q14 and Q15 (decided by the coordinator on the owner's go-ahead, 2026-11-28; the owner may revise)
 

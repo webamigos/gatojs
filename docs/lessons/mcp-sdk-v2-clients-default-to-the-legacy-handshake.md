@@ -1,7 +1,7 @@
 ---
-title: 'An `@modelcontextprotocol/client` 2.x client speaks the 2025 `initialize` handshake unless it opts into negotiation, so an MCP server that rejects legacy traffic rejects the SDK default'
-areas: ['mcp']
-topics: ['mcp', 'protocol-version', 'sdk', 'testing']
+title: "An `@modelcontextprotocol/client` 2.x client speaks the 2025 `initialize` handshake unless it opts into negotiation, so an MCP server that rejects legacy traffic rejects the SDK default"
+areas: ["mcp"]
+topics: ["mcp", "protocol-version", "sdk", "testing"]
 ---
 
 # An `@modelcontextprotocol/client` 2.x client speaks the 2025 `initialize` handshake unless it opts into negotiation, so an MCP server that rejects legacy traffic rejects the SDK default

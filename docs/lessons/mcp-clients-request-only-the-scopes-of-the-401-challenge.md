@@ -1,7 +1,7 @@
 ---
-title: 'An MCP client asks the authorization server only for the scopes named in the 401 challenge, so a write scope missing from `WWW-Authenticate` is never granted'
-areas: ['mcp']
-topics: ['mcp', 'oauth', 'scopes', 'better-auth', 'step-up']
+title: "An MCP client asks the authorization server only for the scopes named in the 401 challenge, so a write scope missing from `WWW-Authenticate` is never granted"
+areas: ["mcp"]
+topics: ["mcp", "oauth", "scopes", "better-auth", "step-up"]
 ---
 
 # An MCP client asks the authorization server only for the scopes named in the 401 challenge, so a write scope missing from `WWW-Authenticate` is never granted

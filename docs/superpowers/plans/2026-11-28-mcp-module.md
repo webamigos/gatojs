@@ -10,8 +10,9 @@ by Patryk on 2026-11-28 (Q1–Q15, section 15). Read it with this plan; section 
 it. Prior art and the lessons L1–L12 are its §12; open-mercato adoptions are §12.1.
 
 **Status:** phase 0 spike done on 2026-11-28 (section "Spike results"). Its verdict is **go**: no decision of the spec
-is blocked. Six refinements found by the spike (R1–R6 below) change spec details, not decisions; R1 and R2 need the
-coordinator's yes before Task 1.2 and Task 2.1 start. Until then the spec text applies.
+is blocked. Six refinements found by the spike (R1–R6 below) change spec details, not decisions. The coordinator accepted
+all six on 2026-11-28 on the owner's go-ahead (the owner may revise); R2 with full DPoP proof verification. The spec's
+§4.3, §5.2 and §15 are amended in the same PR.
 
 **Execution:** Orca workers, one task per worker, each on its own branch from `main`, one PR per task. Order:
 
@@ -58,20 +59,20 @@ The jobs plan (`docs/superpowers/plans/2026-11-28-jobs-module.md`, branch `feat/
 parallel) touches the same core seams. Tasks below marked **[shared: …]** must not run at the same time as the jobs task
 named; the coordinator serializes them. Proposed order per seam:
 
-| Seam | Files | MCP tasks | Jobs tasks (jobs spec §16) | Proposed first | Why |
-| --- | --- | --- | --- | --- | --- |
-| S1 Generator, gato-cli version, bundle, `kitFormat` | `packages/gato-cli/src/generate/registry.ts`, `.wa/bin/wa.mjs`, `kit/kit.json`, `kit-format.ts`, `create-gato-app` pin | T0.2, T0.4 | Task 1 (`jobs.ts` detection), Task 3 (server registry split), later generator tasks | **MCP T0.2 → jobs Task 3 → jobs Task 1 → MCP T0.4** | T0.2 only changes the `auth.ts` import line, small to rebase over; jobs Task 3 creates `src/server-registry.generated.ts`, where T0.4 must emit `moduleMcpTools` (§5.4 "server registry only"), so T0.4 waits for it. One generator task at a time; each takes the next free `kitFormat` (jobs spec reserves 12; MCP then takes 13 for T0.2 if jobs merges first, else 12; never guess, read `kit/kit.json` at merge). |
-| S2 `AuditChannel`, `AuditEvent`, `auditActor` | `src/shared/lib/audit.ts` (core, critical); `prisma/schema/audit-logs.prisma` + migration; audit-log page labels | T0.1 (type `MCP`, actor fields), T0.6 (enum, column, page toggle) | Task 14 (`SYSTEM`, job-scoped default channel, label) | **MCP** | MCP is phase 0, jobs Task 14 is phase 4. Two separate `audit-logs` migrations adding one enum value each; the second rebases its migration timestamp after the first. The audit-log page gets the "MCP" label and the `mcp.tool_called` toggle (T0.6) before jobs adds "System". |
-| S3 `getOrgContext()` / `OrgContext` | `src/shared/lib/auth/org-context.ts` (critical) | T0.1 (principal branch) | timezone task (jobs §15: `OrgContext.timezone`) | **MCP** | T0.1 is the security seam everything MCP builds on. Whichever lands second must also fill `timezone` in the principal branch (a principal context is a full `OrgContext`). A test in T0.1 pins the principal branch's returned keys; the jobs task updates that literal. |
-| S4 `GatoConfig` | `src/shared/lib/modules/gato-config.ts`, `gatoConfigProblems`, `ProjectGatoConfig` | T0.5, T0.5b | Task 5 (`timezone`, `schedules`) | **first ready** | Small textual conflict in the interface and the problems list; no semantic overlap. Second one rebases. |
-| S5 Tenant-scope guard | `src/shared/lib/tenant-scope/` (critical) | none (T0.1 copies its `globalThis` store pattern only) | Task 4 (organization job scope) | **no ordering** | MCP does not change the guard. MCP queries run inside the guard unchanged; MCP never calls `withoutTenantScope`. |
-| S6 `GATO_EXPECTED_INSTANCES` | `packages/env` or `src/env.ts`, `.env.example`, `deploy/helm/gatojs/templates/deployment.yaml`, deploy docs | T0.7 | per-instance strategy warnings (jobs) | **MCP** | Decided in the MCP spec (Q15) as a core variable; T0.7 is tiny and unblocks T2.1. The jobs lane reuses it. |
-| S7 Core events | `src/shared/lib/events/core-events.ts` | none until T4.3 | Task 7a (`organizations.deleted`) | **jobs** | OAuth rows hold the organization in `referenceId` with no foreign key, so a deleted organization leaves consents and tokens behind. T4.3 subscribes to `organizations.deleted` after jobs Task 7a merges. |
-| S8 Retention | `src/features/mcp/jobs.ts` | T4.3 | Tasks 1, 2 (declarations, `enqueueJob`), the jobs module | **jobs** | The schedule is declared against the core jobs seam. |
-| S9 Server-entrypoint guard test | `src/__tests__/server-entrypoints-guard.test.ts` | T0.1 (only the route may call `runWithRequestPrincipal`), T2.1 | jobs entry points | **first ready** | Textual only. |
-| S10 Numbers | ADRs, docs | T4.1 (ADR, `docs/20*`) | jobs ADR-72…75, `docs/19*` | **jobs** | `docs/adrs/` on `main` ends at ADR-69; both specs say ADR-70 and ADR-71 are taken by in-flight PRs #138/#139, and the jobs spec claims ADR-72…75. MCP takes the next free number when T4.1 merges (likely ADR-76). Docs: jobs `19`/`19b`, MCP `20`/`20b`. |
-| S11 Egress check | `kit/egress-check/`, `.github/workflows/egress-check.yml` | T4.2 (leg with `mcp`, CIMD off) | jobs leg | **first ready** | Separate legs. |
-| S12 `kit/modules/core.json` version | every core task | all core tasks | all core tasks | n/a | Always the next free minor/patch at merge. |
+| Seam                                                | Files                                                                                                                  | MCP tasks                                                         | Jobs tasks (jobs spec §16)                                                          | Proposed first                                      | Why                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S1 Generator, gato-cli version, bundle, `kitFormat` | `packages/gato-cli/src/generate/registry.ts`, `.wa/bin/wa.mjs`, `kit/kit.json`, `kit-format.ts`, `create-gato-app` pin | T0.2, T0.4                                                        | Task 1 (`jobs.ts` detection), Task 3 (server registry split), later generator tasks | **MCP T0.2 → jobs Task 3 → jobs Task 1 → MCP T0.4** | T0.2 only changes the `auth.ts` import line, small to rebase over; jobs Task 3 creates `src/server-registry.generated.ts`, where T0.4 must emit `moduleMcpTools` (§5.4 "server registry only"), so T0.4 waits for it. One generator task at a time; each takes the next free `kitFormat` (jobs spec reserves 12; MCP then takes 13 for T0.2 if jobs merges first, else 12; never guess, read `kit/kit.json` at merge). |
+| S2 `AuditChannel`, `AuditEvent`, `auditActor`       | `src/shared/lib/audit.ts` (core, critical); `prisma/schema/audit-logs.prisma` + migration; audit-log page labels       | T0.1 (type `MCP`, actor fields), T0.6 (enum, column, page toggle) | Task 14 (`SYSTEM`, job-scoped default channel, label)                               | **MCP**                                             | MCP is phase 0, jobs Task 14 is phase 4. Two separate `audit-logs` migrations adding one enum value each; the second rebases its migration timestamp after the first. The audit-log page gets the "MCP" label and the `mcp.tool_called` toggle (T0.6) before jobs adds "System".                                                                                                                                       |
+| S3 `getOrgContext()` / `OrgContext`                 | `src/shared/lib/auth/org-context.ts` (critical)                                                                        | T0.1 (principal branch)                                           | timezone task (jobs §15: `OrgContext.timezone`)                                     | **MCP**                                             | T0.1 is the security seam everything MCP builds on. Whichever lands second must also fill `timezone` in the principal branch (a principal context is a full `OrgContext`). A test in T0.1 pins the principal branch's returned keys; the jobs task updates that literal.                                                                                                                                               |
+| S4 `GatoConfig`                                     | `src/shared/lib/modules/gato-config.ts`, `gatoConfigProblems`, `ProjectGatoConfig`                                     | T0.5, T0.5b                                                       | Task 5 (`timezone`, `schedules`)                                                    | **first ready**                                     | Small textual conflict in the interface and the problems list; no semantic overlap. Second one rebases.                                                                                                                                                                                                                                                                                                                |
+| S5 Tenant-scope guard                               | `src/shared/lib/tenant-scope/` (critical)                                                                              | none (T0.1 copies its `globalThis` store pattern only)            | Task 4 (organization job scope)                                                     | **no ordering**                                     | MCP does not change the guard. MCP queries run inside the guard unchanged; MCP never calls `withoutTenantScope`.                                                                                                                                                                                                                                                                                                       |
+| S6 `GATO_EXPECTED_INSTANCES`                        | `packages/env` or `src/env.ts`, `.env.example`, `deploy/helm/gatojs/templates/deployment.yaml`, deploy docs            | T0.7                                                              | per-instance strategy warnings (jobs)                                               | **MCP**                                             | Decided in the MCP spec (Q15) as a core variable; T0.7 is tiny and unblocks T2.1. The jobs lane reuses it.                                                                                                                                                                                                                                                                                                             |
+| S7 Core events                                      | `src/shared/lib/events/core-events.ts`                                                                                 | none until T4.3                                                   | Task 7a (`organizations.deleted`)                                                   | **jobs**                                            | OAuth rows hold the organization in `referenceId` with no foreign key, so a deleted organization leaves consents and tokens behind. T4.3 subscribes to `organizations.deleted` after jobs Task 7a merges.                                                                                                                                                                                                              |
+| S8 Retention                                        | `src/features/mcp/jobs.ts`                                                                                             | T4.3                                                              | Tasks 1, 2 (declarations, `enqueueJob`), the jobs module                            | **jobs**                                            | The schedule is declared against the core jobs seam.                                                                                                                                                                                                                                                                                                                                                                   |
+| S9 Server-entrypoint guard test                     | `src/__tests__/server-entrypoints-guard.test.ts`                                                                       | T0.1 (only the route may call `runWithRequestPrincipal`), T2.1    | jobs entry points                                                                   | **first ready**                                     | Textual only.                                                                                                                                                                                                                                                                                                                                                                                                          |
+| S10 Numbers                                         | ADRs, docs                                                                                                             | T4.1 (ADR, `docs/20*`)                                            | jobs ADR-72…75, `docs/19*`                                                          | **jobs**                                            | `docs/adrs/` on `main` ends at ADR-69; both specs say ADR-70 and ADR-71 are taken by in-flight PRs #138/#139, and the jobs spec claims ADR-72…75. MCP takes the next free number when T4.1 merges (likely ADR-76). Docs: jobs `19`/`19b`, MCP `20`/`20b`.                                                                                                                                                              |
+| S11 Egress check                                    | `kit/egress-check/`, `.github/workflows/egress-check.yml`                                                              | T4.2 (leg with `mcp`, CIMD off)                                   | jobs leg                                                                            | **first ready**                                     | Separate legs.                                                                                                                                                                                                                                                                                                                                                                                                         |
+| S12 `kit/modules/core.json` version                 | every core task                                                                                                        | all core tasks                                                    | all core tasks                                                                      | n/a                                                 | Always the next free minor/patch at merge.                                                                                                                                                                                                                                                                                                                                                                             |
 
 ## Global constraints
 
@@ -139,16 +140,16 @@ in a throwaway container (compose project `gato-mcp-spike`, port 55471, tmpfs, `
 
 ### Versions (npm on 2026-11-28)
 
-| Package | Latest | Lockfile / used | Notes |
-| --- | --- | --- | --- |
-| `better-auth` | 1.7.28 (`beta` 1.8.0-beta.11) | 1.7.27 | spike ran on 1.7.27 |
-| `@better-auth/mcp` | 1.7.28 | 1.7.27 exact | peers `better-auth ^1.7.27`, `better-call ~1.4.5` (lock 1.4.6) |
-| `@better-auth/oauth-provider` | 1.7.28 | 1.7.27 exact | peer `@better-fetch/fetch 1.3.3`; dep `zod ^4.5.4` |
-| `@better-auth/cimd` | 1.7.28 | not installed | Q1: opt-in only |
-| `@modelcontextprotocol/server` | 2.4.0 | 2.4.0 | `zod ^4.2.0`, Node ≥ 20 |
-| `@modelcontextprotocol/client` | 2.4.0 | 2.4.0 | dev only |
-| `@modelcontextprotocol/sdk` (v1) | 1.32.2 | not used | §5.1 |
-| `next` / `zod` | — | 16.4.6 / 4.6.7 | |
+| Package                          | Latest                        | Lockfile / used | Notes                                                          |
+| -------------------------------- | ----------------------------- | --------------- | -------------------------------------------------------------- |
+| `better-auth`                    | 1.7.28 (`beta` 1.8.0-beta.11) | 1.7.27          | spike ran on 1.7.27                                            |
+| `@better-auth/mcp`               | 1.7.28                        | 1.7.27 exact    | peers `better-auth ^1.7.27`, `better-call ~1.4.5` (lock 1.4.6) |
+| `@better-auth/oauth-provider`    | 1.7.28                        | 1.7.27 exact    | peer `@better-fetch/fetch 1.3.3`; dep `zod ^4.5.4`             |
+| `@better-auth/cimd`              | 1.7.28                        | not installed   | Q1: opt-in only                                                |
+| `@modelcontextprotocol/server`   | 2.4.0                         | 2.4.0           | `zod ^4.2.0`, Node ≥ 20                                        |
+| `@modelcontextprotocol/client`   | 2.4.0                         | 2.4.0           | dev only                                                       |
+| `@modelcontextprotocol/sdk` (v1) | 1.32.2                        | not used        | §5.1                                                           |
+| `next` / `zod`                   | —                             | 16.4.6 / 4.6.7  |                                                                |
 
 ### What was proved end to end
 
@@ -162,13 +163,13 @@ redirect `http://127.0.0.1:5599/callback`, `token_endpoint_auth_method: "none"`)
    out), plus `dpop_signing_alg_values_supported` (R2).
 3. AS metadata at `/.well-known/oauth-authorization-server/api/auth` (and the root path) through
    `oauthProviderAuthServerMetadata(auth)`: issuer `http://localhost:3471/api/auth`, `code_challenge_methods_supported:
-   ["S256"]`, `authorization_response_iss_parameter_supported: true`, `registration_endpoint`.
+["S256"]`, `authorization_response_iss_parameter_supported: true`, `registration_endpoint`.
 4. DCR: the SDK registered a client; `clientRegistrationDefaultApplicationType: "infer"` stored `application_type:
-   "native"` for the loopback redirect (L4 confirmed).
+"native"` for the loopback redirect (L4 confirmed).
 5. Authorize with PKCE S256 and `resource` → login page `/sign-in?…&exp&ba_iat&ba_param…&sig`; `POST
-   /api/auth/sign-in/email` with `oauth_query` → `{ redirect: true, url: "/oauth/organization?…" }`; `POST
-   /api/auth/oauth2/continue { postLogin: true, oauth_query }` → `/oauth/consent?…`; `POST /api/auth/oauth2/consent
-   { accept: true, scope, oauth_query }` → callback with `code` and `iss` (RFC 9207).
+/api/auth/sign-in/email` with `oauth_query` → `{ redirect: true, url: "/oauth/organization?…" }`; `POST
+/api/auth/oauth2/continue { postLogin: true, oauth_query }` → `/oauth/consent?…`; `POST /api/auth/oauth2/consent
+{ accept: true, scope, oauth_query }` → callback with `code` and `iss` (RFC 9207).
 6. Token: JWT, `expires_in: 300`, refresh token issued, claims `sub`, `aud: "http://localhost:3471/api/mcp"`, `azp`,
    `client_id`, `scope`, `sid`, `iss: "http://localhost:3471/api/auth"`, `iat`, `exp`, `jti`, and `org_id` from
    `customAccessTokenClaims({ referenceId })` where `referenceId` came from `postLogin.consentReferenceId`.
@@ -176,7 +177,7 @@ redirect `http://127.0.0.1:5599/callback`, `token_endpoint_auth_method: "none"`)
    = better-auth `baseURL` = `${APP_URL}/api/auth`, matches; no override needed); the handler wrapped
    `createMcpHandler(factory, { legacy: "stateless", responseMode: "json" }).fetch(request)` in
    `runWithRequestPrincipal`; tool `mcp_whoami` called `getOrgContext()` and got `{ orgRole: "owner", userRole: "user",
-   serviceMode: false }` for a global `admin` (Q5 cap) and the organization's name from Prisma.
+serviceMode: false }` for a global `admin` (Q5 cap) and the organization's name from Prisma.
 8. Both eras on the same route: a client with `versionNegotiation: { mode: { pin: "2026-07-28" } }` (era `modern`) and
    one with the SDK default (`legacy`, `2025-11-25`) listed and called the tool.
 9. Narrowing at consent: a request for `mcp:read mcp:write offline_access` granted with `scope: "mcp:read offline_access"`
@@ -185,28 +186,37 @@ redirect `http://127.0.0.1:5599/callback`, `token_endpoint_auth_method: "none"`)
     `/oauth/consent?…` with `Accept-Language: en` or `NEXT_LOCALE=en` → 307 to `/en/…` with every repeated `ba_param`
     kept.
 11. Schema: `npx auth@1.7.27 generate` lists the eight tables of §9; with the `Session` relation dropped (R5) `prisma
-    db push` and sign-in (better-auth's schema check) passed.
+db push` and sign-in (better-auth's schema check) passed.
 
-### Refinements for the coordinator (spec details, not decisions)
+### Refinements (spec details, not decisions; accepted by the coordinator on 2026-11-28)
 
-- **R1 Challenge scopes (needs a yes before T2.1).** The SDK client requests exactly the 401 challenge's `scope` plus
+- **R1 Challenge scopes (accepted).** The SDK client requests exactly the 401 challenge's `scope` plus
   `offline_access`, not its own metadata. With `scope="mcp:read"` (§4.3, §5.2) no connection is ever offered
   `mcp:write`. Proposed: `requireMcpAuth(…, { requiredScopes: ["mcp:read"], challengeScopes: ["mcp:read", "mcp:write"] })`,
   so the 401 says `scope="mcp:read mcp:write"`; the consent checkbox (off by default, §4.4) narrows. Verified: the
   client then asks for all three and consent can grant read only. Lesson
   `mcp-clients-request-only-the-scopes-of-the-401-challenge`.
-- **R2 DPoP (needs a yes before T2.1).** §5.2 step 5 refuses tokens with `cnf`. But `mcp()` always advertises
+- **R2 DPoP (accepted, with full proof verification).** §5.2 step 5 refused tokens with `cnf`. But `mcp()` always advertises
   `dpop_signing_alg_values_supported` in PRM and AS metadata, the token endpoint issues DPoP-bound tokens to a client
   that sends a DPoP proof (the SDK client supports DPoP), and there is no option to turn DPoP off at the authorization
   server. Refusing `cnf` would break such clients after a successful consent. `requireMcpAuth` already verifies DPoP
-  proofs and binding, with a replay store in the existing `verification` table (no new table). Proposed: drop step 5
-  and accept DPoP-bound tokens through `requireMcpAuth`; tests cover a bound token without a proof (401) and with a
-  replayed proof (401). Alternative if the owner prefers the spec: keep step 5 and document that DPoP clients fail.
+  proofs and binding, with a replay store in the existing `verification` table (no new table). Decision: step 5 becomes
+  "DPoP-bound token → full proof verification through `requireMcpAuth`, else 401"; Bearer tokens without `cnf` stay
+  accepted. Full verification means (all checked by `verifyDpopProof` in `@better-auth/core` 1.7.27, read in the
+  source): the `DPoP` header is one JWT with `typ: "dpop+jwt"`, an allowed `alg` and a public `jwk`, signed by that
+  key; `htm` equals the request method; `htu` equals the request URL (normalized, no query or fragment); `iat` is
+  within the accepted window (default 300 s back, 5 s ahead); `jti` is present, at most the library's length limit,
+  and not seen before (replay store reservation); `ath` equals the base64url SHA-256 of the access token; the JWK
+  thumbprint equals the token's `cnf.jkt`. A DPoP-bound token presented as `Bearer`, or with a missing or invalid
+  proof, is 401. Because `htu` is compared with the request URL, the route verifies against a request rebuilt on
+  `APP_URL` (`${APP_URL}/api/mcp`, the same origin the Host check enforces), so a reverse proxy that rewrites the
+  internal URL does not break valid proofs. The checks live in the library, so mutation testing cannot reach them:
+  T2.1 pins each one with a behavioural test instead.
 - **R3 No OIDC discovery route.** `oauthProviderOpenIdConfigMetadata` throws `NOT_FOUND` (route 500) when `openid` is
   not a scope; `/api/auth/.well-known/openid-configuration` is 404. MCP clients read RFC 8414 metadata first. T1.2 ships
   PRM and AS metadata only and asserts 404 on both OIDC paths. Lesson `oidc-discovery-needs-the-openid-scope`.
 - **R4 Grant types.** AS metadata advertises `client_credentials` by default. T1.1 sets `grantTypes:
-  ["authorization_code", "refresh_token"]`; a `client_credentials` token has no user and would fail the principal anyway.
+["authorization_code", "refresh_token"]`; a `client_credentials` token has no user and would fail the principal anyway.
 - **R5 `Session` relation.** The token models relate to `Session`, which has no `wa:relations` region. T1.1 keeps
   `sessionId String?` without the relation field (verified with the schema check). `schemaRelations` covers `User`
   only (`oauthClients`, `oauthRefreshTokens`, `oauthAccessTokens`, `oauthConsents`), plus `Organization` for the two
@@ -245,9 +255,10 @@ redirect `http://127.0.0.1:5599/callback`, `token_endpoint_auth_method: "none"`)
 **Branch:** `feat/mcp-request-principal`
 
 **Files:**
+
 - `src/shared/lib/auth/request-principal.ts` (new, core): `RequestPrincipal = { channel: "mcp"; userId: string;
-  organizationId: string; accountRole: UserRole; credentialId: string; scopes: readonly string[]; correlationId:
-  string }`, `runWithRequestPrincipal(principal, fn)` (an `AsyncLocalStorage` on `globalThis` under
+organizationId: string; accountRole: UserRole; credentialId: string; scopes: readonly string[]; correlationId:
+string }`, `runWithRequestPrincipal(principal, fn)` (an `AsyncLocalStorage` on `globalThis` under
   `Symbol.for("gatojs.request-principal")`, as in plan `2026-11-27-tenant-scope-shared-store.md`),
   `currentRequestPrincipal()`.
 - `src/shared/lib/auth/org-context.ts`: principal branch first (§5.3): re-read `prisma.member.findFirst` with
@@ -266,9 +277,10 @@ redirect `http://127.0.0.1:5599/callback`, `token_endpoint_auth_method: "none"`)
 - `core` minor bump.
 
 **Zachowania** (the spec's Task 0.1 list, plus):
+
 - principal `{ userId: "u1", organizationId: "o1", accountRole: "user", credentialId: "client-1", scopes: ["mcp:read"],
-  correlationId: "corr-1" }`, member row role `admin` → `getOrgContext()` returns exactly `{ userId: "u1",
-  organizationId: "o1", orgRole: "admin", userRole: "user", serviceMode: false }`, and `auth.api.getSession` is not
+correlationId: "corr-1" }`, member row role `admin` → `getOrgContext()` returns exactly `{ userId: "u1",
+organizationId: "o1", orgRole: "admin", userRole: "user", serviceMode: false }`, and `auth.api.getSession` is not
   called;
 - principal for a `superadmin` with no member row in `o1` (organization exists) → `NoOrganizationError`;
 - principal whose member row was deleted → `NoOrganizationError`;
@@ -280,7 +292,7 @@ redirect `http://127.0.0.1:5599/callback`, `token_endpoint_auth_method: "none"`)
 - two `getOrgContext()` calls under one principal with the member row changed from `admin` to `member` between them →
   the second returns `orgRole: "member"` (two membership queries);
 - stored role `superadmin`, member `member` → `userRole: "user"`, `orgRole: "member"`; `can(context,
-  "uploads.delete-others")` → `false`; `canAccessModule(auditLogsModule, …)` → `false`; `getAdminUserOrNull()` → `null`;
+"uploads.delete-others")` → `false`; `canAccessModule(auditLogsModule, …)` → `false`; `getAdminUserOrNull()` → `null`;
 - stored role `admin`, member `owner` → `can(context, "uploads.delete-others")` → `true`;
 - `runWithRequestPrincipal(p, fn)` nested inside another principal → the inner one is current, the outer is restored
   after;
@@ -307,6 +319,7 @@ member in A and B, principal for A reads only A's role), mutation task + gate.
 `create-gato-app` pin; `core` patch (regenerated registry).
 
 **Zachowania:**
+
 - a module whose `auth.ts` exports `authPlugins = [a, b]` → the generated registry spreads `a`, `b` in that order after
   the plugins of modules earlier in registry order, and `src/shared/lib/auth/index.ts` keeps `...authPlugins` last (L10);
 - a module exporting `authPlugin` only → output byte-identical to today's for that module;
@@ -329,6 +342,7 @@ removed.
 `oauthProviderClient()` is T1.1's `auth-client.ts`, not core.)
 
 **Zachowania:**
+
 - `authClient.signIn.email` resolves `{ data: { redirect: true, url: "/oauth/consent?a=1" } }` → `router.push` is not
   called (the client's `redirectPlugin` navigates; spike finding);
 - `{ data: { redirect: false } }` or no `redirect` → `router.push("/dashboard")` once;
@@ -348,11 +362,12 @@ removed.
 **Branch:** `feat/mcp-tool-declarations`
 
 **Files:**
+
 - `src/shared/lib/mcp-tools/` (core, new): `define-mcp-tools.ts` (`defineMcpTools`, `defineQueryTool`,
   `defineCommandTool`), `registry.ts` (`mcpToolRegistry`, `McpToolError` with `name` as a string, `wireName(key)`),
   `types.ts`. No import from `@modelcontextprotocol/*` or `src/features/mcp/`.
 - Generator: detect `src/features/<x>/mcp-tools.ts`, always emit `moduleMcpTools = mcpToolRegistry({ modules, tools },
-  gatoConfig)` in the server registry (`src/server-registry.generated.ts` after jobs Task 3; until then
+gatoConfig)` in the server registry (`src/server-registry.generated.ts` after jobs Task 3; until then
   `src/modules.generated.ts` server part), disabled modules left out, empty list when no module declares tools.
 - Catalog: `extension-points.json` key `mcpTools`, "MCP tools" section in `EXTENSION_POINTS.md`,
   `extension-points-exist.test.ts` covers it.
@@ -362,11 +377,12 @@ removed.
 - `kitFormat` bump, `gato-cli` minor, bundle, pin; `core` minor.
 
 **Zachowania** (spec Task 0.4 list, literal messages):
+
 - no `mcp-tools.ts` anywhere → `moduleMcpTools` deep-equals `[]`;
 - one project module with `mcp-tools.ts`, no `mcp` module → the project builds and `moduleMcpTools` has that tool;
 - tools of a disabled module absent;
 - key `notes.list` declared by module `uploads` → `McpToolError` whose message contains `tool key notes.list is not owned
-  by module uploads`;
+by module uploads`;
 - `uploads.list` and `uploads_list` declared → one error naming both (same wire name);
 - key of 65 characters → error; `wireName("uploads.delete")` → `"uploads_delete"`;
 - command tool on a command whose key is not in its module's `commands` → error naming the key;
@@ -470,13 +486,14 @@ on) and its helm-unittest, `docs/10-wdrozenie.md` and `docs/self-hosting.md` (Co
 **Branch:** `feat/mcp-module-skeleton`
 
 **Files:**
+
 - `kit/modules/mcp.json` (`0.1.0-alpha` until T4.2, manifest per spec "Manifest": files, dependencies with exact pins,
   env, `schemaRelations` for `User` and `Organization` only (R5), no `requires`); `.wa/kit.json` via `kit sync`.
 - `src/features/mcp/module.ts` (`defineModule`: permissions `mcp.connect`, `mcp.write`, `mcp.manage-connections`
   with default roles, `auditActions`), `env.ts` (`MCP_ALLOWED_ORIGINS`, `MCP_CLIENT_METADATA_DOCUMENTS`,
   `MCP_RATE_LIMIT_PER_MINUTE`, `MCP_WRITE_LIMIT_PER_MINUTE`, `MCP_AUDIT_RETENTION_DAYS`; refuses a non-https,
   non-loopback `APP_URL` while the module is enabled, message names `APP_URL`), `auth.ts` (`authPlugins = [jwt(…),
-  mcp(…), gatoMcpGuardPlugin]` per §4.2 plus R4 `grantTypes`; `cimd()` only with the flag), `auth-client.ts`
+mcp(…), gatoMcpGuardPlugin]` per §4.2 plus R4 `grantTypes`; `cimd()` only with the flag), `auth-client.ts`
   (`oauthProviderClient()`), `extension-points.json`, `i18n/{pl,en}.json` skeleton.
 - `src/features/mcp/services/guard-plugin.ts`: `gatoMcpGuardPlugin` with the `/token` 404 and `/oauth2/authorize` ban
   check (registration and consent rules come in T1.3, T1.4).
@@ -487,6 +504,7 @@ on) and its helm-unittest, `docs/10-wdrozenie.md` and `docs/self-hosting.md` (Co
 - `mutation-gate.json`: propose `src/features/mcp/services/` as `critical`.
 
 **Zachowania:**
+
 - `checkSchema()` from `await auth.$context` with the module enabled → no difference;
 - `APP_URL=http://example.com` with `mcp` enabled → startup fails with a message naming `APP_URL`;
   `http://localhost:3000`, `http://127.0.0.1:3000` and `https://app.example.com` pass; with `mcp` disabled
@@ -522,7 +540,8 @@ shared wrapper in `src/features/mcp/services/discovery.ts` (module check first, 
 `bearer_methods_supported: ["header"]`; the root PRM path → the same document;
 `GET /.well-known/oauth-authorization-server/api/auth` → `issuer: "<APP_URL>/api/auth"`,
 `code_challenge_methods_supported: ["S256"]`, `authorization_response_iss_parameter_supported: true`, a
-`registration_endpoint`; `OPTIONS` → 204 with `Access-Control-Allow-Origin: *`; GET responses carry it too; module
+`registration_endpoint`; PRM and AS metadata list `dpop_signing_alg_values_supported` (R2: DPoP is accepted);
+AS metadata has no `client_credentials` grant (R4); `OPTIONS` → 204 with `Access-Control-Allow-Origin: *`; GET responses carry it too; module
 disabled → 404 with `Cache-Control: no-store` on every path; `/.well-known/openid-configuration/api/auth` and
 `/api/auth/.well-known/openid-configuration` → 404 (never 500).
 
@@ -595,12 +614,32 @@ unticked; impersonation check removed; frame headers missing.
 no env except the listed `MCP_*` variables.
 
 **Zachowania:**
+
 - no token → 401 with `resource_metadata="<APP_URL>/.well-known/oauth-protected-resource/api/mcp"` and (R1)
-  `scope="mcp:read mcp:write"`;
+  `scope="mcp:read mcp:write"` (exact header literal pinned); `requiredScopes` stays `["mcp:read"]`: a token with only
+  `mcp:read` → 200, a token with only `offline_access` → 403 `insufficient_scope`;
 - a token whose `aud` is another resource → 401; a session JWT (`/token` shape, no `azp`) → 401; an expired token → 401;
   a token signed by another key → 401; a token in the query string only → 401;
-- (R2, if approved) a DPoP-bound token sent as `Bearer` without a proof → 401; with a replayed proof → 401; with a
-  fresh proof → 200; (if refused) a token with `cnf` → 401;
+- a Bearer token without `cnf` and without a `DPoP` header → 200 (R2: Bearer stays accepted);
+- DPoP (R2), a token bound to key K (`cnf.jkt` = thumbprint of K), sent as `Authorization: DPoP <token>`:
+  - with a fresh proof signed by K, `htm: "POST"`, `htu: "<APP_URL>/api/mcp"`, `iat` now, a new `jti`, `ath` of the
+    token → 200;
+  - the same token as `Authorization: Bearer <token>` with no `DPoP` header → 401;
+  - `Authorization: DPoP <token>` without a `DPoP` header → 401;
+  - proof signed by key L ≠ K (thumbprint mismatch with `cnf.jkt`) → 401;
+  - proof whose header `jwk` is K but signed by L (bad signature) → 401;
+  - proof with `typ: "JWT"` → 401; with `alg: "none"` or `HS256` → 401; with a private `jwk` (has `d`) → 401;
+  - `htm: "GET"` → 401; `htu: "https://evil.example/api/mcp"` → 401; `htu: "<APP_URL>/api/mcp?x=1"` → 200 (query
+    ignored by normalization);
+  - `iat` 301 s in the past → 401; `iat` 6 s in the future → 401; `iat` 299 s in the past → 200;
+  - `ath` missing → 401; `ath` of another token → 401;
+  - `jti` missing → 401; the same proof (same `jti`) sent twice → first 200, second 401;
+  - two proofs with different `jti` → both 200;
+  - an unbound token sent with `Authorization: DPoP` and a valid proof for some key → 401 (no `cnf` to bind);
+  - behind a proxy (the request object's URL is `http://internal:3000/api/mcp`, `Host` = `APP_URL`'s host) and a proof
+    with `htu: "<APP_URL>/api/mcp"` → 200;
+  - every 401 above carries a `WWW-Authenticate` challenge (`DPoP` or `Bearer` scheme as the library answers) with
+    `resource_metadata`;
 - a token for organization A of a user no longer in A → 403 JSON `{ "error": "forbidden" }`; banned user → 403;
   organization deleted → 403;
 - `Origin: https://evil.example` → 403; no `Origin` → passes; `Origin` equal to `APP_URL`'s origin → passes; an origin
@@ -616,7 +655,12 @@ no env except the listed `MCP_*` variables.
 
 **Mutacje do zabicia:** audience check removed (custom verify instead of `requireMcpAuth`); Origin check accepting any
 origin; rate-limit key without `organizationId`; disabled check after auth; correlation id echoed unvalidated; any
-env-dependent auth branch; warning on 1 instance; membership read from the token instead of the database.
+env-dependent auth branch; warning on 1 instance; membership read from the token instead of the database; `challengeScopes`
+reduced to `["mcp:read"]` (R1); DPoP replay store replaced by a no-op (`reserve` always `true`) or left to the
+in-memory default of `createMcpProtectedRequestHandler` (R2: the store must be `createDpopReplayStore(authContext)`, the
+database); request passed to `requireMcpAuth` with the internal URL instead of the `APP_URL`-based one; a pre-check that
+strips the `DPoP` header or rewrites `Authorization: DPoP` to `Bearer`; a branch that accepts a `cnf` token without a
+proof.
 
 **Gates:** `npm run verify`, `npm run test:integration`, mutation task + gate (route and resolver `critical`).
 
@@ -761,7 +805,7 @@ service mode in A without confirmation → "Potwierdź zmianę w trybie serwisow
 
 **Branch:** `docs/mcp-module`
 
-**Files:** `docs/20-mcp-module.md`, `docs/20b-mcp-module-usage.md` (§13 Phase 4 list, plus R1/R2 outcome, the
+**Files:** `docs/20-mcp-module.md`, `docs/20b-mcp-module-usage.md` (§13 Phase 4 list, plus R1 (write scope in the challenge) and R2 (DPoP accepted with full proof verification), the
 multi-instance rate-limit limitation, `GATO_EXPECTED_INSTANCES`, the no-bypass rule, audit outcomes and retention, the
 troubleshooting table from §12 and the spike lessons); ADR (number per S10) "MCP tools run as the signed-in user in one
 organization through a request principal, capped to the organization role and never in service mode"; ADR-66

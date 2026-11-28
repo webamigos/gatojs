@@ -1,7 +1,7 @@
 ---
-title: 'The OAuth token models reference `Session`, which has no `wa:relations` region; drop that Prisma relation in the module schema, the better-auth schema check still passes'
-areas: ['mcp', 'data']
-topics: ['better-auth', 'prisma', 'schema', 'oauth', 'modules']
+title: "The OAuth token models reference `Session`, which has no `wa:relations` region; drop that Prisma relation in the module schema, the better-auth schema check still passes"
+areas: ["mcp", "data"]
+topics: ["better-auth", "prisma", "schema", "oauth", "modules"]
 ---
 
 # The OAuth token models reference `Session`, which has no `wa:relations` region; drop that Prisma relation in the module schema, the better-auth schema check still passes

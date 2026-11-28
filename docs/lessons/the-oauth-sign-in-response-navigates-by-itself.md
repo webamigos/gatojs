@@ -1,7 +1,7 @@
 ---
-title: 'During an OAuth sign-in the better-auth client navigates to the returned URL by itself, so a sign-in form that also pushes `/dashboard` races it and drops the authorization'
-areas: ['mcp']
-topics: ['mcp', 'oauth', 'better-auth', 'sign-in', 'i18n']
+title: "During an OAuth sign-in the better-auth client navigates to the returned URL by itself, so a sign-in form that also pushes `/dashboard` races it and drops the authorization"
+areas: ["mcp"]
+topics: ["mcp", "oauth", "better-auth", "sign-in", "i18n"]
 ---
 
 # During an OAuth sign-in the better-auth client navigates to the returned URL by itself, so a sign-in form that also pushes `/dashboard` races it and drops the authorization

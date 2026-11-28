@@ -1,7 +1,7 @@
 ---
-title: 'The better-auth OAuth provider serves OpenID discovery only when `openid` is a configured scope; without it the exported metadata helper throws and the route answers 500'
-areas: ['mcp']
-topics: ['mcp', 'oauth', 'oidc', 'discovery', 'better-auth']
+title: "The better-auth OAuth provider serves OpenID discovery only when `openid` is a configured scope; without it the exported metadata helper throws and the route answers 500"
+areas: ["mcp"]
+topics: ["mcp", "oauth", "oidc", "discovery", "better-auth"]
 ---
 
 # The better-auth OAuth provider serves OpenID discovery only when `openid` is a configured scope; without it the exported metadata helper throws and the route answers 500
