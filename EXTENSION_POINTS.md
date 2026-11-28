@@ -62,7 +62,7 @@ Subscribe from `subscribers.ts`; subscribers run after the operation succeeded.
 | `api-keys.revoked` | api-keys | stable | An API key was revoked and no longer authenticates |
 | `auth.signed-up` | auth | stable | A user signed up, with or without an invitation, and got a membership; not emitted for an admin invite |
 | `organizations.created` | organizations | stable | An organization was created with its owner |
-| `organizations.member-added` | organizations | stable | A user became a member of the organization: an accepted invitation, a sign-up that joins it, or an admin invite |
+| `organizations.member-added` | organizations | stable | A user became a member: an accepted invitation, a sign-up that joins the organization, an admin invite, or admin:create adding the owner |
 | `organizations.member-removed` | organizations | stable | A member was removed from the organization or left it |
 | `organizations.member-role-changed` | organizations | stable | The organization role of a member changed |
 | `uploads.deleted` | uploads | stable | A file was deleted from the organization and its storage |

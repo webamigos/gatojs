@@ -32,12 +32,24 @@ added by an admin invite or by a single-organization sign-up never emitted `orga
   - join without an invitation (`MULTI_ORG=false`): `auth.signed-up`, `organizations.member-added` (role `member`);
   - a new organization (`MULTI_ORG=true`): `auth.signed-up` only (`organizations.created` comes from
     `createOrganizationWithOwnerCommand`, like `/organization/create` emits no `member-added` for the owner).
-  The hook emits them in that order outside `withInviteSignup` and nothing inside it.
+  The hook emits them in that order outside `withInviteSignup`. Inside it the hook emits nothing and records the
+  written `memberId` in the invite scope (`recordInviteSignupMember`), and `withInviteSignup` resolves
+  `{ result, memberId }`.
+- The invite scope (`src/shared/lib/auth/invite-signup-scope.ts`) keeps its `AsyncLocalStorage` on `globalThis` under
+  `Symbol.for("gatojs.auth.invite-signup")`, like the tenant-scope bypass store: a production build can bundle the
+  module into several chunks (the users command and the auth hook), and a copy with its own store would not see the
+  scope, bringing back the phantom `invitation.accepted` row, a second `member-added` and an unverified email.
 - An admin invite (`users.invite`) declares `users.invited` and `organizations.member-added`. After the registration it
-  reads the invitee's member row in `context.organizationId` and emits `users.invited`, then
-  `organizations.member-added` (`memberId`, invitee `userId`, invited `role`), both through `runCommand`, so the actor is
-  the admin and `serviceMode` comes from the context. Without a member row it emits only `users.invited`. It never emits
-  `users.invitation-accepted` or `auth.signed-up`: the invitee did not act.
+  emits `users.invited`, then `organizations.member-added` (`memberId` from the invite scope, invitee `userId`, invited
+  `role`), both through `runCommand`, so the actor is the admin and `serviceMode` comes from the context. It reads
+  nothing from the database between the registration and the emits: the user and member are already committed, and a
+  failing read would leave a membership without `users.invited` (ADR-62). Without a recorded member it emits only
+  `users.invited`. It never emits `users.invitation-accepted` or `auth.signed-up`: the invitee did not act.
+- `npm run admin:create` that adds the admin as `owner` of the existing oldest organization emits
+  `organizations.member-added` (`role: "owner"`) after its transaction, with the admin's own user id as actor, like
+  `organizations.created` from the same script and like a sign-up joining an organization. A CLI run has no signed-in
+  actor, and `null` would hide who got the access. No event when the membership already existed or when the script
+  created the organization (`organizations.created` covers the owner).
 - With `audit-logs`, an admin invite writes exactly one row (`member.invited`, actor admin), a public sign-up by
   invitation exactly one `invitation.accepted` (actor new user), and `/organization/accept-invitation` is unchanged.
 
@@ -70,9 +82,14 @@ added by an admin invite or by a single-organization sign-up never emitted `orga
   one `member.invited` row and no `invitation.accepted` row for an admin invite; three events and one
   `invitation.accepted` row for a public sign-up by invitation),
   `src/features/audit-logs/__tests__/organization-audit.integration.test.ts`,
-  `member-commands.test.ts` (no `trackAudit`), and the mutation gate (`src/shared/lib/auth/` is `critical`).
+  `member-commands.test.ts` (no `trackAudit`), `invite-signup-scope-shared-store.test.ts` (two module copies share
+  the scope and the recorded member), `scripts/lib/__tests__/admin-create.test.ts` (`member-added` for the oldest
+  organization), the `core-auth` e2e (one "member invited" and no "invitation accepted" row on `/audit-log` after an
+  admin invite), and the mutation gate (`src/shared/lib/auth/` is `critical`).
 
 ## Sources
 
-- Plan `docs/superpowers/plans/2026-11-28-invite-audit-events.md`.
+- Plan `docs/superpowers/plans/2026-11-28-invite-audit-events.md` and the review follow-up
+  `docs/superpowers/plans/2026-11-28-invite-audit-events-review-fixes.md`.
+- Commit 23a39b7 (tenant-scope bypass store shared across bundled copies).
 - ADR-61 (domain events), ADR-62 (commands).

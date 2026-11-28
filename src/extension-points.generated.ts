@@ -43,7 +43,7 @@ export const extensionPoints = {
     { key: "api-keys.revoked", module: "api-keys", stability: "stable", description: "An API key was revoked and no longer authenticates" },
     { key: "auth.signed-up", module: "auth", stability: "stable", description: "A user signed up, with or without an invitation, and got a membership; not emitted for an admin invite" },
     { key: "organizations.created", module: "organizations", stability: "stable", description: "An organization was created with its owner" },
-    { key: "organizations.member-added", module: "organizations", stability: "stable", description: "A user became a member of the organization: an accepted invitation, a sign-up that joins it, or an admin invite" },
+    { key: "organizations.member-added", module: "organizations", stability: "stable", description: "A user became a member: an accepted invitation, a sign-up that joins the organization, an admin invite, or admin:create adding the owner" },
     { key: "organizations.member-removed", module: "organizations", stability: "stable", description: "A member was removed from the organization or left it" },
     { key: "organizations.member-role-changed", module: "organizations", stability: "stable", description: "The organization role of a member changed" },
     { key: "uploads.deleted", module: "uploads", stability: "stable", description: "A file was deleted from the organization and its storage" },

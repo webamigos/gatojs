@@ -8,7 +8,7 @@
     },
     "organizations.member-added": {
       "stability": "stable",
-      "description": "A user became a member of the organization: an accepted invitation, a sign-up that joins it, or an admin invite"
+      "description": "A user became a member: an accepted invitation, a sign-up that joins the organization, an admin invite, or admin:create adding the owner"
     },
     "organizations.member-removed": {
       "stability": "stable",
