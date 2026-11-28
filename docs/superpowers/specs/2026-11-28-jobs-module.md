@@ -231,7 +231,7 @@ src/features/jobs/
 ├── module.ts                     defineModule({ key: "jobs", adminOnly, routePrefixes: ["/admin/jobs"], commands … })
 ├── env.ts                        envSchema (5.3)
 ├── events.ts                     jobs.failed (11.4)
-├── auth.ts                       better-auth after hook on /organization/delete (9.4)
+├── subscribers.ts                organizations.deleted → jobs.purge-organization (9.4)
 ├── job-runtime.ts                export const jobRuntime: JobRuntime (registry contribution, 7.4)
 ├── extension-points.json
 ├── i18n/{pl,en}.json
@@ -843,14 +843,31 @@ Decision 17.1/8, a critical core change in `src/shared/lib/tenant-scope/`:
 
 ### 9.4 A deleted organization's jobs
 
-- Outbox rows and organization schedule slots cascade with the organization (8.4, 11.2).
-- Jobs already in BullMQ do not. `/organization/delete` emits no domain event (ADR-61: there is no organization left to
-  deliver it to), so the `jobs` module reacts at the better-auth path instead, with an `after` hook in its own `auth.ts`
-  plugin (the documented extension point for better-auth paths): on a successful delete it enqueues the system job
-  `jobs.purge-organization` `{ removedOrganizationId }`. The job scans the waiting, delayed and prioritized jobs of every
-  queue under `JOBS_PREFIX` and removes those whose `envelope.organizationId` is that id. Active jobs are left to finish
-  or to take the quiet skip (8.2).
-- The hook never fails the delete: an enqueue error is logged; the quiet skip covers whatever the purge misses.
+Decided by the coordinator (17.1/23): core emits a new domain event, and the `jobs` module subscribes to it.
+
+- **The event.** `organizations.deleted` `{ name }` (core, `src/shared/lib/events/core-events.ts`), emitted by the core
+  better-auth events plugin (`events-plugin.ts`) for `/organization/delete`: a `before` hook reads the organization's
+  name through the adapter (the same technique as the previous role for `member-role-changed`), the `after` hook emits
+  on success with origin `{ organizationId: <deleted id>, actorUserId: <session user> }` (the ADR-70 actor rule). A
+  failed delete emits nothing. This closes the gap ADR-61 recorded ("`/organization/delete` emits nothing"), and ADR-61
+  is amended accordingly.
+- **What a subscriber may do with it.** The organization and everything that cascades with it (memberships, audit rows,
+  outbox rows, slots) are already gone when subscribers run. A subscriber of `organizations.deleted` must not write
+  organization-scoped rows for that id (the foreign key would fail); it cleans up what lives outside the database or
+  outside the cascade. The registry check (7.2) rejects a **queued** subscriber of `organizations.deleted`, because a
+  queued subscriber enqueues an organization job, whose outbox row would reference the deleted organization.
+- **The jobs module's subscriber** (`src/features/jobs/subscribers.ts`, plain, not queued) enqueues the **system** job
+  `jobs.purge-organization` `{ removedOrganizationId }` with `systemOrigin("organization deleted")`. A system job's outbox
+  row has `organizationId: null`, so it has no foreign key to the deleted organization and does not cascade: the purge
+  is durable even though everything else of that organization is gone. (`removedOrganizationId` is a payload key, not
+  the reserved `organizationId`, and it is only an id of something that no longer exists.)
+- **The purge.** The job scans the waiting, delayed and prioritized jobs of every queue under `JOBS_PREFIX` and removes
+  those whose `envelope.organizationId` is that id. Active jobs finish or take the quiet skip (8.2), which also covers
+  whatever the purge misses.
+- **Audit.** `audit-logs` could subscribe too, but its rows belong to an organization and cascade with it, so a row
+  filed into the deleted organization cannot exist. Recording deletions needs a platform-level audit scope, which is
+  not part of this spec; until then `audit-logs` does not subscribe, and the event is logged at `info` by the bus.
+- A subscriber error never fails the delete (ADR-61).
 
 ## 10. First consumers
 
@@ -1162,6 +1179,7 @@ Each is its own commit with the owner's version bump (`kit/CLAUDE.md`):
 | `timezone` in `GatoConfig`, `schedules` in `GatoModuleConfig` | `src/shared/lib/modules/gato-config.ts` | core |
 | `Organization.timezone`, `additionalFields`, `OrgContext.timezone`, timezone helpers, `/organization` page, nav item, slot, command, event, permission | `prisma/schema/organizations.prisma`, `src/shared/lib/auth/`, `src/shared/lib/timezone/`, `src/features/organizations/`, `src/app/[locale]/(app)/organization/` | core |
 | Queued subscribers, `cause` flag | `src/shared/lib/events/` | core |
+| `organizations.deleted` event: core event schema, `before`/`after` hooks for `/organization/delete` in the events plugin | `src/shared/lib/events/core-events.ts`, `src/shared/lib/auth/events-plugin.ts`, `organization-events.ts` | core |
 | `AuditChannel` `SYSTEM`, job-scoped default channel | `src/shared/lib/audit.ts` | core |
 | `AuditChannel` enum value, label, `organization.timezone_changed` and `audit-log.pruned` actions, timezone subscriber | `src/features/audit-logs/`, `prisma/schema/audit-logs.prisma` | audit-logs |
 | `ObjectStorage.list`, orphan jobs | `src/features/uploads/` | uploads |
@@ -1277,15 +1295,25 @@ ignored; order relay → workers → queues → Prisma → HTTP → telemetry.
 emit; sweep ignoring the stamp; cause guard removed; organization-exists check removed or turned into a retry;
 eviction comparison negated; telemetry flushed first.
 
-**Task 7a. A deleted organization's queued jobs.**
+**Task 7a. Core event `organizations.deleted` (core, before the purge).**
 
-**Zachowania:** a successful `/organization/delete` of `org-a` enqueues one `jobs.purge-organization`
-`{ removedOrganizationId: "org-a" }`; the job removes `org-a`'s waiting, delayed and prioritized jobs in every queue and
-leaves `org-b`'s and the active ones; a failed delete enqueues nothing; an enqueue error does not change the delete
-response.
+**Zachowania:** a successful `/organization/delete` of `org-a` by `u1` emits exactly one `organizations.deleted`
+`{ name: "Acme" }` with `organizationId: "org-a"`, `actorUserId: "u1"`; a failed delete (not a member, unknown id)
+emits nothing; a subscriber error does not change the delete response; a queued subscriber of `organizations.deleted`
+fails the registry check; the extension-point catalog lists the event and the better-auth path row says it emits it.
 
-**Mutacje do zabicia:** filter on the organization removed (purges everything); active jobs removed; hook running on a
-failed delete.
+**Mutacje do zabicia:** emit on a failed delete; name read after the delete (empty); actor taken from the body; queued
+subscriber check removed.
+
+**Task 7b. A deleted organization's queued jobs (`jobs` module).**
+
+**Zachowania:** the `organizations.deleted` subscriber writes one outbox row for `jobs.purge-organization`
+`{ removedOrganizationId: "org-a" }` with `organizationId: null`, and the row survives the organization's cascade; the job
+removes `org-a`'s waiting, delayed and prioritized jobs in every queue and leaves `org-b`'s and the active ones; an
+enqueue error is logged and the delete still succeeds.
+
+**Mutacje do zabicia:** filter on the organization removed (purges everything); active jobs removed; purge enqueued with
+the event's organization origin (row cascades away).
 
 **Task 8. Schedule reconciliation.**
 
@@ -1468,6 +1496,16 @@ Fourth round (open-mercato review, owner approved 2026-11-28; section 3.1):
 21. **Queues purged with the database** in e2e and integration resets, plus `npm run jobs:purge`. (14.3)
 22. **"No worker" warning** from a heartbeat key, on the admin page (polling) and in `wa doctor`. (12.1)
 
+Decided by the coordinator on the owner's go-ahead (2026-11-28; the owner may revise):
+
+23. **Deleted organization: a core event, not a module hook.** Core emits `organizations.deleted` (actor, organization,
+    name) from the delete path, closing ADR-61's "delete emits nothing" gap; the `jobs` module subscribes and enqueues
+    `jobs.purge-organization` as a system job, whose outbox row has no organization and so survives the cascade.
+    `audit-logs` does not record it yet (its rows cascade with the organization). Replaces the better-auth `after`
+    hook of decision 20. (9.4, Tasks 7a and 7b)
+24. **Non-admin attempts at `jobs.retry` / `jobs.run-now`,** stopped by `runCommand`'s access check, are logged at
+    `warn` and not audited. (12.1)
+
 Docs numbering: this spec uses `docs/19` and `docs/19b`; the MCP spec (#136) takes the next free number.
 
 ### 17.2 Open questions
@@ -1484,7 +1522,7 @@ ADR-70 and ADR-71 are taken on `main` (#138, #139). Proposed:
 - **ADR-74** "An organization job's queries are held to its organization by the tenant-scope guard" (9.1).
 - **ADR-75** "Organizations have a timezone; schedules and dates never use the server's" (7.3, 11.1, 11.2).
 - Amendments: ADR-66 (Redis is a configured endpoint; the worker port is never published), ADR-61 (queued subscribers,
-  `jobs.failed`, subscribers run in the worker), ADR-60 (top-level `timezone`, `schedules` in module config).
+  `jobs.failed`, subscribers run in the worker, `organizations.deleted` closes the "delete emits nothing" gap), ADR-60 (top-level `timezone`, `schedules` in module config).
 
 Docs (English; `docs/18` is the `legal` module since #134; the MCP module spec, #136, takes the number after 19):
 
@@ -1515,13 +1553,15 @@ Docs (English; `docs/18` is the `legal` module since #134; the MCP module spec, 
 - jobs `jobs.outbox-prune`, `jobs.organization-schedules-tick`, `jobs.purge-organization`; schedule
   `jobs.outbox-prune-daily`;
 - audit actions `job.retried`, `job.triggered` (in `module.ts` `auditActions`, labelled on the audit log page);
-- better-auth path `/organization/delete` (an `after` hook, 9.4).
+- a subscriber of `organizations.deleted` (9.4).
 
 Core (`organizations`, `src/features/organizations/extension-points.json` or the core file):
 
 - nav `organizations.settings` ("Organization settings link in the sidebar");
 - slot `organizations.settings.sections` (experimental, "Server sections on the organization settings page, rendered
   with the organization id");
+- event `organizations.deleted` ("An organization was deleted; subscribers run after its data is gone and must not write
+  organization rows for it"); the `/organization/delete` better-auth path row now says it emits it;
 - command `organizations.update-timezone`; event `organizations.timezone-changed`; permission
   `organizations.manage-settings` ("Change organization settings such as the timezone (default: owner, admin)").
 
