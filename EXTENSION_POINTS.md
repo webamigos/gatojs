@@ -60,13 +60,13 @@ Subscribe from `subscribers.ts`; subscribers run after the operation succeeded.
 | `api-keys.created` | api-keys | stable | An API key was created in the organization |
 | `api-keys.deleted` | api-keys | stable | An API key was deleted from the organization |
 | `api-keys.revoked` | api-keys | stable | An API key was revoked and no longer authenticates |
-| `auth.signed-up` | auth | stable | A user signed up without an invitation and joined an organization |
+| `auth.signed-up` | auth | stable | A user signed up, with or without an invitation, and got a membership; not emitted for an admin invite |
 | `organizations.created` | organizations | stable | An organization was created with its owner |
-| `organizations.member-added` | organizations | stable | A user became a member of the organization |
+| `organizations.member-added` | organizations | stable | A user became a member of the organization: an accepted invitation, a sign-up that joins it, or an admin invite |
 | `organizations.member-removed` | organizations | stable | A member was removed from the organization or left it |
 | `organizations.member-role-changed` | organizations | stable | The organization role of a member changed |
 | `uploads.deleted` | uploads | stable | A file was deleted from the organization and its storage |
-| `users.invitation-accepted` | users | stable | An invitation was accepted by its recipient |
+| `users.invitation-accepted` | users | stable | An invitation was accepted by its recipient, on the acceptance page or by signing up with it; not emitted for an admin invite |
 | `users.invitation-canceled` | users | stable | An invitation was canceled before it was accepted |
 | `users.invited` | users | stable | A user was invited to the organization by email |
 
