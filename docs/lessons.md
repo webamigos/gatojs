@@ -69,3 +69,7 @@ After a nontrivial correction or a non-obvious gotcha:
 - [Since better-auth 1.7.3 a schema mismatch rejects sign-in at runtime, in production too; a plugin with tables fails at login, not at build](lessons/better-auth-checks-the-prisma-schema-at-startup.md)
 - [npm keeps a workspace link from a copied lockfile even when the folder is gone, so a project lockfile must not list kit-only workspaces](lessons/npm-keeps-a-lockfile-workspace-link-to-a-missing-folder.md)
 - [The pinned npm rewrites unrelated lockfile entries (it drops `libc` from `@next/swc-linux-*`); restore them to keep the diff about your change](lessons/pinned-npm-drops-libc-fields-from-the-lockfile.md)
+
+### frontend
+
+- [Next.js 16 renders `[locale]/not-found.tsx` for unknown paths without a `[locale]/[...rest]` catch-all, and the catch-all blocks other catch-alls](lessons/next-renders-the-locale-not-found-without-a-catch-all.md)

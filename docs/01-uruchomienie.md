@@ -222,6 +222,8 @@ Zmienne `S3_*` w `.env.example` mają już wartości lokalnego MinIO (`S3_ENDPOI
 
 Jeśli port trzymają kontenery innego projektu na kicie (pokaże to `docker ps` w kolumnie `PORTS`), zamiast zmieniać porty możesz je zatrzymać komendą `docker compose stop` w katalogu tamtego projektu. Dane tamtej bazy zostają. W pozostałych przypadkach zmień porty w `.env`.
 
+Projekt utworzony przez `npm create gato-app` ma to zrobione: kreator przed `docker compose up` sprawdza porty usług, zajęty port przenosi na najbliższy wolny, zapisuje w `.env` zmienną portu i adresy, które go używają (`DATABASE_URL`, `SMTP_URL`, `S3_ENDPOINT`), i wypisuje każdą zmianę. Testy (`npm run test:integration`, `npm run test:e2e`) czytają przeniesione porty z `.env`, więc łączą się z kontenerami projektu. Nie przenosi portu, którego zmienna jest ustawiona w powłoce (Compose woli ją od `.env`); wtedy zatrzymuje się przed Dockerem i podpowiada wolny port. Poniższe kroki dotyczą zmiany ręcznej.
+
 Port bazy jest zapisany w dwóch miejscach i oba trzeba zmienić razem. Compose czyta `DB_PORT`, a aplikacja i Prisma czytają tylko `DATABASE_URL`. Nic ich nie łączy, więc przy rozjeździe aplikacja łączy się z innym portem niż ten, na którym działa kontener.
 
 1. W `.env` dopisz `DB_PORT` i ustaw ten sam port w `DATABASE_URL`:
@@ -255,6 +257,8 @@ Port serwera Next.js ustawia opcja `-p` (`npm run dev -- -p 3001`) albo zmienna 
 - Z `-p` albo `PORT` zajęty port kończy start błędem `Failed to start server` (`EADDRINUSE`).
 
 Po każdej zmianie portu ustaw ten sam port w `APP_URL`, na przykład `APP_URL=http://localhost:3001`, i zrestartuj serwer. better-auth (biblioteka logowania) traktuje origin z `APP_URL` jako jedyny domyślnie zaufany, a linki w mailach są budowane z `APP_URL`.
+
+Otwieraj aplikację dokładnie pod adresem z `APP_URL`. `http://127.0.0.1:3000` i `http://localhost:3000` to dwa różne originy: przy `APP_URL=http://localhost:3000` logowanie z `127.0.0.1` dostaje od better-auth `403` z kodem `INVALID_ORIGIN`, formularz pokazuje tylko „Nie udało się zalogować”, a każda chroniona strona dalej przekierowuje na `/sign-in`, co wygląda jak pętla przekierowań. Cookie sesji też należą do jednej nazwy hosta. Serwer standalone uruchomiony z `HOSTNAME=localhost` słucha na macOS tylko na `[::1]`, więc pod `127.0.0.1` w ogóle nie odpowiada.
 
 <a id="plik-env"></a>
 
