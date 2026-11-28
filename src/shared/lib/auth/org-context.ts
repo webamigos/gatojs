@@ -3,6 +3,10 @@ import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/routing";
 import { prisma } from "@/shared/lib/prisma";
 import {
+  currentRequestPrincipal,
+  type RequestPrincipal,
+} from "./request-principal";
+import {
   ORG_ROLES,
   toOrgRole,
   toUserRole,
@@ -44,7 +48,33 @@ async function organizationExists(organizationId: string): Promise<boolean> {
   return organization !== null;
 }
 
+async function principalOrgContext(
+  principal: RequestPrincipal,
+): Promise<OrgContext> {
+  const member = await prisma.member.findFirst({
+    where: {
+      organizationId: principal.organizationId,
+      userId: principal.userId,
+    },
+    select: { role: true },
+  });
+  if (!member) {
+    throw new NoOrganizationError();
+  }
+  return {
+    userId: principal.userId,
+    organizationId: principal.organizationId,
+    orgRole: toOrgRole(member.role),
+    userRole: USER_ROLES.USER,
+    serviceMode: false,
+  };
+}
+
 export async function getOrgContext(): Promise<OrgContext> {
+  const principal = currentRequestPrincipal();
+  if (principal) {
+    return principalOrgContext(principal);
+  }
   const session = await readSession();
   if (!session?.user) {
     return redirect({ href: "/sign-in", locale: await getLocale() });

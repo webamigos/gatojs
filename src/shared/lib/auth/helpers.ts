@@ -3,6 +3,7 @@ import "server-only";
 import { headers } from "next/headers";
 import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/routing";
+import { currentRequestPrincipal } from "@/shared/lib/auth/request-principal";
 import { isGlobalAdmin } from "@/shared/lib/auth/roles";
 
 async function readSession() {
@@ -24,6 +25,9 @@ export async function requireUser() {
 }
 
 export async function getAdminUserOrNull() {
+  if (currentRequestPrincipal()) {
+    return null;
+  }
   const user = await requireUser();
   return isGlobalAdmin(user.role) ? user : null;
 }

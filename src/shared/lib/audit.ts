@@ -1,8 +1,9 @@
 import { auditSinks } from "@/modules.generated";
 import type { OrgContext } from "@/shared/lib/auth/org-context";
+import { currentRequestPrincipal } from "@/shared/lib/auth/request-principal";
 import { logger } from "@/shared/lib/logger";
 
-export type AuditChannel = "WEB" | "API";
+export type AuditChannel = "WEB" | "API" | "MCP";
 
 export interface AuditEvent {
   organizationId: string;
@@ -15,17 +16,36 @@ export interface AuditEvent {
   channel?: AuditChannel;
   credentialId?: string | null;
   serviceMode?: boolean;
+  correlationId?: string;
 }
 
 export type AuditSink = (event: AuditEvent) => Promise<void>;
 
 export function auditActor(
   context: OrgContext,
-): Pick<AuditEvent, "organizationId" | "actorUserId" | "serviceMode"> {
-  return {
+): Pick<
+  AuditEvent,
+  | "organizationId"
+  | "actorUserId"
+  | "serviceMode"
+  | "channel"
+  | "credentialId"
+  | "correlationId"
+> {
+  const actor = {
     organizationId: context.organizationId,
     actorUserId: context.userId,
     serviceMode: context.serviceMode,
+  };
+  const principal = currentRequestPrincipal();
+  if (!principal) {
+    return actor;
+  }
+  return {
+    ...actor,
+    channel: "MCP",
+    credentialId: principal.credentialId,
+    correlationId: principal.correlationId,
   };
 }
 

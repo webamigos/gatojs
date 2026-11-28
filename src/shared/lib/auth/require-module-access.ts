@@ -7,9 +7,14 @@ import {
   NoOrganizationError,
   type OrgContext,
 } from "./org-context";
+import { ModuleAccessDeniedError } from "./module-access-denied-error";
 import { canAccessModule, moduleByKey } from "./permissions";
+import { currentRequestPrincipal } from "./request-principal";
 
 async function resolveOrgContext(): Promise<OrgContext> {
+  if (currentRequestPrincipal()) {
+    return getOrgContext();
+  }
   try {
     return await getOrgContext();
   } catch (error) {
@@ -32,6 +37,9 @@ export async function requireModuleAccess(
       orgRole: context.orgRole,
       multiOrg: env.MULTI_ORG,
     });
+  if (!allowed && currentRequestPrincipal()) {
+    throw new ModuleAccessDeniedError(moduleKey);
+  }
   if (!allowed) {
     notFound();
   }
