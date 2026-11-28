@@ -601,7 +601,7 @@ Rejestracja z `invitationId` przyjmuje tylko zaproszenie ze statusem `pending`, 
 | `enterOrganizationCommand(organizationId)` | `src/features/organizations/services/commands/enter-organization-command.ts` (`"use server"`) | z bazy | Zmienia `activeOrganizationId` bieżącej sesji. |
 | `canEnterOrganization(input)` | `src/features/organizations/services/organization-access.ts` | brak | Superadmin: organizacja istnieje. Inni: członkostwo. |
 | `resolveSignupMembership(input)` | `src/features/organizations/services/signup-membership.ts` | brak, hook `before` na `/sign-up/email` | Decyzja `join` (organizacja zaproszenia albo najstarsza) albo `create` (nowa organizacja). |
-| `applySignupMembership(userId, membership)` | jak wyżej | brak, hook `databaseHooks.user.create.after` | Wykonuje decyzję przez `joinOrganizationCommand` albo `createOrganizationWithOwnerCommand`. |
+| `applySignupMembership(userId, membership)` | jak wyżej | brak, hook `databaseHooks.user.create.after` | Wykonuje decyzję przez `joinOrganizationCommand` albo `createOrganizationWithOwnerCommand` i zwraca `{ organizationId, memberId }` dla zdarzeń rejestracji. |
 | `readSignupMembership(context)` | `src/shared/lib/auth/signup-membership-context.ts` | brak | Czyta decyzję z kontekstu hooka. Wartość bez akcji `join` albo `create` daje `null`, więc hook nic nie zapisuje. |
 | `joinOrganizationCommand(input)` | `src/features/organizations/services/commands/member-commands.ts` | brak | Tworzy członkostwo. Z `invitationId` robi to w transakcji ze zmianą statusu zaproszenia na `accepted`. |
 | `createOrganizationWithOwnerCommand(input)` | `src/features/organizations/services/commands/organization-commands.ts` | brak | Tworzy organizację ze slugiem i członkostwo `owner`. |

@@ -32,6 +32,15 @@ test.describe("rdzeń: AUTH_PUBLIC_SIGNUP=false, MULTI_ORG=false", () => {
     await expect(page.getByText(LABELS.invited)).toBeVisible();
     await expect(page.getByRole("cell", { name: JAN.email })).toBeVisible();
 
+    await page.goto("/audit-log");
+    const auditRows = page.getByRole("table").getByRole("row");
+    await expect(
+      auditRows.filter({ hasText: "Zaproszenie członka" }),
+    ).toHaveCount(1);
+    await expect(
+      auditRows.filter({ hasText: "Przyjęcie zaproszenia" }),
+    ).toHaveCount(0);
+
     const mail = await getLastMail(JAN.email);
     const link = extractLink(mail, "/api/auth/reset-password/");
     await page.context().clearCookies();

@@ -53,6 +53,7 @@ After a nontrivial correction or a non-obvious gotcha:
 
 ### architecture
 
+- [A side effect written inside a nested call (better-auth sign-up, a database hook) lands before the command's deferred events and under the nested actor; emit it from the command or gate it on the scope](lessons/a-write-inside-a-nested-call-lands-before-the-commands-deferred-events.md)
 - [A lazy `import()` in a file the client registry imports still ships its target to the browser; server-only contributions go in files only the server registry imports](lessons/a-lazy-import-in-the-client-registry-still-ships-to-the-browser.md)
 
 ### data

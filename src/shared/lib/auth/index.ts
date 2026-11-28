@@ -34,8 +34,12 @@ import {
 } from "./single-org-guard";
 import { eventsPlugin } from "./events-plugin";
 import { orgRoleGuardPlugin } from "./org-role-guard-plugin";
-import { isInviteSignup } from "./invite-signup-scope";
+import {
+  isInviteSignup,
+  recordInviteSignupMember,
+} from "./invite-signup-scope";
 import { readSignupMembership } from "./signup-membership-context";
+import { signupEvents } from "./signup-events";
 
 type UserCreateHooks = NonNullable<
   NonNullable<NonNullable<BetterAuthOptions["databaseHooks"]>["user"]>["create"]
@@ -104,18 +108,20 @@ export const auth = betterAuth({
           if (!membership) {
             return;
           }
-          const { organizationId } = await applySignupMembership(
-            user.id,
-            membership,
-          );
+          const applied = await applySignupMembership(user.id, membership);
           if (isInviteSignup()) {
+            recordInviteSignupMember(applied.memberId);
             return;
           }
-          await emitEvent(
-            { organizationId, actorUserId: user.id },
-            "auth.signed-up",
-            { userId: user.id, email: user.email },
-          );
+          const emits = signupEvents({
+            userId: user.id,
+            email: user.email,
+            membership,
+            applied,
+          });
+          for (const emit of emits) {
+            await emitEvent(emit.origin, emit.name, emit.payload);
+          }
         },
       },
     },

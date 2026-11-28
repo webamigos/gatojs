@@ -1,4 +1,3 @@
-import { trackAudit } from "@/shared/lib/audit";
 import { prisma } from "@/shared/lib/prisma";
 import type { OrgRole } from "@/shared/lib/auth/roles";
 
@@ -7,7 +6,7 @@ export async function joinOrganizationCommand(input: {
   organizationId: string;
   role: OrgRole;
   invitationId?: string;
-}): Promise<void> {
+}): Promise<{ memberId: string }> {
   const addMember = prisma.member.create({
     data: {
       organizationId: input.organizationId,
@@ -16,21 +15,15 @@ export async function joinOrganizationCommand(input: {
     },
   });
   if (!input.invitationId) {
-    await addMember;
-    return;
+    const member = await addMember;
+    return { memberId: member.id };
   }
-  await prisma.$transaction([
+  const [member] = await prisma.$transaction([
     addMember,
     prisma.invitation.update({
       where: { id: input.invitationId },
       data: { status: "accepted" },
     }),
   ]);
-  await trackAudit({
-    organizationId: input.organizationId,
-    actorUserId: input.userId,
-    action: "invitation.accepted",
-    entityType: "invitation",
-    entityId: input.invitationId,
-  });
+  return { memberId: member.id };
 }
