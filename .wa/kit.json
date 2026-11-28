@@ -1,5 +1,5 @@
 {
-  "kitVersion": "0.40.0",
+  "kitVersion": "0.43.0",
   "kitRepo": "https://github.com/webamigos/gatojs.git",
   "kitFormat": 11,
   "project": {
@@ -12,10 +12,10 @@
   ],
   "modules": {
     "api-keys": {
-      "version": "0.4.0",
+      "version": "0.5.0",
       "manifest": {
         "name": "api-keys",
-        "version": "0.4.0",
+        "version": "0.5.0",
         "description": "Organization API keys: ApiKey model, peppered secret and scopes",
         "requires": [],
         "files": [
@@ -53,10 +53,10 @@
       "files": {}
     },
     "audit-logs": {
-      "version": "0.3.0",
+      "version": "0.3.1",
       "manifest": {
         "name": "audit-logs",
-        "version": "0.3.0",
+        "version": "0.3.1",
         "description": "Organization audit log: AuditLog model, sink and redaction of sensitive data",
         "requires": [],
         "files": [
@@ -87,10 +87,10 @@
       "files": {}
     },
     "core": {
-      "version": "0.36.0",
+      "version": "0.38.0",
       "manifest": {
         "name": "core",
-        "version": "0.36.0",
+        "version": "0.38.0",
         "description": "GatoJS core: auth, organizations, users, account, dashboard",
         "requires": [],
         "files": [
@@ -162,12 +162,14 @@
           "src/__tests__/theme-css.test.ts",
           "src/__tests__/vitest-setup.test.ts",
           "src/app/*",
+          "src/app/__tests__/**",
           "src/app/api/auth/**",
           "src/app/api/healthcheck/**",
           "src/app/emails/**",
           "src/app/fonts/**",
           "src/app/messages/**",
           "src/app/[locale]/*",
+          "src/app/[locale]/__tests__/**",
           "src/app/[locale]/(app)/*",
           "src/app/[locale]/(app)/__tests__/**",
           "src/app/[locale]/(app)/account/**",
@@ -306,6 +308,28 @@
             "field": "dataKey OrganizationDataKey?"
           }
         ],
+        "compose": null,
+        "selfhostCompose": null,
+        "ciSteps": null,
+        "workspaces": []
+      },
+      "files": {}
+    },
+    "legal": {
+      "version": "0.1.0",
+      "manifest": {
+        "name": "legal",
+        "version": "0.1.0",
+        "description": "Public terms and privacy pages and an opt-in cookie consent banner",
+        "requires": [],
+        "files": [
+          "src/features/legal/**",
+          "src/app/[locale]/(legal)/**"
+        ],
+        "dependencies": {},
+        "devDependencies": {},
+        "env": [],
+        "schemaRelations": [],
         "compose": null,
         "selfhostCompose": null,
         "ciSteps": null,

@@ -17,6 +17,8 @@ export type SlotKind = "server" | "client";
 
 export interface SlotContextMap {
   "app.header.actions": { organizationId: string };
+  "app.root": { locale: string };
+  "app.sidebar.footer": { organizationId: string };
 }
 
 // WHY: empty in the core; a host module adds its client slots here by declaration merging.
@@ -91,6 +93,8 @@ export class SlotError extends Error {
 
 export const coreSlotDefinitions: readonly SlotDefinition[] = [
   { id: "app.header.actions", kind: "server" },
+  { id: "app.root", kind: "server" },
+  { id: "app.sidebar.footer", kind: "server" },
 ];
 
 export function defineSlot<Id extends ServerSlotId>(

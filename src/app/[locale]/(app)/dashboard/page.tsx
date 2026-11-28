@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { env } from "@/env";
 import { requireModuleAccess } from "@/shared/lib/auth/require-module-access";
 import { requireUser } from "@/shared/lib/auth/helpers";
+import { PageHeader } from "@/shared/components/page-header";
 import { Slot } from "@/shared/components/slot";
 import { DashboardPlaceholder } from "@/features/dashboard/components/dashboard-placeholder";
 
@@ -17,7 +18,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
   const t = await getTranslations("dashboard");
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">{t("title")}</h1>
+      <PageHeader title={t("title")} />
       <Slot
         id="dashboard.sections"
         context={{ organizationId: context.organizationId }}

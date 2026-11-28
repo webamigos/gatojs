@@ -43,6 +43,7 @@ After a nontrivial correction or a non-obvious gotcha:
 - [On a loaded machine, Stryker on the task files (CLI or root) needs a task-scoped Vitest config; `taskpolicy -b` and the full dry run never finish](lessons/scope-stryker-dry-runs-for-cli-tasks-under-load.md)
 - [macOS lists directory entries in sorted order, so a test on a real directory cannot see a missing sort; Linux CI can](lessons/macos-lists-directories-in-sorted-order.md)
 - [Check a created project with its own `npm ci`, run after the fixture is registered; a symlinked `node_modules` fails `next build`](lessons/check-a-created-project-with-its-own-install.md)
+- [A shipped module test must not read a seed file: the project rewrites it, so pass explicit values and guard content checks with `kit/kit.json`](lessons/module-tests-must-not-read-seed-files.md)
 - [A new file outside an owned glob (a test in `src/__tests__/`, a file in `packages/<name>/`) needs a manifest entry, and only the CLI gate notices](lessons/a-new-file-needs-an-owner-only-the-cli-gate-checks.md)
 - [The "no placeholders left" check greps every file but `__tests__/` and `*.test.*`, so a test of another kind (helm-unittest `tests/*_test.yaml`) must not contain `wa-app`](lessons/a-test-outside-test-paths-must-not-hold-placeholders.md)
 - [Vitest runs test code that `tsc` rejects: a bigint literal passes `npm test` and fails `npm run typecheck` under the ES2017 target](lessons/vitest-runs-what-tsc-rejects.md)
@@ -53,7 +54,9 @@ After a nontrivial correction or a non-obvious gotcha:
 
 ### architecture
 
+- [A side effect written inside a nested call (better-auth sign-up, a database hook) lands before the command's deferred events and under the nested actor; emit it from the command or gate it on the scope](lessons/a-write-inside-a-nested-call-lands-before-the-commands-deferred-events.md)
 - [A lazy `import()` in a file the client registry imports still ships its target to the browser; server-only contributions go in files only the server registry imports](lessons/a-lazy-import-in-the-client-registry-still-ships-to-the-browser.md)
+- [A server-side `auth.api` call drops better-auth's `Set-Cookie`, so the 5-minute cookie cache keeps serving the old user; forward the cookies from `returnHeaders`](lessons/server-side-auth-api-drops-the-refreshed-session-cookie.md)
 
 ### data
 
@@ -69,3 +72,7 @@ After a nontrivial correction or a non-obvious gotcha:
 - [Since better-auth 1.7.3 a schema mismatch rejects sign-in at runtime, in production too; a plugin with tables fails at login, not at build](lessons/better-auth-checks-the-prisma-schema-at-startup.md)
 - [npm keeps a workspace link from a copied lockfile even when the folder is gone, so a project lockfile must not list kit-only workspaces](lessons/npm-keeps-a-lockfile-workspace-link-to-a-missing-folder.md)
 - [The pinned npm rewrites unrelated lockfile entries (it drops `libc` from `@next/swc-linux-*`); restore them to keep the diff about your change](lessons/pinned-npm-drops-libc-fields-from-the-lockfile.md)
+
+### frontend
+
+- [Next.js 16 renders `[locale]/not-found.tsx` for unknown paths without a `[locale]/[...rest]` catch-all, and the catch-all blocks other catch-alls](lessons/next-renders-the-locale-not-found-without-a-catch-all.md)

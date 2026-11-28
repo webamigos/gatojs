@@ -149,12 +149,28 @@ describe("UsersManager", () => {
     mockLogStart.mockResolvedValue({ success: true });
   });
 
-  it("renderuje tytuł i opis", () => {
-    renderManager();
-    expect(screen.getByText("Użytkownicy")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Widoczne tylko dla administratorów/),
-    ).toBeInTheDocument();
+  function pageHeaderOf(container: HTMLElement): HTMLElement {
+    const header = container.querySelector<HTMLElement>(
+      'header[data-slot="page-header"]',
+    );
+    if (!header) {
+      throw new Error("Brak nagłówka strony");
+    }
+    return header;
+  }
+
+  it("renderuje tytuł jako jedyny nagłówek h1 i opis w nagłówku strony", () => {
+    const { container } = renderManager();
+    const headings = screen.getAllByRole("heading", { level: 1 });
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toHaveTextContent("Użytkownicy");
+    const header = pageHeaderOf(container);
+    expect(header).toContainElement(headings[0]);
+    expect(header).toContainElement(
+      screen.getByText(
+        "Zarządzaj kontami użytkowników aplikacji. Widoczne tylko dla administratorów.",
+      ),
+    );
   });
 
   it("pokazuje pusty stan bez tabeli", () => {
@@ -180,11 +196,18 @@ describe("UsersManager", () => {
     ).toBeInTheDocument();
   });
 
-  it("przycisk zaproszenia jest w nagłówku karty, nie w treści", () => {
-    renderManager([makeUser()]);
+  it("przycisk zaproszenia jest w nagłówku strony, nie w treści karty", () => {
+    const { container } = renderManager([makeUser()]);
     const button = screen.getByRole("button", { name: "Zaproś użytkownika" });
-    expect(button.closest('[data-slot="card-action"]')).not.toBeNull();
+    expect(pageHeaderOf(container)).toContainElement(button);
     expect(button.closest('[data-slot="card-content"]')).toBeNull();
+  });
+
+  it("tabela użytkowników nie jest częścią nagłówka strony", () => {
+    const { container } = renderManager([makeUser()]);
+    expect(pageHeaderOf(container)).not.toContainElement(
+      screen.getByRole("table"),
+    );
   });
 
   it("impersonuje innego użytkownika i przechodzi na dashboard przez router", async () => {

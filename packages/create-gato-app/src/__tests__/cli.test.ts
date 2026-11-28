@@ -1,5 +1,12 @@
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "@fast-check/vitest";
@@ -50,8 +57,9 @@ const COMMIT_HINT = 'git add -A && git commit -m "chore: initial commit"';
 const RETRY_WARNING = "GitHub rejected the token (401); retrying without it.";
 const RANDOM_PATTERN = [0, 1, 2, 35, 36, 255];
 const AUTH_SECRET = "s".repeat(43);
+const DEV_CREDENTIALS = "postgres:postgres";
 const PROJECT_ENV = [
-  "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/my_app",
+  `DATABASE_URL=postgresql://${DEV_CREDENTIALS}@localhost:5432/my_app`,
   `BETTER_AUTH_SECRET=${AUTH_SECRET}`,
   "SMTP_URL=smtp://localhost:1025",
   "ADMIN_EMAIL=",
@@ -313,6 +321,37 @@ function nextStepsOf(h: Harness): string[] {
   return (note as Note).lines;
 }
 
+function databaseUrlOf(env: string[]) {
+  const values = env
+    .filter((line) => line.startsWith("DATABASE_URL="))
+    .map((line) => line.slice("DATABASE_URL=".length));
+  expect(values).toHaveLength(1);
+  const parsed = new URL(values[0] ?? "");
+  return {
+    protocol: parsed.protocol,
+    username: parsed.username,
+    password: parsed.password,
+    hostname: parsed.hostname,
+    port: parsed.port,
+    pathname: parsed.pathname,
+    search: parsed.search,
+    hash: parsed.hash,
+  };
+}
+
+function devDatabaseOnPort(port: string) {
+  return {
+    protocol: "postgresql:",
+    username: "postgres",
+    password: "postgres",
+    hostname: "localhost",
+    port,
+    pathname: "/my_app",
+    search: "",
+    hash: "",
+  };
+}
+
 async function projectEnv(h: Harness): Promise<string[]> {
   const path = join(h.projectDir, ".env");
   expect(existsSync(path), `${path} exists`).toBe(true);
@@ -527,9 +566,7 @@ describe("run: lokalny kit z --yes --skip-docker", () => {
       env.filter((line) => line.startsWith("COMPOSE_PROJECT_NAME=")),
     ).toHaveLength(1);
     expect(env).toContain(`BETTER_AUTH_SECRET=${AUTH_SECRET}`);
-    expect(env).toContain(
-      "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/my_app",
-    );
+    expect(databaseUrlOf(env)).toEqual(devDatabaseOnPort("5432"));
     expect(env).toContain("ADMIN_EMAIL=");
   });
 
@@ -756,8 +793,8 @@ describe("run: pełna konfiguracja z --yes", () => {
 });
 
 describe("run: porażki kroków", () => {
-  it("zajęty port 5432 pomija Dockera i migrację, instaluje, commituje i kończy się kodem 1", async () => {
-    const h = await harness({ busy: [5432] });
+  it("a busy port whose variable is set in the shell env skips Docker and migration, installs, commits and exits 1", async () => {
+    const h = await harness({ env: { DB_PORT: "5544" }, busy: [5544] });
     await expect(
       run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
     ).resolves.toBe(1);
@@ -768,12 +805,14 @@ describe("run: porażki kroków", () => {
       GIT_ADD,
       COMMIT,
     ]);
-    expect(output(h)).toContain("DB_PORT=5433");
     expect(output(h)).toContain(
-      "DATABASE_URL=postgresql://postgres:postgres@localhost:5433/my_app",
+      "Port 5544 (DB_PORT, service db) is already in use, so the Docker services were not started.",
     );
     expect(nextStepsOf(h)).toContain("docker compose up -d");
     expect(nextStepsOf(h)).toContain("npx prisma migrate dev --name init");
+    const env = await projectEnv(h);
+    expect(env.filter((line) => line.startsWith("DB_PORT="))).toEqual([]);
+    expect(databaseUrlOf(env)).toEqual(devDatabaseOnPort("5432"));
   });
 
   it("niedostępny Docker kończy się kodem 1 bez compose i migracji", async () => {
@@ -909,7 +948,7 @@ describe("run: porty z .env projektu i dodatkowe porażki", () => {
     expect(h.probed).not.toContain(6000);
   });
 
-  it("zajęte porty MinIO dostają różne wolne porty", async () => {
+  it("busy MinIO ports move to distinct free ports and compose runs with the s3 profile", async () => {
     const h = await harness({ busy: [9000, 9001] });
     await expect(
       run(
@@ -925,12 +964,14 @@ describe("run: porty z .env projektu i dodatkowe porażki", () => {
         ],
         h.deps,
       ),
-    ).resolves.toBe(1);
-    expect(output(h)).toContain("MINIO_PORT=9002");
-    expect(output(h)).toContain("MINIO_CONSOLE_PORT=9003");
-    expect(steps(h).some((name) => name.startsWith("docker compose"))).toBe(
-      false,
-    );
+    ).resolves.toBe(0);
+    expect(steps(h)).toContain("docker compose --profile s3 up -d --wait");
+    expect(h.envAtComposeUp).toHaveLength(1);
+    const envAtUp = h.envAtComposeUp[0]?.split("\n") ?? [];
+    expect(envAtUp).toContain("MINIO_PORT=9002");
+    expect(envAtUp).toContain("MINIO_CONSOLE_PORT=9003");
+    expect(envAtUp).toContain("S3_ENDPOINT=http://localhost:9002");
+    expect(envAtUp).not.toContain("S3_ENDPOINT=http://localhost:9000");
   });
 
   it("nieudany git init ostrzega, nie commituje i nie podpowiada commita", async () => {
@@ -1734,4 +1775,230 @@ describe("run: nazwa projektu", () => {
       expect(h.fetchCalls).toEqual([]);
     },
   );
+});
+
+describe("run: busy ports move to free ports before docker compose up", () => {
+  async function envAtComposeUp(h: Harness): Promise<string[]> {
+    expect(h.envAtComposeUp).toHaveLength(1);
+    return h.envAtComposeUp[0]?.split("\n") ?? [];
+  }
+
+  it("busy 5432 writes DB_PORT=5433 and the rewritten DATABASE_URL before compose up, then migrates and exits 0", async () => {
+    const h = await harness({ busy: [5432] });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
+    expect(steps(h)).toEqual([
+      GATO_CREATE,
+      DOCKER_INFO,
+      COMPOSE_UP,
+      GIT_INIT,
+      NPM_INSTALL,
+      MIGRATE,
+      GIT_ADD,
+      COMMIT,
+    ]);
+    const envAtUp = await envAtComposeUp(h);
+    expect(envAtUp).toContain("DB_PORT=5433");
+    expect(databaseUrlOf(envAtUp)).toEqual(devDatabaseOnPort("5433"));
+    expect(envAtUp.filter((line) => line.startsWith("DB_PORT="))).toEqual([
+      "DB_PORT=5433",
+    ]);
+    expect(envAtUp).toContain("SMTP_URL=smtp://localhost:1025");
+  });
+
+  it("busy 5432 probes the ports before docker info", async () => {
+    const h = await harness();
+    h.deps.isPortBusy = async (port) => {
+      h.probed.push(port);
+      h.events.push(`probe ${port}`);
+      return port === 5432;
+    };
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
+    const dockerInfo = h.events.indexOf(`spawn ${DOCKER_INFO}`);
+    expect(dockerInfo).toBeGreaterThan(-1);
+    expect(
+      h.events.slice(dockerInfo).some((event) => event.startsWith("probe ")),
+    ).toBe(false);
+    expect(h.events.slice(0, dockerInfo)).toContain("probe 5432");
+    expect(h.envAtComposeUp[0]?.split("\n")).toContain("DB_PORT=5433");
+  });
+
+  it("busy 5432 reports the move from 5432 to 5433 on one line naming DB_PORT", async () => {
+    const h = await harness({ busy: [5432] });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
+    expect(
+      lines(h).some(
+        (line) =>
+          line.includes("DB_PORT") &&
+          line.includes("5432") &&
+          line.includes("5433"),
+      ),
+    ).toBe(true);
+    expect(output(h)).not.toContain(
+      "is already in use, so the Docker services were not started",
+    );
+  });
+
+  it("busy 5432 tells that the tests read the moved ports from .env", async () => {
+    const h = await harness({ busy: [5432] });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
+    expect(
+      lines(h).filter(
+        (line) =>
+          line.trim() ===
+          "npm run test:integration and npm run test:e2e read the moved ports from .env.",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("all ports free say nothing about moved ports for the tests", async () => {
+    const h = await harness();
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
+    expect(output(h)).not.toContain("read the moved ports from .env");
+  });
+
+  it("all ports free write no port variables and keep DATABASE_URL on 5432", async () => {
+    const h = await harness();
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
+    const envAtUp = await envAtComposeUp(h);
+    expect(
+      envAtUp.filter((line) =>
+        /^(DB_PORT|MAILPIT_UI_PORT|MAILPIT_SMTP_PORT|MINIO_PORT|MINIO_CONSOLE_PORT)=/.test(
+          line,
+        ),
+      ),
+    ).toEqual([]);
+    expect(databaseUrlOf(envAtUp)).toEqual(devDatabaseOnPort("5432"));
+    expect(envAtUp).toContain("SMTP_URL=smtp://localhost:1025");
+  });
+
+  it("busy 1025 writes MAILPIT_SMTP_PORT=1026 and SMTP_URL on 1026 and leaves the database alone", async () => {
+    const h = await harness({ busy: [1025] });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
+    const envAtUp = await envAtComposeUp(h);
+    expect(envAtUp).toContain("MAILPIT_SMTP_PORT=1026");
+    expect(envAtUp).toContain("SMTP_URL=smtp://localhost:1026");
+    expect(envAtUp).not.toContain("SMTP_URL=smtp://localhost:1025");
+    expect(envAtUp.some((line) => line.startsWith("DB_PORT="))).toBe(false);
+    expect(envAtUp.some((line) => line.startsWith("MAILPIT_UI_PORT="))).toBe(
+      false,
+    );
+    expect(databaseUrlOf(envAtUp)).toEqual(devDatabaseOnPort("5432"));
+  });
+
+  it("after moving busy 5432 the project .env is readable by its owner only", async () => {
+    const h = await harness({ busy: [5432] });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
+    expect(await projectEnv(h)).toContain("DB_PORT=5433");
+    expect((await stat(join(h.projectDir, ".env"))).mode & 0o777).toBe(0o600);
+  });
+
+  it("busy 5432 and 5433 write DB_PORT=5434", async () => {
+    const h = await harness({ busy: [5432, 5433] });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
+    const envAtUp = await envAtComposeUp(h);
+    expect(envAtUp).toContain("DB_PORT=5434");
+    expect(databaseUrlOf(envAtUp)).toEqual(devDatabaseOnPort("5434"));
+  });
+
+  it("a moved port skips another service's published port even when that port is free", async () => {
+    const h = await harness({ busy: [9000] });
+    await expect(
+      run(
+        [
+          "my-app",
+          "--kit",
+          h.kitDir,
+          "--yes",
+          "--modules",
+          "uploads",
+          "--storage",
+          "s3",
+        ],
+        h.deps,
+      ),
+    ).resolves.toBe(0);
+    const envAtUp = await envAtComposeUp(h);
+    expect(envAtUp).toContain("MINIO_PORT=9002");
+    expect(envAtUp).toContain("S3_ENDPOINT=http://localhost:9002");
+    expect(envAtUp.some((line) => line.startsWith("MINIO_CONSOLE_PORT="))).toBe(
+      false,
+    );
+  });
+
+  it("busy 5432 with all of the next 100 ports busy refuses compose and exits 1", async () => {
+    const busy = Array.from({ length: 101 }, (_, index) => 5432 + index);
+    const h = await harness({ busy });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(1);
+    expect(steps(h).some((name) => name.startsWith("docker compose"))).toBe(
+      false,
+    );
+    expect(steps(h)).not.toContain(MIGRATE);
+    expect(output(h)).toContain(
+      "Port 5432 (DB_PORT, service db) is already in use, so the Docker services were not started.",
+    );
+    expect(
+      (await projectEnv(h)).some((line) => line.startsWith("DB_PORT=")),
+    ).toBe(false);
+  });
+
+  it("DB_PORT=5544 in the shell env with 5544 busy refuses compose, names DB_PORT and exits 1", async () => {
+    const h = await harness({ env: { DB_PORT: "5544" }, busy: [5544] });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(1);
+    expect(steps(h).some((name) => name.startsWith("docker compose"))).toBe(
+      false,
+    );
+    expect(h.envAtComposeUp).toEqual([]);
+    expect(output(h)).toContain("DB_PORT");
+    expect(
+      (await projectEnv(h)).filter((line) => line.startsWith("DB_PORT=")),
+    ).toEqual([]);
+  });
+
+  it("--skip-docker probes no port and writes no port variable even when 5432 is busy", async () => {
+    const h = await harness({ busy: [5432] });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes", "--skip-docker"], h.deps),
+    ).resolves.toBe(0);
+    expect(h.probed).toEqual([]);
+    const env = await projectEnv(h);
+    expect(env.some((line) => line.startsWith("DB_PORT="))).toBe(false);
+    expect(databaseUrlOf(env)).toEqual(devDatabaseOnPort("5432"));
+  });
+
+  it("a commented DATABASE_URL in the project .env stays as it was when 5432 moves", async () => {
+    const h = await harness({
+      busy: [5432],
+      projectEnvExtra:
+        "# DATABASE_URL=postgresql://localhost:5432/old\nOTHER_URL=http://localhost:54321/x\n",
+    });
+    await expect(
+      run(["my-app", "--kit", h.kitDir, "--yes"], h.deps),
+    ).resolves.toBe(0);
+    const envAtUp = await envAtComposeUp(h);
+    expect(envAtUp).toContain("# DATABASE_URL=postgresql://localhost:5432/old");
+    expect(envAtUp).toContain("OTHER_URL=http://localhost:54321/x");
+    expect(databaseUrlOf(envAtUp)).toEqual(devDatabaseOnPort("5433"));
+  });
 });

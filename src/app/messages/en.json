@@ -19,7 +19,12 @@
     "columns-panel-title": "Visible columns",
     "columns-reset": "Reset",
     "search-placeholder": "Search...",
-    "no-results": "No results"
+    "no-results": "No results",
+    "notFound": {
+      "title": "Page not found",
+      "description": "The page you are looking for does not exist or has been moved.",
+      "backHome": "Back to the home page"
+    }
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
