@@ -31,6 +31,11 @@ Sources:
   `packages/gato-cli/src/manifest/schema.ts`, and the earlier specs
   [`2026-10-26-wa-kit-design.md`](2026-10-26-wa-kit-design.md) (the original `worker` module row) and
   [`2026-11-22-packages-design.md`](2026-11-22-packages-design.md) §6;
+- open-mercato (MIT, `github.com/open-mercato/open-mercato`, read locally) as prior art for patterns, not code (section
+  3.1): `packages/queue/src/tracing.ts`, `packages/queue/src/strategies/async.ts` (`onJobAbandoned`, the failed-set
+  sweep), `packages/cli/src/lib/worker-connection-budget.ts`, `.ai/lessons/enqueue-then-stamp.md`,
+  `.ai/lessons/worker-emitted-progress-needs-polling-fallback-even.md`, `.ai/specs/2026-09-08-queue-job-coalescing.md`,
+  `.ai/specs/2026-06-26-purge-queues-on-db-wipe.md`, `.ai/specs/2026-08-21-scheduler-manual-trigger-audit-logging.md`;
 - pull requests merged since the first draft, and how this spec meets them: **#134** (`legal` module, core slots
   `app.root`, `app.sidebar.footer`, `auth.footer`, `docs/18-legal-module.md`; this spec's docs therefore start at
   `docs/19`), **#138** (ADR-70: membership events come from the actor who added the member; the new
@@ -109,6 +114,32 @@ All three run BullMQ in a worker process separate from the web process. What wor
 | Observability | pino logs with `{ queue, jobId }` on `completed`/`failed`; OTel off unless `OTEL_EXPORTER_OTLP_ENDPOINT`; Ragen plans `bullmq-otel`; `job.updateProgress` rendered by bull-board. | **Keep**, through GatoJS's logger and `packages/observability`. |
 | Secrets | Ragen moved payloads from content to identifiers ("whole documents sat unencrypted in the engine's storage and went stale"). company-budget: payloads carry integration ids, never credentials. justnails' email job carries rendered HTML with the recipient. | **Keep** ids-only payloads; render mail at run time. |
 
+### 3.1 Prior art: open-mercato
+
+open-mercato runs BullMQ (its `async` strategy) for a multi-tenant commerce platform. Reviewed after the second
+revision; the owner approved adopting these patterns (ideas only, no code copied):
+
+| Pattern | Where in open-mercato | Here |
+| --- | --- | --- |
+| W3C trace context on the job, outside the payload; the worker continues it in a consumer span | `packages/queue/src/tracing.ts` (`attachTraceMetadata`, `runJobInTrace`) | 7.6, 8.1 |
+| A job that never reported (stalled, abandoned) is reported from the `failed` event and from a sweep of the failed set; signal first, stamp second | `packages/queue/src/strategies/async.ts` (`onJobAbandoned`, `abandonReportedAt`), `.ai/lessons/enqueue-then-stamp.md` | 8.2, 11.4 |
+| Coalescing (latest payload wins) instead of plain deduplication; `keepLastIfActive` needs BullMQ ≥ 5.72; delay interaction documented | `.ai/specs/2026-09-08-queue-job-coalescing.md` | 7.5 |
+| The workers' total concurrency fitted to the database pool, plan logged at boot | `packages/cli/src/lib/worker-connection-budget.ts` | 5.3, 8.6 |
+| Queues purged on every database wipe, and a purge command | `.ai/specs/2026-06-26-purge-queues-on-db-wipe.md` | 14.3 |
+| Progress from another process needs a polling backstop | `.ai/lessons/worker-emitted-progress-needs-polling-fallback-even.md` | 12.1 |
+| Manual triggers audited on success and refusal, attributed to the caller, in the caller's scope | `.ai/specs/2026-08-21-scheduler-manual-trigger-audit-logging.md` | 9.2, 12.1 |
+
+What we deliberately do not take:
+
+- **A file-based local queue strategy** (`packages/queue/src/strategies/local.ts`): a second runtime with other
+  semantics to test and support. GatoJS has one runtime, BullMQ on Redis; tests use the in-memory runtime (14.1).
+- **Database-editable schedules that can target any queue** (`packages/scheduler/src/modules/scheduler/`): schedules
+  here are code plus `gato.config.ts`, reviewed in a PR; nothing at run time can point a schedule at an arbitrary job.
+- **A per-queue worker supervisor** (`packages/cli/src/lib/queue-worker-supervisor.ts`, lazy start per queue): one
+  worker process with one BullMQ `Worker` per queue is simpler to deploy, observe and shut down.
+- **Organization ids in the payload root** (`QueueJobScope` in `packages/queue/src/types.ts`): the organization lives
+  only in the envelope, never in the payload (7.6, 9.1).
+
 ## 4. Shape of the change
 
 Four parts, because GatoJS modules must not depend on an optional module and must not edit core files:
@@ -153,7 +184,7 @@ without declaring the dependency.
     "ci/jobs.integration-steps.yml"
   ],
   "dependencies": {
-    "bullmq": "<pinned at implementation, 6.x>",
+    "bullmq": "<pinned at implementation, 6.x; at least 5.72 for keepLastIfActive, asserted by a test>",
     "ioredis": "<pinned, 5.x>",
     "@bull-board/api": "<pinned>",
     "@bull-board/express": "<pinned>",
@@ -163,7 +194,8 @@ without declaring the dependency.
   "scripts": {
     "worker:dev": "tsx watch --clear-screen=false --import ./src/features/jobs/worker/dev-hooks.mjs src/features/jobs/worker/main.ts",
     "worker:build": "tsx src/features/jobs/worker/build.ts",
-    "worker:start": "node .worker/worker.mjs"
+    "worker:start": "node .worker/worker.mjs",
+    "jobs:purge": "tsx src/features/jobs/worker/purge.ts"
   },
   "verify": "npm run worker:build && npm run worker:check",
   "env": [
@@ -173,6 +205,7 @@ without declaring the dependency.
     { "name": "JOBS_PREFIX", "example": "{{projectSlug}}", "required": false },
     { "name": "JOBS_SHUTDOWN_TIMEOUT_MS", "example": "25000", "required": false },
     { "name": "JOBS_WORKER_PORT", "example": "3100", "required": false },
+    { "name": "JOBS_DB_POOL_MAX", "example": "5", "required": false },
     { "name": "JOBS_DASHBOARD_USER", "example": "", "required": false },
     { "name": "JOBS_DASHBOARD_PASSWORD", "example": "", "required": false },
     { "name": "JOBS_DASHBOARD_READ_ONLY", "example": "true", "required": false }
@@ -198,6 +231,7 @@ src/features/jobs/
 ├── module.ts                     defineModule({ key: "jobs", adminOnly, routePrefixes: ["/admin/jobs"], commands … })
 ├── env.ts                        envSchema (5.3)
 ├── events.ts                     jobs.failed (11.4)
+├── auth.ts                       better-auth after hook on /organization/delete (9.4)
 ├── job-runtime.ts                export const jobRuntime: JobRuntime (registry contribution, 7.4)
 ├── extension-points.json
 ├── i18n/{pl,en}.json
@@ -238,6 +272,7 @@ stops the process with a readable message (justnails' `loadEnv`).
 | `JOBS_WORKER_PORT` | `3100` | The worker's HTTP port: `/health` always, the dashboard when configured (12.2). |
 | `JOBS_DASHBOARD_USER`, `JOBS_DASHBOARD_PASSWORD` | none | Both set turns the dashboard on; one without the other stops the worker. The password must be at least 16 characters. |
 | `JOBS_DASHBOARD_READ_ONLY` | `true` | `false` lets the dashboard retry, promote and remove jobs. |
+| `JOBS_DB_POOL_MAX` | `5` | The worker's Prisma pool size. `worker/main.ts` sets `DATABASE_POOL_MAX` from it before Prisma loads, so the worker uses a smaller pool than the web (default 10) and both fit Postgres' `max_connections`. The concurrency plan is fitted to it (8.6). |
 
 There is no timezone variable: the app-wide default timezone is `timezone` in `src/gato.config.ts` (11.1), never the
 environment or the container's `TZ`.
@@ -563,9 +598,18 @@ await prisma.$transaction(async (tx) => {
 - `tx` (a Prisma transaction client) writes the outbox row in the caller's transaction (8.4). Without `tx` the row is
   written on its own and the job is still durable from that moment.
 - Options: `jobKey` (one unit of work: a second enqueue with the same key in the same organization is a no-op, enforced
-  by a unique index on the outbox and by the BullMQ job id), `dedupeKey` (BullMQ `deduplication` while one is in
-  flight), `delayMs`. Keys are hashed with the organization and the job name into `<job>-<sha256 hex, 40 chars>`, so
+  by a unique index on the outbox and by the BullMQ job id), `coalesceKey`, `delayMs`. Keys are hashed with the organization and the job name into `<job>-<sha256 hex, 40 chars>`, so
   keys never collide across organizations and ids never contain `:` or only digits.
+- **Coalescing** (`coalesceKey`, replacing the first draft's plain `dedupeKey`): the relay adds the job with BullMQ
+  `deduplication: { id, keepLastIfActive: true }`. Per key there is at most one active and one waiting job, and the
+  waiting one carries the **latest** payload, so a burst of "recompute X" triggers runs once more after the current run
+  with the newest data, instead of being dropped while one is in flight (open-mercato's coalescing spec).
+  `keepLastIfActive` exists from BullMQ 5.72; the dependency is pinned above that and a test asserts the option exists in
+  the installed version. BullMQ ignores `ttl` with `keepLastIfActive`, so the kit never sets one.
+- **Coalescing and delay:** collapsing two enqueues also collapses their schedules: the surviving job keeps one delay, so
+  an immediate trigger behind an hour-delayed twin would wait an hour, or the reverse. `enqueueJob` therefore rejects
+  `coalesceKey` together with `delayMs` (`JobOptionsError`); delayed work carries its own `jobKey` or no key
+  (`docs/19b`).
 - Returns `{ outboxId }`. Throws `JobsUnavailableError` without the module. Redis is never contacted, so enqueueing works
   while Redis is down; jobs wait in the outbox.
 
@@ -574,8 +618,15 @@ await prisma.$transaction(async (tx) => {
 What BullMQ stores is never the raw payload:
 
 ```ts
-{ v: 1, organizationId: string | null, actorUserId: string | null, serviceMode: boolean, cause: "jobs.failed" | null, payload: { … } }
+{ v: 1, organizationId: string | null, actorUserId: string | null, serviceMode: boolean, cause: "jobs.failed" | null,
+  trace: { traceparent: string, tracestate?: string } | null, failedReportedAt: string | null, payload: { … } }
 ```
+
+`trace` is the W3C trace context of the span that enqueued the job (the request, the subscriber, or the parent job),
+captured by `enqueueJob` from the active OpenTelemetry context and stored outside the payload, in the envelope and in
+the outbox row (`traceparent` column). It is `null` when telemetry is off, so a job carries nothing extra unless tracing
+is active (open-mercato's `attachTraceMetadata`). `failedReportedAt` is the acknowledgement of the `jobs.failed`
+report (11.4).
 
 The consumer parses the envelope strictly and the payload with the job's schema. A mismatch (a job written by an older
 release, company-budget's `crm-sync` case) fails with `UnrecoverableError("payload does not match <job> v1")`, logged
@@ -599,6 +650,11 @@ shapes for one release, or drain first (`docs/19b`). `cause` marks jobs enqueued
 | `progress(stage)` | `job.updateProgress({ stage })`; a Redis error here is logged, never fails the job. |
 | `enqueue(name, payload, options)` | `enqueueJob` with the job's own origin (and `tx` when given); for fan-out (9.3). |
 
+The consumer runs every handler inside a span `job <name>` of kind `consumer`, continuing the trace from
+`envelope.trace` (with no carrier, or telemetry off, a fresh root span, or nothing). The relay's `queue.add` runs in a
+`producer` span of the same trace. A request, the job it enqueued, and the jobs and events that job caused therefore
+show as one trace in the collector. Span attributes: job name, job id, attempt, organization id; never the payload.
+
 There is no session: a handler must not call `getOrgContext`, `requireModuleAccess`, `headers()` or `cookies()`. It calls
 services that take `organizationId` as an argument (in the worker those Next helpers are throwing stubs, 6.4). A query in
 `services/queries/` that starts with `getOrgContext()` cannot be reused from a job; the pattern is an inner function with
@@ -609,7 +665,12 @@ an explicit organization, which the query wraps.
 - A thrown error is retried up to `attempts` with the job's backoff.
 - `throw new JobFailure(message, { retryable: false })` (or a `DomainError`) becomes BullMQ's `UnrecoverableError`.
 - A job name with no handler in this worker fails with `UnrecoverableError("no handler for <job>")`, logged at `error`.
-- After the last attempt, an organization job emits `jobs.failed` (11.4).
+- After the last attempt, an organization job emits `jobs.failed` (11.4); so does a job that never got to report,
+  because it stalled past `maxStalledCount` or its worker died (11.4 describes the sweep that catches those).
+- **A missing organization is a quiet skip.** Before an organization job's handler runs, the consumer checks that the
+  organization still exists (one `findUnique` by id). If not, it logs `info` ("organization gone, job skipped"),
+  completes the job without running the handler, does not retry and emits no `jobs.failed`. A job that started before
+  the deletion and fails on a vanished row is retried, and its next attempt takes the same skip.
 
 ### 8.3 Idempotency
 
@@ -619,7 +680,7 @@ Delivery is **at least once**: a crash, a stall, a lost lock or a relay crash (8
 1. Write handlers so a second run is harmless: `deleteMany` with a cutoff, upserts on a natural key, compare-and-set
    claims (`updateMany({ where: { id, status: "PENDING" } })`) before acting.
 2. Side effects outside the database (mail, an external API) run once: `attempts: 1`, or record "sent" first.
-3. `jobKey` for "this exact unit of work", `dedupeKey` for "not two at once".
+3. `jobKey` for "this exact unit of work", `coalesceKey` for "run again with the latest data, but never two at once".
 
 ### 8.4 The transactional outbox
 
@@ -635,7 +696,8 @@ model JobOutbox {
   job              String
   envelope         Json
   keyHash          String?       @unique @map("key_hash")
-  dedupeKey        String?       @map("dedupe_key")
+  coalesceKey      String?       @map("coalesce_key")
+  traceparent      String?
   availableAt      DateTime      @default(now()) @map("available_at") @db.Timestamptz
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
   dispatchedAt     DateTime?     @map("dispatched_at") @db.Timestamptz
@@ -669,7 +731,8 @@ true }`).
 3. For each row, in order: check `envelope.organizationId` equals the row's `organizationId` (a mismatch is a bug:
    the row is marked failed with `lastError`, never dispatched); skip rows whose job is not in this worker's registry
    (left pending, shown on the admin page, so a rolling deploy or a temporarily disabled module loses nothing);
-   `queue.add(job, envelope, { jobId: keyHash ?? outbox id, deduplication, attempts, backoff, retention })`.
+   `queue.add(job, envelope, { jobId: keyHash ?? outbox id, deduplication: coalesceKey && { id, keepLastIfActive: true },
+   attempts, backoff, retention })` in a `producer` span continuing the row's trace.
 4. `UPDATE … SET dispatched_at = now()` for the added rows, `dispatch_attempts + 1, last_error` for failed adds, then
    commit. Redis calls inside the transaction are bounded by the batch size and ioredis' command timeout (5 s).
 
@@ -717,6 +780,14 @@ harmless.
   its own blocking connection; the relay shares one producer connection. `docs/19` gives the connection formula
   (`jobs + 2` per worker replica, plus one per web replica for the admin page).
 - `globalConcurrency` is applied before the queue's `Worker` runs.
+- **Postgres connection budget** (open-mercato's `worker-connection-budget.ts`). Each running job may hold a pooled
+  connection, so the worker's peak demand is the sum of every queue's concurrency plus the relay's claim transaction and
+  one for the sweeps and the organization tick. At boot the worker computes a plan: the budget is `JOBS_DB_POOL_MAX`
+  minus those two; if the requested sum exceeds it, each job's effective concurrency is reduced proportionally with a
+  floor of 1. The plan (requested, effective, budget, clamped) is logged at `info`, a clamp at `warn`, and a budget
+  smaller than the number of queues (the floor forces the total over it) at `error`, naming the variable to raise.
+  The `LISTEN` connection is outside the pool. `docs/19` gives the Postgres formula: web replicas × `DATABASE_POOL_MAX`
+  + worker replicas × (`JOBS_DB_POOL_MAX` + 1) must stay below `max_connections` minus a reserve.
 
 ### 8.7 Shutdown
 
@@ -753,8 +824,9 @@ Decision 17.1/8, a critical core change in `src/shared/lib/tenant-scope/`:
 - Service mode belongs to the operation that enqueued the job. The command already passed `assertServiceModeConfirmed`;
   the job asks nothing and carries `serviceMode: true` in its origin, so audit rows written by the job record it.
 - The admin page's commands (`jobs.retry`, `jobs.run-now`) are `access: "global-admin"` commands (ADR-62): they act on
-  the platform's queue, not on organization data; no dialog, **no audit rows** (decision 17.1/7), one log line each with
-  the admin's id.
+  the platform's queue, not on organization data, so no service-mode dialog. **They are audited** (decision 17.1/7,
+  revised; 12.1): every attempt that reaches the command, success or refusal, writes one audit row attributed to the
+  admin who triggered it.
 - `organizations.update-timezone` (11.1) is organization data: it goes through `runCommand` and therefore through the
   service-mode confirmation; the UI calls it through `useServiceModeAction().run`.
 
@@ -768,6 +840,17 @@ Decision 17.1/8, a critical core change in `src/shared/lib/tenant-scope/`:
    orphan cleanup use it.
 2. **`withoutTenantScope(reason, fn)`** only for a Prisma query on a tenant-scoped model that genuinely spans
    organizations, and only in `system` jobs. Neither first consumer needs it.
+
+### 9.4 A deleted organization's jobs
+
+- Outbox rows and organization schedule slots cascade with the organization (8.4, 11.2).
+- Jobs already in BullMQ do not. `/organization/delete` emits no domain event (ADR-61: there is no organization left to
+  deliver it to), so the `jobs` module reacts at the better-auth path instead, with an `after` hook in its own `auth.ts`
+  plugin (the documented extension point for better-auth paths): on a successful delete it enqueues the system job
+  `jobs.purge-organization` `{ removedOrganizationId }`. The job scans the waiting, delayed and prioritized jobs of every
+  queue under `JOBS_PREFIX` and removes those whose `envelope.organizationId` is that id. Active jobs are left to finish
+  or to take the quiet skip (8.2).
+- The hook never fails the delete: an enqueue error is logged; the quiet skip covers whatever the purge misses.
 
 ## 10. First consumers
 
@@ -817,6 +900,8 @@ Changes:
   unrecoverably (which emits nothing: `jobs.failed` is for organization jobs; the admin page shows the failure).
 - Schedule `uploads.orphans-daily`, `30 3 * * *`, enabled by default, `settings: { graceHours: 24, maxObjectsPerRun:
   10000, maxOrganizationsPerRun: 20, purgeDeletedOrganizations: true }`.
+- Pending `uploads.orphans` jobs of an organization deleted meanwhile are removed by `jobs.purge-organization` or
+  skipped quietly (9.4); the dispatcher's purge of the deleted organization's storage still runs.
 - Out of scope: rows whose object is missing (counted in a warning) and rows nothing in the domain references.
 
 ## 11. Time and events
@@ -899,8 +984,22 @@ export const subscribers = defineSubscribers({
 
 - Declared in `src/features/jobs/events.ts`: `jobs.failed` `{ job, jobId, attempts, reason }`, `reason` truncated to 500
   characters.
-- Emitted by the consumer after the last attempt (or an unrecoverable failure) of an **organization** job, with the
-  job's origin (organization, actor, service mode). System jobs emit nothing (no organization to deliver to).
+- Emitted for an **organization** job that ended in BullMQ's failed set, with the job's origin (organization, actor,
+  service mode). System jobs emit nothing (no organization to deliver to). A job skipped because its organization is
+  gone (8.2) is completed, not failed, and emits nothing.
+- **Two paths, one report** (open-mercato's `onJobAbandoned`):
+  1. the `Worker`'s `failed` event, which fires after the last attempt, after an unrecoverable failure, and when a
+     stalled job exceeds `maxStalledCount`, that is also when the handler never ran to completion;
+  2. a **sweep of the failed set**, at boot and every 5 minutes, for organization jobs whose envelope has no
+     `failedReportedAt`: those whose worker died before the `failed` listener ran, or whose report failed.
+- **Signal first, stamp second** (`.ai/lessons/enqueue-then-stamp.md`): emit `jobs.failed` (its subscribers run,
+  queued ones insert their outbox rows), then write `failedReportedAt` into the job's envelope (`job.updateData`). A
+  crash between the two re-reports on the next sweep; stamping first would lose the report. Delivery is therefore at
+  least once, and `jobs.failed` subscribers must be idempotent (key on `jobId`). Within one process an in-flight id set
+  keeps the listener and the sweep from reporting the same job twice; shutdown waits for in-flight reports up to
+  5 seconds, then leaves them to the next worker's sweep.
+- The failed set is the durable record (`removeOnFail` keeps 7 days), so the sweep covers jobs that failed within that
+  window. `jobs.retry` clears `failedReportedAt`, so a retried job that fails again is reported again.
 - Subscribers run in the worker process, which is why every subscriber must be Next-free (6.3, decision 17.1/14).
 - Loop guard: while the bus delivers `jobs.failed`, an `AsyncLocalStorage` flag makes every `enqueueJob` set
   `cause: "jobs.failed"` in the envelope; a failing job with that cause emits no `jobs.failed`.
@@ -915,7 +1014,28 @@ export const subscribers = defineSubscribers({
   the next hour; the outbox (pending count, oldest pending age, rows with 10 or more failed dispatches, rows for jobs
   no worker knows); the last 50 failed jobs with job name, organization name, attempts, time and `failedReason`
   truncated to 500 characters. No payloads, no stack traces.
-- Commands `jobs.retry` and `jobs.run-now`, `access: "global-admin"`, no audit rows (decision 17.1/7).
+- **Worker presence.** Each worker writes a heartbeat key `<prefix>:workers:<host>-<pid>` every 10 s with a 30 s TTL
+  (value: version, start time, jobs consumed). The page lists live workers and shows a warning when none has been seen
+  for 60 s ("No worker is running: jobs are queued but nothing processes them"), the silent failure mode of a separate
+  worker service. `wa doctor`, when the `jobs` module is installed and `REDIS_URL` is set, reports the same warning (and
+  "cannot reach Redis" when it cannot connect).
+- **Polling, not push.** The page re-reads counts and heartbeats every 5 s while it is open and every 30 s in a hidden
+  tab; the worker runs in another process, so there is no in-process event to push (open-mercato's lesson on
+  worker-emitted progress).
+- **Commands `jobs.retry` and `jobs.run-now`**, `access: "global-admin"`, **audited** (decision 17.1/7, revised
+  2026-11-28, following open-mercato's manual-trigger audit spec):
+  - every attempt that reaches the command writes one audit row, `job.retried` or `job.triggered`, channel `WEB`,
+    `userId` = the admin, in the admin's active organization (the caller's scope, never the target's, so a refusal
+    cannot file a row into, or leak details of, another organization);
+  - `newData` on success: `{ outcome: "succeeded", job, jobId, scheduleId? }`; on refusal: `{ outcome: "refused",
+    code }` with `code` one of `not-found`, `not-failed`, `schedule-disabled`, `unknown-job`, and nothing about the
+    target beyond the id the caller sent;
+  - refusals are returned as failure results, not thrown, so the row is written before the result;
+  - `jobs.run-now` enqueues with the admin as `actorUserId` (system origin with an actor), so audit rows the job writes
+    are attributed to the person who triggered it; `jobs.retry` re-runs the original envelope and keeps its actor, and
+    the retry itself is attributed through its own row;
+  - an attempt by a non-admin is stopped by `runCommand`'s access guard before the command runs; it is logged at `warn`
+    with the user id, not audited (the command is on no surface a non-admin can reach).
 
 ### 12.2 Worker dashboard
 
@@ -965,6 +1085,13 @@ Decision 17.1/4: bull-board on the worker, as justnails and company-budget run i
   user, wrong password, missing header, lockout, read-only), timezone resolution and IANA validation, `formatDateTime`.
 - Tenant scope: the value check of 9.1, each allowed and rejected filter shape as a literal.
 - Retention and orphan logic as in the first draft (cutoff, batches, grace, prefix shape, circuit breaker).
+- Trace propagation with an in-memory span exporter: the job's consumer span has the enqueuing span as parent; no
+  carrier → a root span; telemetry off → no `trace` in the envelope.
+- Concurrency plan (`planWorkerConcurrency`) as literals: within budget unchanged; over budget clamped proportionally
+  with a floor of 1; budget below the queue count flagged.
+- Failed-report sweep with fakes: unstamped failed organization job reported once and stamped after the event;
+  a throwing subscriber still leads to a stamp only after the emit returned; a stamp failure leaves the job for the
+  next sweep; listener and sweep in one process report once.
 - Generator: pinned registry lines, `server-registry.generated.ts`, manifest `scripts` merge, `verify:modules`.
 
 ### 14.2 Integration on real Redis and Postgres (`npm run test:integration`)
@@ -977,7 +1104,10 @@ Decision 17.1/4: bull-board on the worker, as justnails and company-budget run i
 - Outbox: a rolled-back transaction leaves no row and no job; a committed one is dispatched after `NOTIFY`; two relays
   never dispatch a row twice; a relay killed between `add` and commit re-adds without a second job; a row of an unknown
   job stays pending; prune keeps undispatched rows.
-- Runtime: enqueue → complete; retries → final failure → one `jobs.failed`; `JobFailure` not retried; envelope mismatch
+- Runtime: enqueue → complete; retries → final failure → one `jobs.failed`; a job stalled twice → `jobs.failed`
+  from the `failed` event; a failed job left unstamped (worker killed after the emit) reported by the next boot sweep;
+  coalescing: three enqueues while one runs → one more run with the third payload; a job of a deleted organization
+  skipped without retry; `jobs.purge-organization` removes only that organization's waiting and delayed jobs; `JobFailure` not retried; envelope mismatch
   not retried; stalled job redelivered once (short `lockDurationMs`/`stalledInterval` passed by the test only);
   `globalConcurrency: 1` across two workers; schedule reconciliation across two boots; `SIGTERM` waits for an in-flight
   job; a schedule with `timezone: "Europe/Warsaw"` gets its next run at 03:00 Warsaw time with the worker started under
@@ -992,7 +1122,15 @@ Decision 17.1/4: bull-board on the worker, as justnails and company-budget run i
 - `core-auth`: an owner changes the organization timezone on `/organization`, the audit log shows the row, dates on the
   audit log page render in the new zone; a `member` does not see the nav item and the command refuses.
 - With `jobs`: a superadmin opens `/admin/jobs`, runs `uploads.orphans-daily` now and sees it complete (e2e runs a
-  worker beside the server).
+  worker beside the server); with the worker stopped the page shows the "No worker is running" warning within 60 s.
+- **Queues are purged with the database** (open-mercato's purge-on-wipe spec): every place that wipes the database also
+  obliterates the queues under `JOBS_PREFIX`, so jobs that point at rows which no longer exist never reach a fresh run.
+  `e2e/global-setup.ts` (core) calls `npm run --if-present jobs:purge -- --yes` right after its `_e2e` reset, and the
+  integration helper `resetDatabase()` does the same for the `_test` prefix.
+- `npm run jobs:purge` (manifest script, `worker/purge.ts`): obliterates every queue and scheduler under `JOBS_PREFIX`
+  and deletes pending outbox rows; asks for confirmation unless `--yes`; refuses with `NODE_ENV=production` unless
+  `--force`; prints what it removed. For development and test resets, and for an operator who wipes a staging
+  database.
 
 ### 14.4 Architecture tests
 
@@ -1031,7 +1169,8 @@ Each is its own commit with the owner's version bump (`kit/CLAUDE.md`):
 | `serverExternalPackages: ["bullmq", "ioredis"]` (the web reads queue counts) | `next.config.ts` | core |
 | `verify` runs `npm run --if-present verify:modules` | `package.json` | core |
 | Generator: server registry, `jobs.ts`, `job-runtime.ts`, manifest `scripts` and `verify`, worker Dockerfile region, catalog sections; `kitFormat` 12 | `packages/gato-cli/`, `kit/kit.json`, `kit-format.ts` | kit |
-| `doctor` warning for schedules without `jobs` | `packages/gato-cli/src/doctor/` | kit |
+| `doctor` warning for schedules without `jobs`, and the "no worker" heartbeat check | `packages/gato-cli/src/doctor/` | kit |
+| e2e reset purges the queues (`npm run --if-present jobs:purge -- --yes`) | `e2e/global-setup.ts`, `src/test/integration/` | core |
 | Worker image in `docker-publish.yml` and `docker-platforms.yml` | `.github/workflows/` | core / kit |
 | Helm `worker.*`, `worker-deployment.yaml`, dashboard Service | `deploy/helm/gatojs/` | core |
 | `redisUrl` helper | `packages/env` | core |
@@ -1073,10 +1212,12 @@ rejected; an organization-timezone schedule of a system job rejected; payload wi
 **Zachowania:** `jobOrigin(orgContext)` → `{ organizationId: "org-a", actorUserId: "u1", serviceMode: false }`; payload
 `{ invoiceId: "i1", organizationId: "org-b" }` reaches the handler as `{ invoiceId: "i1" }` with
 `ctx.organizationId === "org-a"`; organization job with `systemOrigin` throws; job id for `("x.y", "org-a", "k1")` is a
-fixed literal without `:`, different for `"org-b"`; no runtime → `JobsUnavailableError`; envelope `v: 2` unrecoverable.
+fixed literal without `:`, different for `"org-b"`; no runtime → `JobsUnavailableError`; envelope `v: 2` unrecoverable;
+with an active span the envelope carries its `traceparent`, without one `trace: null`; `coalesceKey` with `delayMs` →
+`JobOptionsError`; the installed `bullmq` accepts `deduplication.keepLastIfActive` (version test).
 
 **Mutacje do zabicia:** organization taken from the payload; strip replaced by passthrough; organization left out of the
-key hash; scope check inverted.
+key hash; scope check inverted; trace written into the payload; coalesce/delay check removed.
 
 **Task 3. Server registry split, generator, manifest `scripts`/`verify`.**
 
@@ -1116,20 +1257,35 @@ for `"UTC"`.
 **Zachowania:** insert inside a rolled-back `tx` leaves no row; inside a committed `tx` one row and one notification;
 duplicate `jobKey` → `{ duplicate: true }`, one row; relay adds in `(createdAt, id)` order with `jobId = keyHash ?? id`;
 a row whose envelope organization differs from its column is never added; a row of an unknown job stays pending; failed
-add → `dispatchAttempts` 1 and `lastError`; prune deletes dispatched rows older than 7 days and no pending row.
+add → `dispatchAttempts` 1 and `lastError`; prune deletes dispatched rows older than 7 days and no pending row; a row with
+`coalesceKey` is added with `{ keepLastIfActive: true }`; the row's `traceparent` reaches the envelope.
 
-**Mutacje do zabicia:** `dispatched_at IS NULL` dropped; `SKIP LOCKED` dropped (integration: two relays); organization
+**Mutacje do zabicia:** `keepLastIfActive` dropped; `dispatched_at IS NULL` dropped; `SKIP LOCKED` dropped (integration: two relays); organization
 mismatch check removed; prune condition `<` → `>`; unknown-job rows dispatched.
 
 **Task 7. Consumer, failure mapping, `jobs.failed`, eviction check, shutdown.**
 
 **Zachowania:** `JobFailure(retryable: false)` → `UnrecoverableError`; unknown job → unrecoverable; last failure of an
-organization job emits exactly one `jobs.failed` with the truncated reason; a system job emits none; a job with
-`cause: "jobs.failed"` emits none; `allkeys-lru` → refuses to start; `CONFIG GET` forbidden → warning; second `SIGTERM`
+organization job emits exactly one `jobs.failed` with the truncated reason, then stamps `failedReportedAt`; a stalled
+job past `maxStalledCount` emits one; an unstamped failed job found by the boot sweep emits one; a stamped one emits
+none; a system job emits none; a job with `cause: "jobs.failed"` emits none; a job whose organization is gone completes
+without running the handler, without retry and without `jobs.failed`; the handler runs in a `consumer` span whose
+parent is the envelope's trace; `allkeys-lru` → refuses to start; `CONFIG GET` forbidden → warning; second `SIGTERM`
 ignored; order relay → workers → queues → Prisma → HTTP → telemetry.
 
-**Mutacje do zabicia:** `retryable === false` inverted; `jobs.failed` emitted on every attempt; cause guard removed;
+**Mutacje do zabicia:** `retryable === false` inverted; `jobs.failed` emitted on every attempt; stamp written before the
+emit; sweep ignoring the stamp; cause guard removed; organization-exists check removed or turned into a retry;
 eviction comparison negated; telemetry flushed first.
+
+**Task 7a. A deleted organization's queued jobs.**
+
+**Zachowania:** a successful `/organization/delete` of `org-a` enqueues one `jobs.purge-organization`
+`{ removedOrganizationId: "org-a" }`; the job removes `org-a`'s waiting, delayed and prioritized jobs in every queue and
+leaves `org-b`'s and the active ones; a failed delete enqueues nothing; an enqueue error does not change the delete
+response.
+
+**Mutacje do zabicia:** filter on the organization removed (purges everything); active jobs removed; hook running on a
+failed delete.
 
 **Task 8. Schedule reconciliation.**
 
@@ -1147,10 +1303,13 @@ changed.
 error names `src/features/<fixture>/subscribers.ts` and the chain to `react`; a stubbed `headers()` call throws
 `"next/headers is not available in the worker"`; `next/cache` `revalidatePath` returns `undefined`; the 14.2 suite
 passes against both the development entry and the bundle; self-hosted Compose refuses to start without
-`REDIS_PASSWORD`.
+`REDIS_PASSWORD`; with `JOBS_DB_POOL_MAX=5` and jobs requesting 5 + 5 + 1 the boot log shows the plan
+`{ budget: 3, totalRequested: 11, clamped: true }` and every job keeps at least 1; the worker writes its heartbeat key
+with a 30 s TTL; `npm run jobs:purge -- --yes` empties every queue and scheduler under the prefix and no other prefix,
+and refuses with `NODE_ENV=production` without `--force`; `e2e/global-setup.ts` runs it after the reset.
 
 **Mutacje do zabicia:** a forbidden package missing from the metafile list; stub of `next/cache` throwing; `--check`
-skipping env verification.
+skipping env verification; plan floor of 1 removed; purge ignoring the prefix; production guard inverted.
 
 ### Phase 3: time and events
 
@@ -1220,10 +1379,17 @@ deleted organization's prefix purged by default; 10 001 planned deletions → no
 **Task 16. In-app admin page and commands.**
 
 **Zachowania:** `member` and `owner` without global admin → 404; admin sees counts, schedules with zones, outbox stats and
-failed jobs without payloads; `failedReason` of 2 000 characters shown as 500; `jobs.retry` and `jobs.run-now` write no
-audit row; `jobs.run-now` of a disabled schedule → failure result.
+failed jobs without payloads; `failedReason` of 2 000 characters shown as 500; no heartbeat for 60 s → the warning, a
+fresh heartbeat → no warning; the page refetches every 5 s while open; `jobs.retry` of a failed job → success and one
+`job.retried` row with the admin as `userId`, channel `WEB`, in the admin's active organization, and the job's
+`failedReportedAt` cleared; `jobs.run-now` → one `job.triggered` row and the job's envelope has the admin as
+`actorUserId`; `jobs.run-now` of a disabled schedule → failure result and one row `{ outcome: "refused", code:
+"schedule-disabled" }`; `jobs.retry` of an id from another organization's job that is not failed → refusal row in the
+admin's organization with no target details; a `member` calling the command → no row, a `warn` log.
 
-**Mutacje do zabicia:** `adminOnly` dropped; payload included; truncation removed; an audit row written.
+**Mutacje do zabicia:** `adminOnly` dropped; payload included; truncation removed; refusal not audited; row filed in the
+target's organization; actor missing from the run-now envelope; marker not cleared on retry; heartbeat TTL check
+inverted.
 
 **Task 17. Worker dashboard.**
 
@@ -1238,7 +1404,8 @@ request in read-only mode → refused; password shorter than 16 → refuses to s
 **Zachowania:** `helm template` with `worker.enabled=false` renders no worker; `true` renders a Deployment with the worker
 image, `terminationGracePeriodSeconds: 35`, probes on `/health`, and no Service unless `worker.dashboard.enabled`, never
 an Ingress; the egress check's `jobs` leg is clean and fails on a planted outside lookup; `docker-publish.yml` pushes
-`<repo>-worker` only when `docker/worker.Dockerfile` exists.
+`<repo>-worker` only when `docker/worker.Dockerfile` exists; `wa doctor` with no heartbeat in Redis prints the "no worker"
+warning and with Redis unreachable prints "cannot reach Redis".
 
 **Mutacje do zabicia:** n/a (templates and I/O), proved by `helm` tests and the sealed run.
 
@@ -1266,8 +1433,10 @@ Second round (the twelve questions of the first draft):
    by default. (12)
 5. **Helm: external Redis only.** (5.5)
 6. **Transactional outbox in v1** (`job_outbox`), with the relay design of 8.4.
-7. **Audit from jobs:** retention writes one row per organization per run; `jobs.retry` and `jobs.run-now` write none;
-   `AuditChannel` gains `SYSTEM`. (10.1, 9.2)
+7. **Audit from jobs:** retention writes one row per organization per run (only when it deleted rows, decision 15);
+   `AuditChannel` gains `SYSTEM`. `jobs.retry` and `jobs.run-now` **are audited**, successes and refusals, attributed to
+   the person who triggered them, and `run-now` runs the job with that person as actor. *Revised 2026-11-28 after
+   open-mercato review* (the first answer was "no audit rows"). (9.2, 10.1, 12.1)
 8. **Strict organization scope in jobs** in the tenant-scope guard, in v1, critical. (9.1)
 9. **`REDIS_PASSWORD` required in the self-hosted stack.** (5.4)
 10. **Queued subscribers and `jobs.failed` in v1.** (11.3, 11.4)
@@ -1284,6 +1453,20 @@ Third round (the questions the second revision raised):
     React, because they also run in the worker. Documented in `docs/19b`, the `AGENTS.md` Task Router row and the
     `gato-extend` skill; enforced by the bundle check with an error naming the offending module file. (6.3, 6.4)
 15. **Retention writes its audit row only when `deleted > 0`.** (10.1)
+
+Fourth round (open-mercato review, owner approved 2026-11-28; section 3.1):
+
+16. **Trace context** in the envelope and the outbox row, continued by a consumer span. (7.6, 8.1)
+17. **`jobs.failed` also for jobs that never reported** (stalled, abandoned), from the `failed` event plus boot and
+    interval sweeps of the failed set; signal first, stamp second; at least once. (8.2, 11.4)
+18. **Coalescing** (`keepLastIfActive`, BullMQ ≥ 5.72 pinned) instead of plain deduplication; not combined with a
+    delay. (7.5)
+19. **Postgres connection budget** for the worker: concurrency plan fitted to `JOBS_DB_POOL_MAX`, logged at boot. (5.3,
+    8.6)
+20. **Deleted organization:** its queued jobs are purged, and a job of a missing organization is a quiet skip. (8.2,
+    9.4)
+21. **Queues purged with the database** in e2e and integration resets, plus `npm run jobs:purge`. (14.3)
+22. **"No worker" warning** from a heartbeat key, on the admin page (polling) and in `wa doctor`. (12.1)
 
 Docs numbering: this spec uses `docs/19` and `docs/19b`; the MCP spec (#136) takes the next free number.
 
@@ -1309,7 +1492,8 @@ Docs (English; `docs/18` is the `legal` module since #134; the MCP module spec, 
   connection sizing), the dashboard and its exposure rules, operations (draining, a stuck outbox, a schedule that does
   not fire).
 - `docs/19b-jobs-module-usage.md`: declaring jobs and schedules, enqueueing with `tx`, queued subscribers, `jobs.failed`,
-  idempotency, ordering, payload migration, organization schedules and DST, testing with the memory runtime, what may
+  idempotency, ordering, coalescing and why it is not combined with a delay, trace propagation, `jobs.failed` delivered
+  at least once, payload migration, organization schedules and DST, testing with the memory runtime, what may
   not run in a job (session helpers, raw SQL, Next), and the Next-free rule for subscribers, audit sinks and command
   hooks with the bundle check's error and how to fix it.
 - Updates: `docs/self-hosting.md` (Redis, worker, dashboard access, Railway), `docs/10-wdrozenie.md`,
@@ -1328,7 +1512,10 @@ Docs (English; `docs/18` is the `legal` module since #134; the MCP module spec, 
 
 - commands `jobs.retry` ("Retry one failed job"), `jobs.run-now` ("Run a schedule's job once now");
 - event `jobs.failed` ("An organization job failed after its last attempt");
-- jobs `jobs.outbox-prune`, `jobs.organization-schedules-tick`; schedule `jobs.outbox-prune-daily`.
+- jobs `jobs.outbox-prune`, `jobs.organization-schedules-tick`, `jobs.purge-organization`; schedule
+  `jobs.outbox-prune-daily`;
+- audit actions `job.retried`, `job.triggered` (in `module.ts` `auditActions`, labelled on the audit log page);
+- better-auth path `/organization/delete` (an `after` hook, 9.4).
 
 Core (`organizations`, `src/features/organizations/extension-points.json` or the core file):
 
