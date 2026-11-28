@@ -185,7 +185,7 @@ src/features/<x>/
 │   ├── pl.json
 │   └── en.json
 ├── env.ts               opcjonalnie: envSchema, schemat Zod zmiennych feature
-├── auth.ts              opcjonalnie: authPlugin, plugin better-auth po stronie serwera
+├── auth.ts              opcjonalnie: authPlugin albo authPlugins (better-auth, serwer)
 ├── auth-client.ts       opcjonalnie: authClientPlugin, plugin better-auth po stronie przeglądarki
 └── audit-sink.ts        opcjonalnie: auditSink, ujście zdarzeń z trackAudit
 ```

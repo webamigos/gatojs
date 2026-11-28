@@ -120,7 +120,7 @@ npx prisma migrate dev --name <name>     # new migration
   modules; `wa kit sync` leaves them alone. Core tests compare the registry with core modules only (`src/test/core-modules.ts`),
   so a new feature doesn't require changing core files.
 - Every module: `src/features/<x>/module.ts` with `export default defineModule({...})`; optionally `env.ts`
-  (`envSchema`), `auth.ts` (`authPlugin`), `auth-client.ts` (`authClientPlugin`), `i18n/{pl,en}.json`.
+  (`envSchema`), `auth.ts` (`authPlugin`, or `authPlugins` for several), `auth-client.ts` (`authClientPlugin`), `i18n/{pl,en}.json`.
 
 ### Structure
 
