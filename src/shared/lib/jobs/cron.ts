@@ -11,8 +11,7 @@ const FIELD_RANGES: readonly FieldRange[] = [
 const ITEM_PATTERN = /^(?:\*|(\d+)(?:-(\d+))?)(?:\/(\d+))?$/;
 
 export function splitCronFields(expression: string): string[] {
-  const trimmed = expression.trim();
-  return trimmed === "" ? [] : trimmed.split(/\s+/);
+  return expression.trim().split(/\s+/);
 }
 
 function itemBounds(
