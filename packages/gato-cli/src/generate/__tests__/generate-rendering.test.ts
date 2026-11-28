@@ -1,4 +1,12 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -69,6 +77,17 @@ async function makeProject(
 
 async function read(dir: string, path: string): Promise<string> {
   return readFile(join(dir, path), "utf8");
+}
+
+async function snapshotDir(dir: string): Promise<Record<string, string>> {
+  const entries = await readdir(dir, { recursive: true });
+  const snapshot: Record<string, string> = {};
+  for (const entry of entries.sort()) {
+    const full = join(dir, entry);
+    if ((await stat(full)).isFile())
+      snapshot[entry] = await readFile(full, "utf8");
+  }
+  return snapshot;
 }
 
 afterEach(async () => {
@@ -826,5 +845,214 @@ describe("generate: renderowanie regionów", () => {
     await rm(join(dir, ".env.example"));
     await mkdir(join(dir, ".env.example"));
     await expect(generate(dir)).rejects.toThrow();
+  });
+});
+
+describe("generate: auth.ts exporting authPlugin or authPlugins", () => {
+  const ARRAY_IMPORT =
+    'import { authPlugins as mcpAuthPlugins } from "@/features/mcp/auth";';
+  const ARRAY_ENTRY =
+    'export const authPlugins = enabledEntries([...mcpAuthPlugins.map((value) => ({ module: "mcp", value }))], gatoConfig);';
+  const SINGLE_IMPORT =
+    'import { authPlugin as mcpAuthPlugin } from "@/features/mcp/auth";';
+  const SINGLE_ENTRY =
+    'export const authPlugins = enabledEntries([{ module: "mcp", value: mcpAuthPlugin }], gatoConfig);';
+  const BOTH_MESSAGE =
+    "src/features/mcp/auth.ts exports both authPlugin and authPlugins";
+
+  async function generateWithAuth(source: string): Promise<string[]> {
+    const dir = await makeProject({ mcp: { files: ["src/features/mcp/**"] } });
+    await put(dir, "src/features/mcp/auth.ts", source);
+    await generate(dir);
+    return (await read(dir, "src/modules.generated.ts")).split("\n");
+  }
+
+  async function expectArray(source: string): Promise<void> {
+    const lines = await generateWithAuth(source);
+    expect(lines).toContain(ARRAY_IMPORT);
+    expect(lines).toContain(ARRAY_ENTRY);
+    expect(lines).not.toContain(SINGLE_IMPORT);
+  }
+
+  async function expectSingle(source: string): Promise<void> {
+    const lines = await generateWithAuth(source);
+    expect(lines).toContain(SINGLE_IMPORT);
+    expect(lines).toContain(SINGLE_ENTRY);
+    expect(lines).not.toContain(ARRAY_IMPORT);
+  }
+
+  async function expectBothRejected(source: string): Promise<void> {
+    const dir = await makeProject({ mcp: { files: ["src/features/mcp/**"] } });
+    await put(dir, "src/features/mcp/auth.ts", source);
+    const before = await snapshotDir(dir);
+    await expect(generate(dir)).rejects.toThrow(new Error(BOTH_MESSAGE));
+    expect(await snapshotDir(dir)).toEqual(before);
+  }
+
+  it("export const authPlugins = [a, b] gives the array import and the spread entry", async () => {
+    await expectArray("export const authPlugins = [a, b];");
+  });
+
+  it("export let authPlugins gives the array import", async () => {
+    await expectArray("export let authPlugins = [];");
+  });
+
+  it("export var authPlugins gives the array import", async () => {
+    await expectArray("export var authPlugins = [];");
+  });
+
+  it("export function authPlugins gives the array import", async () => {
+    await expectArray("export function authPlugins() {\n  return [];\n}");
+  });
+
+  it("export { authPlugins } gives the array import", async () => {
+    await expectArray("const authPlugins = [];\nexport { authPlugins };");
+  });
+
+  it("export { plugins as authPlugins } gives the array import", async () => {
+    await expectArray(
+      "const plugins = [];\nexport { plugins as authPlugins };",
+    );
+  });
+
+  it("export { other, authPlugins } in a list with another name gives the array import", async () => {
+    await expectArray(
+      "const other = 1;\nconst authPlugins = [];\nexport { other, authPlugins };",
+    );
+  });
+
+  it("export const authPlugin keeps the single import and entry", async () => {
+    await expectSingle("export const authPlugin = {};");
+  });
+
+  it("export { plugin as authPlugin } keeps the single import", async () => {
+    await expectSingle("const plugin = {};\nexport { plugin as authPlugin };");
+  });
+
+  it("authPluginsExtra next to authPlugin does not count as the array export", async () => {
+    await expectSingle(
+      "export const authPluginsExtra = [];\nexport const authPlugin = {};",
+    );
+  });
+
+  it("authPluginsExtra in an export list next to authPlugin does not count as the array export", async () => {
+    await expectSingle(
+      "const authPluginsExtra = [];\nconst authPlugin = {};\nexport { authPluginsExtra, authPlugin };",
+    );
+  });
+
+  it("myAuthPlugins next to authPlugin does not count as the array export", async () => {
+    await expectSingle(
+      "export const myAuthPlugins = [];\nexport const authPlugin = {};",
+    );
+  });
+
+  it("myauthPlugins next to authPlugin does not count as the array export", async () => {
+    await expectSingle(
+      "export const myauthPlugins = [];\nexport const authPlugin = {};",
+    );
+  });
+
+  it("a comment line naming authPlugins next to authPlugin does not count as the array export", async () => {
+    await expectSingle("// authPlugins\nexport const authPlugin = {};");
+  });
+
+  it("an auth.ts exporting neither name keeps the single import", async () => {
+    await expectSingle("export const somethingElse = {};");
+  });
+
+  it("export const authPlugin and export const authPlugins reject with the file path and change no file", async () => {
+    await expectBothRejected(
+      "export const authPlugin = {};\nexport const authPlugins = [];",
+    );
+  });
+
+  it("authPlugins declared before authPlugin also reject", async () => {
+    await expectBothRejected(
+      "export const authPlugins = [];\nexport const authPlugin = {};",
+    );
+  });
+
+  it("both names in one export list reject", async () => {
+    await expectBothRejected(
+      "const a = {};\nconst b = [];\nexport { a as authPlugin, b as authPlugins };",
+    );
+  });
+
+  it("export function authPlugin with export { list as authPlugins } rejects", async () => {
+    await expectBothRejected(
+      "export function authPlugin() {\n  return {};\n}\nconst list = [];\nexport { list as authPlugins };",
+    );
+  });
+
+  it("a module exporting both names stops generation even when another module is valid", async () => {
+    const dir = await makeProject({
+      alpha: { files: ["src/features/alpha/**"] },
+      mcp: { files: ["src/features/mcp/**"] },
+    });
+    await put(dir, "src/features/alpha/module.ts", "export default {};");
+    await put(
+      dir,
+      "src/features/mcp/auth.ts",
+      "export const authPlugin = {};\nexport const authPlugins = [];",
+    );
+    const before = await snapshotDir(dir);
+    await expect(generate(dir)).rejects.toThrow(new Error(BOTH_MESSAGE));
+    expect(await snapshotDir(dir)).toEqual(before);
+  });
+
+  it("two features of one manifest listed zeta first spread alpha's authPlugins before zeta's", async () => {
+    const dir = await makeProject({
+      one: { files: ["src/features/zeta/**", "src/features/alpha/**"] },
+    });
+    await put(
+      dir,
+      "src/features/zeta/auth.ts",
+      "export const authPlugins = [];",
+    );
+    await put(
+      dir,
+      "src/features/alpha/auth.ts",
+      "export const authPlugins = [];",
+    );
+    await generate(dir);
+    const lines = (await read(dir, "src/modules.generated.ts")).split("\n");
+    expect(lines).toContain(
+      'export const authPlugins = enabledEntries([...alphaAuthPlugins.map((value) => ({ module: "alpha", value })), ...zetaAuthPlugins.map((value) => ({ module: "zeta", value }))], gatoConfig);',
+    );
+    const alphaImport = lines.indexOf(
+      'import { authPlugins as alphaAuthPlugins } from "@/features/alpha/auth";',
+    );
+    expect(alphaImport).toBeGreaterThan(0);
+    expect(lines[alphaImport + 1]).toBe(
+      'import { authPlugins as zetaAuthPlugins } from "@/features/zeta/auth";',
+    );
+  });
+
+  it("an array module between two single modules keeps the module order in the authPlugins list", async () => {
+    const dir = await makeProject({
+      alpha: { files: ["src/features/alpha/**"] },
+      mcp: { files: ["src/features/mcp/**"] },
+      zeta: { files: ["src/features/zeta/**"] },
+    });
+    await put(
+      dir,
+      "src/features/alpha/auth.ts",
+      "export const authPlugin = {};",
+    );
+    await put(
+      dir,
+      "src/features/mcp/auth.ts",
+      "export const authPlugins = [a, b];",
+    );
+    await put(
+      dir,
+      "src/features/zeta/auth.ts",
+      "export const authPlugin = {};",
+    );
+    await generate(dir);
+    expect((await read(dir, "src/modules.generated.ts")).split("\n")).toContain(
+      'export const authPlugins = enabledEntries([{ module: "alpha", value: alphaAuthPlugin }, ...mcpAuthPlugins.map((value) => ({ module: "mcp", value })), { module: "zeta", value: zetaAuthPlugin }], gatoConfig);',
+    );
   });
 });

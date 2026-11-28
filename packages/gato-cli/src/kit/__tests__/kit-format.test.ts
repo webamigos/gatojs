@@ -8,16 +8,18 @@ import {
 } from "../kit-format.js";
 
 describe("SUPPORTED_KIT_FORMATS", () => {
-  it("lists formats 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 and 11", () => {
-    expect(SUPPORTED_KIT_FORMATS).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  it("lists formats 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 and 12", () => {
+    expect(SUPPORTED_KIT_FORMATS).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    ]);
   });
 });
 
 const kitJson = new URL("../../../../../kit/kit.json", import.meta.url);
 
 describe.skipIf(!existsSync(kitJson))("kit/kit.json", () => {
-  it("declares kitFormat 11", () => {
-    expect(JSON.parse(readFileSync(kitJson, "utf8")).kitFormat).toBe(11);
+  it("declares kitFormat 12", () => {
+    expect(JSON.parse(readFileSync(kitJson, "utf8")).kitFormat).toBe(12);
   });
 });
 
@@ -66,6 +68,10 @@ describe("assertSupportedKitFormat", () => {
     expect(() => assertSupportedKitFormat(11)).not.toThrow();
   });
 
+  it("accepts format 12 with modules exporting an authPlugins array", () => {
+    expect(() => assertSupportedKitFormat(12)).not.toThrow();
+  });
+
   it("rejects format 99 with the message naming gato-cli@latest and the npx fallback", () => {
     expect(() => assertSupportedKitFormat(99)).toThrow(
       new Error(
@@ -74,10 +80,10 @@ describe("assertSupportedKitFormat", () => {
     );
   });
 
-  it("rejects format 12, the first one after the supported range", () => {
-    expect(() => assertSupportedKitFormat(12)).toThrow(
+  it("rejects format 13, the first one after the supported range", () => {
+    expect(() => assertSupportedKitFormat(13)).toThrow(
       new Error(
-        "This project uses kit format 12; update gato-cli (npm i -D gato-cli@latest) or run: npx gato-cli@latest update <version>",
+        "This project uses kit format 13; update gato-cli (npm i -D gato-cli@latest) or run: npx gato-cli@latest update <version>",
       ),
     );
   });
@@ -105,10 +111,11 @@ describe("assertSupportedKitFormat", () => {
           n !== 8 &&
           n !== 9 &&
           n !== 10 &&
-          n !== 11,
+          n !== 11 &&
+          n !== 12,
       ),
   ])(
-    "rejects every format other than 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 and 11 and names it",
+    "rejects every format other than 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 and 12 and names it",
     (format) => {
       expect(() => assertSupportedKitFormat(format)).toThrow(
         `This project uses kit format ${format}; update gato-cli`,

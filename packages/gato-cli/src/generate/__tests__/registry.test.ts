@@ -2681,3 +2681,194 @@ describe("renderRegistry: moduleCommandHooks", () => {
     },
   );
 });
+
+describe("renderRegistry: modules exporting an authPlugins array", () => {
+  const MCP_IMPORT =
+    'import { authPlugins as mcpAuthPlugins } from "@/features/mcp/auth";';
+  const MCP_ONLY_AUTH_PLUGINS =
+    'export const authPlugins = enabledEntries([...mcpAuthPlugins.map((value) => ({ module: "mcp", value }))], gatoConfig);';
+
+  it("a module with hasAuthPlugins imports authPlugins and spreads every element tagged with its name in the full server file", () => {
+    expect(
+      renderRegistry(
+        [{ name: "mcp", ...base, hasAuth: true, hasAuthPlugins: true }],
+        ["pl"],
+      ).server,
+    ).toBe(
+      [
+        HEADER,
+        EMPTY_CONFIG_IMPORT,
+        'import type { Locale } from "@/i18n/config";',
+        'import { createEnv } from "@gatojs/env";',
+        'import { enabledEntries } from "@/shared/lib/modules/gato-config";',
+        'import { slotRegistry } from "@/shared/lib/modules/slots";',
+        'import { commandHookRegistry } from "@/shared/lib/commands/define-command";',
+        MCP_IMPORT,
+        "",
+        "export const modules: never[] = [];",
+        "export const moduleEnvSchemas: never[] = [];",
+        MCP_ONLY_AUTH_PLUGINS,
+        "export const auditSinks: never[] = [];",
+        "export const moduleEvents: never[] = [];",
+        "export const moduleSubscribers: never[] = [];",
+        "export const moduleCommandHooks = commandHookRegistry({ modules: [], hooks: [] }, gatoConfig);",
+        "export const moduleSetups: never[] = [];",
+        "export const moduleSlots = slotRegistry({ slots: [], clientSlots: [] }, gatoConfig);",
+        "export const env = createEnv(moduleEnvSchemas);",
+        "",
+        "export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };",
+        "",
+        "export const moduleMessages: Record<Locale, MessageLoader[]> = {",
+        "  pl: [],",
+        "};",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("a module with hasAuthPlugins never gets the single authPlugin import or entry", () => {
+    const { server } = renderRegistry(
+      [{ name: "mcp", ...base, hasAuth: true, hasAuthPlugins: true }],
+      ["pl"],
+    );
+    expect(server).not.toContain("authPlugin as mcpAuthPlugin ");
+    expect(server).not.toContain("value: mcpAuthPlugin }");
+    expect(server).not.toContain("mcpAuthPlugins[0]");
+    expect(server).not.toContain('{ module: "mcp", value: mcpAuthPlugins }');
+  });
+
+  it("single and array modules keep the input order in imports and in the authPlugins list", () => {
+    const lines = renderRegistry(
+      [
+        { name: "alpha", ...base, hasAuth: true },
+        { name: "mcp", ...base, hasAuth: true, hasAuthPlugins: true },
+        { name: "zeta", ...base, hasAuth: true, hasAuthPlugins: false },
+      ],
+      ["pl"],
+      { hasGatoConfig: true },
+    ).server.split("\n");
+    const first = lines.indexOf(
+      'import { authPlugin as alphaAuthPlugin } from "@/features/alpha/auth";',
+    );
+    expect(first).toBeGreaterThan(0);
+    expect(lines.slice(first, first + 3)).toEqual([
+      'import { authPlugin as alphaAuthPlugin } from "@/features/alpha/auth";',
+      MCP_IMPORT,
+      'import { authPlugin as zetaAuthPlugin } from "@/features/zeta/auth";',
+    ]);
+    expect(lines).toContain(
+      'export const authPlugins = enabledEntries([{ module: "alpha", value: alphaAuthPlugin }, ...mcpAuthPlugins.map((value) => ({ module: "mcp", value })), { module: "zeta", value: zetaAuthPlugin }], gatoConfig);',
+    );
+  });
+
+  it("an array module listed first keeps its entries before the single module that follows it", () => {
+    const { server } = renderRegistry(
+      [
+        { name: "b", ...base, hasAuth: true, hasAuthPlugins: true },
+        { name: "a", ...base, hasAuth: true },
+      ],
+      ["pl"],
+      { hasGatoConfig: true },
+    );
+    expect(server.split("\n")).toContain(
+      'export const authPlugins = enabledEntries([...bAuthPlugins.map((value) => ({ module: "b", value })), { module: "a", value: aAuthPlugin }], gatoConfig);',
+    );
+  });
+
+  it("two array modules are spread one after the other in input order", () => {
+    const { server } = renderRegistry(
+      [
+        { name: "zeta", ...base, hasAuth: true, hasAuthPlugins: true },
+        { name: "alpha", ...base, hasAuth: true, hasAuthPlugins: true },
+      ],
+      ["pl"],
+      { hasGatoConfig: true },
+    );
+    expect(server.split("\n")).toContain(
+      'export const authPlugins = enabledEntries([...zetaAuthPlugins.map((value) => ({ module: "zeta", value })), ...alphaAuthPlugins.map((value) => ({ module: "alpha", value }))], gatoConfig);',
+    );
+  });
+
+  it("a hyphenated module name becomes a camelCase identifier while the module tag keeps the name", () => {
+    const { server } = renderRegistry(
+      [{ name: "x-y", ...base, hasAuth: true, hasAuthPlugins: true }],
+      ["pl"],
+    );
+    expect(server.split("\n")).toContain(
+      'import { authPlugins as xYAuthPlugins } from "@/features/x-y/auth";',
+    );
+    expect(server.split("\n")).toContain(
+      'export const authPlugins = enabledEntries([...xYAuthPlugins.map((value) => ({ module: "x-y", value }))], gatoConfig);',
+    );
+  });
+
+  it("hasAuthPlugins false gives the same single authPlugin import and entry as an absent field", () => {
+    const { server } = renderRegistry(
+      [{ name: "demo", ...base, hasAuth: true, hasAuthPlugins: false }],
+      ["pl"],
+    );
+    expect(server.split("\n")).toContain(
+      'import { authPlugin as demoAuthPlugin } from "@/features/demo/auth";',
+    );
+    expect(server.split("\n")).toContain(
+      'export const authPlugins = enabledEntries([{ module: "demo", value: demoAuthPlugin }], gatoConfig);',
+    );
+    expect(server).not.toContain("demoAuthPlugins");
+  });
+
+  it("hasAuthPlugins without hasAuth adds no auth import and leaves authPlugins empty", () => {
+    const { server } = renderRegistry(
+      [{ name: "mcp", ...base, hasAuth: false, hasAuthPlugins: true }],
+      ["pl"],
+    );
+    expect(server).not.toContain("@/features/mcp/auth");
+    expect(server.split("\n")).toContain(
+      "export const authPlugins: never[] = [];",
+    );
+  });
+
+  it("the client file does not change for a module with hasAuthPlugins", () => {
+    expect(
+      renderRegistry(
+        [{ name: "mcp", ...base, hasAuth: true, hasAuthPlugins: true }],
+        ["pl"],
+      ).client,
+    ).toBe(
+      [
+        HEADER,
+        EMPTY_CONFIG_IMPORT,
+        BRANDING_ONLY_IMPORT,
+        'import { clientSlotRegistry } from "@/shared/lib/modules/slots";',
+        'import { componentOverrideRegistry } from "@/shared/lib/modules/component-overrides";',
+        "",
+        "export const authClientPlugins: never[] = [];",
+        "export const clientModules: never[] = [];",
+        "export const clientModuleSlots = clientSlotRegistry([], gatoConfig);",
+        "export const clientComponentOverrides = componentOverrideRegistry([], gatoConfig);",
+        BRANDING_EXPORT,
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("the client keeps the single authClientPlugin of a module whose server auth.ts exports an array", () => {
+    const { client } = renderRegistry(
+      [
+        {
+          name: "mcp",
+          ...base,
+          hasAuth: true,
+          hasAuthPlugins: true,
+          hasAuthClient: true,
+        },
+      ],
+      ["pl"],
+    );
+    expect(client.split("\n")).toContain(
+      'import { authClientPlugin as mcpAuthClientPlugin } from "@/features/mcp/auth-client";',
+    );
+    expect(client.split("\n")).toContain(
+      'export const authClientPlugins = enabledEntries([{ module: "mcp", value: mcpAuthClientPlugin }], gatoConfig);',
+    );
+  });
+});
