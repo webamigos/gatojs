@@ -5,7 +5,7 @@ import { signupEvents } from "../signup-events";
 const ORIGIN_A = { organizationId: "org-a", actorUserId: "u1" };
 
 describe("signupEvents", () => {
-  it("join z zaproszeniem daje auth.signed-up, users.invitation-accepted i organizations.member-added w tej kolejności", () => {
+  it("a join with an invitation gives auth.signed-up, users.invitation-accepted and organizations.member-added in that order", () => {
     expect(
       signupEvents({
         userId: "u1",
@@ -37,7 +37,7 @@ describe("signupEvents", () => {
     ]);
   });
 
-  it("join bez zaproszenia daje auth.signed-up i organizations.member-added z rolą member, bez users.invitation-accepted", () => {
+  it("a join without an invitation gives auth.signed-up and organizations.member-added with role member, without users.invitation-accepted", () => {
     expect(
       signupEvents({
         userId: "u1",
@@ -59,7 +59,7 @@ describe("signupEvents", () => {
     ]);
   });
 
-  it("create daje wyłącznie auth.signed-up dla nowej organizacji", () => {
+  it("create gives only auth.signed-up for the new organization", () => {
     expect(
       signupEvents({
         userId: "u1",
@@ -80,7 +80,7 @@ describe("signupEvents", () => {
     ]);
   });
 
-  it("join z zaproszeniem bez memberId daje wyłącznie auth.signed-up", () => {
+  it("a join with an invitation without a memberId gives only auth.signed-up", () => {
     expect(
       signupEvents({
         userId: "u1",
@@ -102,7 +102,7 @@ describe("signupEvents", () => {
     ]);
   });
 
-  it("join bez zaproszenia i bez memberId daje wyłącznie auth.signed-up", () => {
+  it("a join without an invitation and without a memberId gives only auth.signed-up", () => {
     expect(
       signupEvents({
         userId: "u1",
@@ -113,7 +113,7 @@ describe("signupEvents", () => {
     ).toEqual(["auth.signed-up"]);
   });
 
-  it("organizacja zdarzeń pochodzi z applied, a nie z innego pola", () => {
+  it("the events' organization comes from applied, not from another field", () => {
     const events = signupEvents({
       userId: "u1",
       email: "a@x.pl",
@@ -138,7 +138,7 @@ describe("signupEvents", () => {
     ]);
   });
 
-  it("memberId w organizations.member-added to id członka, nie id użytkownika ani zaproszenia", () => {
+  it("the memberId in organizations.member-added is the member id, not the user id nor the invitation id", () => {
     const events = signupEvents({
       userId: "user-7",
       email: "b@x.pl",
@@ -171,7 +171,7 @@ describe("signupEvents", () => {
     fc.string({ minLength: 1 }),
     fc.constantFrom("owner" as const, "admin" as const, "member" as const),
   ])(
-    "join z zaproszeniem i memberId zawsze daje trzy zdarzenia z danymi wejścia i jednym originem",
+    "a join with an invitation and a memberId always gives three events with the input data and one origin",
     (userId, email, organizationId, memberId, invitationId, role) => {
       const origin = { organizationId, actorUserId: userId };
 
@@ -203,7 +203,7 @@ describe("signupEvents", () => {
     fc.string({ minLength: 1 }),
     fc.string({ minLength: 1 }),
   ])(
-    "create nigdy nie daje organizations.member-added ani users.invitation-accepted",
+    "create never gives organizations.member-added nor users.invitation-accepted",
     (userId, email, organizationId) => {
       expect(
         signupEvents({

@@ -524,6 +524,91 @@ describe("databaseHooks.user.create.after: admin invite scope", () => {
     });
   });
 
+  it("a sign-up by invitation inside withInviteSignup resolves the created member's id as the outcome's memberId and emits nothing", async () => {
+    mockEnv.AUTH_PUBLIC_SIGNUP = false;
+    mockPrisma.invitation.findFirst.mockResolvedValue(INVITATION);
+    mockPrisma.member.create.mockImplementation(
+      (args: { data: { userId: string } }) => ({ ...args, id: "mem-9" }),
+    );
+
+    const outcome = await withInviteSignup(() =>
+      auth.api.signUpEmail({
+        body: { ...signupBody, invitationId: "inv-1" } as typeof signupBody,
+      }),
+    );
+
+    expect(outcome.memberId).toBe("mem-9");
+    expect(outcome.result.user.id).toBe("user-new");
+    expect(timeline).toEqual([]);
+    expect(signedUp).toEqual([]);
+    expect(invitationAccepted).toEqual([]);
+    expect(memberAdded).toEqual([]);
+  });
+
+  it("the hook called directly inside withInviteSignup with a join membership records the written member's id", async () => {
+    const outcome = await withInviteSignup(async () => {
+      await afterUserCreate()(createdUser, {
+        signupMembership: {
+          action: "join",
+          organizationId: "org-7",
+          role: "member",
+        },
+      } as unknown as Parameters<AfterUserCreate>[1]);
+      return "done";
+    });
+
+    expect(outcome).toEqual({ result: "done", memberId: "mem-of-user-direct" });
+    expect(timeline).toEqual([]);
+  });
+
+  it("a sign-up creating a new organization inside withInviteSignup on MULTI_ORG=true resolves memberId null", async () => {
+    mockEnv.MULTI_ORG = true;
+
+    const outcome = await withInviteSignup(() =>
+      auth.api.signUpEmail({ body: signupBody }),
+    );
+
+    expect(outcome.memberId).toBeNull();
+    expect(mockPrisma.organization.create).toHaveBeenCalledTimes(1);
+    expect(signedUp).toEqual([]);
+    expect(memberAdded).toEqual([]);
+  });
+
+  it("a public sign-up joining the only organization outside any scope leaves a later invite scope with memberId null", async () => {
+    mockPrisma.organization.findFirst.mockResolvedValue({ id: "org-only" });
+    await auth.api.signUpEmail({ body: signupBody });
+
+    const outcome = await withInviteSignup(async () => "later");
+
+    expect(outcome).toEqual({ result: "later", memberId: null });
+    expect(timeline).toEqual(["auth.signed-up", "organizations.member-added"]);
+  });
+
+  it("an invite scope running concurrently with a public sign-up records only the invited user's member id", async () => {
+    mockPrisma.invitation.findFirst.mockResolvedValue(INVITATION);
+    mockPrisma.organization.findFirst.mockResolvedValue({ id: "org-only" });
+    mockPrisma.user.create.mockImplementation(
+      async ({ data }: { data: Record<string, unknown> }) => ({
+        ...data,
+        id: data.email === "ewa@example.com" ? "user-ewa" : "user-new",
+      }),
+    );
+
+    const [invited] = await Promise.all([
+      withInviteSignup(() =>
+        auth.api.signUpEmail({
+          body: { ...signupBody, invitationId: "inv-1" } as typeof signupBody,
+        }),
+      ),
+      auth.api.signUpEmail({
+        body: { ...signupBody, name: "Ewa", email: "ewa@example.com" },
+      }),
+    ]);
+
+    expect(invited.memberId).toBe("mem-of-user-new");
+    expect(invited.result.user.id).toBe("user-new");
+  });
+
   it("a public sign-up after a finished invite scope emits auth.signed-up again", async () => {
     mockEnv.AUTH_PUBLIC_SIGNUP = false;
     mockPrisma.invitation.findFirst.mockResolvedValue(INVITATION);
@@ -744,7 +829,7 @@ const unverifiedUser = {
 
 describe("databaseHooks.user.create.before: email verified only for an admin invite", () => {
   it("the hook called inside withInviteSignup returns the same user fields with emailVerified: true", async () => {
-    const result = await withInviteSignup(async () =>
+    const { result } = await withInviteSignup(async () =>
       beforeUserCreate()(unverifiedUser, null),
     );
 

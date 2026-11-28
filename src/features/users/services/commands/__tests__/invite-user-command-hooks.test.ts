@@ -100,6 +100,7 @@ vi.mock("@/modules.client.generated", async (importOriginal) => {
   return { ...actual, clientModules: moduleState.list };
 });
 
+import { recordInviteSignupMember } from "@/shared/lib/auth/invite-signup-scope";
 import { NoOrganizationError } from "@/shared/lib/auth/org-context";
 import { DomainError } from "@/shared/utils/error-handling";
 import usersModule from "../../../module";
@@ -181,19 +182,13 @@ beforeEach(() => {
   mockPrisma.user.update.mockResolvedValue({});
   mockPrisma.invitation.create.mockResolvedValue({ id: "inv-1" });
   mockPrisma.invitation.delete.mockResolvedValue({});
-  mockPrisma.member.findUnique.mockImplementation(
-    async (args: {
-      where?: {
-        organizationId_userId?: { organizationId?: string; userId?: string };
-      };
-    }) => {
-      const key = args.where?.organizationId_userId;
-      return key?.organizationId === "org-1" && key.userId === "new-user-1"
-        ? { id: "mem-new-1" }
-        : null;
-    },
+  mockPrisma.member.findUnique.mockRejectedValue(
+    new Error("member read after the registration"),
   );
-  mockAuthApi.signUpEmail.mockResolvedValue({ user: { id: "new-user-1" } });
+  mockAuthApi.signUpEmail.mockImplementation(async () => {
+    recordInviteSignupMember("mem-new-1");
+    return { user: { id: "new-user-1" } };
+  });
   mockCreateWelcomeUrl.mockResolvedValue("http://localhost:3000/welcome");
   mockSendWelcomeEmail.mockResolvedValue({ data: { id: "mail-1" } });
   mockTrackAudit.mockResolvedValue(undefined);

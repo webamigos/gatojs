@@ -172,9 +172,9 @@ afterAll(async () => {
 });
 
 describe.skipIf(!hasAuditLogs)(
-  "inviteUserCommand na prawdziwym better-auth: dziennik zdarzeń",
+  "inviteUserCommand on real better-auth: audit log",
   () => {
-    it("admin organizacji A zapisuje dokładnie jeden wpis, member.invited ze swoim aktorem i id zaproszenia z bazy, bez invitation.accepted", async () => {
+    it("an admin of organization A writes exactly one entry, member.invited with their own actor and the invitation id from the database, without invitation.accepted", async () => {
       await signInAs(world.admin.id, world.orgA.id);
 
       const result = await inviteUserCommand({
@@ -211,7 +211,7 @@ describe.skipIf(!hasAuditLogs)(
       expect(await auditRows(world.orgB.id)).toEqual([]);
     });
 
-    it("superadmin z potwierdzeniem w A nie zapisuje wpisu invitation.accepted", async () => {
+    it("a superadmin with a confirmation in A writes no invitation.accepted entry", async () => {
       await signInAs(world.superadmin.id, world.orgA.id);
 
       await inviteUserCommand(
@@ -227,7 +227,7 @@ describe.skipIf(!hasAuditLogs)(
       ]);
     });
 
-    it("publiczna rejestracja z zaproszeniem do A zapisuje dokładnie jeden invitation.accepted w A z aktorem nowego użytkownika i nic w B", async () => {
+    it("a public sign-up with an invitation to A writes exactly one invitation.accepted in A with the new user as actor and nothing in B", async () => {
       const invitation = await createInvitation({
         organizationId: world.orgA.id,
         inviterId: world.admin.id,
@@ -266,7 +266,7 @@ describe.skipIf(!hasAuditLogs)(
       expect(await auditRows(world.orgB.id)).toEqual([]);
     });
 
-    it("superadmin bez członkostwa w A, z potwierdzeniem, zapisuje member.invited ze swoim aktorem i serviceMode: true", async () => {
+    it("a superadmin without a membership in A, with a confirmation, writes member.invited with their own actor and serviceMode: true", async () => {
       await signInAs(world.superadmin.id, world.orgA.id);
 
       const result = await inviteUserCommand(
@@ -328,7 +328,7 @@ describe.skipIf(!hasAuditLogs)(
       expect(invited.map((event) => event.serviceMode)).toEqual([false, false]);
     });
 
-    it("superadmin w trybie serwisowym bez potwierdzenia nie tworzy zaproszenia ani wpisu", async () => {
+    it("a superadmin in service mode without a confirmation creates neither an invitation nor an entry", async () => {
       await signInAs(world.superadmin.id, world.orgA.id);
 
       const result = await inviteUserCommand({
@@ -347,8 +347,8 @@ describe.skipIf(!hasAuditLogs)(
   },
 );
 
-describe("inviteUserCommand na prawdziwym better-auth: zdarzenia domenowe", () => {
-  it("zaproszenie przez admina organizacji A daje dokładnie users.invited i organizations.member-added z organizacją A i aktorem admina, bez auth.signed-up i users.invitation-accepted", async () => {
+describe("inviteUserCommand on real better-auth: domain events", () => {
+  it("an invitation by an admin of organization A gives exactly users.invited and organizations.member-added with organization A and the admin as actor, without auth.signed-up and users.invitation-accepted", async () => {
     await signInAs(world.admin.id, world.orgA.id);
 
     const result = await inviteUserCommand({
@@ -400,7 +400,7 @@ describe("inviteUserCommand na prawdziwym better-auth: zdarzenia domenowe", () =
     ]);
   });
 
-  it("organizations.member-added po zaproszeniu wskazuje członka zaproszonego, nie admina ani członka z innej organizacji", async () => {
+  it("organizations.member-added after an invitation points to the invitee's member, not the admin's nor a member from another organization", async () => {
     await signInAs(world.admin.id, world.orgA.id);
 
     await inviteUserCommand({
@@ -425,7 +425,7 @@ describe("inviteUserCommand na prawdziwym better-auth: zdarzenia domenowe", () =
     ).toEqual([]);
   });
 
-  it("zaproszenie przez admina nadal tworzy członkostwo zaproszonego w organizacji A", async () => {
+  it("an invitation by an admin still creates the invitee's membership in organization A", async () => {
     await signInAs(world.admin.id, world.orgA.id);
 
     await inviteUserCommand({
@@ -447,7 +447,7 @@ describe("inviteUserCommand na prawdziwym better-auth: zdarzenia domenowe", () =
     ]);
   });
 
-  it("superadmin z potwierdzeniem trybu serwisowego daje users.invited i organizations.member-added ze swoim aktorem i serviceMode: true", async () => {
+  it("a superadmin with a service mode confirmation gives users.invited and organizations.member-added with their own actor and serviceMode: true", async () => {
     await signInAs(world.superadmin.id, world.orgA.id);
 
     const result = await inviteUserCommand(
@@ -486,7 +486,7 @@ describe("inviteUserCommand na prawdziwym better-auth: zdarzenia domenowe", () =
     });
   });
 
-  it("publiczna rejestracja z zaproszeniem do A (poza zaproszeniem admina) daje dokładnie auth.signed-up, users.invitation-accepted i organizations.member-added z organizacją A i aktorem nowego użytkownika", async () => {
+  it("a public sign-up with an invitation to A (outside an admin invite) gives exactly auth.signed-up, users.invitation-accepted and organizations.member-added with organization A and the new user as actor", async () => {
     const invitation = await createInvitation({
       organizationId: world.orgA.id,
       inviterId: world.admin.id,
@@ -538,7 +538,7 @@ describe("inviteUserCommand na prawdziwym better-auth: zdarzenia domenowe", () =
     ]);
   });
 
-  it("publiczna rejestracja z podrobionymi polami inviteSignup, adminInvite i isInviteSignup nadal daje trzy zdarzenia rejestracji z zaproszenia", async () => {
+  it("a public sign-up with forged inviteSignup, adminInvite and isInviteSignup fields still gives the three invitation sign-up events", async () => {
     const invitation = await createInvitation({
       organizationId: world.orgA.id,
       inviterId: world.admin.id,
@@ -612,9 +612,9 @@ async function invitedAuditRows(organizationId: string) {
 }
 
 describe.skipIf(!hasAuditLogs)(
-  "inviteUserCommand na prawdziwym better-auth: weryfikacja emaila i wpis member.invited",
+  "inviteUserCommand on real better-auth: email verification and the member.invited entry",
   () => {
-    it("zaproszony przez admina A ma zweryfikowany email, członkostwo w A i dokładnie jeden wiersz member.invited w A", async () => {
+    it("a user invited by an admin of A has a verified email, a membership in A and exactly one member.invited row in A", async () => {
       await signInAs(world.admin.id, world.orgA.id);
 
       const result = await inviteUserCommand({
@@ -645,7 +645,7 @@ describe.skipIf(!hasAuditLogs)(
       ]);
     });
 
-    it("po serii zaproszeń w A i B każde członkostwo zaproszonego ma swój wiersz member.invited z jego emailem", async () => {
+    it("after a series of invitations in A and B every invitee's membership has its own member.invited row with their email", async () => {
       const adminB = await createUser({
         email: "admin@b.example",
         role: "admin",
@@ -729,8 +729,8 @@ describe.skipIf(!hasAuditLogs)(
   },
 );
 
-describe("publiczna rejestracja na prawdziwym better-auth: email niezweryfikowany", () => {
-  it("publiczna rejestracja z zaproszeniem do A tworzy użytkownika z emailVerified: false", async () => {
+describe("public sign-up on real better-auth: unverified email", () => {
+  it("a public sign-up with an invitation to A creates the user with emailVerified: false", async () => {
     const invitation = await createInvitation({
       organizationId: world.orgA.id,
       inviterId: world.admin.id,
@@ -756,7 +756,7 @@ describe("publiczna rejestracja na prawdziwym better-auth: email niezweryfikowan
     expect(newUser).toEqual({ emailVerified: false });
   });
 
-  it("publiczna rejestracja z podrobionymi emailVerified i isInviteSignup w body oraz nagłówkiem x-invite-signup tworzy użytkownika z emailVerified: false", async () => {
+  it("a public sign-up with forged emailVerified and isInviteSignup in the body and an x-invite-signup header creates the user with emailVerified: false", async () => {
     const invitation = await createInvitation({
       organizationId: world.orgA.id,
       inviterId: world.admin.id,

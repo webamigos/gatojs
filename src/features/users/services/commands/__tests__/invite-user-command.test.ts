@@ -116,7 +116,10 @@ vi.mock("@/modules.generated", () => ({
 }));
 
 import { revalidatePath } from "next/cache";
-import { isInviteSignup } from "@/shared/lib/auth/invite-signup-scope";
+import {
+  isInviteSignup,
+  recordInviteSignupMember,
+} from "@/shared/lib/auth/invite-signup-scope";
 import { inviteUserCommand } from "../invite-user-command";
 
 const WELCOME_URL =
@@ -143,19 +146,11 @@ const SERVICE_MODE_ERROR = {
   error: "Potwierdź zmianę w trybie serwisowym",
 };
 
-const MEMBER_IDS: Record<string, string> = {
-  "org-1/new-user-1": "mem-new-1",
-  "org-9/new-user-1": "mem-org9-new-1",
-};
-
-function memberRowFor(args: {
-  where?: {
-    organizationId_userId?: { organizationId?: string; userId?: string };
+function signUpRecordingMember(memberId: string | null, userId: string) {
+  return async () => {
+    recordInviteSignupMember(memberId);
+    return { user: { id: userId } };
   };
-}) {
-  const key = args.where?.organizationId_userId;
-  const id = MEMBER_IDS[`${key?.organizationId}/${key?.userId}`];
-  return id ? { id } : null;
 }
 
 const validInput = {
@@ -170,10 +165,12 @@ beforeEach(() => {
   mockPrisma.invitation.create.mockResolvedValue({ id: "inv-1" });
   mockPrisma.invitation.delete.mockResolvedValue({});
   mockPrisma.user.update.mockResolvedValue({});
-  mockPrisma.member.findUnique.mockImplementation(async (args) =>
-    memberRowFor(args),
+  mockPrisma.member.findUnique.mockRejectedValue(
+    new Error("member read after the registration"),
   );
-  mockAuthApi.signUpEmail.mockResolvedValue({ user: { id: "new-user-1" } });
+  mockAuthApi.signUpEmail.mockImplementation(
+    signUpRecordingMember("mem-new-1", "new-user-1"),
+  );
   mockCreateWelcomeUrl.mockResolvedValue(WELCOME_URL);
   mockSendWelcomeEmail.mockResolvedValue({ data: { id: "mail-1" } });
   mockTrackAudit.mockResolvedValue(undefined);
@@ -636,7 +633,7 @@ describe("inviteUserCommand", () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
     });
 
-    it("a successful invitation emits users.invited and then organizations.member-added with the invitee's member row, both with the context organization and the admin as actor", async () => {
+    it("a successful invitation emits users.invited and then organizations.member-added with the member id recorded by the sign-up, both with the context organization and the admin as actor", async () => {
       const result = await inviteUserCommand(validInput);
 
       expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
@@ -672,8 +669,8 @@ describe("inviteUserCommand", () => {
       expect(timeline).toEqual(["event", "member-added"]);
     });
 
-    it("a missing member row of the invitee emits only users.invited", async () => {
-      mockPrisma.member.findUnique.mockResolvedValue(null);
+    it("a sign-up that records no member emits only users.invited", async () => {
+      mockAuthApi.signUpEmail.mockResolvedValue({ user: { id: "new-user-1" } });
 
       const result = await inviteUserCommand(validInput);
 
@@ -693,14 +690,96 @@ describe("inviteUserCommand", () => {
       ]);
     });
 
-    it("the member row is looked up in the context organization for the registered user, so a row elsewhere emits no member-added", async () => {
-      mockAuthApi.signUpEmail.mockResolvedValue({
-        user: { id: "user-without-row" },
+    it("a sign-up that records memberId null emits only users.invited, never a member-added with memberId null", async () => {
+      mockAuthApi.signUpEmail.mockImplementation(
+        signUpRecordingMember(null, "new-user-1"),
+      );
+
+      const result = await inviteUserCommand(validInput);
+
+      expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
+      expect(timeline).toEqual(["event"]);
+    });
+
+    it("the member id comes from the invite scope, so prisma.member.findUnique is never called", async () => {
+      await inviteUserCommand(validInput);
+
+      expect(mockPrisma.member.findUnique).not.toHaveBeenCalled();
+      expect(timeline).toEqual(["event", "member-added"]);
+    });
+
+    it("a rejecting prisma.member.findUnique does not affect the invitation: it succeeds with users.invited and organizations.member-added", async () => {
+      mockPrisma.member.findUnique.mockRejectedValue(new Error("db down"));
+
+      const result = await inviteUserCommand(validInput);
+
+      expect(result).toEqual({ success: true, data: { userId: "new-user-1" } });
+      expect(emitted).toEqual([
+        {
+          name: "users.invited",
+          organizationId: "org-1",
+          actorUserId: "admin-1",
+          serviceMode: false,
+          payload: {
+            invitationId: "inv-1",
+            email: "jan@firma.pl",
+            role: "member",
+          },
+        },
+        {
+          name: "organizations.member-added",
+          organizationId: "org-1",
+          actorUserId: "admin-1",
+          serviceMode: false,
+          payload: {
+            memberId: "mem-new-1",
+            userId: "new-user-1",
+            role: "member",
+          },
+        },
+      ]);
+    });
+
+    it("the member-added payload carries the recorded member id and the registered user id, not one for the other", async () => {
+      mockAuthApi.signUpEmail.mockImplementation(
+        signUpRecordingMember("mem-77", "user-77"),
+      );
+
+      const result = await inviteUserCommand(validInput);
+
+      expect(result).toEqual({ success: true, data: { userId: "user-77" } });
+      expect(emitted[1]).toEqual({
+        name: "organizations.member-added",
+        organizationId: "org-1",
+        actorUserId: "admin-1",
+        serviceMode: false,
+        payload: { memberId: "mem-77", userId: "user-77", role: "member" },
       });
+    });
+
+    it("a member recorded outside the invite scope before the invitation is not used", async () => {
+      recordInviteSignupMember("mem-stray");
+      mockAuthApi.signUpEmail.mockResolvedValue({ user: { id: "new-user-1" } });
 
       await inviteUserCommand(validInput);
 
       expect(timeline).toEqual(["event"]);
+    });
+
+    it("the last member recorded by the sign-up inside the invite scope wins", async () => {
+      mockAuthApi.signUpEmail.mockImplementation(async () => {
+        recordInviteSignupMember("mem-first");
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        recordInviteSignupMember("mem-final");
+        return { user: { id: "new-user-1" } };
+      });
+
+      await inviteUserCommand(validInput);
+
+      expect(emitted[1]).toMatchObject({
+        name: "organizations.member-added",
+        payload: { memberId: "mem-final", userId: "new-user-1" },
+      });
     });
 
     it("the organization, actor and serviceMode come from the context, the email and role from the parsed input", async () => {
@@ -713,6 +792,9 @@ describe("inviteUserCommand", () => {
         organizationId: "org-9",
       });
       mockPrisma.invitation.create.mockResolvedValue({ id: "inv-9" });
+      mockAuthApi.signUpEmail.mockImplementation(
+        signUpRecordingMember("mem-org9-new-1", "new-user-1"),
+      );
 
       await inviteUserCommand(
         { ...validInput, email: "  Ewa@Firma.PL ", role: "admin" },
@@ -749,6 +831,7 @@ describe("inviteUserCommand", () => {
       mockAuthApi.signUpEmail.mockImplementation(async () => {
         timeline.push("signup:start");
         await new Promise((resolve) => setTimeout(resolve, 5));
+        recordInviteSignupMember("mem-new-1");
         timeline.push("signup:end");
         return { user: { id: "new-user-1" } };
       });
