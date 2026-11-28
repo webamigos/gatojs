@@ -909,6 +909,42 @@ describe("generate: auth.ts exporting authPlugin or authPlugins", () => {
     await expectArray("const authPlugins = [];\nexport { authPlugins };");
   });
 
+  it("a commented-out export list naming authPlugins next to authPlugin keeps the single import", async () => {
+    await expectSingle(
+      "// export { authPlugins }\nexport const authPlugin = {};",
+    );
+  });
+
+  it("an indented export list naming authPlugins gives the array import", async () => {
+    await expectArray("const authPlugins = [];\n  export { authPlugins };");
+  });
+
+  it("an export list without spaces inside the braces gives the array import", async () => {
+    await expectArray("const authPlugins = [];\nexport {authPlugins};");
+  });
+
+  it("an export list with no space between export and the brace gives the array import", async () => {
+    await expectArray("const authPlugins = [];\nexport{authPlugins};");
+  });
+
+  it("two spaces on both sides of as in an export list give the array import", async () => {
+    await expectArray(
+      "const plugins = [];\nexport { plugins  as  authPlugins };",
+    );
+  });
+
+  it("a newline and indent after as in an export list give the array import", async () => {
+    await expectArray(
+      "const plugins = [];\nexport {\n  plugins as\n    authPlugins,\n};",
+    );
+  });
+
+  it("a newline and indent before as in an export list give the array import", async () => {
+    await expectArray(
+      "const plugins = [];\nexport {\n  plugins\n    as authPlugins,\n};",
+    );
+  });
+
   it("export { plugins as authPlugins } gives the array import", async () => {
     await expectArray(
       "const plugins = [];\nexport { plugins as authPlugins };",
