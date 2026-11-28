@@ -21352,15 +21352,13 @@ function exportsName(source, name) {
     return true;
   }
   return [...source.matchAll(EXPORT_LIST)].some(
-    ([, list2]) => list2.split(",").map(
-      (specifier) => specifier.trim().split(/\s+as\s+/).pop()
-    ).includes(name)
+    ([, list2]) => list2.split(",").map((specifier) => specifier.trim().split(/\s+/).pop()).includes(name)
   );
 }
 async function detectAuth(base, name) {
   const file2 = join5(base, "auth.ts");
   if (!await exists(file2)) {
-    return { hasAuth: false, hasAuthPlugins: false };
+    return { hasAuth: false };
   }
   const source = await readFile5(file2, "utf8");
   const hasAuthPlugin = exportsName(source, "authPlugin");
