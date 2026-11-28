@@ -1,10 +1,12 @@
 # Background jobs: a `jobs` module on BullMQ, with retention and cleanup as its first consumers
 
-Date: 2026-11-28, against `main` at `dd8214d` (GatoJS `0.40.0`, `kitFormat` 11). Drafted by an agent for Patryk. Status:
-**draft; the owner's decisions so far are in section 17.1, the remaining questions in 17.2.** A plan follows once they are in.
+Date: 2026-11-28, against `main` at `8244a83` (GatoJS `0.43.0`). Drafted by an agent for Patryk. Status: **all
+questions of the first draft answered by the owner (section 17.1); the spec is revised to match. Section 17.2 lists
+the questions the revision raised.** A plan follows once they are answered.
 
 Roadmap item: *"Background jobs: a job queue and scheduled tasks, including retention and cleanup, e.g. pruning old audit
-log entries and orphaned uploads."* Decision already made by the owner: **BullMQ on Redis**, as in his other projects.
+log entries and orphaned uploads."* Decided by the owner: **BullMQ on Redis**, a **separate worker image**, a
+**transactional outbox**, **strict organization scope** inside jobs and an **organization timezone**.
 
 Sources:
 
@@ -21,13 +23,21 @@ Sources:
     `the-workers-prisma-adapter-is-a-major-behind.md`;
   - `budget/company-budget-app`: `docs/background-jobs.md`, `packages/queue/src/queues.ts`,
     `apps/worker/src/{main,registry,next-cache-shim}.ts`, `apps/worker/src/jobs/crm-sync.ts`, the worker tests;
-- GatoJS: `CLAUDE.md`, `AGENTS.md`, `kit/CLAUDE.md`, `EXTENSION_POINTS.md`, ADR-59 to ADR-69, `docs/09-nowy-modul.md`,
-  `kit/modules/{audit-logs,uploads}.json`, `src/features/{audit-logs,uploads}/**`, `src/shared/lib/{events,commands,
-  tenant-scope,modules}/`, `src/instrumentation.ts`, `src/app/api/healthcheck/route.ts`, `docker-compose.yml`,
-  `docker-compose.selfhost.yml`, `Dockerfile`, `railway.toml`, `deploy/helm/gatojs/`, `packages/gato-cli/src/manifest/
-  schema.ts`, and the earlier specs [`2026-10-26-wa-kit-design.md`](2026-10-26-wa-kit-design.md) (the original
-  `worker` module row) and [`2026-11-22-packages-design.md`](2026-11-22-packages-design.md) §6 ("a jobs package comes
-  with a background-jobs module").
+- GatoJS `main` at `8244a83`: `CLAUDE.md`, `AGENTS.md`, `kit/CLAUDE.md`, `EXTENSION_POINTS.md`, ADR-59 to ADR-71,
+  `docs/09-nowy-modul.md`, `kit/modules/{audit-logs,uploads}.json`, `src/features/{audit-logs,uploads,organizations}/**`,
+  `src/shared/lib/{events,commands,tenant-scope,modules,audit.ts}`, `src/instrumentation.ts`,
+  `src/app/api/healthcheck/route.ts`, `prisma/schema/organizations.prisma`, `docker-compose.yml`,
+  `docker-compose.selfhost.yml`, `Dockerfile`, `railway.toml`, `deploy/helm/gatojs/`,
+  `packages/gato-cli/src/manifest/schema.ts`, and the earlier specs
+  [`2026-10-26-wa-kit-design.md`](2026-10-26-wa-kit-design.md) (the original `worker` module row) and
+  [`2026-11-22-packages-design.md`](2026-11-22-packages-design.md) §6;
+- pull requests merged since the first draft, and how this spec meets them: **#134** (`legal` module, core slots
+  `app.root`, `app.sidebar.footer`, `auth.footer`, `docs/18-legal-module.md`; this spec's docs therefore start at
+  `docs/19`), **#138** (ADR-70: membership events come from the actor who added the member; the new
+  `organizations.timezone-changed` event follows the same rule, the actor is the user who changed it), **#139**
+  (ADR-71: account profile changes emit no organization event, and the shared `PageHeader`; a personal timezone, if
+  added, follows ADR-71, and the new pages use `PageHeader`). ADR-70 and ADR-71 are taken, so this spec proposes
+  ADR-72 to ADR-75 (section 18).
 
 Naming follows the extensibility spec: new names say GatoJS or `gato`; existing spellings (`wa:*` regions,
 `npm run wa --`, `.wa/kit.json`) stay until the rename plan.
@@ -45,9 +55,11 @@ GatoJS has no way to run work outside a request:
   a report or calls a rate-limited API has nowhere to put the work, and no retry.
 - **Durable reactions.** ADR-61 says it plainly: domain events are in-process and best effort, *"a `jobs` module would
   bring that"*.
+- **Time.** Nothing knows what time it is *for an organization*: dates render in the server's zone and a schedule would
+  fire in the container's zone.
 
-**Goal:** a GatoJS module (Gato or project) declares jobs and schedules in one registry file, enqueues them with a
-typed, organization-carrying origin, and a worker runs them with retries, in every deployment shape GatoJS supports
+**Goal:** a GatoJS module (Gato or project) declares jobs and schedules in one registry file, enqueues them atomically
+with its own database writes, and a separate worker runs them with retries, in every deployment shape GatoJS supports
 (Compose, self-hosted Compose, Railway, Helm), without the developer touching a Gato file.
 
 ## 2. Goals and non-goals
@@ -55,28 +67,26 @@ typed, organization-carrying origin, and a worker runs them with retries, in eve
 Goals:
 
 1. A `jobs.ts` registry file per module, like `events.ts` and `subscribers.ts`: typed payloads (Zod), retry policy,
-   concurrency, and schedules, collected by `wa generate`.
-2. Tenant safety by construction: every organization job carries `organizationId` in an envelope that the payload
-   cannot override, and cross-organization maintenance is a separate, explicitly named scope.
-3. One worker shape that works the same on a laptop, in `docker-compose.selfhost.yml`, on Railway and on Kubernetes.
-4. Retention and cleanup shipped as the first consumers: audit-log pruning and orphaned-upload cleanup, configured in
-   `src/gato.config.ts`.
-5. Tests that need no Redis for handler logic, and an integration suite on a real Redis for the runtime.
-6. The operational lessons of the three projects built in from the start (section 3), not rediscovered.
+   concurrency and schedules, collected by `wa generate`.
+2. Enqueueing is part of the caller's database transaction (outbox), so a committed write never loses its job and a
+   rolled-back write never runs one.
+3. Tenant safety enforced at run time: an organization job's queries can touch only its own organization.
+4. A separate worker image that runs module job handlers without loading Next.js, tested in `npm run verify` from day
+   one.
+5. Retention and cleanup shipped as the first consumers, configured in `src/gato.config.ts`.
+6. An organization timezone, used by organization-facing schedules and by date display, changeable by owners and
+   admins.
+7. Queued subscribers (event → job) and a `jobs.failed` event.
+8. The operational lessons of the three projects built in from the start (section 3).
 
 Non-goals (this spec):
 
-- Durable execution (replay of a half-finished job). BullMQ re-runs a job from the top; handlers are idempotent
-  (ADR-44 in Ragen made the same trade).
-- Flows / parent-child job graphs (`FlowProducer`). Nothing in the kit needs them; a project can use BullMQ directly
-  inside its own module later.
-- A transactional outbox. Section 8.4 explains the gap and the pattern that covers it; an outbox is an open question.
-- Organization-configurable schedules (an owner sets "prune my audit log after 90 days" in the UI). Schedules are
-  project configuration in v1.
-- A separate Node application (`apps/worker`) or a published jobs package. Section 6 explains why the worker is a role
-  of the same image.
+- Durable execution (replay of a half-finished job). BullMQ re-runs a job from the top; handlers are idempotent.
+- Flows / parent-child job graphs (`FlowProducer`).
+- A BullMQ backend other than Redis (decision 17.1/2).
 - Tracking which uploads are *referenced* by domain data. "Orphaned" in v1 means "a storage object with no `Upload`
-  row", not "an `Upload` row nothing points at" (section 10.2).
+  row" (section 10.2).
+- Strict ordering between jobs. The outbox relays in creation order, but BullMQ runs jobs concurrently (8.6).
 
 ## 3. What the three projects teach
 
@@ -92,32 +102,36 @@ All three run BullMQ in a worker process separate from the web process. What wor
 | Stalls | Ragen: CPU-bound work (sharp, pdfium) blocks the event loop, the lock is not renewed, BullMQ marks the job stalled and **runs it a second time in parallel**. Fix: `lockDuration` 5 min for that workload, `maxStalledCount: 1`, both overridable so an integration test can prove the stalled path. | **Keep** `maxStalledCount: 1` and per-job `lockDurationMs`; GatoJS's `uploads` uses `sharp`. |
 | Concurrency | `concurrency` is **per Worker instance**; two replicas at 5 run 10. Ragen sets BullMQ's **global concurrency** for jobs that must not overlap (nightly maintenance) or that hit a rate-limited provider. Ragen also found its first regression was a unit confusion (jobs vs activities) in a default. | **Keep** per-job `concurrency` and `globalConcurrency`. |
 | Schedules | justnails/company-budget: `upsertJobScheduler` at worker boot (BullMQ 6 removed legacy repeatable jobs). justnails reads a DB toggle and removes the scheduler when it is off ("a restart must not silently re-enable a schedule"). company-budget never removes a scheduler that left the code, so a deleted schedule keeps firing. Ragen keeps destructive schedules out of boot (explicit scripts with `--delete`) and found Temporal accepting a six-field cron that never fired. | **Keep** boot-time upsert, **add** reconciliation (remove schedulers this app owns that are no longer declared or are disabled), **validate** crons as five-field at registry build time. |
-| Worker process | justnails/company-budget: `apps/worker` run by `tsx` in its own Docker image and Railway service; company-budget imports the app's `src/` through the `@/*` alias and needed a `next/cache` shim because `revalidatePath` throws outside a request, plus lazy `next/headers` imports, plus a lesson about app code running as CommonJS in the worker. justnails forbids the worker to import `src/` and calls the app back over HTTP with a shared `CRON_SECRET`. Ragen: a separate app with its own image. | **Avoid** a second build of the app code (section 6 runs the same build in a worker role). |
+| Worker process | justnails/company-budget: `apps/worker` run by `tsx` in its own Docker image and Railway service; company-budget imports the app's `src/` through the `@/*` alias and needed a `next/cache` shim because `revalidatePath` throws outside a request, plus lazy `next/headers` imports, plus a lesson about app code running as CommonJS in the worker. justnails forbids the worker to import `src/` and calls the app back over HTTP with a shared `CRON_SECRET`. Ragen: a separate app with its own image. | **Keep** the separate worker image (decision 17.1/1). **Avoid** the pitfalls with a bundle that imports the app's code through a Next-free generated registry, stubs for `next/*`, one module format, and worker tests and a bundle check in `npm run verify` from day one (section 6). |
 | Shutdown | All three: `SIGTERM` → stop the HTTP side → `worker.close()` (waits for in-flight jobs) → flush telemetry last → exit. Railway sends `SIGTERM` on every deploy, so the path runs constantly. Ragen: a script that opens a queue must close it or the process never exits. | **Keep**, plus a timeout below the platform's grace period. |
-| Dashboard | justnails/company-budget: bull-board on the worker's own port behind Basic Auth (`BULL_BOARD_USER/PASSWORD`) with an unauthenticated `/health`. Ragen: the same, off unless both credentials are set, constant-time compare over hashes; it names "behind Better Auth in the admin app" as the honest home and defers it (proxying Express through a Next route is work). | Section 12: a small in-app page for global admins in v1; bull-board optional later. |
+| Dashboard | justnails/company-budget: bull-board on the worker's own port behind Basic Auth (`BULL_BOARD_USER/PASSWORD`) with an unauthenticated `/health`. Ragen: the same, off unless both credentials are set, constant-time compare over hashes; it names "behind Better Auth in the admin app" as the honest home and defers it (proxying Express through a Next route is work). | **Keep** bull-board on the worker behind a password, off unless configured, read-only by default, never published (section 12.2), **plus** a small in-app page for global admins (12.1). |
 | Tests | justnails/company-budget: processors are framework-agnostic functions tested with Prisma mocked; a registry test asserts a processor per queue name. Ragen: unit tests of the adapter plus an integration suite on real Redis (enqueue → complete, retries, cancel, schedule fire, stalled recovery, double-run), which found a real race the mocks could not (`getRun` reading job and state in two round trips). justnails: CI did not run the worker tests for months. | **Keep** both levels; the worker code lives in `src/`, so `npm test` and `npm run verify` cover it with no extra workspace. |
 | Observability | pino logs with `{ queue, jobId }` on `completed`/`failed`; OTel off unless `OTEL_EXPORTER_OTLP_ENDPOINT`; Ragen plans `bullmq-otel`; `job.updateProgress` rendered by bull-board. | **Keep**, through GatoJS's logger and `packages/observability`. |
 | Secrets | Ragen moved payloads from content to identifiers ("whole documents sat unencrypted in the engine's storage and went stale"). company-budget: payloads carry integration ids, never credentials. justnails' email job carries rendered HTML with the recipient. | **Keep** ids-only payloads; render mail at run time. |
 
 ## 4. Shape of the change
 
-Three parts, because GatoJS modules must not depend on an optional module and must not edit core files:
+Four parts, because GatoJS modules must not depend on an optional module and must not edit core files:
 
-1. **Core seam** `src/shared/lib/jobs/` (in `mutation-gate.json` `critical`): `defineJobs`, `defineSchedules`, the
-   registry check, the job envelope, `jobOrigin`, `enqueueJob`, the `JobRuntime` port and an in-memory runtime for
-   tests. No `bullmq` import. Gato modules (`audit-logs`, `uploads`) and project modules declare jobs against this seam
-   whether or not the `jobs` module is installed, exactly as `trackAudit` works with or without `audit-logs`
-   (`auditSinks`).
-2. **Kit module `jobs`** `src/features/jobs/`: the BullMQ runtime (producer and consumer), the worker role, scheduler
-   reconciliation, health and shutdown, the admin page, Compose services, env schema. It is the only code that
-   imports `bullmq` or `ioredis`.
-3. **First consumers**: `src/features/audit-logs/jobs.ts` (pruning) and `src/features/uploads/jobs.ts` (orphan
+1. **Core seam** `src/shared/lib/jobs/`: `defineJobs`, `defineSchedules`, the registry check, the job envelope,
+   `jobOrigin`, `enqueueJob`, the `JobRuntime` port and an in-memory runtime for tests. No `bullmq` import. Gato modules
+   (`audit-logs`, `uploads`) and project modules declare jobs against this seam whether or not the `jobs` module is
+   installed, as `trackAudit` works with or without `audit-logs` (`auditSinks`).
+2. **Core changes the jobs need anyway:** a Next-free server registry (6.3), the organization job scope in the
+   tenant-scope guard (9.1), the organization timezone and its settings page (section 11), `AuditChannel` `SYSTEM`
+   (10.1), queued subscribers in the event bus (11.3).
+3. **Kit module `jobs`** `src/features/jobs/`: the outbox table and relay, the BullMQ runtime, the worker entrypoint and
+   its Dockerfile, scheduler reconciliation, health, shutdown, the worker dashboard, the in-app admin page, Compose
+   services, env schema. The only code that imports `bullmq` or `ioredis`.
+4. **First consumers**: `src/features/audit-logs/jobs.ts` (retention) and `src/features/uploads/jobs.ts` (orphan
    cleanup), each with its own module version bump.
 
 Without the `jobs` module, `moduleJobs` and `moduleSchedules` still exist (declarations are validated, so a bad key fails
 `npm test`), `enqueueJob` throws `JobsUnavailableError("jobs module is not installed or disabled")`, and schedules do
 not run. `wa doctor` warns once: *"audit-logs declares schedules, but the jobs module is not installed; they will not
-run"*. A module that must work without jobs checks `isModuleEnabled("jobs")` and does the work inline.
+run"*. A module that must work without jobs checks `isModuleEnabled("jobs")` and does the work inline. A queued
+subscriber (11.3) of a module that does not `require` `jobs` is a registry error, so a kit module never ships one
+without declaring the dependency.
 
 ## 5. Module shape
 
@@ -127,25 +141,43 @@ run"*. A module that must work without jobs checks `isModuleEnabled("jobs")` and
 {
   "name": "jobs",
   "version": "0.1.0",
-  "description": "Background jobs and schedules on BullMQ and Redis, with a worker role and an admin page",
+  "description": "Background jobs and schedules on BullMQ and Redis: outbox, worker image, dashboard and admin page",
   "requires": [],
   "files": [
+    "prisma/schema/jobs.prisma",
     "src/features/jobs/**",
     "src/app/[locale]/(app)/admin/jobs/**",
+    "docker/worker.Dockerfile",
     "docker/jobs.compose.yml",
     "docker/jobs.selfhost.compose.yml",
     "ci/jobs.integration-steps.yml"
   ],
-  "dependencies": { "bullmq": "<pinned at implementation, 6.x>", "ioredis": "<pinned, 5.x>" },
-  "devDependencies": {},
+  "dependencies": {
+    "bullmq": "<pinned at implementation, 6.x>",
+    "ioredis": "<pinned, 5.x>",
+    "@bull-board/api": "<pinned>",
+    "@bull-board/express": "<pinned>",
+    "express": "<pinned, 5.x>"
+  },
+  "devDependencies": { "esbuild": "<pinned>" },
+  "scripts": {
+    "worker:dev": "tsx watch --clear-screen=false --import ./src/features/jobs/worker/dev-hooks.mjs src/features/jobs/worker/main.ts",
+    "worker:build": "tsx src/features/jobs/worker/build.ts",
+    "worker:start": "node .worker/worker.mjs"
+  },
+  "verify": "npm run worker:build && npm run worker:check",
   "env": [
     { "name": "REDIS_URL", "example": "redis://localhost:6379", "selfhostExample": "redis://redis:6379", "required": true },
-    { "name": "JOBS_ROLE", "example": "all", "selfhostExample": "web", "required": false },
+    { "name": "REDIS_PASSWORD", "example": "", "selfhostExample": "", "required": false },
     { "name": "JOBS_CONCURRENCY", "example": "5", "required": false },
     { "name": "JOBS_PREFIX", "example": "{{projectSlug}}", "required": false },
-    { "name": "JOBS_SHUTDOWN_TIMEOUT_MS", "example": "25000", "required": false }
+    { "name": "JOBS_SHUTDOWN_TIMEOUT_MS", "example": "25000", "required": false },
+    { "name": "JOBS_WORKER_PORT", "example": "3100", "required": false },
+    { "name": "JOBS_DASHBOARD_USER", "example": "", "required": false },
+    { "name": "JOBS_DASHBOARD_PASSWORD", "example": "", "required": false },
+    { "name": "JOBS_DASHBOARD_READ_ONLY", "example": "true", "required": false }
   ],
-  "schemaRelations": [],
+  "schemaRelations": [{ "model": "Organization", "field": "jobOutbox JobOutbox[]" }],
   "compose": "docker/jobs.compose.yml",
   "selfhostCompose": "docker/jobs.selfhost.compose.yml",
   "ciSteps": "ci/jobs.integration-steps.yml",
@@ -153,85 +185,95 @@ run"*. A module that must work without jobs checks `isModuleEnabled("jobs")` and
 }
 ```
 
-`bullmq` 6 made `ioredis` an optional peer, so it is a direct dependency. Both go into `serverExternalPackages` in
-`next.config.ts` (a core change, section 15): BullMQ loads Lua scripts from disk and the bundler cannot inline them
-(company-budget and justnails both list them). No Prisma model in v1.
+New manifest fields (gato-cli, **`kitFormat` 12**): `scripts` (merged into the project's `package.json` by
+`wa generate`, owned like dependencies, removed with the module) and `verify` (a command the generator composes into a
+new core script `verify:modules`, which the core `verify` script runs). This is how the worker build and its check are
+part of `npm run verify` from day one, the gap justnails lived with for months.
 
 ### 5.2 Files
 
 ```
+prisma/schema/jobs.prisma         JobOutbox (8.4)
 src/features/jobs/
-├── module.ts                 defineModule({ key: "jobs", nav: [], routePrefixes: ["/admin/jobs"], adminOnly … })
-├── env.ts                    envSchema (5.3)
-├── job-runtime.ts            export const jobRuntime: JobRuntime (registry contribution, 7.4)
+├── module.ts                     defineModule({ key: "jobs", adminOnly, routePrefixes: ["/admin/jobs"], commands … })
+├── env.ts                        envSchema (5.3)
+├── events.ts                     jobs.failed (11.4)
+├── job-runtime.ts                export const jobRuntime: JobRuntime (registry contribution, 7.4)
 ├── extension-points.json
 ├── i18n/{pl,en}.json
-├── runtime/                  the only files that import bullmq / ioredis
-│   ├── connection.ts         producer and consumer connection options
-│   ├── producer.ts           BullMQ JobRuntime: enqueue, dedupe, job ids
-│   ├── consumer.ts           Worker per job, envelope parse, failure mapping
-│   ├── schedules.ts          upsert + reconciliation of job schedulers
-│   ├── redis-health.ts       eviction check
-│   └── queue-names.ts        job name → queue name, prefix
+├── outbox/                       insert, relay, prune (8.4)
+├── runtime/                      the only files that import bullmq / ioredis
+│   ├── connection.ts             relay (producer) and consumer connection options
+│   ├── consumer.ts               Worker per job, envelope parse, failure mapping, jobs.failed
+│   ├── schedules.ts              upsert + reconciliation of job schedulers
+│   ├── organization-schedules.ts per-organization slots (11.2)
+│   ├── redis-health.ts           eviction check
+│   └── queue-names.ts            job name → queue name, prefix
 ├── worker/
-│   ├── start-worker-role.ts  called from instrumentation (6.2)
-│   └── shutdown.ts
-├── services/queries/         admin page reads (global admin)
-├── services/commands/        retry, run-now (global admin, 12)
+│   ├── main.ts                   worker entrypoint (6.2)
+│   ├── http.ts                   /health and the optional dashboard (12.2)
+│   ├── shutdown.ts
+│   ├── build.ts                  esbuild bundle + metafile check (6.4)
+│   ├── stubs/                    next/*, server-only replacements (6.4)
+│   └── dev-hooks.mjs             the same stubs for tsx in development
+├── services/queries/             admin page reads (global admin)
+├── services/commands/            jobs.retry, jobs.run-now (global admin, 12.1)
 └── components/
+docker/worker.Dockerfile          worker image (6.5)
 ```
 
 ### 5.3 Environment
 
-`src/features/jobs/env.ts` follows `uploads/env.ts` (registered in `moduleEnvSchemas`, verified by
-`verifyEnvOnStartup` at boot, so a missing `REDIS_URL` stops the server with a readable message instead of failing
-inside BullMQ later, as justnails' `loadEnv` does):
+`src/features/jobs/env.ts` follows `uploads/env.ts`: registered in `moduleEnvSchemas`, verified at boot by both the app
+(`verifyEnvOnStartup` in `instrumentation.ts`) and the worker (the same call in `worker/main.ts`), so a missing variable
+stops the process with a readable message (justnails' `loadEnv`).
 
 | Variable | Default | Rule |
 | --- | --- | --- |
-| `REDIS_URL` | none | Required when the module is enabled. `redis://` or `rediss://` (TLS). Through `@gatojs/env` `httpUrl`-style validation, a new `redisUrl` helper. |
-| `JOBS_ROLE` | `all` in development, `web` in production | `web` (enqueue only), `worker` (consume and schedule), `all` (both; development and one-container installs). |
+| `REDIS_URL` | none | Required when the module is enabled. `redis://` or `rediss://` (TLS), through a new `redisUrl` helper in `@gatojs/env`. The web needs it only for the admin page (12.1); enqueueing never touches Redis (8.4). |
+| `REDIS_PASSWORD` | none | Used as the ioredis `password` when the URL has none. **Required** in the self-hosted stack (decision 17.1/9, 5.4). A URL with a password and `REDIS_PASSWORD` both set is an error. |
 | `JOBS_CONCURRENCY` | `5` | Default per-worker concurrency for jobs that do not declare one. Counts whole jobs (Ragen's unit lesson). |
-| `JOBS_PREFIX` | project slug | BullMQ key prefix, so two GatoJS apps can share one Redis without reading each other's queues. Must match `^[a-z0-9_-]+$`. |
+| `JOBS_PREFIX` | project slug | BullMQ key prefix, so two GatoJS apps can share one Redis. `^[a-z0-9_-]+$`. |
 | `JOBS_SHUTDOWN_TIMEOUT_MS` | `25000` | How long `SIGTERM` waits for in-flight jobs before forcing close. Below Kubernetes' default 30 s grace. |
+| `JOBS_WORKER_PORT` | `3100` | The worker's HTTP port: `/health` always, the dashboard when configured (12.2). |
+| `JOBS_DASHBOARD_USER`, `JOBS_DASHBOARD_PASSWORD` | none | Both set turns the dashboard on; one without the other stops the worker. The password must be at least 16 characters. |
+| `JOBS_DASHBOARD_READ_ONLY` | `true` | `false` lets the dashboard retry, promote and remove jobs. |
 
-No dashboard credentials in v1 (section 12). No timezone variable either: the schedule timezone is project
-configuration in `src/gato.config.ts` (section 7.7), never the environment or the container's `TZ`.
+There is no timezone variable: the app-wide default timezone is `timezone` in `src/gato.config.ts` (11.1), never the
+environment or the container's `TZ`.
 
 ### 5.4 Compose
 
-Development `docker/jobs.compose.yml` (into `# wa:services` of `docker-compose.yml`):
+The Redis image is `redis:7-alpine`, as in the owner's projects (decision 17.1/1), pinned by digest in both files like
+`minio`, started with `--maxmemory-policy noeviction --appendonly yes`.
+
+Development `docker/jobs.compose.yml` (into `# wa:services` of `docker-compose.yml`): `redis` with
+`${REDIS_PORT:-6379}:6379` published on the host, `./volumes/redis`, a `redis-cli ping` healthcheck, no password.
+
+Self-hosted `docker/jobs.selfhost.compose.yml` (into `# wa:services` of `docker-compose.selfhost.yml`):
 
 ```yaml
   redis:
-    image: redis:7-alpine@sha256:<pinned at implementation>
-    restart: always
-    command: ["redis-server", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
+    image: redis:7-alpine@sha256:<pinned>
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory-policy", "noeviction", "--appendonly", "yes",
+              "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.selfhost}"]
     volumes:
       - ./volumes/redis:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping"]
       interval: 5s
       timeout: 3s
       retries: 10
-```
-
-The Redis image is `redis:7-alpine`, as in the owner's projects (decision 17.1), pinned by digest in both files like
-`minio`. Self-hosted `docker/jobs.selfhost.compose.yml` (into `# wa:services` of `docker-compose.selfhost.yml`): `redis` without a
-published port, with `requirepass ${REDIS_PASSWORD}` (section 17.2, Q9), a bind mount `./volumes/redis` (a region cannot
-declare a top-level named volume, ADR-65), and the worker:
-
-```yaml
-  worker:
-    build: .
-    image: ${APP_IMAGE:-wa-app:local}
-    env_file: .env.selfhost
     environment:
-      <<: *app-environment
-      JOBS_ROLE: worker
-      NEXT_MANUAL_SIG_HANDLE: "true"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    image: ${WORKER_IMAGE:-wa-worker:local}
+    env_file: .env.selfhost
+    environment: *app-environment
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -241,74 +283,142 @@ declare a top-level named volume, ADR-65), and the worker:
       - uploads:/app/volumes/uploads
     stop_grace_period: 30s
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/healthcheck"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3100/health"]
       interval: 10s
       timeout: 5s
-      start_period: 30s
+      start_period: 20s
       retries: 5
     restart: unless-stopped
 ```
 
-The `app` service gets `stop_grace_period` only through the core file; it does not need it (role `web`). The worker
-mounts the core `uploads` volume, because orphan cleanup on local storage reads the same directory (section 10.2).
-Docker's default stop timeout is 10 s, which would kill a job that `close()` was waiting for, hence
-`stop_grace_period`.
+- No published port on `redis` or `worker`. The dashboard (12.2) is reached through an SSH tunnel or a local Compose
+  override (`ports: ["127.0.0.1:3100:3100"]`), documented in `docs/self-hosting.md`, never on `0.0.0.0` by default.
+- `REDIS_PASSWORD` is required by the `?` expansion; the `app` and `worker` read it from `.env.selfhost`
+  (`selfhostExample: ""`, the operator fills it, as with `S3_SECRET_ACCESS_KEY`).
+- The worker mounts the core `uploads` volume, because orphan cleanup on local storage reads the same directory.
+- `stop_grace_period: 30s`: Docker's default 10 s would kill a job that `close()` was waiting for.
+- A region inside `services:` cannot declare a top-level named volume (ADR-65), hence the bind mounts.
 
 ### 5.5 Railway and Helm
 
-- **Railway:** a second service from the same repository or the same GHCR image (ADR-67), start command
-  `node server.js` (the image's `CMD`), variables `JOBS_ROLE=worker`, `NEXT_MANUAL_SIG_HANDLE=true`, the shared
-  `REDIS_URL` from a Railway Redis service (Railway's Redis template must be switched to `noeviction`; the boot check
-  catches it if not). No pre-deploy migration on the worker service. Healthcheck `/api/healthcheck`. Documented in
-  `docs/self-hosting.md` ("Railway"), no `railway.worker.toml` (ADR-67 removed config-as-code files in favour of the
-  runbook).
-- **Helm:** the chart is core and has no module regions. Section 15 proposes a core change: `worker.enabled` (default
-  `false`), `worker.replicaCount`, `worker.resources`, and a `templates/worker-deployment.yaml` that reuses the app's
-  image, env and secret with `JOBS_ROLE=worker`, `terminationGracePeriodSeconds: 35`, no Service and no Ingress.
-  Redis is external (`env.REDIS_URL` through `existingSecret`); whether the chart should ship an in-cluster Redis like
-  Ragen's is Q5.
+- **Railway:** a second service from the same repository, builder Dockerfile, Dockerfile path
+  `docker/worker.Dockerfile`, or the published worker image (5.6). Variables: the app's shared variables plus
+  `REDIS_URL` from a Railway Redis service (switched to `noeviction`; the boot check catches it if not). No pre-deploy
+  migration (the app service runs it). Healthcheck path `/health` on `JOBS_WORKER_PORT`. **No public domain** on the
+  worker service: the dashboard is reached through Railway's private network or a temporary TCP proxy; if an operator
+  generates a domain anyway, the dashboard credentials are mandatory and the runbook says so. Documented in
+  `docs/self-hosting.md` ("Railway"); no config-as-code file (ADR-67).
+- **Helm:** **external Redis only** (decision 17.1/5). Core change to the chart: `worker.enabled` (default `false`),
+  `worker.image.repository`/`tag` (default the app's repository with a `-worker` suffix and the app's tag),
+  `worker.replicaCount`, `worker.resources`, `worker.dashboard.enabled` (default `false`), and
+  `templates/worker-deployment.yaml`: the app's env and `existingSecret` (which must hold `REDIS_URL` and, if used,
+  `REDIS_PASSWORD`), `terminationGracePeriodSeconds: 35`, liveness and readiness on `/health`. A `ClusterIP` Service
+  for the dashboard only when `worker.dashboard.enabled`; **the chart never renders an Ingress for it**; access through
+  `kubectl port-forward`. `NOTES.txt` says how.
 
-### 5.6 Egress check (ADR-66)
+### 5.6 Images and publishing
 
-- ADR-66's list of configured endpoints gains **Redis (`REDIS_URL`)**. BullMQ and ioredis make no other connection.
-- `kit/egress-check` gains a third leg, `jobs`: the sealed stack with `redis` and `worker` running, and a scenario step
-  that triggers `jobs.run-now` for `uploads.orphans-daily` (section 12) and waits for the job to complete in the worker.
-  No test-only job is added to the image. The canary rule is unchanged.
-- `.github/workflows/egress-check.yml` adds `src/features/jobs/**`, `docker/jobs.selfhost.compose.yml` and
-  `src/shared/lib/jobs/**` to its path filter.
-- The `redis` image is pinned by digest like `minio`.
+- `docker-publish.yml` (core, ADR-67) gains a second image when `docker/worker.Dockerfile` exists:
+  `ghcr.io/<owner>/<repo>-worker`, same tags, platforms, provenance and SBOM as the app image. `docker-platforms.yml`
+  builds it on both architectures and runs `node worker.mjs --check` in it (6.4).
+- In the GatoJS repository the release publishes `ghcr.io/webamigos/gatojs-worker` beside `gatojs`.
 
-## 6. Where the worker runs
+### 5.7 Egress and ingress (ADR-66)
 
-### 6.1 Options
+- ADR-66's list of configured endpoints gains **Redis (`REDIS_URL`)**. BullMQ, ioredis and bull-board make no other
+  connection; bull-board's UI assets are served from its own package, not a CDN.
+- `kit/egress-check` gains a `jobs` leg: the sealed stack with `redis` and `worker` (dashboard enabled), a scenario that
+  triggers `jobs.run-now` for `uploads.orphans-daily` from the app, waits for the job to complete in the worker, and
+  fetches the dashboard page inside the network. The canary rule is unchanged.
+- `.github/workflows/egress-check.yml` adds `src/features/jobs/**`, `src/shared/lib/jobs/**`,
+  `docker/worker.Dockerfile` and `docker/jobs.selfhost.compose.yml` to its path filter.
+- Ingress: nothing in the stack publishes the worker port or Redis; the runbook lists the three ways to reach the
+  dashboard (tunnel, local override, port-forward) and the rule "never public without credentials, and preferably never
+  public".
 
-| Option | How | For | Against |
-| --- | --- | --- | --- |
-| A. In every web process | `instrumentation.ts` starts BullMQ `Worker`s in each Next server | Nothing new to deploy | Scaling the web scales consumers; CPU-heavy jobs (`sharp`) block request handling and lock renewal (Ragen's stall lesson); a deploy of the web kills in-flight jobs; cannot run the worker without serving traffic |
-| B. Separate entrypoint | `src/features/jobs/worker/main.ts`, `tsx` in development, an esbuild bundle (`worker.mjs`) in the image, `node worker.mjs` | Smallest worker process; the shape all three projects use | A second build of the app code: `server-only` throws outside the `react-server` condition, `next/cache` revalidation throws outside a request (company-budget shim), `next-intl` request config is absent, Prisma 7's generated client must bundle; needs a manifest `scripts` field, a Dockerfile build region and a runner copy region (all `kitFormat` changes); company-budget's "app code in the worker runs as CommonJS" lesson is the same class of drift |
-| **C. Worker role of the same image** | The image runs `node server.js` as today; `JOBS_ROLE=worker` makes `instrumentation.ts` start the consumers and schedulers; the web keeps `JOBS_ROLE=web`; `NEXT_MANUAL_SIG_HANDLE=true` gives the worker its own `SIGTERM` handling | One build, one image, one Dockerfile; the job code runs in exactly the runtime the app runs (server-only, `next/cache`, Prisma, logger, OTel all already work); healthcheck for free (`/api/healthcheck`); scales independently of the web; same command on Compose, Railway and Helm | The worker carries a Next server it barely uses (roughly 100 to 150 MB RSS more than B); the worker container listens on a port (no Ingress routes to it); a job handler changed in `next dev` needs a dev-server restart, because consumers hold handler references from boot |
+## 6. The worker: a separate image without Next.js
 
-### 6.2 Recommendation: C
+### 6.1 Decision
 
-**Recommended: C, a dedicated worker service running the same image in a worker role.** It is a separate process,
-scaled and deployed on its own, which is what made the three projects' workers reliable, without the second build that
-cost company-budget a shim, a lesson and a lazy-import rule, and justnails an HTTP callback with a shared secret. The
-memory overhead is the price; if it ever matters, B can be added behind the same `JobRuntime` without touching a
-handler, because handlers never see the process shape.
+The worker is a **separate entrypoint and a separate image** (decision 17.1/1, option B of the first draft), like
+justnails and company-budget. It scales, deploys and restarts on its own, and it never carries a Next.js server. The
+first draft's option C (the app image in a worker role) is dropped.
 
-Mechanics, all proven by the spike (Task 0) before anything else is built:
+The risk of B is the one company-budget paid for: running the app's code outside Next. The rest of this section is how
+the kit avoids each pitfall the three projects hit.
 
-- `src/instrumentation.ts` (core) gains one generated call: after `verifyEnvOnStartup`, it awaits each
-  `jobRuntimes` entry's `startRole(process.env.JOBS_ROLE)`. Without the `jobs` module the list is empty.
-- `startRole("worker" | "all")`: eviction check (refuse to start on an evicting Redis, warn when `CONFIG GET` is
-  forbidden), build one `Worker` per job with `autorun: false`, apply global concurrency, reconcile schedules, install
-  the `SIGTERM`/`SIGINT` handler, then `run()` (Ragen's ordering: nothing consumes before the check passed and the
-  shutdown handler exists).
-- `startRole("web")`: nothing at boot; the producer connects lazily on the first enqueue.
-- `NEXT_MANUAL_SIG_HANDLE=true` is set only on the worker service. The spike must confirm that the standalone
-  `server.js` then leaves `SIGTERM` to the app and that our handler can close the HTTP server and exit.
-- Development: `npm run dev` with the default `JOBS_ROLE=all` runs consumers inside the dev server. There is no second
-  `next dev` (two dev servers in one directory fight over `.next`).
+### 6.2 Entrypoint
+
+`src/features/jobs/worker/main.ts`, in order:
+
+1. Load env (`dotenv` in development only), `verifyEnvOnStartup` with the Next-free registry's env schemas (6.3).
+2. Start tracing with `packages/observability` (the same exporters as `instrumentation.ts`, off unless
+   `OTEL_EXPORTER_OTLP_ENDPOINT`), before Prisma and `http` load (company-budget's init order).
+3. Build the job registry and apply `gato.config.ts` (7.2, 7.3).
+4. Open the consumer connections; eviction check (refuse on an evicting Redis, warn when `CONFIG GET` is forbidden).
+5. Build one `Worker` per enabled job with `autorun: false`; apply global concurrency.
+6. Reconcile schedules (8.5) and register the organization-schedule tick (11.2).
+7. Start the outbox relay (8.4).
+8. Install `SIGTERM`/`SIGINT` (8.7), start the HTTP server (`/health`, optional dashboard), then `run()` every worker
+   (Ragen's order: nothing consumes before the check passed and the shutdown handler exists).
+
+`--check` runs steps 1 and 3 and exits 0: the image smoke test (5.6) and the bundle check (6.4) use it.
+
+### 6.3 How the worker reaches module job handlers without Next.js
+
+Today `@/modules.generated` is the only registry, and it is not Next-free: it imports slots (React components), message
+loaders, better-auth plugins and component overrides. `emit-event.ts` and `audit.ts` import their lists from it, so any
+job that writes an audit row or emits an event would pull the whole app into the worker. Core change:
+
+- `wa generate` writes a second server registry, **`src/server-registry.generated.ts`**, holding only plain-data and
+  server-only lists: `modules` (the `module.ts` definitions, which are data), `moduleEnvSchemas`, `auditSinks`,
+  `moduleEvents`, `moduleSubscribers`, `moduleCommandHooks`, `moduleJobs`, `moduleSchedules`, `jobRuntimes`, `env`.
+  `@/modules.generated` re-exports these and adds what needs React or Next (slots, messages, auth plugins, setups).
+- `emit-event.ts`, `audit.ts`, `run-command.ts` and `require-module-enabled.ts` import from
+  `@/server-registry.generated`. Nothing else changes for the app.
+- The worker imports **only** `@/server-registry.generated`. The rule "a file reachable from `jobs.ts`,
+  `subscribers.ts`, `events.ts`, `audit-sink.ts`, `command-hooks.ts` or `module.ts` must not import React, Next or
+  `@/modules.generated`" becomes an architecture test, enforced twice: statically in `npm test`, and on the real bundle
+  graph by the metafile check (6.4). A subscriber that needs `auth` keeps importing it dynamically inside `run`
+  (ADR-61), and that dynamic import must also be Next-free (it is today: `@/shared/lib/auth` is better-auth, not Next).
+- `src/gato.config.ts` is imported by the server registry, and it may hold component loaders
+  (`replace: () => import("…")`). The worker build marks `*.tsx` and React imports as stubs (6.4), so those loaders are
+  bundled as throwing stubs and never called in the worker.
+
+### 6.4 The bundle and the known pitfalls
+
+`npm run worker:build` (`worker/build.ts`) runs esbuild: entry `worker/main.ts`, `platform: "node"`, `format: "esm"`,
+`target: "node22"`, output `.worker/worker.mjs`, tsconfig paths for `@/*`, npm packages external (installed in the
+image, 6.5), the generated Prisma client bundled with its runtime files copied beside it (the spike in Task 0 decides
+the exact handling of Prisma 7's query compiler files). Then it reads esbuild's metafile and fails when the graph
+contains `next`, `next/*` (other than through the stubs), `react`, `react-dom`, `next-intl`, `@/modules.generated` or
+`@/modules.client.generated`.
+
+| Pitfall (where it bit) | Kit answer |
+| --- | --- |
+| `revalidatePath` throws outside a request after the write committed (company-budget, `next-cache-shim.ts`) | `next/cache` is replaced by a stub whose revalidation exports are no-ops. Job handlers call services, not server actions; the stub only protects shared service code that revalidates. |
+| `next/headers`, `cookies()` imported at the top of a service the worker loads, so the worker crashed on import (company-budget made those imports lazy) | Every other `next/*` import resolves to a stub that loads fine and throws `"<name> is not available in the worker"` when called. A top-level import no longer breaks the worker; calling it in a job does, loudly, and the architecture test (14.4) forbids session helpers in job handler files. |
+| `server-only` throws outside the `react-server` condition | Aliased to an empty module in the bundle and in `dev-hooks.mjs`. The `react-server` condition is not used, because it would also swap `react-dom/server`, which mail rendering needs. |
+| App code ran as CommonJS under `tsx`, and a workspace package exporting only an `import` condition failed (company-budget lesson) | Production is one ESM bundle. Development runs the same entry under `tsx watch` with `dev-hooks.mjs` (the same stubs as a Node module hook); `@gatojs/*` packages export plain `"."` paths, which resolve in both formats, and the integration suite (14.2) runs the worker through the development entry while the image check runs the bundle, so both formats are exercised in CI. |
+| Worker tests never ran in CI (justnails) | The worker lives in `src/`, so `npm test`, `npm run typecheck` and the Stryker config already cover it; `verify:modules` runs `worker:build` and `worker:check` (`node .worker/worker.mjs --check` against a test env); the `assemble` matrix runs `verify` in every combination with `jobs`. |
+| A second Prisma adapter major nested under the worker (justnails) | One `package.json`, one lockfile; the worker image installs from the root lockfile. No second dependency list exists to drift. |
+| The worker cannot import the app's code, so it calls the app over HTTP with a shared secret (justnails `CRON_SECRET`) | Not needed: the worker imports the modules' services through the server registry. No callback route, no shared secret. |
+| Mail rendered in the request is stored in the payload (justnails) | Mail is rendered in the job from ids, with an explicit locale; `next-intl` request config is not available, so mail jobs use the messages loader with a locale argument (`docs/19b`). |
+
+### 6.5 `docker/worker.Dockerfile`
+
+Owned by the `jobs` module; the generator fills its `# wa:workspaces:start/end` region like the core `Dockerfile`'s
+(kitFormat 12). Stages: `deps` (`npm ci --ignore-scripts` with the workspace `package.json` files), `builder`
+(`prisma generate`, `npm run worker:build`), `prod-deps` (`npm ci --omit=dev --ignore-scripts`), `runner`
+(`node:22-alpine`, non-root user, `NODE_ENV=production`, `CHECKPOINT_DISABLE=1`, copies `.worker/`, the production
+`node_modules` and `prisma/`, `EXPOSE 3100`, `HEALTHCHECK` on `/health`, `CMD ["node", ".worker/worker.mjs"]`). The image
+has no `.next`, no Next server and no `tsx`.
+
+### 6.6 Development
+
+`npm run dev` runs the web as today. `npm run worker:dev` runs the worker under `tsx watch`, restarting on every change
+in `src/` (decision 17.1/11), with `docker compose up -d redis`. `docs/19` and the project README show both commands;
+`JOBS_WORKER_PORT` keeps the worker off port 3000.
 
 ## 7. Declaring jobs and schedules
 
@@ -328,7 +438,7 @@ export const jobs = defineJobs({
     payload: retentionSettings,
     attempts: 3,
     globalConcurrency: 1,
-    run: (payload, ctx) => pruneAuditLogs(ctx.organizationId, payload.olderThanDays, ctx),
+    run: (payload, ctx) => pruneAuditLogs(payload.olderThanDays, ctx),
   },
   "audit-logs.prune-dispatch": {
     scope: "system",
@@ -355,48 +465,50 @@ A job definition:
 | Field | Meaning |
 | --- | --- |
 | key | `<module>.<name>`, kebab-case after the dot. Also the BullMQ job name. |
-| `scope` | `"organization"` (the envelope carries an `organizationId`, `ctx.organizationId` is a `string`) or `"system"` (no organization; for dispatchers and cross-organization maintenance, section 9.3). |
-| `payload` | A strip-mode `z.object()` (the ADR-61 rule): no `organizationId`, `actorUserId` or `serviceMode` key, no loose/strict/catchall, no `.transform()` around it, and no key from the sensitive-name list (section 13). |
-| `run(payload, ctx)` | The handler. Returns `void` or a small JSON value (kept as the BullMQ return value for the admin page, capped at 10 kB). |
+| `scope` | `"organization"` (the envelope carries an `organizationId`, the handler runs inside that organization's scope, 9.1) or `"system"` (no organization; dispatchers and cross-organization maintenance, 9.3). |
+| `payload` | A strip-mode `z.object()` (the ADR-61 rule): no `organizationId`, `actorUserId`, `serviceMode` or `cause` key, no loose/strict/catchall, no `.transform()` around it, no key from the sensitive-name list (section 13). |
+| `run(payload, ctx)` | The handler. Returns `void` or a small JSON value (kept as the BullMQ return value, capped at 10 kB). |
 | `attempts` | Default 3. `1` for anything that sends mail or calls a non-idempotent external API. |
 | `backoff` | Default `{ type: "exponential", delayMs: 5000 }`. |
 | `concurrency` | Per worker process. Default `JOBS_CONCURRENCY`. |
-| `globalConcurrency` | Across every worker replica (BullMQ `setGlobalConcurrency`). Set to `1` for maintenance that must not overlap. |
-| `lockDurationMs` | Default 30 000 (BullMQ's). Raise for CPU-bound handlers that block the event loop. `maxStalledCount` is always 1. |
-| `timeoutMs` | Optional. `ctx.signal` aborts after it; the job fails with `JobTimeoutError` (retryable). The handler's own work is not killed, only abandoned (Ragen's note); handlers pass `ctx.signal` to `fetch` and check it in loops. |
+| `globalConcurrency` | Across every worker replica (BullMQ `setGlobalConcurrency`). `1` for maintenance that must not overlap. |
+| `lockDurationMs` | Default 30 000 (BullMQ's). Raise for CPU-bound handlers. `maxStalledCount` is always 1. |
+| `timeoutMs` | Optional. `ctx.signal` aborts after it; the job fails with `JobTimeoutError` (retryable). The work is abandoned, not killed (Ragen); handlers pass `ctx.signal` on. |
 | `retain` | Default `{ completed: { ageSeconds: 86400, count: 1000 }, failed: { ageSeconds: 604800, count: 5000 } }`. |
 
-A schedule definition: key `<module>.<name>`, `job` (must be a `system` job of the same module; organization fan-out is
-the job's business, section 9.3), `cron` (five fields only), optional `timezone` (IANA name, section 7.7), `enabledByDefault`, optional
-`settings` schema and `defaultSettings` (become the job payload, overridable in `gato.config.ts`).
+A schedule definition: key `<module>.<name>`; `job`; `cron` (five fields only); `timezone` (an IANA name, or
+`"organization"`, 11.2); `enabledByDefault`; optional `settings` schema and `defaultSettings` (they become the job
+payload, overridable in `gato.config.ts`). A schedule with a fixed or default timezone targets a `system` job of the same
+module; a schedule with `timezone: "organization"` targets an `organization` job of the same module and fires once per
+organization at its local time.
 
 ### 7.2 Registry check
 
-`createJobRegistry(moduleJobs, moduleSchedules, gatoConfig)` validates every entry, enabled module or not, and throws
-one `JobRegistryError` listing every problem (the `createEventBus` and `commandHookRegistry` style):
+`createJobRegistry(moduleJobs, moduleSchedules, moduleSubscribers, gatoConfig)` validates every entry, enabled module or
+not, and throws one `JobRegistryError` listing every problem (the `createEventBus` and `commandHookRegistry` style):
 
-- key without the module prefix, or not `^[a-z0-9-]+\.[a-z0-9-]+$`;
-- duplicate job or schedule key;
+- key without the module prefix, or not `^[a-z0-9-]+\.[a-z0-9-]+$`; duplicate job or schedule key;
 - payload schema that is not a strip-mode `z.object()`, declares a reserved key, or a sensitive key name;
 - `attempts`, `concurrency`, `globalConcurrency` not positive integers; `lockDurationMs` below 5 000;
-- schedule of an unknown job, of a job in another module, or of an `organization` job;
-- a cron that is not five fields or that BullMQ's parser rejects (Ragen's six-field lesson: six fields mean
-  seconds-first in BullMQ, which is never what a retention schedule wants);
-- a schedule `timezone` that is not an IANA name (section 7.7);
-- `defaultSettings` that fail `settings`, or a `gato.config.ts` override (7.3) that fails it.
+- schedule of an unknown job or of a job in another module; scope mismatch between the schedule's timezone mode and the
+  job's scope (7.1);
+- a cron that is not five fields or that BullMQ's parser rejects (six fields mean seconds-first in BullMQ; Ragen's
+  lesson);
+- a timezone that is neither an IANA name nor `"organization"`;
+- `defaultSettings` failing `settings`, or a `gato.config.ts` override (7.3) failing it;
+- a queued subscriber (11.3) of an unknown job, of a `system` job, or in a module that does not `require` `jobs`.
 
-A test builds the registry from the real `@/modules.generated`, so a bad declaration fails `npm test`, as events do.
+A test builds the registry from the real `@/server-registry.generated`, so a bad declaration fails `npm test`.
 
 ### 7.3 Configuration in `gato.config.ts`
 
-`GatoModuleConfig` gains `schedules`, keyed by the generated `ScheduleId` union:
-
 ```ts
 export default defineGatoConfig({
+  timezone: "Europe/Warsaw",
   modules: {
     "audit-logs": {
       schedules: {
-        "audit-logs.prune-daily": { enabled: true, cron: "30 2 * * *", timezone: "Europe/Warsaw", settings: { olderThanDays: 180 } },
+        "audit-logs.prune-daily": { enabled: true, cron: "30 2 * * *", settings: { olderThanDays: 180 } },
       },
     },
     uploads: { schedules: { "uploads.orphans-daily": null } },
@@ -404,83 +516,61 @@ export default defineGatoConfig({
 });
 ```
 
-`null` disables a schedule (like slot contributions). Unknown schedule ids fail `applyGatoConfig` at import (ADR-60).
-The config stays client-safe plain data; `settings` are validated against the schedule's schema on the server side, in
-the registry check above, so a wrong value stops `next build`, `npm run dev` and every worker boot with the path named.
+- `timezone` (top level, core): the app-wide default timezone for schedules and for organizations that have none
+  (11.1). Validated with Zod (`z.string().refine(isIanaTimeZone)`: `"UTC"` or a name in
+  `Intl.supportedValuesOf("timeZone")`), default `"UTC"`. The first revision called it `jobs.timezone`; it moved to the
+  top level because date display uses it too, and core cannot depend on a `jobs` key.
+- `modules.<module>.schedules.<id>`: `enabled`, `cron`, `timezone`, `settings`, or `null` to disable. Unknown ids fail
+  `applyGatoConfig` at import (ADR-60). `settings` are validated against the schedule's schema in the registry check.
+- The config stays client-safe plain data.
 
 ### 7.4 Generator
 
-`wa generate` (gato-cli minor bump, **`kitFormat` 12**):
+`wa generate` (gato-cli minor bump, `kitFormat` 12):
 
-- detects `jobs.ts` and emits, in the server registry only, `moduleJobs` and `moduleSchedules` (all modules, like
-  `moduleEvents`, so a disabled module's declarations are still checked) and `jobRegistry = createJobRegistry(...)`;
+- writes `src/server-registry.generated.ts` (6.3) and makes `@/modules.generated` re-export it;
+- detects `jobs.ts` and emits `moduleJobs` and `moduleSchedules` (all modules, like `moduleEvents`, so a disabled
+  module's declarations are still checked);
 - detects `job-runtime.ts` and emits `jobRuntimes = enabledEntries([{ module: "jobs", value: jobsJobRuntime }],
-  gatoConfig)`, the `auditSinks` pattern;
-- adds `JobName` and `ScheduleId` unions to `src/extension-points.generated.ts` and two sections, "Jobs" and
-  "Schedules", to `EXTENSION_POINTS.md` (extension-points.json gains `jobs` and `schedules` maps).
+  gatoConfig)` (the `auditSinks` pattern);
+- merges manifest `scripts` into `package.json` and composes `verify:modules` (5.1);
+- fills `# wa:workspaces` in `docker/worker.Dockerfile` when it exists;
+- adds `JobName` and `ScheduleId` unions and "Jobs" and "Schedules" sections to the extension-point catalog (19).
 
 ### 7.5 Enqueueing
 
 ```ts
-const result = await enqueueJob(jobOrigin(context), "invoices.render-pdf", { invoiceId }, { dedupeKey: invoiceId });
+await prisma.$transaction(async (tx) => {
+  const invoice = await tx.invoice.create({ data: { organizationId: context.organizationId, … } });
+  await enqueueJob(jobOrigin(context), "invoices.render-pdf", { invoiceId: invoice.id }, { tx, jobKey: invoice.id });
+});
 ```
 
 - `jobOrigin(context: OrgContext)` → `{ organizationId, actorUserId, serviceMode }`; `jobOrigin(event)` from a
-  subscriber's event; `systemOrigin(reason)` for `system` jobs (the reason is logged). An `organization` job enqueued
-  with a system origin, or the reverse, throws.
-- The payload is parsed with the job's schema before anything is sent; failure throws `JobPayloadError` naming the job
-  (a bug in the caller, like an invalid event payload).
-- Options: `dedupeKey` (BullMQ `deduplication` while one is in flight), `jobKey` (a deterministic job id: a second
-  enqueue with the same key is a no-op), `delayMs`. Both keys are hashed with the organization and the job name into
-  `<job>-<sha256 hex, 40 chars>`, so a key from one organization cannot collide with or suppress another's, and the id
-  never contains `:` or only digits.
-- Returns `{ jobId }`. Throws `JobsUnavailableError` without a runtime and `JobEnqueueError` when Redis refuses; the
-  producer connection has a finite retry budget and no offline queue, so a request fails in seconds instead of hanging
-  (Ragen's failure table).
+  subscriber's event; `systemOrigin(reason)` for `system` jobs. An `organization` job with a system origin, or the
+  reverse, throws.
+- The payload is parsed with the job's schema before anything is written; failure throws `JobPayloadError`.
+- `tx` (a Prisma transaction client) writes the outbox row in the caller's transaction (8.4). Without `tx` the row is
+  written on its own and the job is still durable from that moment.
+- Options: `jobKey` (one unit of work: a second enqueue with the same key in the same organization is a no-op, enforced
+  by a unique index on the outbox and by the BullMQ job id), `dedupeKey` (BullMQ `deduplication` while one is in
+  flight), `delayMs`. Keys are hashed with the organization and the job name into `<job>-<sha256 hex, 40 chars>`, so
+  keys never collide across organizations and ids never contain `:` or only digits.
+- Returns `{ outboxId }`. Throws `JobsUnavailableError` without the module. Redis is never contacted, so enqueueing works
+  while Redis is down; jobs wait in the outbox.
 
 ### 7.6 The envelope
 
 What BullMQ stores is never the raw payload:
 
 ```ts
-{ v: 1, organizationId: string | null, actorUserId: string | null, serviceMode: boolean, payload: { … } }
+{ v: 1, organizationId: string | null, actorUserId: string | null, serviceMode: boolean, cause: "jobs.failed" | null, payload: { … } }
 ```
 
-The consumer parses the envelope with a strict schema and the payload with the job's schema. A mismatch (a job written
-by an older release with a different shape, company-budget's `crm-sync` case) fails with `UnrecoverableError`
-(`"payload does not match <job> v1"`) and is logged at `error` without the payload: it is never retried and never
-silently skipped. Changing a payload incompatibly is a migration: accept both shapes in the schema (a union) for one
-release, or drain the queue first; `docs/18b` says so.
-
-### 7.7 Timezones
-
-Schedules never depend on the server's or the container's timezone (decision 17.1).
-
-- **App-wide default.** `GatoConfig` gains a top-level, client-safe `jobs` field:
-  `defineGatoConfig({ jobs: { timezone: "Europe/Warsaw" }, … })`. It is validated with Zod
-  (`z.string().refine(isIanaTimeZone)`, where `isIanaTimeZone` accepts `"UTC"` and every name in
-  `Intl.supportedValuesOf("timeZone")`), default `"UTC"`. An invalid name fails `applyGatoConfig` at import with
-  `- jobs.timezone: not an IANA time zone: <value>` (ADR-60), so `next build`, `npm run dev` and every worker boot stop.
-- **Per schedule.** `defineSchedules({ "<id>": { cron, timezone?: "Europe/Warsaw" } })` overrides the default for one
-  schedule, and `modules.<module>.schedules.<id>.timezone` in `gato.config.ts` overrides both. Resolution order:
-  config override → schedule declaration → `jobs.timezone` → `"UTC"`.
-- **Always explicit to BullMQ.** The resolved name is passed as `repeat.tz` to `upsertJobScheduler` on every schedule,
-  never omitted: without `tz`, BullMQ's cron parser falls back to the process's local time, which is exactly the
-  dependency this rule removes. A changed timezone changes the scheduler and reconciliation (8.5) re-upserts it.
-- **Containers run in UTC and `TZ` is ignored.** The image, Compose files, Helm chart and Railway runbook set no `TZ`;
-  `docs/18` says that the server timezone has no effect on schedules and that the way to change one is
-  `gato.config.ts`. An integration test boots the worker with `TZ=America/New_York` and asserts that a schedule with
-  `timezone: "Europe/Warsaw"` and `0 3 * * *` gets its next run at 03:00 Warsaw time.
-- **Job code computes in UTC.** Retention cutoffs and grace periods are UTC instants (10.1, 10.2); `ctx` exposes the
-  schedule's resolved timezone (`ctx.timezone`) for jobs that need local calendar boundaries.
-- **DST.** The kit's own schedules default to UTC, so DST cannot shift or skip them. A project that picks a DST zone
-  should avoid local times between 01:00 and 03:00 (a slot in the skipped spring hour does not fire that day, the
-  repeated autumn hour can fire twice); `docs/18b` says so and the handlers are idempotent anyway (8.3).
-- The admin page (12) shows each schedule's timezone and its next run in that timezone and in UTC.
-
-Future work, not in this spec (17.2, Q12): a per-organization timezone stored on `Organization`, used by
-organization-facing schedules (a dispatcher would compute each organization's due slot in its own zone, for example a
-daily digest at 08:00 local time) and by date display in the UI.
+The consumer parses the envelope strictly and the payload with the job's schema. A mismatch (a job written by an older
+release, company-budget's `crm-sync` case) fails with `UnrecoverableError("payload does not match <job> v1")`, logged
+without the payload: never retried, never silently skipped. Changing a payload incompatibly is a migration: accept both
+shapes for one release, or drain first (`docs/19b`). `cause` marks jobs enqueued by a `jobs.failed` subscriber (11.4).
 
 ## 8. Running jobs
 
@@ -491,125 +581,183 @@ daily digest at 08:00 local time) and by date display in the UI.
 | Field | Meaning |
 | --- | --- |
 | `organizationId` | `string` for `organization` jobs, absent for `system` jobs (typed per scope). Always from the envelope. |
-| `actorUserId`, `serviceMode` | From the origin; jobs that write audit rows pass them on. |
+| `actorUserId`, `serviceMode` | From the origin; audit rows written by the job carry them. |
+| `timezone` | For `organization` jobs the organization's effective timezone (11.1); for `system` jobs the schedule's resolved timezone or the app default. |
 | `jobId`, `attempt`, `maxAttempts` | For logs and idempotency keys. |
-| `timezone` | The resolved IANA timezone of the schedule that produced the job, else `jobs.timezone` (section 7.7). |
 | `signal` | `AbortSignal`: aborted on `timeoutMs` and on forced shutdown. |
 | `log` | The GatoJS logger bound to `{ job, jobId, organizationId, attempt }`. |
-| `progress(stage)` | `job.updateProgress({ stage })`; a Redis error here is logged, never fails the job (Ragen). |
-| `enqueue(name, payload, options)` | `enqueueJob` with the job's own origin; for fan-out (9.3). |
+| `progress(stage)` | `job.updateProgress({ stage })`; a Redis error here is logged, never fails the job. |
+| `enqueue(name, payload, options)` | `enqueueJob` with the job's own origin (and `tx` when given); for fan-out (9.3). |
 
 There is no session: a handler must not call `getOrgContext`, `requireModuleAccess`, `headers()` or `cookies()`. It calls
-services that take `organizationId` as an argument. A query in `services/queries/` that starts with `getOrgContext()`
-cannot be reused from a job; the pattern is an inner function with an explicit organization, which the query wraps.
+services that take `organizationId` as an argument (in the worker those Next helpers are throwing stubs, 6.4). A query in
+`services/queries/` that starts with `getOrgContext()` cannot be reused from a job; the pattern is an inner function with
+an explicit organization, which the query wraps.
 
 ### 8.2 Failures and retries
 
 - A thrown error is retried up to `attempts` with the job's backoff.
-- `throw new JobFailure(message, { retryable: false })` (or a `DomainError`) becomes BullMQ's `UnrecoverableError`:
-  one failure, no retries (Ragen's `asEngineFailure`).
-- A job name with no handler in this worker (a newer web enqueued a job an older worker does not know, or the module was
-  disabled after enqueueing) fails with `UnrecoverableError("no handler for <job>")`, logged at `error`.
-- A handler of a module disabled in `gato.config.ts` is not registered; its schedulers are removed (8.5); jobs already
-  queued fail as above.
+- `throw new JobFailure(message, { retryable: false })` (or a `DomainError`) becomes BullMQ's `UnrecoverableError`.
+- A job name with no handler in this worker fails with `UnrecoverableError("no handler for <job>")`, logged at `error`.
+- After the last attempt, an organization job emits `jobs.failed` (11.4).
 
 ### 8.3 Idempotency
 
-Delivery is **at least once**: a crash, a stall or a lost lock re-runs the job from the top. Rules, in `docs/18b`:
+Delivery is **at least once**: a crash, a stall, a lost lock or a relay crash (8.4) re-runs or re-adds a job. Rules, in
+`docs/19b`:
 
-1. Write handlers so a second run is harmless: `deleteMany` with a cutoff, upserts on a natural key, "claim" rows with a
-   compare-and-set (`updateMany({ where: { id, status: "PENDING" } })`) before acting.
-2. Side effects outside the database (mail, an external API) run once: `attempts: 1`, or record "sent" on a row first
-   and check it.
-3. Use `jobKey` for "this exact unit of work" (one invoice's PDF) and `dedupeKey` for "not two at once" (one
-   integration's sync).
+1. Write handlers so a second run is harmless: `deleteMany` with a cutoff, upserts on a natural key, compare-and-set
+   claims (`updateMany({ where: { id, status: "PENDING" } })`) before acting.
+2. Side effects outside the database (mail, an external API) run once: `attempts: 1`, or record "sent" first.
+3. `jobKey` for "this exact unit of work", `dedupeKey` for "not two at once".
 
-### 8.4 Enqueue after a write is not atomic
+### 8.4 The transactional outbox
 
-`prisma.$transaction` cannot include a Redis write. If a command commits and the enqueue fails, the job is lost; if the
-enqueue succeeds and the transaction rolls back, the job runs for data that does not exist. v1 does not hide this:
+Decision 17.1/6: every enqueue goes through a Postgres table, so a job is committed or rolled back with the write that
+caused it. Redis is touched only by the relay in the worker.
 
-- enqueue **after** the commit, never inside the transaction;
-- when losing the job matters, write the intent to a row first (status `PENDING`), enqueue with `jobKey = row id`, and
-  let a scheduled sweep re-enqueue rows still `PENDING` after N minutes (company-budget's `agent-proposal-sweep`);
-- when it does not (a cache rebuild), log the enqueue failure and move on.
+**Model** (`prisma/schema/jobs.prisma`, `jobs` module):
 
-A generic outbox table is Q6.
+```prisma
+model JobOutbox {
+  id               String        @id @default(uuid()) @db.Uuid
+  organizationId   String?       @map("organization_id")
+  job              String
+  envelope         Json
+  keyHash          String?       @unique @map("key_hash")
+  dedupeKey        String?       @map("dedupe_key")
+  availableAt      DateTime      @default(now()) @map("available_at") @db.Timestamptz
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  dispatchedAt     DateTime?     @map("dispatched_at") @db.Timestamptz
+  dispatchAttempts Int           @default(0) @map("dispatch_attempts")
+  lastError        String?       @map("last_error")
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([dispatchedAt, availableAt, createdAt])
+  @@index([organizationId, createdAt])
+  @@map("job_outbox")
+}
+```
+
+**Insert (`enqueueJob`).** One `INSERT` through the caller's `tx` (or the shared client), with `organizationId` from the
+origin, the full envelope, `keyHash` from `jobKey`, `availableAt = now() + delayMs`, and in the same transaction
+`SELECT pg_notify('gato_job_outbox', '')`. Postgres delivers a notification only when the transaction commits, so the
+relay wakes exactly when there is committed work. An organization insert satisfies the tenant-scope guard with its own
+`organizationId`; a `system` insert (`organizationId` null) runs inside `withoutTenantScope("jobs: system job
+enqueue", …)` in the seam. A duplicate `keyHash` is caught and returned as the existing row (`{ outboxId, duplicate:
+true }`).
+
+**Relay (who moves rows to BullMQ).** The worker runs it; every replica may, safely:
+
+1. It `LISTEN`s on `gato_job_outbox` through a dedicated `pg` connection and also polls every 5 s (a missed
+   notification, or rows whose `availableAt` passed, are picked up by the poll).
+2. One claim per wake, in a transaction, as raw SQL (the tenant-scope extension does not see raw queries; the relay is
+   the one place allowed to read across organizations, and its file is in the critical list):
+   `SELECT … FROM job_outbox WHERE dispatched_at IS NULL AND available_at <= now() ORDER BY created_at, id LIMIT 100
+   FOR UPDATE SKIP LOCKED`. Two relays never claim the same row.
+3. For each row, in order: check `envelope.organizationId` equals the row's `organizationId` (a mismatch is a bug:
+   the row is marked failed with `lastError`, never dispatched); skip rows whose job is not in this worker's registry
+   (left pending, shown on the admin page, so a rolling deploy or a temporarily disabled module loses nothing);
+   `queue.add(job, envelope, { jobId: keyHash ?? outbox id, deduplication, attempts, backoff, retention })`.
+4. `UPDATE … SET dispatched_at = now()` for the added rows, `dispatch_attempts + 1, last_error` for failed adds, then
+   commit. Redis calls inside the transaction are bounded by the batch size and ioredis' command timeout (5 s).
+
+**Idempotency.** A relay that crashes after `queue.add` and before the commit leaves the rows undispatched; the next
+claim adds them again with the same `jobId`, which BullMQ treats as a no-op while the job exists (completed jobs are
+kept 24 h, failed 7 days, far longer than the crash window). A handler still follows 8.3, because BullMQ itself
+redelivers stalled jobs.
+
+**Ordering.** Rows are claimed and added in `(createdAt, id)` order, and each queue is FIFO, but concurrency, retries,
+several replicas and per-job queues mean **no ordering guarantee between jobs**; `docs/19b` says so.
+
+**Cleanup.** The `jobs` module ships a `system` job and schedule, `jobs.outbox-prune` / `jobs.outbox-prune-daily`
+(`15 4 * * *`, enabled by default): deletes dispatched rows older than 7 days in batches of 5 000, inside
+`withoutTenantScope("jobs: prune dispatched outbox rows", …)`. Undispatched rows are never deleted automatically. An
+organization's rows cascade with the organization. `jobKey` therefore deduplicates for 7 days in the outbox and for the
+BullMQ retention after that; `docs/19b` says so.
+
+**Visibility.** `/health` on the worker reports `outbox.pendingCount` and `outbox.oldestPendingSeconds`; the admin page
+(12.1) shows them and lists rows with `dispatchAttempts >= 10`.
+
+What the outbox does not close: an event subscriber runs after commit (ADR-61), so a queued subscriber's insert (11.3)
+happens after the operation's transaction; a crash in between loses it. Commands that need atomicity enqueue with `tx`
+themselves.
 
 ### 8.5 Schedules
 
-On `startRole("worker" | "all")`, before consuming:
+On boot, before consuming:
 
-1. Compute the effective schedules: declared ∩ enabled modules, with `gato.config.ts` overrides, minus disabled ones.
-2. `upsertJobScheduler(scheduleId, { pattern, tz }, { name: job, data: envelope(systemOrigin, settings) })` for each.
-   Idempotent and safe with several workers booting at once.
-3. List the schedulers on every queue this app owns (`getJobSchedulers` under `JOBS_PREFIX`) and remove each whose id
-   is not in the effective set. This is what company-budget lacks (a deleted schedule kept firing) and replaces
-   justnails' DB toggle: the code and `gato.config.ts` are the single source of truth, so a restart can neither
-   re-enable nor keep a schedule that the configuration turned off.
+1. Compute the effective app-wide schedules: declared ∩ enabled modules, `gato.config.ts` overrides applied, disabled
+   removed, timezone resolved (override → declaration → `timezone` in `gato.config.ts` → `"UTC"`), never left to the
+   container's `TZ` (decision 17.1/3).
+2. `upsertJobScheduler(scheduleId, { pattern, tz }, { name: job, data: envelope(systemOrigin, settings) })` for each,
+   always with an explicit `tz`. Scheduler-fired jobs go straight to BullMQ, not through the outbox (there is no
+   transaction to join).
+3. List the schedulers this app owns (`getJobSchedulers` under `JOBS_PREFIX`) and remove every id not in the effective
+   set, so a deleted or disabled schedule stops firing (company-budget's gap) and a restart cannot revive one.
+4. Organization-timezone schedules are not BullMQ schedulers; the tick in 11.2 runs them.
 
-A schedule fires on the worker's queue whether or not a worker is running; missed slots are not back-filled (BullMQ
-job schedulers produce the next slot only). Destructive schedules ship `enabledByDefault: false` unless losing their
-target is harmless (section 10).
+Missed slots are not back-filled. Destructive schedules ship `enabledByDefault: false` unless losing their target is
+harmless.
 
 ### 8.6 Queues and concurrency
 
-- One BullMQ queue per job (`<prefix>` + job key), as Ragen and justnails do, so a slow job cannot starve another and
-  each has its own concurrency. One `Worker` per queue, each with its own blocking connection; the producer shares one
-  connection across queues. A project with many jobs therefore opens many connections; `docs/18` gives the formula
-  (`jobs + 1` per worker replica, plus one per web replica) for sizing a managed Redis.
-- `globalConcurrency` is applied before the queue's `Worker` runs (Ragen's ordering).
+- One BullMQ queue per job (`<prefix>` + job key), so a slow job cannot starve another. One `Worker` per queue, each with
+  its own blocking connection; the relay shares one producer connection. `docs/19` gives the connection formula
+  (`jobs + 2` per worker replica, plus one per web replica for the admin page).
+- `globalConcurrency` is applied before the queue's `Worker` runs.
 
 ### 8.7 Shutdown
 
-The worker's `SIGTERM`/`SIGINT` handler (once): mark the role as draining (healthcheck answers 503 so an orchestrator
-stops routing), `worker.close()` on every worker in parallel (BullMQ waits for in-flight jobs), with
-`JOBS_SHUTDOWN_TIMEOUT_MS` after which `ctx.signal` aborts and `close(true)` forces; close the producer queues;
-`prisma.$disconnect()`; flush OTel last so the shutdown lines reach the collector (justnails); close the HTTP server;
-`process.exit(0)`. A forced close leaves locked jobs, which BullMQ redelivers after their lock expires (once, because
-`maxStalledCount` is 1). Web processes only close the producer connection.
+The worker's `SIGTERM`/`SIGINT` handler (once): `/health` answers 503; stop the relay (finish the current claim);
+`worker.close()` on every worker in parallel (waits for in-flight jobs) with `JOBS_SHUTDOWN_TIMEOUT_MS`, after which
+`ctx.signal` aborts and `close(true)` forces; close the producer queues and the `LISTEN` connection;
+`prisma.$disconnect()`; close the HTTP server; flush OTel last (justnails); `process.exit(0)`. A forced close leaves
+locked jobs, redelivered once after their lock expires (`maxStalledCount: 1`).
 
 ## 9. Multi-tenancy
 
-### 9.1 Organization jobs
+### 9.1 Organization jobs are held to their organization
 
-- `organizationId` lives in the envelope and only there. The payload schema cannot declare it (registry check) and is
-  parsed in strip mode, so an `organizationId` smuggled into the payload never reaches the handler, the ADR-61 rule.
-- The origin comes from an `OrgContext` (after `getOrgContext()` or `requireModuleAccess()` and
-  `assertServiceModeConfirmed`) or from an event's own `organizationId`. A caller cannot name another organization
-  except through `systemOrigin` plus an explicit fan-out (9.3).
-- Every Prisma query in a handler filters by `ctx.organizationId`; the tenant-scope guard (D51) applies unchanged inside
-  the worker, because the worker runs the same Prisma client with the same extension.
-- Recommended hardening (Q8): while an organization job runs, an `AsyncLocalStorage` scope holds `ctx.organizationId`
-  and the tenant-scope guard also rejects a scoped query whose `organizationId` filter is a different literal. The guard
-  then catches not only a missing filter but a wrong one. Core change in `src/shared/lib/tenant-scope/` (critical).
+Decision 17.1/8, a critical core change in `src/shared/lib/tenant-scope/`:
+
+- `organizationId` lives in the envelope only. The payload schema cannot declare it and is parsed in strip mode
+  (ADR-61's rule). The origin comes from an `OrgContext` (after `getOrgContext()` or `requireModuleAccess()` and
+  `assertServiceModeConfirmed`), from an event, or from a dispatcher's explicit fan-out (9.3).
+- The consumer runs an organization job's handler inside `runInOrganizationScope(organizationId, fn)`, an
+  `AsyncLocalStorage` scope shared through `globalThis` like the bypass store.
+- While the scope is set, the guard checks the **value**, not only the presence, of the organization filter on every
+  query on a tenant-scoped model: the `where.organizationId` (or `data.organizationId` on create, every element on
+  `createMany`) must be the scope's id, as a string, `{ equals: id }` or `{ in: [id] }`. Another id, an `in` list with
+  any other id, `not`, a missing filter, or a nested write that targets another organization's row throws
+  `TenantScopeError("<model>.<operation> outside job organization")`.
+- `withoutTenantScope` inside an organization scope throws (`"withoutTenantScope is not allowed in an organization
+  job"`): an organization job never reads across organizations. Raw queries are not covered (as today) and are
+  forbidden in job handler files by the architecture test (14.4).
+- Outside a job, behaviour is unchanged. Adopting the same scope for requests (`getOrgContext` setting it) is a natural
+  follow-up, not part of this spec.
 
 ### 9.2 Service mode
 
-- Service mode is a property of the operation that enqueued the job, not of the job. The command that enqueues already
-  passed `assertServiceModeConfirmed`; the job asks nothing and carries `serviceMode: true` in its origin, so audit rows
-  written by the job record it (as subscribers do, ADR-61).
-- No organization data UI in this module. The admin page's commands (retry, run now) are `access: "global-admin"`
-  commands (ADR-62): they act on the platform's queue, not on an organization's data, and run without a service-mode
-  dialog, like the users admin. Each writes a log line with the admin's id; whether they also write an audit row is
-  Q7.
+- Service mode belongs to the operation that enqueued the job. The command already passed `assertServiceModeConfirmed`;
+  the job asks nothing and carries `serviceMode: true` in its origin, so audit rows written by the job record it.
+- The admin page's commands (`jobs.retry`, `jobs.run-now`) are `access: "global-admin"` commands (ADR-62): they act on
+  the platform's queue, not on organization data; no dialog, **no audit rows** (decision 17.1/7), one log line each with
+  the admin's id.
+- `organizations.update-timezone` (11.1) is organization data: it goes through `runCommand` and therefore through the
+  service-mode confirmation; the UI calls it through `useServiceModeAction().run`.
 
 ### 9.3 Cross-organization maintenance
 
-`system` jobs have no organization. Two patterns, in order of preference:
+`system` jobs have no organization and no scope. Two patterns, in order of preference:
 
-1. **Dispatch, then per organization** (company-budget's `*-dispatch` jobs): the system job reads the organization
-   ids (`Organization` has no `organizationId` column, so the guard does not apply) and calls
-   `ctx.enqueue("<module>.<job>", payload, { organizationId, jobKey: "<slot>" })` per organization. The per-organization
-   job then runs with an organization origin and ordinary scoped queries. Retention uses this.
-   `ctx.enqueue` from a system job is the one place an organization origin is built from an id instead of a context;
-   it requires the id to exist in `Organization` (checked) and logs the dispatch.
+1. **Dispatch, then per organization:** the system job reads organization ids (`Organization` is not tenant-scoped) and
+   calls `ctx.enqueue("<module>.<job>", payload, { organizationId, jobKey: "<slot>" })` per organization. The only way
+   to build an organization origin from an id; it checks the organization exists and logs the dispatch. Retention and
+   orphan cleanup use it.
 2. **`withoutTenantScope(reason, fn)`** only for a Prisma query on a tenant-scoped model that genuinely spans
-   organizations (for example, a count of `Upload` rows per organization for a report). The reason is mandatory and
-   logged, as today. Neither first consumer needs it: retention fans out, and the deleted-organization purge (10.2)
-   reads `Organization` (not tenant-scoped) and storage (not Prisma).
-
-An architecture test (section 14.4) rejects `withoutTenantScope` in an `organization` job's handler file.
+   organizations, and only in `system` jobs. Neither first consumer needs it.
 
 ## 10. First consumers
 
@@ -617,16 +765,20 @@ An architecture test (section 14.4) rejects `withoutTenantScope` in an `organiza
 
 - `audit-logs.prune-dispatch` (system) → `audit-logs.prune` (organization) per organization, payload
   `{ olderThanDays }`.
-- `audit-logs.prune` deletes in batches: `findMany({ where: { organizationId, createdAt: { lt: cutoff } }, select: { id },
-  take: 5000, orderBy: { createdAt: "asc" } })` then `deleteMany({ where: { organizationId, id: { in: ids } } })`,
-  repeated until fewer than 5 000 rows come back or `ctx.signal` aborts. Short transactions, no table-wide lock,
-  naturally idempotent. The cutoff is computed once per job run from the job's start time
-  (`startOfDay(now) - olderThanDays` in UTC), so a retry an hour later deletes the same set.
-- Logs `{ organizationId, deleted, cutoff }`. No audit row per organization per night by default (Q7).
-- Schedule `audit-logs.prune-daily`, `0 3 * * *`, `enabledByDefault: false`, default `olderThanDays: 365`. Deleting
-  audit history is irreversible and a legal decision (retention periods differ per client and jurisdiction), so the
-  project turns it on (Q2).
-- The existing `@@index([organizationId, createdAt])` serves the query; no migration.
+- `audit-logs.prune` deletes in batches inside its organization scope: `findMany({ where: { organizationId, createdAt:
+  { lt: cutoff } }, select: { id }, take: 5000, orderBy: { createdAt: "asc" } })` then `deleteMany({ where: {
+  organizationId, id: { in: ids } } })`, until fewer than 5 000 rows come back or `ctx.signal` aborts. The cutoff is
+  computed once per run from the job's first attempt time (`startOfDay(firstAttemptAt, UTC) - olderThanDays`), so a
+  retry deletes the same set.
+- Then it writes **one audit row per organization per run** (decision 17.1/7): action `audit-log.pruned`, entity type
+  `audit_log`, `newData: { deleted, cutoff, olderThanDays }`, `userId: null`, `channel: "SYSTEM"`. Whether a run that
+  deleted nothing also writes it is Q3.
+- `AuditChannel` gains `SYSTEM`: core type in `src/shared/lib/audit.ts`, Prisma enum value and migration in
+  `audit-logs`, label "System" on the audit log page. Inside a job, `trackAudit` defaults the channel to `SYSTEM` (the
+  job runner sets it in an `AsyncLocalStorage`), so audit subscribers running in the worker record it too.
+- Schedule `audit-logs.prune-daily`, `0 3 * * *`, **disabled by default** (decision 17.1/2), default
+  `olderThanDays: 365`, in the app-wide timezone.
+- The existing `@@index([organizationId, createdAt])` serves the query.
 
 ### 10.2 Orphaned uploads (`uploads` module)
 
@@ -642,133 +794,237 @@ Where orphans come from today (verified in `create-upload.ts` and `upload-comman
 Changes:
 
 - `ObjectStorage` gains `list(prefix, cursor?) → { items: { key, lastModified }[], cursor? }` (S3 `ListObjectsV2`, local
-  directory walk confined by `path-inside.ts`). `uploads` module change with a version bump.
-- `uploads.orphans` (organization): lists `orgs/<organizationId>/`, and deletes each object older than the grace period
-  (default 24 h, so an upload in flight between `putObject` and `create` is never touched) whose key has no `Upload`
-  row in that organization. Pages of 1 000 keys, one `findMany({ where: { organizationId, key: { in } } })` per page.
-- `uploads.orphans-dispatch` (system): enqueues `uploads.orphans` per organization, then handles deleted organizations:
-  lists the top-level `orgs/` prefixes, keeps only UUID-shaped ids, and for each id absent from `Organization` deletes
-  the prefix. A prefix is purged only when the `Organization` table is not empty, so a worker pointed at an empty or
-  wrong database purges nothing. **Circuit breaker:** if one run would delete more than `maxObjectsPerRun` (default 10 000) objects or
-  more than `maxOrganizationsPerRun` (default 20) whole prefixes, it deletes nothing, logs `error` with the counts, and
-  fails unrecoverably, so a bug or a pointed-at-the-wrong-database worker cannot wipe a bucket.
-- Schedule `uploads.orphans-daily`, `30 3 * * *`, `enabledByDefault: true` (it only deletes objects no row refers to,
-  after a grace period); `settings: { graceHours, maxObjectsPerRun, maxOrganizationsPerRun, purgeDeletedOrganizations }`.
-  Whether `purgeDeletedOrganizations` defaults to `true` is Q3.
-- Out of scope: `Upload` rows whose object is missing (logged as a warning count, not repaired) and rows that nothing
-  in the domain references (needs an attach/reference API, a later spec).
+  directory walk confined by `path-inside.ts`).
+- `uploads.orphans` (organization): lists `orgs/<organizationId>/` and deletes each object older than the grace period
+  (default 24 h) whose key has no `Upload` row in that organization; pages of 1 000 keys.
+- `uploads.orphans-dispatch` (system): enqueues `uploads.orphans` per organization, then **purges the storage of deleted
+  organizations by default** (decision 17.1/3): lists the top-level `orgs/` prefixes, keeps only ids shaped like
+  organization ids (better-auth `cuid`s, `^[a-z0-9]{20,32}$`; the first draft wrongly said UUIDs), and deletes each
+  prefix whose id is absent from `Organization`, only when `Organization` is not empty.
+- **Circuit breaker:** if one run would delete more than `maxObjectsPerRun` (default 10 000) objects or more than
+  `maxOrganizationsPerRun` (default 20) whole prefixes, it deletes nothing, logs `error` with the counts and fails
+  unrecoverably (which emits nothing: `jobs.failed` is for organization jobs; the admin page shows the failure).
+- Schedule `uploads.orphans-daily`, `30 3 * * *`, enabled by default, `settings: { graceHours: 24, maxObjectsPerRun:
+  10000, maxOrganizationsPerRun: 20, purgeDeletedOrganizations: true }`.
+- Out of scope: rows whose object is missing (counted in a warning) and rows nothing in the domain references.
 
-## 11. Domain events
+## 11. Time and events
 
-- A subscriber that needs durability or retries enqueues: `run: (event) => enqueueJob(jobOrigin(event), "x.y", { … })`.
-  The subscriber stays fast and in-process (ADR-61's rules unchanged); the job brings retries.
-- If the enqueue throws, the subscriber error is logged by the bus and the operation still succeeds (ADR-61), so the
-  job is lost; subscribers that must not lose work use the row-first pattern (8.4).
-- Later (Q10, not v1): `defineSubscribers({ "e": { id, queued: { job: "x.y" } } })` as sugar, and a `jobs.failed` event
-  (organization jobs only) after the last attempt, so a project can notify someone.
+### 11.1 Organization timezone
 
-## 12. Admin UI
+Decision 17.1/12.
 
-Recommendation: **a small in-app page, no bull-board in v1.**
+- **Data.** `Organization.timezone String?` (core migration in `prisma/schema/organizations.prisma`, declared to
+  better-auth as an `additionalFields` entry with `input: false`, so `/organization/create` and `/organization/update`
+  cannot set it). `null` means "the app default": the effective timezone is `organization.timezone ?? gatoConfig.timezone
+  ?? "UTC"`, resolved by `resolveTimezone` in `src/shared/lib/timezone/`. A changed app default therefore moves every
+  organization that never chose one.
+- **Context.** `OrgContext` gains `timezone` (effective), read with the organization row `getOrgContext()` already
+  resolves; the job context gets the same value for organization jobs.
+- **Command.** `organizations.update-timezone` (`defineCommand`, `access: "member"`, permission
+  `organizations.manage-settings`, default roles `owner`, `admin`, changeable under
+  `modules.organizations.permissions`), input `{ timezone: string | null }` validated as an IANA name. Through
+  `runCommand`, so service mode asks for confirmation. Unchanged value → success, no event. Otherwise it emits
+  `organizations.timezone-changed` `{ previous, timezone }` with the actor who changed it (the ADR-70 actor rule).
+- **Audit.** `audit-logs` subscribes and writes `organization.timezone_changed` (`oldData`/`newData`, `serviceMode` from
+  the event).
+- **UI.** A new core page `/organization` ("Organization settings", `organizations` module, `PageHeader` from #139), nav
+  item `organizations.settings` shown to members with `organizations.manage-settings`. A searchable select (cmdk) over
+  `Intl.supportedValuesOf("timeZone")` labelled with the current UTC offset, and "Use the app default (<zone>)" for
+  `null`, submitted through `useServiceModeAction().run`. A slot `organizations.settings.sections` (experimental) lets
+  modules add settings later. Works with `MULTI_ORG` on and off.
+- **Date display.** `formatDateTime(date, { timeZone, locale, style })` in `src/shared/lib/timezone/`. Server components
+  pass `context.timezone`; client components read it from a `TimezoneProvider` in the app layout. The existing date
+  displays switch to it (audit log, API keys created/expires/last used, users and invitations); date inputs that mean a
+  calendar day (API key expiry) are converted at the organization's midnight. Each module gets a version bump.
+- **Personal timezone.** Proposed, not decided (Q1): `User.timezone String?` on the account page, overriding the
+  organization's zone for display only, never for schedules; per ADR-71 it emits no organization event and no audit row.
 
-- `/admin/jobs`, `adminOnly` (global `admin` and `superadmin`), guarded by `requireModuleAccess("jobs")`.
-- Read-only list per job: waiting / active / delayed / failed / completed counts; schedules with cron, timezone,
-  enabled state and next run; the last 50 failed jobs with job name, organization name, attempts, time and
-  `failedReason` (truncated to 500 characters). **No payloads**, no stack traces in the UI (they go to the logs).
-- Two commands: `jobs.retry` (retry one failed job) and `jobs.run-now` (enqueue a schedule's job once with its current
-  settings). `access: "global-admin"`, declared in `module.ts`, in `extension-points.json` as `stable` commands.
-- Why not bull-board in v1: it shows every payload and every stack trace to whoever has the Basic Auth password, which
-  is a second credential outside better-auth (Ragen named this itself), it needs an Express server on a separate port
-  in the worker, which the egress check and the Helm chart then have to know about, and proxying it through a Next route
-  is real work (Ragen deferred it). The small page covers "is it stuck, what failed, run it again". bull-board stays
-  possible as an opt-in later (Q4).
+### 11.2 Organization-facing schedules
+
+A schedule with `timezone: "organization"` fires once per organization at that organization's local time ("08:00 every
+weekday" means 08:00 in each organization's zone).
+
+- The `jobs` module runs a `system` job `jobs.organization-schedules-tick` every minute (a BullMQ scheduler in UTC).
+- State: `JobOrganizationSlot { organizationId, scheduleId, lastSlotAt }`, `@@unique([organizationId, scheduleId])`
+  (`jobs` module schema).
+- For each enabled organization schedule and each organization (batches of 500), the tick computes the latest slot due
+  in `(lastSlotAt, now]` in the organization's effective timezone (at most 2 h back after downtime; a schedule never run
+  starts at the first slot after it was enabled, no backfill). In one transaction per organization it claims the slot
+  (compare-and-set on `lastSlotAt`) and enqueues the organization job through the outbox with `tx` and
+  `jobKey = "<scheduleId>-<slot ISO>"`. The claim and the job commit together, so a slot is never lost or run twice:
+  the benefit of the outbox that company-budget had to build by hand (its agent schedule dispatcher).
+- The tick reads the slot table across organizations inside `withoutTenantScope("jobs: organization schedule tick",
+  …)`; the per-organization claim and enqueue filter by that organization.
+- DST: a slot in the skipped spring hour does not fire that day; the repeated autumn hour fires once (the claim
+  compares instants). `docs/19b` advises against local times between 01:00 and 03:00.
+- No kit module ships an organization schedule in v1; the `invoices` contract fixture gets one (`invoices.daily-summary`
+  at 08:00 organization time) so `assemble` exercises the path.
+
+### 11.3 Queued subscribers
+
+Decision 17.1/10.
+
+```ts
+export const subscribers = defineSubscribers({
+  "uploads.deleted": {
+    id: "invoices.detach-file",
+    queued: { job: "invoices.detach-file", payload: (event) => ({ uploadId: event.payload.uploadId }) },
+  },
+});
+```
+
+- The bus (ADR-61) delivers a queued subscriber by calling `enqueueJob(jobOrigin(event), job, payload(event), { jobKey
+  })` instead of running code inline: an outbox insert, after the operation succeeded, one at a time in registry order
+  like any subscriber. An insert error is logged as a subscriber failure and never rethrown.
+- The job must be an `organization` job; the subscriber's module must `require` `jobs` (registry check, 7.2). The job
+  runs with the event's organization, actor and service-mode flag.
+- `jobKey` defaults to a hash of the event name, the subscriber id and the payload, so the same event delivered twice
+  enqueues once.
+- ADR-61 is amended: "delivery is in-process and best effort" stays true for plain subscribers; queued ones get retries.
+
+### 11.4 The `jobs.failed` event
+
+- Declared in `src/features/jobs/events.ts`: `jobs.failed` `{ job, jobId, attempts, reason }`, `reason` truncated to 500
+  characters.
+- Emitted by the consumer after the last attempt (or an unrecoverable failure) of an **organization** job, with the
+  job's origin (organization, actor, service mode). System jobs emit nothing (no organization to deliver to).
+- Subscribers run in the worker process, which is why every subscriber must be Next-free (6.3, Q2).
+- Loop guard: while the bus delivers `jobs.failed`, an `AsyncLocalStorage` flag makes every `enqueueJob` set
+  `cause: "jobs.failed"` in the envelope; a failing job with that cause emits no `jobs.failed`.
+
+## 12. Admin surfaces
+
+### 12.1 In-app admin page
+
+- `/admin/jobs`, `adminOnly` (global `admin` and `superadmin`), `requireModuleAccess("jobs")`, `PageHeader`.
+- Read-only per job: waiting / active / delayed / failed / completed counts; app-wide schedules with cron, timezone,
+  enabled state and next run (in its zone and in UTC); organization schedules with the count of organizations due in
+  the next hour; the outbox (pending count, oldest pending age, rows with 10 or more failed dispatches, rows for jobs
+  no worker knows); the last 50 failed jobs with job name, organization name, attempts, time and `failedReason`
+  truncated to 500 characters. No payloads, no stack traces.
+- Commands `jobs.retry` and `jobs.run-now`, `access: "global-admin"`, no audit rows (decision 17.1/7).
+
+### 12.2 Worker dashboard
+
+Decision 17.1/4: bull-board on the worker, as justnails and company-budget run it, with Ragen's hardening.
+
+- `@bull-board/api` with `@bull-board/express`, mounted at `/admin/queues` on `JOBS_WORKER_PORT`, listing every queue
+  this worker consumes. Express is loaded only when the dashboard is enabled.
+- **Off unless configured**: both `JOBS_DASHBOARD_USER` and `JOBS_DASHBOARD_PASSWORD` set (one alone stops the worker;
+  password at least 16 characters).
+- **Auth**: HTTP Basic, user and password each compared in constant time over SHA-256 digests (Ragen; justnails compares
+  the header string with `===`), `WWW-Authenticate` challenge on failure, at most 10 failed attempts per minute per
+  client address (in memory), then 429.
+- **Read-only by default** (bull-board's read-only mode): no retry, promote, clean or remove until
+  `JOBS_DASHBOARD_READ_ONLY=false`.
+- `/health` is always served and unauthenticated: `{ status, redis, outbox: { pendingCount, oldestPendingSeconds } }`,
+  no queue names or payloads.
+- **Exposure rules** (`docs/19`, `docs/self-hosting.md`): the worker port is never published by the kit's Compose files,
+  never given an Ingress by the chart, and the Railway worker service gets no public domain; reach it by SSH tunnel,
+  `127.0.0.1` override, `kubectl port-forward` or Railway's private network. The dashboard shows payloads (ids by rule,
+  13) and stack traces, so it is for operators only.
 
 ## 13. Security
 
-- **Payloads are identifiers.** Redis is not encrypted at rest and BullMQ keeps failed jobs for days. Payload schemas
-  may not declare keys matching `/(password|secret|token|apikey|api_key|authorization|cookie|session)/i` (registry
-  check). Mail is rendered at run time from ids, with the locale passed explicitly, never stored rendered with its
-  recipient (justnails' email job is the counter-example).
-- **Failure reasons** may contain PII from an exception message. The admin page truncates them; logs go through the
-  existing logger redaction. `removeOnFail` keeps them 7 days by default.
-- **Redis access:** `rediss://` supported; self-hosted Redis gets a password (Q9) and no published port; `JOBS_PREFIX`
-  isolates apps sharing an instance. Redis is a configured endpoint (ADR-66).
-- **No secrets in the worker that the web does not have.** Same image, same env file; no `CRON_SECRET`-style
-  callback, because the worker runs the app's code directly.
-- **Unknown job names** fail unrecoverably; a job cannot name a handler that is not registered.
-- **Eviction** refused at boot.
+- **Payloads are identifiers.** Redis and the outbox are not encrypted at rest and keep jobs for days. Payload schemas may
+  not declare keys matching `/(password|secret|token|apikey|api_key|authorization|cookie|session)/i`. Mail is rendered
+  at run time from ids.
+- **Failure reasons** may hold PII; the in-app page and `jobs.failed` truncate them; logs go through the logger's
+  redaction.
+- **Redis:** `rediss://` supported; password required in the self-hosted stack (decision 17.1/9); no published port;
+  `JOBS_PREFIX` isolates apps sharing an instance; eviction refused at boot.
+- **Tenant isolation at run time:** 9.1.
+- **Dashboard:** 12.2.
+- **No callback secret:** the worker runs the modules' code directly; no `CRON_SECRET`-style route exists.
+- **Unknown job names** fail unrecoverably; the relay never dispatches an envelope whose organization differs from its
+  row.
 
 ## 14. Testing
 
 ### 14.1 Unit (no Redis, `npm test`)
 
-- `createMemoryJobRuntime()` in `src/shared/lib/jobs/testing.ts`: records enqueues (name, envelope, options) and
-  `drain()` runs them through the **real** envelope parse, the real registry and the real context, synchronously, with
-  retries simulated per `attempts`. Handler tests use it, or call the handler with `createTestJobContext({
-  organizationId })`.
-- Registry check tests (every rule in 7.2) as literals, like the event bus tests.
-- `jobOrigin`, envelope strip and reject, job id hashing (`:` never appears, all-digit never appears, organizations
-  never collide), schedule reconciliation planning as a pure function (`planScheduleChanges(existing, effective)`),
-  failure mapping, shutdown ordering with fakes, eviction check with a fake `CONFIG GET` (array and object answers,
-  forbidden, empty).
-- Retention: cutoff from a fixed clock, batch loop stops at fewer than the batch size and on abort.
-- Orphans: grace period boundary, prefix parsing (UUID only), circuit breaker thresholds, a key in another
-  organization's prefix never considered.
-- Generator: `registry.test.ts` pins the new generated lines; extension-points catalog test covers the new sections.
+- `createMemoryJobRuntime()` in `src/shared/lib/jobs/testing.ts`: records enqueues and `drain()` runs them through the
+  real envelope parse, registry, context and organization scope, with retries simulated per `attempts`. Handler tests
+  use it, or `createTestJobContext({ organizationId })`.
+- Registry check (every rule of 7.2), origins, envelope strip and reject, job-id hashing, schedule planning
+  (`planScheduleChanges`), organization slot computation (`latestDueSlot` with DST cases as literals), failure mapping,
+  shutdown ordering with fakes, eviction check (array and object answers, forbidden, empty), dashboard auth (wrong
+  user, wrong password, missing header, lockout, read-only), timezone resolution and IANA validation, `formatDateTime`.
+- Tenant scope: the value check of 9.1, each allowed and rejected filter shape as a literal.
+- Retention and orphan logic as in the first draft (cutoff, batches, grace, prefix shape, circuit breaker).
+- Generator: pinned registry lines, `server-registry.generated.ts`, manifest `scripts` merge, `verify:modules`.
 
 ### 14.2 Integration on real Redis and Postgres (`npm run test:integration`)
 
-- Redis from `docker compose up -d redis`; `INTEGRATION_REDIS_URL` (default `redis://localhost:6379/15`). The helper
-  refuses to run unless `JOBS_PREFIX` ends with `_test` (mirroring the `*_test` database rule) and obliterates only that
-  prefix between suites.
-- `ci/jobs.integration-steps.yml` starts Redis in the `assemble` job, as `uploads` starts MinIO.
-- Suites: enqueue → complete; retry with backoff → final failure; `JobFailure` not retried; dedupe and `jobKey`;
-  envelope mismatch not retried; a stalled job redelivered exactly once (with a short `lockDurationMs` and
-  `stalledInterval` passed only by the test, Ragen's approach); `globalConcurrency: 1` across two `Worker`s; schedule
-  upsert idempotent across two boots and orphan scheduler removed; `SIGTERM` waits for an in-flight job.
-- **Isolation (required for every query or command on domain data, AGENTS.md):** two organizations; `audit-logs.prune`
-  for A deletes only A's old rows; `uploads.orphans` for A never lists or deletes B's objects; a payload carrying B's
-  `organizationId` in an A job does not reach B.
+- Redis from `docker compose up -d redis`, `INTEGRATION_REDIS_URL` (default `redis://localhost:6379/15`); the helper
+  refuses to run unless `JOBS_PREFIX` ends with `_test` and obliterates only that prefix. `ci/jobs.integration-steps.yml`
+  starts Redis in `assemble`.
+- The worker under test is started through the development entry (`worker/main.ts` with `dev-hooks.mjs`), the bundle
+  through `worker:check`, so both module formats run in CI.
+- Outbox: a rolled-back transaction leaves no row and no job; a committed one is dispatched after `NOTIFY`; two relays
+  never dispatch a row twice; a relay killed between `add` and commit re-adds without a second job; a row of an unknown
+  job stays pending; prune keeps undispatched rows.
+- Runtime: enqueue → complete; retries → final failure → one `jobs.failed`; `JobFailure` not retried; envelope mismatch
+  not retried; stalled job redelivered once (short `lockDurationMs`/`stalledInterval` passed by the test only);
+  `globalConcurrency: 1` across two workers; schedule reconciliation across two boots; `SIGTERM` waits for an in-flight
+  job; a schedule with `timezone: "Europe/Warsaw"` gets its next run at 03:00 Warsaw time with the worker started under
+  `TZ=America/New_York`.
+- **Isolation (AGENTS.md):** two organizations; `audit-logs.prune` for A leaves B's rows; `uploads.orphans` for A never
+  lists or deletes B's objects; a handler that queries B's rows inside A's scope throws `TenantScopeError`; a payload
+  carrying B's id reaches nothing of B; an organization schedule claims A's and B's slots independently; changing A's
+  timezone changes nothing of B.
 
 ### 14.3 End to end
 
-One Playwright test in `core-auth` when `jobs` is installed: a superadmin opens `/admin/jobs`, sees the schedules,
-runs `uploads.orphans-daily` now and sees it complete. The e2e server runs with `JOBS_ROLE=all`.
+- `core-auth`: an owner changes the organization timezone on `/organization`, the audit log shows the row, dates on the
+  audit log page render in the new zone; a `member` does not see the nav item and the command refuses.
+- With `jobs`: a superadmin opens `/admin/jobs`, runs `uploads.orphans-daily` now and sees it complete (e2e runs a
+  worker beside the server).
 
 ### 14.4 Architecture tests
 
-- `bullmq` and `ioredis` imported only under `src/features/jobs/runtime/` (Ragen's seam rule, type imports included).
-- A file that declares an `organization` job's handler does not import `getOrgContext`, `requireModuleAccess`,
-  `next/headers` or `withoutTenantScope`.
+- `bullmq`, `ioredis`, `@bull-board/*` and `express` imported only under `src/features/jobs/runtime/` and
+  `src/features/jobs/worker/`.
+- Nothing reachable from `jobs.ts`, `subscribers.ts`, `events.ts`, `audit-sink.ts`, `command-hooks.ts` or `module.ts`
+  imports React, Next or `@/modules.generated` (static check; the bundle metafile check repeats it on the real graph).
+- An organization job's handler files do not import `getOrgContext`, `requireModuleAccess`, `next/headers`,
+  `withoutTenantScope` or call `$queryRaw`/`$executeRaw`.
 - `client-bundles-stay-server-free`: `"use client"` files do not import `@/shared/lib/jobs` or any `jobs.ts`.
 
-### 14.5 Mutation targets
+### 14.5 Mutation gate
 
-Critical (`mutation-gate.json`): `src/shared/lib/jobs/` (registry check, envelope, origin, job ids, enqueue),
-`src/features/jobs/runtime/` (failure mapping, schedule reconciliation, eviction check, connection options),
-`src/features/audit-logs/services/jobs/`, `src/features/uploads/services/jobs/`. Mutants to kill are listed per task in
-section 16; the theme is: a removed organization filter, an origin taken from the payload, a reconciliation that
-removes another app's or a still-declared schedule, a cutoff off by a day, a grace period ignored, a circuit breaker
-comparison flipped, a non-retryable failure retried.
+Proposed additions to `mutation-gate.json` `critical` (a human approves them): `src/shared/lib/jobs/`,
+`src/shared/lib/tenant-scope/` (already critical; the new scope code lands there), `src/shared/lib/timezone/`,
+`src/features/jobs/outbox/`, `src/features/jobs/runtime/`, `src/features/jobs/worker/http.ts` (dashboard auth),
+`src/features/audit-logs/services/jobs/`, `src/features/uploads/services/jobs/`, and the organizations timezone command.
+The theme of the mutants to kill is listed per task in section 16.
 
 ## 15. Changes outside the module
 
-Each is its own commit with a `core` (or owning module) version bump, as `kit/CLAUDE.md` requires:
+Each is its own commit with the owner's version bump (`kit/CLAUDE.md`):
 
 | Change | File(s) | Owner |
 | --- | --- | --- |
 | Seam `src/shared/lib/jobs/` | new | core |
-| `jobRuntimes` call in `register()` | `src/instrumentation.ts` | core |
-| `schedules` in `GatoModuleConfig`, top-level `jobs.timezone`, validation | `src/shared/lib/modules/gato-config.ts` | core |
-| `serverExternalPackages: ["bullmq", "ioredis"]` | `next.config.ts` | core (harmless without the module) |
-| Generator: `jobs.ts`, `job-runtime.ts`, extension-point sections, `kitFormat` 12 | `packages/gato-cli/src/generate/**`, `kit/kit.json`, `kit-format.ts` | kit |
-| `doctor` warning for schedules without the `jobs` module | `packages/gato-cli/src/doctor/**` | kit |
-| Helm `worker.*` values and `worker-deployment.yaml` | `deploy/helm/gatojs/` | core |
-| Tenant-scope expected-organization check (if Q8 = yes) | `src/shared/lib/tenant-scope/` | core |
+| Next-free server registry; `emit-event.ts`, `audit.ts`, `run-command.ts`, `require-module-enabled.ts` import it | `src/server-registry.generated.ts`, those files | core + kit (generator) |
+| Organization job scope in the guard | `src/shared/lib/tenant-scope/` | core |
+| `timezone` in `GatoConfig`, `schedules` in `GatoModuleConfig` | `src/shared/lib/modules/gato-config.ts` | core |
+| `Organization.timezone`, `additionalFields`, `OrgContext.timezone`, timezone helpers, `/organization` page, nav item, slot, command, event, permission | `prisma/schema/organizations.prisma`, `src/shared/lib/auth/`, `src/shared/lib/timezone/`, `src/features/organizations/`, `src/app/[locale]/(app)/organization/` | core |
+| Queued subscribers, `cause` flag | `src/shared/lib/events/` | core |
+| `AuditChannel` `SYSTEM`, job-scoped default channel | `src/shared/lib/audit.ts` | core |
+| `AuditChannel` enum value, label, `organization.timezone_changed` and `audit-log.pruned` actions, timezone subscriber | `src/features/audit-logs/`, `prisma/schema/audit-logs.prisma` | audit-logs |
+| `ObjectStorage.list`, orphan jobs | `src/features/uploads/` | uploads |
+| Date display through `formatDateTime` | `audit-logs`, `api-keys`, `users` | each module |
+| `serverExternalPackages: ["bullmq", "ioredis"]` (the web reads queue counts) | `next.config.ts` | core |
+| `verify` runs `npm run --if-present verify:modules` | `package.json` | core |
+| Generator: server registry, `jobs.ts`, `job-runtime.ts`, manifest `scripts` and `verify`, worker Dockerfile region, catalog sections; `kitFormat` 12 | `packages/gato-cli/`, `kit/kit.json`, `kit-format.ts` | kit |
+| `doctor` warning for schedules without `jobs` | `packages/gato-cli/src/doctor/` | kit |
+| Worker image in `docker-publish.yml` and `docker-platforms.yml` | `.github/workflows/` | core / kit |
+| Helm `worker.*`, `worker-deployment.yaml`, dashboard Service | `deploy/helm/gatojs/` | core |
 | `redisUrl` helper | `packages/env` | core |
-| `ObjectStorage.list` | `src/features/uploads/` | uploads |
-| ADR-66 endpoint list, egress-check `jobs` leg | `docs/adrs/66-…`, `kit/egress-check/`, workflow | kit |
-| `assemble` matrix: `jobs` alone, `jobs+audit-logs+uploads`, `all` | `.github/workflows/kit.yml` | kit |
+| ADR-66 endpoint list, egress-check `jobs` leg, path filter | `docs/adrs/66-…`, `kit/egress-check/`, workflow | kit |
+| `assemble` matrix: `jobs`, `jobs+audit-logs+uploads`, `all`; `invoices` fixture gets a job, a queued subscriber and an organization schedule | `.github/workflows/kit.yml`, fixture | kit |
 
 ## 16. Phased plan outline
 
@@ -776,212 +1032,299 @@ Each task follows `AGENTS.md`: `test-writer` writes the tests from "Zachowania" 
 red; the implementer works with `.gato/phase` = `implement`; `test-reviewer` runs `npm run test:mutation:task` and
 `npm run test:mutation:gate`. This is an outline; the plan file adds signatures, files and full behaviour lists.
 
-### Phase 0: spike (throwaway branch, result is a lesson and a go/no-go)
+### Phase 0: spike (throwaway branch; result is a lesson and a go/no-go)
 
-**Task 0. Worker role in the standalone image.** Build the image, run two containers (`JOBS_ROLE=web`, `JOBS_ROLE=worker`
-with `NEXT_MANUAL_SIG_HANDLE=true`) and Redis; enqueue from a route, process in the worker, `docker stop` during a 20 s
-job.
+**Task 0. A Next-free worker bundle in its own image.** esbuild bundle of a worker that loads a hand-written
+server-only registry, runs a job that writes through `@/shared/lib/prisma` (Prisma 7, tenant-scope extension), calls
+`trackAudit` and `emitEvent`, built in `docker/worker.Dockerfile` on amd64 and arm64.
 
-**Zachowania:** the job completes in the worker container and never in the web container; `docker stop` waits for the
-job and the container exits 0 within `stop_grace_period`; `server.js` does not exit before our handler finishes; the
-standalone output contains `bullmq` and `ioredis` with their Lua scripts; RSS of an idle worker container recorded.
+**Zachowania:** the job completes; the metafile contains no `next`, `react`, `react-dom`, `next-intl`; Prisma's runtime
+files load from the image; `server-only` and `next/cache` resolve to the stubs; `docker stop` waits for a 20 s job and
+exits 0; idle RSS and image size recorded; `tsx watch` with `dev-hooks.mjs` runs the same entry.
 
-**Mutacje do zabicia:** n/a (spike). If any behaviour fails, the spec switches to option B (section 6.1) before Phase 1.
+**Mutacje do zabicia:** n/a (spike). A failure changes section 6.4 before Phase 1.
 
-### Phase 1: core seam (`kitFormat` 12)
+### Phase 1: core seams (`kitFormat` 12)
 
-**Task 1. `defineJobs`, `defineSchedules` and the registry check.**
+**Task 1. `defineJobs`, `defineSchedules`, registry check.**
 
-**Zachowania:** each rule of 7.2 as a literal input → the exact `JobRegistryError` problem line; a valid registry →
-frozen lookups by name; cron `"0 3 * * *"` accepted, `"0 0 3 * * *"` and `"61 * * * *"` rejected; timezone
-`"Europe/Warsaw"` accepted, `"Mars/Base"` rejected; payload with `organizationId`, `apiToken` or `.passthrough()`
-rejected; a schedule of an organization job rejected.
+**Zachowania:** each rule of 7.2 as a literal input → the exact `JobRegistryError` line; cron `"0 3 * * *"` accepted,
+`"0 0 3 * * *"` and `"61 * * * *"` rejected; timezone `"Europe/Warsaw"` and `"organization"` accepted, `"Mars/Base"`
+rejected; an organization-timezone schedule of a system job rejected; payload with `organizationId`, `cause`,
+`apiToken` or `.passthrough()` rejected; a queued subscriber in a module without `requires: ["jobs"]` rejected.
 
-**Mutacje do zabicia:** prefix check removed; duplicate check removed; reserved-key check skipped for nested
-`.optional()`; five-field check replaced by "≥ 5"; sensitive-name regex made case-sensitive.
+**Mutacje do zabicia:** prefix check removed; reserved-key check skipped for `.optional()`; five-field check replaced by
+"≥ 5"; scope/timezone-mode check inverted; sensitive regex made case-sensitive.
 
-**Task 2. Envelope, origins, job ids, `enqueueJob` and the memory runtime.**
+**Task 2. Envelope, origins, job ids, `enqueueJob` port, memory runtime.**
 
-**Zachowania:** `jobOrigin(orgContext)` → `{ organizationId: "org-a", actorUserId: "u1", serviceMode: false }`; an
-event origin keeps the event's organization; a payload `{ invoiceId: "i1", organizationId: "org-b" }` reaches the
-handler as `{ invoiceId: "i1" }` with `ctx.organizationId === "org-a"`; an organization job with `systemOrigin` throws;
-job id for `("x.y", "org-a", "k1")` is a fixed literal, contains no `:`, differs from the id for `"org-b"`; without a
-runtime `enqueueJob` throws `JobsUnavailableError`; envelope `v: 2` fails unrecoverably.
+**Zachowania:** `jobOrigin(orgContext)` → `{ organizationId: "org-a", actorUserId: "u1", serviceMode: false }`; payload
+`{ invoiceId: "i1", organizationId: "org-b" }` reaches the handler as `{ invoiceId: "i1" }` with
+`ctx.organizationId === "org-a"`; organization job with `systemOrigin` throws; job id for `("x.y", "org-a", "k1")` is a
+fixed literal without `:`, different for `"org-b"`; no runtime → `JobsUnavailableError`; envelope `v: 2` unrecoverable.
 
-**Mutacje do zabicia:** organization taken from the payload; strip mode replaced by passthrough; organization omitted
-from the job id hash; scope check inverted.
+**Mutacje do zabicia:** organization taken from the payload; strip replaced by passthrough; organization left out of the
+key hash; scope check inverted.
 
-**Task 3. `gato.config.ts` schedules and generator output.**
+**Task 3. Server registry split, generator, manifest `scripts`/`verify`.**
 
-**Zachowania:** unknown schedule id → `GatoConfigError` line `- modules.audit-logs.schedules.audit-logs.nope: unknown
-schedule`; `null` disables; `settings` failing the schema → registry error naming the path; generated registry lines
-pinned; `EXTENSION_POINTS.md` lists the new sections; a project without `jobs` gets `jobRuntimes: never[] = []`.
+**Zachowania:** `src/server-registry.generated.ts` pinned line by line and free of slot, message and auth-plugin
+imports; `@/modules.generated` re-exports it; `emit-event.ts` and `audit.ts` import the new file; a manifest with
+`scripts` adds them to `package.json` and removing the module removes them; `verify:modules` composed in registry order;
+`docker/worker.Dockerfile` region filled.
 
-Timezones (7.7): no `jobs.timezone` → schedules resolve to `"UTC"`; `jobs: { timezone: "Europe/Warsaw" }` → a
-schedule without its own timezone resolves to `"Europe/Warsaw"`; schedule `timezone: "America/New_York"` wins over the
-default; a config override `timezone: "Asia/Tokyo"` wins over both; `jobs.timezone: "CET+1"` or `"Mars/Base"` →
-`GatoConfigError` with `- jobs.timezone: not an IANA time zone: Mars/Base`; the `upsertJobScheduler` call always carries
-a non-empty `tz`.
+**Mutacje do zabicia:** a React-importing list emitted into the server registry; scripts of a removed module kept;
+`verify:modules` missing a module.
 
-**Mutacje do zabicia:** override merged instead of replacing `cron`; `null` treated as "keep"; disabled module's
-schedules kept; resolution order of the timezone swapped; `tz` omitted when it equals `"UTC"`; IANA check replaced by a
-non-empty string check.
+**Task 4. Organization job scope in the tenant-scope guard (critical).**
 
-### Phase 2: the `jobs` module runtime
+**Zachowania:** inside `runInOrganizationScope("org-a")`: `findMany({ where: { organizationId: "org-a" } })` passes;
+`{ organizationId: "org-b" }`, `{ organizationId: { in: ["org-a", "org-b"] } }`, `{ organizationId: { not: "org-b" } }`,
+no filter, `create({ data: { organizationId: "org-b" } })` and a `createMany` with one `org-b` row throw
+`TenantScopeError`; `withoutTenantScope` inside the scope throws; outside a scope every existing guard test is unchanged.
 
-**Task 4. Producer (BullMQ `JobRuntime.enqueue`), connections and env.**
+**Mutacje do zabicia:** value comparison removed (presence only); `in` accepted when it contains the scope id among
+others; `createMany` checks only the first row; the bypass allowed inside the scope.
 
-**Zachowania:** producer connection has a finite `maxRetriesPerRequest` and `enableOfflineQueue: false`; consumer
-connections have `maxRetriesPerRequest: null`; no connection is opened by importing the module; `REDIS_URL` missing
-with the module enabled stops startup with the variable named; `JOBS_PREFIX` with `:` rejected; default options per
-section 7.1 literals.
+**Task 5. `timezone` and `schedules` in `gato.config.ts`; timezone helpers.**
 
-**Mutacje do zabicia:** producer gets `null` retries; lazy connection made eager; default attempts changed.
+**Zachowania:** no `timezone` → `"UTC"`; `timezone: "Europe/Warsaw"` → schedules without their own zone resolve to it;
+schedule zone beats it; config override beats both; `"CET+1"` → `GatoConfigError` line
+`- timezone: not an IANA time zone: CET+1`; unknown schedule id → `GatoConfigError`; `null` disables;
+`resolveTimezone(null, "Europe/Warsaw")` → `"Europe/Warsaw"`; `formatDateTime(new Date("2026-03-29T01:30:00Z"),
+{ timeZone: "Europe/Warsaw", locale: "pl" })` → the literal for 03:30.
 
-**Task 5. Consumer, failure mapping, eviction check, shutdown.**
+**Mutacje do zabicia:** resolution order swapped; `null` treated as keep; IANA check replaced by non-empty; `tz` omitted
+for `"UTC"`.
 
-**Zachowania:** `JobFailure(retryable: false)` → `UnrecoverableError` with the same message; unknown job name →
-unrecoverable; eviction policy `allkeys-lru` → refuses to start with the policy in the message; `CONFIG GET` forbidden →
-warning and start; `SIGTERM` twice → one shutdown; order: drain flag, close workers, close queues, disconnect Prisma,
-flush telemetry, exit; timeout aborts `ctx.signal`.
+### Phase 2: the `jobs` module
 
-**Mutacje do zabicia:** `retryable === false` check inverted; eviction comparison against `"noeviction"` negated; second
-signal starts a second shutdown; telemetry flushed before workers close.
+**Task 6. Outbox: model, insert, relay, prune.**
 
-**Task 6. Schedule reconciliation.**
+**Zachowania:** insert inside a rolled-back `tx` leaves no row; inside a committed `tx` one row and one notification;
+duplicate `jobKey` → `{ duplicate: true }`, one row; relay adds in `(createdAt, id)` order with `jobId = keyHash ?? id`;
+a row whose envelope organization differs from its column is never added; a row of an unknown job stays pending; failed
+add → `dispatchAttempts` 1 and `lastError`; prune deletes dispatched rows older than 7 days and no pending row.
 
-**Zachowania:** `planScheduleChanges(existing ["audit-logs.prune-daily", "old.gone"], effective ["audit-logs.prune-daily"])`
-→ upsert one, remove `"old.gone"`; a scheduler under another `JOBS_PREFIX` is never listed or removed; disabled in
-config → removed; two boots → one scheduler (integration).
+**Mutacje do zabicia:** `dispatched_at IS NULL` dropped; `SKIP LOCKED` dropped (integration: two relays); organization
+mismatch check removed; prune condition `<` → `>`; unknown-job rows dispatched.
 
-**Mutacje do zabicia:** removal set computed as effective minus existing; prefix filter dropped; upsert skipped when the
-cron changed.
+**Task 7. Consumer, failure mapping, `jobs.failed`, eviction check, shutdown.**
 
-**Task 7. Worker role wiring, Compose, CI steps, integration suite (14.2).**
+**Zachowania:** `JobFailure(retryable: false)` → `UnrecoverableError`; unknown job → unrecoverable; last failure of an
+organization job emits exactly one `jobs.failed` with the truncated reason; a system job emits none; a job with
+`cause: "jobs.failed"` emits none; `allkeys-lru` → refuses to start; `CONFIG GET` forbidden → warning; second `SIGTERM`
+ignored; order relay → workers → queues → Prisma → HTTP → telemetry.
 
-**Zachowania:** the integration list of 14.2, including the two-organization isolation test and the stalled-once test.
+**Mutacje do zabicia:** `retryable === false` inverted; `jobs.failed` emitted on every attempt; cause guard removed;
+eviction comparison negated; telemetry flushed first.
 
-**Mutacje do zabicia:** `maxStalledCount` raised; global concurrency not applied before `run()`; role `web` starts
-consumers.
+**Task 8. Schedule reconciliation.**
 
-### Phase 3: first consumers
+**Zachowania:** `planScheduleChanges(existing ["audit-logs.prune-daily", "old.gone"], effective
+["audit-logs.prune-daily"])` → upsert one, remove `"old.gone"`; another prefix's schedulers untouched; every upsert
+carries a non-empty `tz`; two boots → one scheduler.
 
-**Task 8. Audit-log retention (`audit-logs` module, version bump).**
+**Mutacje do zabicia:** removal set computed backwards; prefix filter dropped; upsert skipped when only the timezone
+changed.
+
+**Task 9. Worker entrypoint, bundle, stubs, development entry, Dockerfile, Compose, CI steps, integration suite.**
+
+**Zachowania:** `node .worker/worker.mjs --check` exits 0 with a valid env and 1 naming the variable without
+`REDIS_URL`; the metafile check fails on a fixture that imports `react`; a stubbed `headers()` call throws
+`"next/headers is not available in the worker"`; `next/cache` `revalidatePath` returns `undefined`; the 14.2 suite
+passes against both the development entry and the bundle; self-hosted Compose refuses to start without
+`REDIS_PASSWORD`.
+
+**Mutacje do zabicia:** a forbidden package missing from the metafile list; stub of `next/cache` throwing; `--check`
+skipping env verification.
+
+### Phase 3: time and events
+
+**Task 10. Organization timezone (core): migration, context, command, event, page, slot, audit subscriber.**
+
+**Zachowania:** a new organization has `timezone: null` and context timezone equal to the app default; owner sets
+`"Europe/Warsaw"` → success, one `organizations.timezone-changed` `{ previous: null, timezone: "Europe/Warsaw" }` with the
+owner as actor, one `organization.timezone_changed` audit row; same value again → success, no event; `member` →
+failure result, no change; superadmin in service mode without confirmation → "Potwierdź zmianę w trybie serwisowym"
+(the service-mode message), with confirmation → `serviceMode: true` on the audit row; `"Mars/Base"` → invalid input;
+better-auth `/organization/update` with `timezone` in the body leaves it unchanged; organization B unchanged
+(integration).
+
+**Mutacje do zabicia:** permission check removed; event emitted when unchanged; `input: false` dropped; organization taken
+from the input.
+
+**Task 11. Date display in organization time.**
+
+**Zachowania:** the audit log, API key and users pages render a fixed instant as the literal for the organization's zone;
+an API key expiry date chosen as `2026-12-01` in `"Europe/Warsaw"` expires at `2026-12-01T23:00:00.000Z` (the end of
+that day in Warsaw); client components receive the zone from `TimezoneProvider`.
+
+**Mutacje do zabicia:** server time zone used; UTC hard-coded in one module.
+
+**Task 12. Organization-facing schedules (tick, slots, claims).**
+
+**Zachowania:** `latestDueSlot("0 8 * * 1-5", "Europe/Warsaw", lastSlotAt, now)` literals around DST (spring skip, autumn
+once) and weekends; organizations in `"Europe/Warsaw"` and `"America/New_York"` get their 08:00 jobs at their own
+instants; a tick run twice in the same minute enqueues once; a crash between claim and commit loses nothing
+(integration); downtime of 3 h runs only the latest slot within 2 h.
+
+**Mutacje do zabicia:** lookback bound removed; claim without compare-and-set; app default zone used instead of the
+organization's.
+
+**Task 13. Queued subscribers.**
+
+**Zachowania:** a queued subscriber of `uploads.deleted` writes one outbox row with the event's organization, actor and
+service mode; the same event twice → one row (default `jobKey`); an insert failure is logged and the operation still
+succeeds; a queued subscriber of a system job fails the registry check.
+
+**Mutacje do zabicia:** origin taken from the payload; default `jobKey` ignoring the event payload; failure rethrown.
+
+### Phase 4: first consumers
+
+**Task 14. `AuditChannel` `SYSTEM` and audit-log retention.**
 
 **Zachowania:** clock `2026-11-28T10:00:00Z`, `olderThanDays: 365` → cutoff `2025-11-28T00:00:00Z`; a row at
-`2025-11-27T23:59:59Z` deleted, `2025-11-28T00:00:00Z` kept; 12 001 old rows → three batches, all deleted; org B's old
-rows untouched by org A's job (integration); dispatch enqueues one job per organization with `jobKey` = the slot date;
-schedule disabled by default.
+`2025-11-27T23:59:59Z` deleted, `2025-11-28T00:00:00Z` kept; 12 001 old rows → three batches; after the run exactly one
+`audit-log.pruned` row with `channel: "SYSTEM"`, `userId: null`, `newData.deleted: 12001`; a retry uses the first
+attempt's cutoff; schedule disabled by default; B's rows untouched by A's job.
 
-**Mutacje do zabicia:** `lt` → `lte`; organization filter removed from `findMany` or `deleteMany`; batch loop exits after
-the first batch; `enabledByDefault` flipped.
+**Mutacje do zabicia:** `lt` → `lte`; organization filter removed (caught twice: unit and the scope guard); loop exits
+after one batch; audit row skipped; channel default left `WEB` inside jobs; `enabledByDefault` flipped.
 
-**Task 9. `ObjectStorage.list` and orphan cleanup (`uploads` module, version bump).**
+**Task 15. `ObjectStorage.list` and orphan cleanup.**
 
-**Zachowania:** object 25 h old without a row → deleted; 23 h old → kept; object with a row → kept; key outside
-`orgs/<org>/` never considered; prefix `orgs/not-a-uuid/` ignored; deleted organization's prefix purged when
-`purgeDeletedOrganizations`; 10 001 deletions planned → nothing deleted, unrecoverable failure; local `list` cannot
-escape `STORAGE_LOCAL_PATH` (`../`).
+**Zachowania:** object 25 h old without a row → deleted; 23 h → kept; with a row → kept; `orgs/not-an-id/` ignored; a
+deleted organization's prefix purged by default; 10 001 planned deletions → nothing deleted, unrecoverable failure; empty
+`Organization` table → nothing purged; local `list` cannot escape `STORAGE_LOCAL_PATH`.
 
-**Mutacje do zabicia:** grace comparison inverted; circuit breaker `>` → `>=` at the wrong side; existence check of the
-organization removed; `path-inside` check skipped in `list`.
+**Mutacje do zabicia:** grace comparison inverted; breaker `>` at the wrong boundary; existence check removed;
+`path-inside` skipped.
 
-### Phase 4: operations and docs
+### Phase 5: operations and docs
 
-**Task 10. Admin page and commands** (`/admin/jobs`, `jobs.retry`, `jobs.run-now`).
+**Task 16. In-app admin page and commands.**
 
-**Zachowania:** `member`, `owner` without global admin → 404 via `requireModuleAccess`; admin sees counts and failed jobs
-without payloads; `failedReason` of 2 000 characters shown as 500; `jobs.retry` on a completed job → failure result;
-`jobs.run-now` of a disabled schedule → failure result.
+**Zachowania:** `member` and `owner` without global admin → 404; admin sees counts, schedules with zones, outbox stats and
+failed jobs without payloads; `failedReason` of 2 000 characters shown as 500; `jobs.retry` and `jobs.run-now` write no
+audit row; `jobs.run-now` of a disabled schedule → failure result.
 
-**Mutacje do zabicia:** `adminOnly` dropped; payload included in the query result; truncation removed.
+**Mutacje do zabicia:** `adminOnly` dropped; payload included; truncation removed; an audit row written.
 
-**Task 11. Helm worker deployment, egress-check `jobs` leg, `assemble` matrix, Railway runbook.**
+**Task 17. Worker dashboard.**
 
-**Zachowania:** `helm template` with `worker.enabled=false` renders no worker; `true` renders a Deployment with
-`JOBS_ROLE=worker`, the app's image tag, `terminationGracePeriodSeconds: 35`, no Service; the egress check with `jobs`
-reports a clean run and fails when the worker resolves an outside name (canary-style negative).
+**Zachowania:** no credentials → `/admin/queues` 404 and `/health` 200; only one credential → worker refuses to start;
+wrong password → 401 with `WWW-Authenticate`; eleventh failure in a minute → 429; correct credentials → 200; a retry
+request in read-only mode → refused; password shorter than 16 → refuses to start.
+
+**Mutacje do zabicia:** comparison of the user skipped; read-only default flipped; lockout counter never incremented.
+
+**Task 18. Helm, Railway runbook, image publishing, egress `jobs` leg, `assemble` matrix.**
+
+**Zachowania:** `helm template` with `worker.enabled=false` renders no worker; `true` renders a Deployment with the worker
+image, `terminationGracePeriodSeconds: 35`, probes on `/health`, and no Service unless `worker.dashboard.enabled`, never
+an Ingress; the egress check's `jobs` leg is clean and fails on a planted outside lookup; `docker-publish.yml` pushes
+`<repo>-worker` only when `docker/worker.Dockerfile` exists.
 
 **Mutacje do zabicia:** n/a (templates and I/O), proved by `helm` tests and the sealed run.
 
-**Task 12. Docs, ADR, skill.** Section 18.
-
-### Phase 5: later (not planned)
-
-Queued subscribers and `jobs.failed` (Q10), bull-board opt-in (Q4), outbox (Q6), option B entrypoint if the worker's
-memory matters, organization-configurable retention.
+**Task 19. Docs, ADRs, skill.** Section 18.
 
 ## 17. Decisions and open questions
 
 ### 17.1 Decisions (Patryk, 2026-11-28)
 
-1. **Redis, not Valkey.** The stack uses the `redis` image as in the owner's projects (`redis:7-alpine`, pinned by
-   digest in `docker/jobs.compose.yml` and `docker/jobs.selfhost.compose.yml`).
-2. **Redis is final.** No BullMQ-on-PostgreSQL backend; the `JobRuntime` port does not plan for one.
-3. **Schedules do not depend on the server timezone.** An app-wide default `jobs.timezone` in `src/gato.config.ts`
-   (IANA name, validated with Zod, default `"UTC"`), a per-schedule `timezone` in `defineSchedules` (overridable per
-   schedule in `gato.config.ts`), always passed to BullMQ as `repeat.tz`. Containers run in UTC and their `TZ` is
-   ignored. Design in section 7.7; `JOBS_TIMEZONE` is dropped from the env schema.
+First round:
 
-### 17.2 Open questions for the owner
+1. **Redis, not Valkey.** The `redis:7-alpine` image as in the owner's projects, pinned by digest.
+2. **Redis is final.** No BullMQ-on-PostgreSQL backend.
+3. **Schedules do not depend on the server timezone.** App-wide default timezone in `src/gato.config.ts` (IANA, Zod,
+   default `"UTC"`), per-schedule override, always passed to BullMQ as `repeat.tz`; containers run in UTC and `TZ` is
+   ignored. *Revision:* the default is the top-level `timezone` key, not `jobs.timezone`, because date display and the
+   organization timezone (decision 12) use it too and core cannot read a module's key (7.3).
 
-1. **Worker shape.** Option C (same image, `JOBS_ROLE`) as recommended, or B (separate bundled entrypoint, like
-   justnails/company-budget)?
-2. **Audit retention default.** Ship `audit-logs.prune-daily` disabled (recommended) or enabled with 365 days?
-3. **Deleted organizations' storage.** Purge `orgs/<id>/` of deleted organizations by default (recommended: yes, with
-   the circuit breaker), or only report it?
-4. **Admin UI.** Small in-app page (recommended) only, or also bull-board behind Basic Auth on the worker, off by
-   default?
-5. **Helm Redis.** External only (recommended), or an in-cluster Redis in the chart like Ragen's?
-6. **Outbox.** Accept "enqueue after commit + row-first pattern" for v1 (recommended), or build a `job_outbox` table now?
-7. **Audit rows from jobs.** Should retention write an `audit-log.pruned` row per organization per run (justnails
-   logs one), and should `jobs.retry`/`run-now` write one? A new `AuditChannel` value `SYSTEM` for job-written rows?
-8. **Strict organization scope in jobs.** Add the expected-organization check to the tenant-scope guard (9.1)? It is a
-   critical core change with real protection; recommended, but it can be a follow-up.
-9. **Redis password in the self-hosted stack.** `REDIS_PASSWORD` required (recommended) even on an internal network?
-10. **Queued subscribers and `jobs.failed`.** In v1, or later as listed?
-11. **Development loop.** Accept "restart `npm run dev` after changing a job handler" (option C), or also ship a
-    `tsx watch` worker for development only?
-12. **Per-organization timezone (future work).** Store a timezone on `Organization` for organization-facing schedules
-    and date display (7.7)? And should the app shell expose a timezone setting (organization settings, the user's
-    account page, or both), or stay with the app-wide `jobs.timezone` until a project asks?
+Second round (the twelve questions of the first draft):
 
-## 18. Docs, ADR and skill
+1. **Worker shape: a separate entrypoint and image** (option B). Pitfalls addressed in section 6.
+2. **Audit retention shipped disabled.** (10.1)
+3. **Deleted organizations' storage purged by default,** behind the circuit breaker. (10.2)
+4. **Admin UI: the in-app page and a password-protected dashboard on the worker,** off unless configured, never public
+   by default. (12)
+5. **Helm: external Redis only.** (5.5)
+6. **Transactional outbox in v1** (`job_outbox`), with the relay design of 8.4.
+7. **Audit from jobs:** retention writes one row per organization per run; `jobs.retry` and `jobs.run-now` write none;
+   `AuditChannel` gains `SYSTEM`. (10.1, 9.2)
+8. **Strict organization scope in jobs** in the tenant-scope guard, in v1, critical. (9.1)
+9. **`REDIS_PASSWORD` required in the self-hosted stack.** (5.4)
+10. **Queued subscribers and `jobs.failed` in v1.** (11.3, 11.4)
+11. **A worker with automatic reload for development** (`npm run worker:dev`, `tsx watch`) beside the production
+    entrypoint. (6.6)
+12. **Per-organization timezone now:** stored on `Organization`, used by organization-facing schedules and date display,
+    changeable by owners and admins in organization settings, with service-mode confirmation, an event and an audit
+    row. (11.1, 11.2)
 
-- **ADR-70** "Background jobs run on BullMQ in a worker role of the same image" (decision of section 6, the seam/module
-  split of section 4, envelope and origin rules of 7.6 and 9).
-- ADR-66 amended: Redis is a configured endpoint.
-- `docs/18-jobs-module.md` (what it is, deployment per platform, Redis requirements: `noeviction`, AOF, connection
-  sizing, operations: draining, a stuck job, a schedule that does not fire) and `docs/18b-jobs-module-usage.md`
-  (declaring jobs and schedules, enqueueing from commands and subscribers, idempotency rules, payload migration,
-  testing with the memory runtime). English, like `docs/17-encryption-module.md`.
-- Updates: `docs/self-hosting.md` (Redis, worker service, Railway), `docs/10-wdrozenie.md`, `docs/12-moduly-kitu.md`,
-  `docs/08-testy.md` (Redis integration), `docs/09-nowy-modul.md` (a section "Background work"), `AGENTS.md` Task
-  Router row ("Background job or schedule → `src/shared/lib/jobs/`, `jobs.ts`, `docs/18b`"), skill `gato-extend`
-  (jobs and schedules as extension points), `EXTENSION_POINTS.md` (generated).
-- A lesson per spike finding (Task 0), whatever it turns up.
+### 17.2 Open questions raised by the revision
+
+1. **Personal timezone.** Add `User.timezone` (nullable, account page, display only, overriding the organization's
+   zone, no event or audit row per ADR-71) in this work, or later? Recommendation: later, once organizations have a
+   zone; a user in another zone than their organization is the exception in the kit's clients.
+2. **Subscribers must be Next-free.** Because `jobs.failed` and events emitted by jobs run subscribers in the worker,
+   every `subscribers.ts`, `audit-sink.ts` and `command-hooks.ts` (and what they import statically) must avoid React and
+   Next. The kit's own files already do. Accept this as a rule for project modules (enforced by the architecture test),
+   or should the worker load only the subscribers of events the worker can emit?
+3. **Retention audit row when nothing was deleted.** "One row per organization per run" taken literally writes a row
+   every night in every organization, mostly `deleted: 0`. Write it only when `deleted > 0` (recommended), or always?
+
+## 18. Docs, ADRs and skill
+
+ADR-70 and ADR-71 are taken on `main` (#138, #139). Proposed:
+
+- **ADR-72** "Background jobs run in a separate worker image that loads modules through a Next-free registry"
+  (sections 4, 6, envelope and origins of 7).
+- **ADR-73** "Jobs are enqueued through a transactional outbox relayed by the worker" (8.4).
+- **ADR-74** "An organization job's queries are held to its organization by the tenant-scope guard" (9.1).
+- **ADR-75** "Organizations have a timezone; schedules and dates never use the server's" (7.3, 11.1, 11.2).
+- Amendments: ADR-66 (Redis is a configured endpoint; the worker port is never published), ADR-61 (queued subscribers,
+  `jobs.failed`, subscribers run in the worker), ADR-60 (top-level `timezone`, `schedules` in module config).
+
+Docs (English; `docs/18` is the `legal` module since #134):
+
+- `docs/19-jobs-module.md`: what it is, the worker image per platform, Redis requirements (`noeviction`, AOF, password,
+  connection sizing), the dashboard and its exposure rules, operations (draining, a stuck outbox, a schedule that does
+  not fire).
+- `docs/19b-jobs-module-usage.md`: declaring jobs and schedules, enqueueing with `tx`, queued subscribers, `jobs.failed`,
+  idempotency, ordering, payload migration, organization schedules and DST, testing with the memory runtime, what may
+  not run in a job (session helpers, raw SQL, Next).
+- Updates: `docs/self-hosting.md` (Redis, worker, dashboard access, Railway), `docs/10-wdrozenie.md`,
+  `docs/12-moduly-kitu.md`, `docs/03-dane-i-organizacje.md` (organization job scope, timezone), `docs/04-auth-i-role.md`
+  (`organizations.manage-settings`), `docs/05-moduly-rdzenia.md` (organization settings page),
+  `docs/07-i18n-mail-env.md` (dates in organization time, mail locale in jobs), `docs/08-testy.md` (Redis integration,
+  memory runtime), `docs/09-nowy-modul.md` ("Background work"), `AGENTS.md` Task Router rows (jobs; dates and
+  timezone), skill `gato-extend` (jobs, schedules, queued subscribers), `EXTENSION_POINTS.md` (generated).
+- One lesson per finding of the spike (Task 0).
 
 ## 19. Extension points
 
-`src/features/jobs/extension-points.json`:
+`src/features/jobs/extension-points.json` (module `experimental` for its first release, then `stable`, ADR-63):
 
-```json
-{
-  "stability": "experimental",
-  "description": "Background jobs and schedules on BullMQ with a worker role and an admin page",
-  "commands": {
-    "jobs.retry": { "stability": "experimental", "description": "Retry one failed job" },
-    "jobs.run-now": { "stability": "experimental", "description": "Run a schedule's job once now" }
-  }
-}
-```
+- commands `jobs.retry` ("Retry one failed job"), `jobs.run-now` ("Run a schedule's job once now");
+- event `jobs.failed` ("An organization job failed after its last attempt");
+- jobs `jobs.outbox-prune`, `jobs.organization-schedules-tick`; schedule `jobs.outbox-prune-daily`.
 
-And in the consumers:
+Core (`organizations`, `src/features/organizations/extension-points.json` or the core file):
 
-- `audit-logs`: `jobs` → `audit-logs.prune`, `audit-logs.prune-dispatch`; `schedules` → `audit-logs.prune-daily`
-  ("Prune audit log entries older than the configured days; off by default").
-- `uploads`: `jobs` → `uploads.orphans`, `uploads.orphans-dispatch`; `schedules` → `uploads.orphans-daily` ("Delete
-  storage objects without an upload row after a grace period").
+- nav `organizations.settings` ("Organization settings link in the sidebar");
+- slot `organizations.settings.sections` (experimental, "Server sections on the organization settings page, rendered
+  with the organization id");
+- command `organizations.update-timezone`; event `organizations.timezone-changed`; permission
+  `organizations.manage-settings` ("Change organization settings such as the timezone (default: owner, admin)").
 
-Everything starts `experimental` for one release, then becomes `stable` once a project depends on it (ADR-63: a stable
-key changes only with a `kitFormat` bump).
+Consumers:
+
+- `audit-logs`: jobs `audit-logs.prune`, `audit-logs.prune-dispatch`; schedule `audit-logs.prune-daily` ("Prune audit
+  log entries older than the configured days; off by default").
+- `uploads`: jobs `uploads.orphans`, `uploads.orphans-dispatch`; schedule `uploads.orphans-daily` ("Delete storage objects
+  without an upload row after a grace period, and storage of deleted organizations").
+
+New catalog sections "Jobs" and "Schedules" in `EXTENSION_POINTS.md`; queued subscribers use the existing "Events"
+section.
