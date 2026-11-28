@@ -1,8 +1,8 @@
 # Background jobs: a `jobs` module on BullMQ, with retention and cleanup as its first consumers
 
-Date: 2026-11-28, against `main` at `8244a83` (GatoJS `0.43.0`). Drafted by an agent for Patryk. Status: **all
-questions of the first draft answered by the owner (section 17.1); the spec is revised to match. Section 17.2 lists
-the questions the revision raised.** A plan follows once they are answered.
+Date: 2026-11-28, against `main` at `8244a83` (GatoJS `0.43.0`). Drafted by an agent for Patryk. Status: **every
+open question answered by the owner (section 17.1); the spec is revised to match and section 17.2 is empty.** A plan
+follows.
 
 Roadmap item: *"Background jobs: a job queue and scheduled tasks, including retention and cleanup, e.g. pruning old audit
 log entries and orphaned uploads."* Decided by the owner: **BullMQ on Redis**, a **separate worker image**, a
@@ -376,10 +376,13 @@ job that writes an audit row or emits an event would pull the whole app into the
   `@/modules.generated` re-exports these and adds what needs React or Next (slots, messages, auth plugins, setups).
 - `emit-event.ts`, `audit.ts`, `run-command.ts` and `require-module-enabled.ts` import from
   `@/server-registry.generated`. Nothing else changes for the app.
-- The worker imports **only** `@/server-registry.generated`. The rule "a file reachable from `jobs.ts`,
-  `subscribers.ts`, `events.ts`, `audit-sink.ts`, `command-hooks.ts` or `module.ts` must not import React, Next or
-  `@/modules.generated`" becomes an architecture test, enforced twice: statically in `npm test`, and on the real bundle
-  graph by the metafile check (6.4). A subscriber that needs `auth` keeps importing it dynamically inside `run`
+- The worker imports **only** `@/server-registry.generated`. **Rule (decision 17.1/14):** subscribers, audit sinks and
+  command hooks also run in the worker (events emitted by jobs, `jobs.failed`, `trackAudit` in jobs, commands a job
+  runs), so a file reachable from `jobs.ts`, `subscribers.ts`, `events.ts`, `audit-sink.ts`, `command-hooks.ts` or
+  `module.ts` must not import React, Next or `@/modules.generated`. It is enforced twice: statically by an architecture
+  test in `npm test`, and on the real bundle graph by the metafile check (6.4), which names the offending module file.
+  It is documented in `docs/19b`, in the `AGENTS.md` Task Router row for jobs and in the `gato-extend` skill.
+- A subscriber that needs `auth` keeps importing it dynamically inside `run`
   (ADR-61), and that dynamic import must also be Next-free (it is today: `@/shared/lib/auth` is better-auth, not Next).
 - `src/gato.config.ts` is imported by the server registry, and it may hold component loaders
   (`replace: () => import("…")`). The worker build marks `*.tsx` and React imports as stubs (6.4), so those loaders are
@@ -392,7 +395,14 @@ job that writes an audit row or emits an event would pull the whole app into the
 image, 6.5), the generated Prisma client bundled with its runtime files copied beside it (the spike in Task 0 decides
 the exact handling of Prisma 7's query compiler files). Then it reads esbuild's metafile and fails when the graph
 contains `next`, `next/*` (other than through the stubs), `react`, `react-dom`, `next-intl`, `@/modules.generated` or
-`@/modules.client.generated`.
+`@/modules.client.generated`. The error walks the metafile's import chain back to the first file under
+`src/features/<module>/` and names it, for example:
+
+```
+worker bundle: src/features/invoices/subscribers.ts imports React
+  via src/features/invoices/components/invoice-badge.tsx → react
+subscribers, audit sinks, command hooks and jobs run in the worker and must not import React or Next (docs/19b)
+```
 
 | Pitfall (where it bit) | Kit answer |
 | --- | --- |
@@ -770,9 +780,10 @@ Decision 17.1/8, a critical core change in `src/shared/lib/tenant-scope/`:
   organizationId, id: { in: ids } } })`, until fewer than 5 000 rows come back or `ctx.signal` aborts. The cutoff is
   computed once per run from the job's first attempt time (`startOfDay(firstAttemptAt, UTC) - olderThanDays`), so a
   retry deletes the same set.
-- Then it writes **one audit row per organization per run** (decision 17.1/7): action `audit-log.pruned`, entity type
-  `audit_log`, `newData: { deleted, cutoff, olderThanDays }`, `userId: null`, `channel: "SYSTEM"`. Whether a run that
-  deleted nothing also writes it is Q3.
+- Then, **only when it deleted at least one row** (decisions 17.1/7 and 17.1/15), it writes one audit row for the
+  organization: action `audit-log.pruned`, entity type `audit_log`, `newData: { deleted, cutoff, olderThanDays }`,
+  `userId: null`, `channel: "SYSTEM"`. A run that deleted nothing writes no row, so a quiet organization's log does not
+  fill with nightly `deleted: 0` entries.
 - `AuditChannel` gains `SYSTEM`: core type in `src/shared/lib/audit.ts`, Prisma enum value and migration in
   `audit-logs`, label "System" on the audit log page. Inside a job, `trackAudit` defaults the channel to `SYSTEM` (the
   job runner sets it in an `AsyncLocalStorage`), so audit subscribers running in the worker record it too.
@@ -837,8 +848,9 @@ Decision 17.1/12.
   pass `context.timezone`; client components read it from a `TimezoneProvider` in the app layout. The existing date
   displays switch to it (audit log, API keys created/expires/last used, users and invitations); date inputs that mean a
   calendar day (API key expiry) are converted at the organization's midnight. Each module gets a version bump.
-- **Personal timezone.** Proposed, not decided (Q1): `User.timezone String?` on the account page, overriding the
-  organization's zone for display only, never for schedules; per ADR-71 it emits no organization event and no audit row.
+- **Personal timezone: future work, not v1** (decision 17.1/13). The shape kept for later: `User.timezone String?` on
+  the account page, overriding the organization's zone for display only, never for schedules; per ADR-71 it emits no
+  organization event and no audit row.
 
 ### 11.2 Organization-facing schedules
 
@@ -889,7 +901,7 @@ export const subscribers = defineSubscribers({
   characters.
 - Emitted by the consumer after the last attempt (or an unrecoverable failure) of an **organization** job, with the
   job's origin (organization, actor, service mode). System jobs emit nothing (no organization to deliver to).
-- Subscribers run in the worker process, which is why every subscriber must be Next-free (6.3, Q2).
+- Subscribers run in the worker process, which is why every subscriber must be Next-free (6.3, decision 17.1/14).
 - Loop guard: while the bus delivers `jobs.failed`, an `AsyncLocalStorage` flag makes every `enqueueJob` set
   `cause: "jobs.failed"` in the envelope; a failing job with that cause emits no `jobs.failed`.
 
@@ -1131,7 +1143,8 @@ changed.
 **Task 9. Worker entrypoint, bundle, stubs, development entry, Dockerfile, Compose, CI steps, integration suite.**
 
 **Zachowania:** `node .worker/worker.mjs --check` exits 0 with a valid env and 1 naming the variable without
-`REDIS_URL`; the metafile check fails on a fixture that imports `react`; a stubbed `headers()` call throws
+`REDIS_URL`; the metafile check fails on a fixture module whose `subscribers.ts` imports a `.tsx` component, and the
+error names `src/features/<fixture>/subscribers.ts` and the chain to `react`; a stubbed `headers()` call throws
 `"next/headers is not available in the worker"`; `next/cache` `revalidatePath` returns `undefined`; the 14.2 suite
 passes against both the development entry and the bundle; self-hosted Compose refuses to start without
 `REDIS_PASSWORD`.
@@ -1190,7 +1203,8 @@ succeeds; a queued subscriber of a system job fails the registry check.
 attempt's cutoff; schedule disabled by default; B's rows untouched by A's job.
 
 **Mutacje do zabicia:** `lt` → `lte`; organization filter removed (caught twice: unit and the scope guard); loop exits
-after one batch; audit row skipped; channel default left `WEB` inside jobs; `enabledByDefault` flipped.
+after one batch; audit row skipped; audit row written when nothing was deleted (`> 0` → `>= 0`); channel default
+left `WEB` inside jobs; `enabledByDefault` flipped.
 
 **Task 15. `ObjectStorage.list` and orphan cleanup.**
 
@@ -1263,17 +1277,19 @@ Second round (the twelve questions of the first draft):
     changeable by owners and admins in organization settings, with service-mode confirmation, an event and an audit
     row. (11.1, 11.2)
 
-### 17.2 Open questions raised by the revision
+Third round (the questions the second revision raised):
 
-1. **Personal timezone.** Add `User.timezone` (nullable, account page, display only, overriding the organization's
-   zone, no event or audit row per ADR-71) in this work, or later? Recommendation: later, once organizations have a
-   zone; a user in another zone than their organization is the exception in the kit's clients.
-2. **Subscribers must be Next-free.** Because `jobs.failed` and events emitted by jobs run subscribers in the worker,
-   every `subscribers.ts`, `audit-sink.ts` and `command-hooks.ts` (and what they import statically) must avoid React and
-   Next. The kit's own files already do. Accept this as a rule for project modules (enforced by the architecture test),
-   or should the worker load only the subscribers of events the worker can emit?
-3. **Retention audit row when nothing was deleted.** "One row per organization per run" taken literally writes a row
-   every night in every organization, mostly `deleted: 0`. Write it only when `deleted > 0` (recommended), or always?
+13. **Personal user timezone: later.** Future work, not v1. (11.1)
+14. **Next-free rule for code that runs in the worker.** Subscribers, audit sinks and command hooks must not use Next or
+    React, because they also run in the worker. Documented in `docs/19b`, the `AGENTS.md` Task Router row and the
+    `gato-extend` skill; enforced by the bundle check with an error naming the offending module file. (6.3, 6.4)
+15. **Retention writes its audit row only when `deleted > 0`.** (10.1)
+
+Docs numbering: this spec uses `docs/19` and `docs/19b`; the MCP spec (#136) takes the next free number.
+
+### 17.2 Open questions
+
+None.
 
 ## 18. Docs, ADRs and skill
 
@@ -1287,20 +1303,23 @@ ADR-70 and ADR-71 are taken on `main` (#138, #139). Proposed:
 - Amendments: ADR-66 (Redis is a configured endpoint; the worker port is never published), ADR-61 (queued subscribers,
   `jobs.failed`, subscribers run in the worker), ADR-60 (top-level `timezone`, `schedules` in module config).
 
-Docs (English; `docs/18` is the `legal` module since #134):
+Docs (English; `docs/18` is the `legal` module since #134; the MCP module spec, #136, takes the number after 19):
 
 - `docs/19-jobs-module.md`: what it is, the worker image per platform, Redis requirements (`noeviction`, AOF, password,
   connection sizing), the dashboard and its exposure rules, operations (draining, a stuck outbox, a schedule that does
   not fire).
 - `docs/19b-jobs-module-usage.md`: declaring jobs and schedules, enqueueing with `tx`, queued subscribers, `jobs.failed`,
   idempotency, ordering, payload migration, organization schedules and DST, testing with the memory runtime, what may
-  not run in a job (session helpers, raw SQL, Next).
+  not run in a job (session helpers, raw SQL, Next), and the Next-free rule for subscribers, audit sinks and command
+  hooks with the bundle check's error and how to fix it.
 - Updates: `docs/self-hosting.md` (Redis, worker, dashboard access, Railway), `docs/10-wdrozenie.md`,
   `docs/12-moduly-kitu.md`, `docs/03-dane-i-organizacje.md` (organization job scope, timezone), `docs/04-auth-i-role.md`
   (`organizations.manage-settings`), `docs/05-moduly-rdzenia.md` (organization settings page),
   `docs/07-i18n-mail-env.md` (dates in organization time, mail locale in jobs), `docs/08-testy.md` (Redis integration,
-  memory runtime), `docs/09-nowy-modul.md` ("Background work"), `AGENTS.md` Task Router rows (jobs; dates and
-  timezone), skill `gato-extend` (jobs, schedules, queued subscribers), `EXTENSION_POINTS.md` (generated).
+  memory runtime), `docs/09-nowy-modul.md` ("Background work"), `AGENTS.md` Task Router rows (jobs, with the rule
+  "subscribers, audit sinks and command hooks must not use Next or React: they also run in the worker"; dates and
+  timezone), skill `gato-extend` (jobs, schedules, queued subscribers, and the same rule next to subscribers, audit sinks
+  and command hooks), `EXTENSION_POINTS.md` (generated).
 - One lesson per finding of the spike (Task 0).
 
 ## 19. Extension points
