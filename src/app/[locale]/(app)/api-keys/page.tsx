@@ -1,4 +1,4 @@
-import { setRequestLocale } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { requireModuleAccess } from "@/shared/lib/auth/require-module-access";
 import { ApiKeysManager } from "@/features/api-keys/components/api-keys-manager";
 import { listApiKeysQuery } from "@/features/api-keys/services/queries/api-key-queries";
@@ -12,7 +12,15 @@ export default async function ApiKeysPage({ params }: ApiKeysPageProps) {
   setRequestLocale(locale);
   await requireModuleAccess("api-keys");
 
-  const keys = await listApiKeysQuery();
+  const [t, keys] = await Promise.all([
+    getTranslations("api-keys"),
+    listApiKeysQuery(),
+  ]);
 
-  return <ApiKeysManager keys={keys} />;
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-semibold">{t("title")}</h1>
+      <ApiKeysManager keys={keys} />
+    </div>
+  );
 }

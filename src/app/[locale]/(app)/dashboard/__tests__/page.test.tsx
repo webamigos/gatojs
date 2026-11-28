@@ -151,28 +151,6 @@ describe("/dashboard", () => {
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   });
 
-  it("jedyny nagłówek h1 Dashboard leży we wspólnym nagłówku strony", async () => {
-    const { container } = await renderPage();
-    const headings = screen.getAllByRole("heading", { level: 1 });
-    expect(headings).toHaveLength(1);
-    expect(headings[0]).toHaveTextContent("Dashboard");
-    expect(
-      container.querySelector('header[data-slot="page-header"]'),
-    ).toContainElement(headings[0]);
-  });
-
-  it("z wkładem w slot nagłówek h1 nadal leży we wspólnym nagłówku strony", async () => {
-    setContributions([invoicesCard()]);
-    const { container } = await renderPage();
-    const header = container.querySelector('header[data-slot="page-header"]');
-    expect(header).toContainElement(
-      screen.getByRole("heading", { level: 1, name: "Dashboard" }),
-    );
-    expect(header).not.toContainElement(
-      screen.getByText("unpaid invoices of org-1"),
-    );
-  });
-
   it("with one visible contribution the placeholder is gone and the heading stays", async () => {
     setContributions([invoicesCard()]);
     await renderPage();

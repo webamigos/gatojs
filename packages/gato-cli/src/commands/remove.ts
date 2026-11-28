@@ -167,22 +167,6 @@ export async function removeEmptyParents(
   }
 }
 
-async function keptSeedFiles(
-  projectDir: string,
-  files: Record<string, string>,
-): Promise<string[]> {
-  const kept: string[] = [];
-  for (const [file, hash] of Object.entries(files)) {
-    if (hash !== SEED) {
-      continue;
-    }
-    if ((await lstatIfExists(await insideProject(projectDir, file))) !== null) {
-      kept.push(file);
-    }
-  }
-  return kept.sort(compareCodePoint);
-}
-
 export async function remove(
   options: RemoveOptions,
 ): Promise<{ removed: string[] }> {
@@ -219,7 +203,6 @@ export async function remove(
     remaining,
   );
 
-  const kept = await keptSeedFiles(projectDir, entry.files);
   for (const path of absolutePaths) {
     await rm(path, { force: true });
     await removeEmptyParents(projectDir, path);
@@ -236,12 +219,6 @@ export async function remove(
       throw new Error(
         "Module removed, but npm install failed. Run: npm install",
       );
-    }
-  }
-  if (kept.length > 0) {
-    log(`Kept seed files of ${module} (yours, edit or delete them):`);
-    for (const file of kept) {
-      log(`  ${file}`);
     }
   }
   log(`npx prisma migrate dev --name remove-${module}`);

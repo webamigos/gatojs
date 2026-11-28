@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 import {
   ChevronUp,
   LogOut,
@@ -91,7 +85,6 @@ interface AppSidebarProps {
   accessContext: AccessContext;
   userName: string;
   userEmail: string;
-  footer?: ReactNode;
 }
 
 function userInitials(name: string): string {
@@ -107,7 +100,6 @@ export function AppSidebar({
   accessContext,
   userName,
   userEmail,
-  footer,
 }: AppSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -254,9 +246,6 @@ export function AppSidebar({
           </button>
         </PopoverContent>
       </Popover>
-      {footer !== undefined && !collapsed && (
-        <div className="mt-3 px-1 empty:hidden">{footer}</div>
-      )}
     </aside>
   );
 

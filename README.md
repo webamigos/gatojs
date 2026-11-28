@@ -23,15 +23,12 @@ npm run dev
 
 1. `docker compose up -d` — PostgreSQL 16 (`localhost:5432`) i mailpit (UI `http://localhost:8025`, SMTP `localhost:1025`).
    Zajęty port zmienisz przez `DB_PORT`, `MAILPIT_UI_PORT`, `MAILPIT_SMTP_PORT` (wtedy popraw też `DATABASE_URL` / `SMTP_URL` w `.env`).
-   Na macOS kontener startuje także przy lokalnym Postgresie na `127.0.0.1:5432`, a `localhost:5432` trafia wtedy do lokalnego serwera;
-   `npm create gato-app` sam przenosi zajęte porty i zapisuje je w `.env`.
 2. `cp .env.example .env` — ustaw `BETTER_AUTH_SECRET` (min. 32 znaki, np. `openssl rand -base64 32`).
 3. `npx prisma migrate dev --name init` — tworzy pierwszą migrację i schemat bazy.
 4. `npm run admin:create -- --email <email>` — tworzy administratora i pierwszą organizację.
    Bez `--password` hasło jest generowane i wypisywane raz. Opcje: `--password`, `--name`, `--org-name`, `--yes`,
    `--role admin|superadmin` (domyślnie `admin`; `superadmin` to konto serwisowe Web Amigos). Skrypt nigdy nie obniża roli.
-5. `npm run dev` — aplikacja na `http://localhost:3000`. Otwieraj ją pod adresem z `APP_URL`: `127.0.0.1` to inny origin i logowanie
-   kończy się wtedy `403 INVALID_ORIGIN`. Maile (zaproszenia, reset hasła) zobaczysz w mailpit.
+5. `npm run dev` — aplikacja na `http://localhost:3000`. Maile (zaproszenia, reset hasła) zobaczysz w mailpit.
 
 ## Zmienne środowiskowe
 

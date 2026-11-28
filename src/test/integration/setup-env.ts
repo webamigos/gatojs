@@ -1,6 +1,5 @@
 import { project } from "@/shared/config/project";
 import { integrationDatabaseUrl } from "./database-url";
-import { localServicePorts } from "../service-ports";
 
 Object.assign(process.env, {
   DATABASE_URL: integrationDatabaseUrl(),
@@ -10,9 +9,7 @@ Object.assign(process.env, {
   API_KEY_PEPPER: "integration-pepper-".padEnd(48, "x"),
   ENCRYPTION_MASTER_KEY: "1f".repeat(32),
   STORAGE_PROVIDER: "s3",
-  S3_ENDPOINT:
-    process.env.INTEGRATION_S3_ENDPOINT ??
-    `http://localhost:${localServicePorts().minio}`,
+  S3_ENDPOINT: process.env.INTEGRATION_S3_ENDPOINT ?? "http://localhost:9000",
   S3_ACCESS_KEY_ID: "minioadmin",
   S3_SECRET_ACCESS_KEY: "minioadmin",
   S3_BUCKET: process.env.INTEGRATION_S3_BUCKET ?? `${project.slug}-uploads`,

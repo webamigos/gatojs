@@ -15,7 +15,6 @@ Configure under `modules.<key>` in `src/gato.config.ts`.
 | `auth` | auth | stable | Sign-in, sign-up, password reset and set-password pages |
 | `dashboard` | dashboard | stable | Dashboard page and its sections |
 | `encryption` | encryption | stable | Per-organization envelope encryption with data keys wrapped by a master key |
-| `legal` | legal | stable | Public terms and privacy pages and an opt-in cookie consent banner |
 | `organizations` | organizations | stable | Organizations, memberships, invitation acceptance and the no-organization page |
 | `uploads` | uploads | stable | Organization files on disk or in S3 storage |
 | `users` | users | stable | Users page: user list, invitations, roles and impersonation |
@@ -40,9 +39,6 @@ Contribute from `slots.ts` or `client-slots.ts`; reorder or remove contributions
 | --- | --- | --- | --- |
 | `account.sections` | account | stable | Server sections on the account page, rendered with the signed-in user id |
 | `app.header.actions` | app | stable | Server actions in the app header, rendered with the organization id |
-| `app.root` | app | experimental | End of every page, once (public modules only). Contributions render for anonymous visitors: a component must not read the session to show user data here. |
-| `app.sidebar.footer` | app | experimental | Server contributions under the user menu of the app sidebar, rendered with the organization id |
-| `auth.footer` | auth | experimental | Footer of the sign-in, sign-up and password pages. Contributions render for anonymous visitors: a component must not read the session to show user data here. |
 | `dashboard.sections` | dashboard | stable | Server sections under the dashboard heading, rendered with the organization id |
 | `users.table.columns` | users | experimental | Client columns added to the users table |
 | `users.table.row-actions` | users | stable | Client actions in each row of the users table |
@@ -64,13 +60,13 @@ Subscribe from `subscribers.ts`; subscribers run after the operation succeeded.
 | `api-keys.created` | api-keys | stable | An API key was created in the organization |
 | `api-keys.deleted` | api-keys | stable | An API key was deleted from the organization |
 | `api-keys.revoked` | api-keys | stable | An API key was revoked and no longer authenticates |
-| `auth.signed-up` | auth | stable | A user signed up, with or without an invitation, and got a membership; not emitted for an admin invite |
+| `auth.signed-up` | auth | stable | A user signed up without an invitation and joined an organization |
 | `organizations.created` | organizations | stable | An organization was created with its owner |
-| `organizations.member-added` | organizations | stable | A user became a member: an accepted invitation, a sign-up that joins the organization, an admin invite, or admin:create adding the owner |
+| `organizations.member-added` | organizations | stable | A user became a member of the organization |
 | `organizations.member-removed` | organizations | stable | A member was removed from the organization or left it |
 | `organizations.member-role-changed` | organizations | stable | The organization role of a member changed |
 | `uploads.deleted` | uploads | stable | A file was deleted from the organization and its storage |
-| `users.invitation-accepted` | users | stable | An invitation was accepted by its recipient, on the acceptance page or by signing up with it; not emitted for an admin invite |
+| `users.invitation-accepted` | users | stable | An invitation was accepted by its recipient |
 | `users.invitation-canceled` | users | stable | An invitation was canceled before it was accepted |
 | `users.invited` | users | stable | A user was invited to the organization by email |
 

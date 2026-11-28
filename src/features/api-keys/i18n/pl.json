@@ -38,6 +38,5 @@
   "revoked-success": "Klucz unieważniony",
   "deleted-success": "Klucz usunięty",
   "revoke-confirm": "Unieważnić klucz „{name}”? Aplikacje używające go stracą dostęp.",
-  "delete-confirm": "Usunąć klucz „{name}”? Tej operacji nie można cofnąć.",
-  "description": "Klucze dostępu do API organizacji. Sekret widać tylko raz, przy tworzeniu klucza."
+  "delete-confirm": "Usunąć klucz „{name}”? Tej operacji nie można cofnąć."
 }

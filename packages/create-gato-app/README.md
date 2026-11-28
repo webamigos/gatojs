@@ -39,18 +39,14 @@ The order follows the rule "refuse before anything is written":
    (no mail is sent). Every answer except the local mailpit empties `SMTP_URL`, so only one SMTP source is set.
 7. **Starts Docker** (unless `--skip-docker`, `--skip-install` or "no" to setup): probes every port
    `docker-compose.yml` publishes for the services it starts (plus the `s3` profile for a local MinIO). A busy port
-   moves to the next free port: the wizard writes its `*_PORT` variable and every `.env` value on
-   `localhost:<port>` or `127.0.0.1:<port>` (`DATABASE_URL`, `SMTP_URL`, `S3_ENDPOINT`) to `.env`, prints one line
-   per moved port and a note that `npm run test:integration` and `npm run test:e2e` read the moved ports from `.env`,
-   then runs `docker compose up -d --wait`. A busy port that cannot move (a literal port, a
-   `*_PORT` variable set in the shell environment, which Compose prefers over `.env`, or no free port in the next
-   100) stops this step with the variables to set in `.env` (and the URLs that use them).
+   stops this step with the `*_PORT` variables to set in `.env` (and the URLs that use them); otherwise
+   `docker compose up -d --wait`.
 8. **`git init`, `npm install`, `prisma migrate dev --name init`, `admin:create`** (when an email was given; the
    generated password is printed once), then **the first commit**. The commit comes last so it holds the lockfile
    `npm install` rewrote and the first migration: the tree is clean when the wizard ends.
 9. **Prints the next steps**, listing only what it did not do.
 
-Exit code 1 means a step the run wanted did not finish (a busy port that cannot move, Docker not running, a failed install or
+Exit code 1 means a step the run wanted did not finish (busy port, Docker not running, a failed install or
 migration); the project stays in place and the next steps say how to continue.
 
 `--skip-install` writes files only: no `npm install`, Docker, migration or first commit (a commit before the first
@@ -135,7 +131,7 @@ file list, the exact pin, generated secrets, `COMPOSE_PROJECT_NAME`, the storage
 `.env`. With `SMOKE_INSTALL=1` it also creates a project with `--mail-provider console` and checks its `.env` with
 `checkEnv` from `@gatojs/env` inside the project.
 `SMOKE_INSTALL=1` also lets the wizard install a project with `--skip-docker` (one commit, clean tree), checks that the
-projects' `gato` is the packed one, and runs the wizard against a busy `DB_PORT` set in the shell environment. CI runs the same script in `.github/workflows/packages.yml`.
+projects' `gato` is the packed one, and runs the wizard against a busy `DB_PORT`. CI runs the same script in `.github/workflows/packages.yml`.
 
 ## Publishing
 

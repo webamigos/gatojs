@@ -127,11 +127,9 @@ describe("defineContribution", () => {
 });
 
 describe("coreSlotDefinitions", () => {
-  it("declares app.header.actions, app.root and app.sidebar.footer as server slots, in this order", () => {
+  it("declares only app.header.actions as a server slot", () => {
     expect(coreSlotDefinitions).toEqual([
       { id: "app.header.actions", kind: "server" },
-      { id: "app.root", kind: "server" },
-      { id: "app.sidebar.footer", kind: "server" },
     ]);
   });
 

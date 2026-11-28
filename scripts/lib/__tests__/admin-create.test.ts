@@ -87,7 +87,7 @@ const { db, mockPrisma, mockAuth } = vi.hoisted(() => {
       ),
       create: vi.fn(async ({ data }: { data: MemberRow }) => {
         db.members.push(data);
-        return { ...data, id: `member-${++db.seq}` };
+        return data;
       }),
     },
     $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(mockPrisma)),
@@ -127,18 +127,15 @@ vi.mock("@/shared/config/project", () => ({
   project: { name: "Test Projekt", slug: "test-projekt" },
 }));
 
-const { emitted, memberAdded, transaction, steps, setupHooks } = vi.hoisted(
-  () => ({
-    emitted: [] as { event: unknown; insideTransaction: boolean }[],
-    memberAdded: [] as { event: unknown; insideTransaction: boolean }[],
-    transaction: { open: false },
-    steps: [] as string[],
-    setupHooks: {
-      seed: vi.fn(),
-      onOrganizationCreated: vi.fn(),
-    },
-  }),
-);
+const { emitted, transaction, steps, setupHooks } = vi.hoisted(() => ({
+  emitted: [] as { event: unknown; insideTransaction: boolean }[],
+  transaction: { open: false },
+  steps: [] as string[],
+  setupHooks: {
+    seed: vi.fn(),
+    onOrganizationCreated: vi.fn(),
+  },
+}));
 
 vi.mock("@/modules.generated", () => ({
   moduleEvents: [],
@@ -153,12 +150,6 @@ vi.mock("@/modules.generated", () => ({
               `event:${(event as { organizationId: string }).organizationId}`,
             );
             emitted.push({ event, insideTransaction: transaction.open });
-          },
-        },
-        "organizations.member-added": {
-          id: "probe.member-added",
-          run: (event: unknown) => {
-            memberAdded.push({ event, insideTransaction: transaction.open });
           },
         },
       },
@@ -764,9 +755,7 @@ describe("adminCreate: organizations.created", () => {
     db.members.length = 0;
     db.seq = 0;
     emitted.length = 0;
-    memberAdded.length = 0;
     transaction.open = false;
-    setupHooks.seed.mockReset();
   });
 
   function trackTransaction() {
@@ -828,7 +817,7 @@ describe("adminCreate: organizations.created", () => {
     ]);
   });
 
-  it("joining the existing oldest organization emits no organizations.created and seeds nothing", async () => {
+  it("joining the existing oldest organization emits no event", async () => {
     db.orgs.push({
       id: "org-old",
       name: "Stara",
@@ -840,16 +829,6 @@ describe("adminCreate: organizations.created", () => {
 
     expect(r).toMatchObject({ createdOrganization: false });
     expect(emitted).toEqual([]);
-    expect(setupHooks.seed).not.toHaveBeenCalled();
-    expect(memberAdded.map(({ event }) => event)).toEqual([
-      {
-        name: "organizations.member-added",
-        organizationId: "org-old",
-        actorUserId: "user-1",
-        serviceMode: false,
-        payload: { memberId: "member-2", userId: "user-1", role: "owner" },
-      },
-    ]);
   });
 
   it("a second run against the organization it created emits no second event", async () => {
@@ -876,7 +855,6 @@ describe("adminCreate: seed hooks", () => {
     db.members.length = 0;
     db.seq = 0;
     emitted.length = 0;
-    memberAdded.length = 0;
     steps.length = 0;
     transaction.open = false;
     setupHooks.seed.mockReset();
@@ -916,7 +894,7 @@ describe("adminCreate: seed hooks", () => {
     expect(steps).toEqual(["event:org-2", "seed:org-2"]);
   });
 
-  it("joining the existing oldest organization does not seed it and emits no organizations.created, only organizations.member-added", async () => {
+  it("joining the existing oldest organization does not seed it and emits no event", async () => {
     db.orgs.push({
       id: "org-old",
       name: "Stara",
@@ -932,16 +910,6 @@ describe("adminCreate: seed hooks", () => {
     });
     expect(setupHooks.seed).not.toHaveBeenCalled();
     expect(steps).toEqual([]);
-    expect(emitted).toEqual([]);
-    expect(memberAdded.map(({ event }) => event)).toEqual([
-      {
-        name: "organizations.member-added",
-        organizationId: "org-old",
-        actorUserId: "user-1",
-        serviceMode: false,
-        payload: { memberId: "member-2", userId: "user-1", role: "owner" },
-      },
-    ]);
   });
 
   it("a second admin joining the organization the first one created does not seed it again", async () => {
@@ -1009,188 +977,6 @@ describe("adminCreate: seed hooks", () => {
       adminCreate({ email: "b@x.pl", yes: false, confirm: async () => false }),
     ).rejects.toThrow("Aborted");
     expect(setupHooks.seed).not.toHaveBeenCalled();
-  });
-});
-
-describe("adminCreate: organizations.member-added", () => {
-  beforeEach(() => {
-    db.users.length = 0;
-    db.orgs.length = 0;
-    db.members.length = 0;
-    db.seq = 0;
-    emitted.length = 0;
-    memberAdded.length = 0;
-    transaction.open = false;
-  });
-
-  function pushOldestOrganization() {
-    db.orgs.push({
-      id: "org-old",
-      name: "Stara",
-      slug: "stara",
-      createdAt: new Date(0),
-    });
-  }
-
-  function trackTransaction() {
-    mockPrisma.$transaction.mockImplementationOnce(
-      async (fn: (tx: unknown) => unknown) => {
-        transaction.open = true;
-        try {
-          return await fn(mockPrisma);
-        } finally {
-          transaction.open = false;
-        }
-      },
-    );
-  }
-
-  it("a new user joining the existing oldest organization emits exactly one organizations.member-added with that organization, the user as actor and the created member id", async () => {
-    pushOldestOrganization();
-
-    const r = await adminCreate({ email: "c@x.pl", ...yes });
-
-    expect(r).toMatchObject({
-      userId: "user-1",
-      organizationId: "org-old",
-      createdOrganization: false,
-    });
-    expect(memberAdded.map(({ event }) => event)).toEqual([
-      {
-        name: "organizations.member-added",
-        organizationId: "org-old",
-        actorUserId: "user-1",
-        serviceMode: false,
-        payload: { memberId: "member-2", userId: "user-1", role: "owner" },
-      },
-    ]);
-    expect(emitted).toEqual([]);
-  });
-
-  it("the member-added event is emitted after the transaction resolved, not inside its callback", async () => {
-    pushOldestOrganization();
-    trackTransaction();
-
-    await adminCreate({ email: "c@x.pl", ...yes });
-
-    expect(memberAdded).toHaveLength(1);
-    expect(memberAdded[0].insideTransaction).toBe(false);
-  });
-
-  it("an existing user promoted and added to the oldest organization is the actor and the member of the event", async () => {
-    pushOldestOrganization();
-    db.users.push({
-      id: "u-b",
-      email: "b@x.pl",
-      name: "b",
-      role: "user",
-      emailVerified: true,
-    });
-
-    await adminCreate({ email: "b@x.pl", ...yes });
-
-    expect(memberAdded.map(({ event }) => event)).toEqual([
-      {
-        name: "organizations.member-added",
-        organizationId: "org-old",
-        actorUserId: "u-b",
-        serviceMode: false,
-        payload: { memberId: "member-1", userId: "u-b", role: "owner" },
-      },
-    ]);
-  });
-
-  it("a second admin joining the organization the first run created emits member-added only for the second admin", async () => {
-    await adminCreate({ email: "a@x.pl", ...yes });
-    const second = await adminCreate({ email: "b@x.pl", ...yes });
-
-    expect(second).toMatchObject({
-      userId: "user-3",
-      organizationId: "org-2",
-      createdOrganization: false,
-    });
-    expect(memberAdded.map(({ event }) => event)).toEqual([
-      {
-        name: "organizations.member-added",
-        organizationId: "org-2",
-        actorUserId: "user-3",
-        serviceMode: false,
-        payload: { memberId: "member-4", userId: "user-3", role: "owner" },
-      },
-    ]);
-  });
-
-  it("a second run for a user who is already a member of the oldest organization emits no second member-added", async () => {
-    pushOldestOrganization();
-
-    await adminCreate({ email: "c@x.pl", ...yes });
-    await adminCreate({ email: "c@x.pl", ...yes });
-
-    expect(memberAdded).toHaveLength(1);
-    expect(db.members).toHaveLength(1);
-  });
-
-  it("an existing user who already owns the oldest organization emits no member-added", async () => {
-    pushOldestOrganization();
-    db.users.push({
-      id: "u-c",
-      email: "c@x.pl",
-      name: "c",
-      role: "user",
-      emailVerified: true,
-    });
-    db.members.push({
-      organizationId: "org-old",
-      userId: "u-c",
-      role: "owner",
-    });
-
-    await adminCreate({ email: "c@x.pl", ...yes });
-
-    expect(memberAdded).toEqual([]);
-  });
-
-  it("creating the organization emits only organizations.created, no member-added for the owner", async () => {
-    await adminCreate({ email: "a@x.pl", ...yes });
-
-    expect(memberAdded).toEqual([]);
-    expect(emitted).toHaveLength(1);
-  });
-
-  it("a failing transaction while joining the oldest organization emits no member-added", async () => {
-    pushOldestOrganization();
-    mockPrisma.$transaction.mockRejectedValueOnce(new Error("db down"));
-
-    await expect(adminCreate({ email: "c@x.pl", ...yes })).rejects.toThrow(
-      "db down",
-    );
-    expect(memberAdded).toEqual([]);
-  });
-
-  it("a member write failing inside the transaction emits no member-added", async () => {
-    pushOldestOrganization();
-    mockPrisma.member.create.mockRejectedValueOnce(new Error("member down"));
-
-    await expect(adminCreate({ email: "c@x.pl", ...yes })).rejects.toThrow(
-      "member down",
-    );
-    expect(memberAdded).toEqual([]);
-  });
-
-  it("an aborted run emits no member-added", async () => {
-    pushOldestOrganization();
-    db.users.push({
-      id: "u-b",
-      email: "b@x.pl",
-      name: "b",
-      role: "user",
-      emailVerified: true,
-    });
-
-    await expect(
-      adminCreate({ email: "b@x.pl", yes: false, confirm: async () => false }),
-    ).rejects.toThrow("Aborted");
-    expect(memberAdded).toEqual([]);
   });
 });
 

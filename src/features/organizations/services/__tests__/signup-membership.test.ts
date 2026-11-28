@@ -151,12 +151,10 @@ describe("applySignupMembership", () => {
   beforeEach(() => {
     mockPrisma.$transaction.mockImplementation(async (ops: unknown[]) => ops);
     mockPrisma.member.create.mockImplementation((args: unknown) => ({
-      id: "mem-joined",
       op: "member.create",
       args,
     }));
     mockPrisma.invitation.update.mockImplementation((args: unknown) => ({
-      id: "inv-1",
       op: "invitation.update",
       args,
     }));
@@ -166,17 +164,17 @@ describe("applySignupMembership", () => {
     });
   });
 
-  it("create returns the id of the new organization and no member id", async () => {
+  it("create returns the id of the new organization", async () => {
     await expect(
       applySignupMembership("user-1", {
         action: "create",
         organizationName: "Ala — organizacja",
         role: "owner",
       }),
-    ).resolves.toStrictEqual({ organizationId: "org-new", memberId: null });
+    ).resolves.toStrictEqual({ organizationId: "org-new" });
   });
 
-  it("join with an invitation returns the organization of the membership and the joined member id", async () => {
+  it("join with an invitation returns the organization of the membership", async () => {
     await expect(
       applySignupMembership("user-1", {
         action: "join",
@@ -184,23 +182,17 @@ describe("applySignupMembership", () => {
         role: "admin",
         invitationId: "inv-1",
       }),
-    ).resolves.toStrictEqual({
-      organizationId: "org-invited",
-      memberId: "mem-joined",
-    });
+    ).resolves.toStrictEqual({ organizationId: "org-invited" });
   });
 
-  it("join without an invitation returns the organization of the membership and the joined member id", async () => {
+  it("join without an invitation returns the organization of the membership", async () => {
     await expect(
       applySignupMembership("user-1", {
         action: "join",
         organizationId: "org-only",
         role: "member",
       }),
-    ).resolves.toStrictEqual({
-      organizationId: "org-only",
-      memberId: "mem-joined",
-    });
+    ).resolves.toStrictEqual({ organizationId: "org-only" });
   });
 
   it("a failing create rejects instead of returning an organization", async () => {

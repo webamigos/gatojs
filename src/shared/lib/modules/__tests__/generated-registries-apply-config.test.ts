@@ -20,7 +20,6 @@ const hasOptionalModules = [
   "api-keys",
   "audit-logs",
   "encryption",
-  "legal",
   "uploads",
 ].every((key) =>
   fs.existsSync(path.join(repoRoot, "src/features", key, "module.ts")),
@@ -38,7 +37,6 @@ describe.skipIf(!hasKitModules || !hasOptionalModules)(
         "organizations",
         "users",
         "encryption",
-        "legal",
         "uploads",
       ]);
     });
@@ -52,7 +50,6 @@ describe.skipIf(!hasKitModules || !hasOptionalModules)(
         "organizations",
         "users",
         "encryption",
-        "legal",
         "uploads",
       ]);
     });
@@ -65,7 +62,6 @@ describe.skipIf(!hasKitModules || !hasOptionalModules)(
         "dashboard",
         "organizations",
         "users",
-        "legal",
         "uploads",
       ];
       expect(moduleMessages.pl.map((loader) => loader.key)).toEqual(expected);

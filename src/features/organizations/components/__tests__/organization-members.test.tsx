@@ -116,19 +116,6 @@ describe("OrganizationMembers", () => {
     expect(screen.getByText("anna@example.com")).toBeInTheDocument();
   });
 
-  it("nazwa organizacji jest jedynym nagłówkiem h1 w nagłówku strony", () => {
-    const { container } = renderMembers({
-      organizationName: "Acme Sp. z o.o.",
-    });
-
-    const headings = screen.getAllByRole("heading", { level: 1 });
-    expect(headings).toHaveLength(1);
-    expect(headings[0]).toHaveTextContent("Acme Sp. z o.o.");
-    expect(
-      container.querySelector('header[data-slot="page-header"]'),
-    ).toContainElement(headings[0]);
-  });
-
   it("pokazuje tylko oczekujące zaproszenia", () => {
     renderMembers();
 

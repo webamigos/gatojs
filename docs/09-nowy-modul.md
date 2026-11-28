@@ -66,8 +66,6 @@ Kroki zmieniają te pliki. Kolumna „Kto” mówi, czy plik piszesz Ty, czy nar
 | `src/features/notes/services/commands/__tests__/create-note-command.test.ts`, `src/features/notes/services/__tests__/notes-isolation.integration.test.ts` | 6 | autor testów (w procesie z agentami `test-writer`) |
 | `src/features/notes/services/queries/list-notes-query.ts`, `src/features/notes/services/commands/create-note-command.ts`, `src/features/notes/components/notes-manager.tsx`, `src/app/[locale]/(app)/notes/page.tsx` | 7 | autor kodu (w procesie z agentami implementer, który nie zmienia testów; [role](08b-testy-adwersarialne.md#role)) |
 
-Strona feature to zwykła trasa pod `src/app/[locale]/(app)/`. Rdzeń nie ma trasy catch-all, więc feature może mieć własną (`[...slug]`, `[[...slug]]`); nieznane ścieżki i `notFound()` z `requireModuleAccess` pokazują zlokalizowaną stronę 404 rdzenia ([02-architektura.md](02-architektura.md#strona-404)).
-
 Kolejność kroków i punkty kontrolne:
 
 ```mermaid
@@ -175,7 +173,7 @@ Tak wygląda aplikacja, gdy feature ma pliki, ale nie ma wpisu. Wiersze generato
 | --- | --- | --- |
 | `npm run wa -- generate` | `Bez zmian`, `notes` nie ma w rejestrze. | Generator czyta tylko wzorce `src/features/<x>/` z manifestów w `.wa/kit.json`. |
 | Menu | Brak pozycji „Notatki”. | `getNavEntries` przegląda tylko definicje z rejestru. |
-| Strona `/notes` | Strona 404 aplikacji z nagłówkiem „Nie znaleziono strony” (po angielsku „Page not found”), także dla admina i superadmina. | `requireModuleAccess("notes")` nie znajduje definicji i woła `notFound()` (kod niżej). Rola globalna daje dostęp tylko do definicji, którą guard znalazł. |
+| Strona `/notes` | Strona Next.js „404 This page could not be found.”, także dla admina i superadmina. | `requireModuleAccess("notes")` nie znajduje definicji i woła `notFound()` (kod niżej). Rola globalna daje dostęp tylko do definicji, którą guard znalazł. |
 | Komenda `createNoteCommand` | Komunikat „Nie udało się dodać notatki” i wpis `error` w logu. | `notFound()` rzucone w `try` trafia do `handleCommandError` jak każdy nieznany błąd ([Wynik i błędy](06-wzorce-kodu.md#wynik-i-bledy)). |
 | Tłumaczenia | Nic: namespace `notes` się nie ładuje, ale strona i pozycja menu, które by go używały, też się nie pokazują. | Teksty ładuje lista `moduleMessages` z rejestru. |
 | Prisma, gdy istnieje `prisma/schema/notes.prisma` | Komendy Prismy, które wczytują schemat, na przykład `npx prisma validate`, kończą się błędem ``The relation field `organization` on model `Note` is missing an opposite relation field on the model `Organization`.`` | Pole relacji zwrotnej w `Organization` wpisuje tylko generator, z `schemaRelations` wpisu ([krok 3](#pulapka-relacji)). |

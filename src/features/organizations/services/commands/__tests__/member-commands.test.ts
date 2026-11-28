@@ -17,27 +17,13 @@ import { joinOrganizationCommand } from "../member-commands";
 describe("joinOrganizationCommand", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    mockPrisma.member.create.mockResolvedValue({ id: "mem-2" });
+    mockPrisma.member.create.mockResolvedValue({ id: "mem-1" });
     mockPrisma.invitation.update.mockResolvedValue({ id: "inv-1" });
-    mockPrisma.$transaction.mockResolvedValue([
-      { id: "mem-1" },
-      { id: "inv-1" },
-    ]);
+    mockPrisma.$transaction.mockResolvedValue([]);
     mockTrackAudit.mockResolvedValue(undefined);
   });
 
-  it("z invitationId zwraca id zapisanego członka z transakcji", async () => {
-    await expect(
-      joinOrganizationCommand({
-        userId: "user-new",
-        organizationId: "org-a",
-        role: "member",
-        invitationId: "inv-1",
-      }),
-    ).resolves.toStrictEqual({ memberId: "mem-1" });
-  });
-
-  it("z invitationId zapisuje członka i oznacza zaproszenie jako przyjęte w jednej transakcji", async () => {
+  it("z invitationId zapisuje jeden wpis invitation.accepted dla dołączającego", async () => {
     await joinOrganizationCommand({
       userId: "user-new",
       organizationId: "org-a",
@@ -45,17 +31,26 @@ describe("joinOrganizationCommand", () => {
       invitationId: "inv-1",
     });
 
-    expect(mockPrisma.member.create).toHaveBeenCalledWith({
-      data: { organizationId: "org-a", userId: "user-new", role: "member" },
+    expect(mockTrackAudit).toHaveBeenCalledTimes(1);
+    expect(mockTrackAudit).toHaveBeenCalledWith({
+      organizationId: "org-a",
+      actorUserId: "user-new",
+      action: "invitation.accepted",
+      entityType: "invitation",
+      entityId: "inv-1",
     });
-    expect(mockPrisma.invitation.update).toHaveBeenCalledWith({
-      where: { id: "inv-1" },
-      data: { status: "accepted" },
-    });
-    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
-  it("z invitationId nie zapisuje żadnego wpisu dziennika (to zadanie subskrybentów zdarzeń)", async () => {
+  it("wpis powstaje dopiero po zapisie członkostwa", async () => {
+    const order: string[] = [];
+    mockPrisma.$transaction.mockImplementation(async () => {
+      order.push("transaction");
+      return [];
+    });
+    mockTrackAudit.mockImplementation(async () => {
+      order.push("audit");
+    });
+
     await joinOrganizationCommand({
       userId: "user-new",
       organizationId: "org-a",
@@ -63,24 +58,21 @@ describe("joinOrganizationCommand", () => {
       invitationId: "inv-1",
     });
 
-    expect(mockTrackAudit).not.toHaveBeenCalled();
+    expect(order).toEqual(["transaction", "audit"]);
   });
 
-  it("bez invitationId zwraca id członka i nie dotyka zaproszeń", async () => {
-    await expect(
-      joinOrganizationCommand({
-        userId: "user-new",
-        organizationId: "org-a",
-        role: "member",
-      }),
-    ).resolves.toStrictEqual({ memberId: "mem-2" });
+  it("bez invitationId nie zapisuje wpisu", async () => {
+    await joinOrganizationCommand({
+      userId: "user-new",
+      organizationId: "org-a",
+      role: "member",
+    });
 
     expect(mockPrisma.member.create).toHaveBeenCalledTimes(1);
-    expect(mockPrisma.invitation.update).not.toHaveBeenCalled();
     expect(mockTrackAudit).not.toHaveBeenCalled();
   });
 
-  it("awaria transakcji członkostwa odrzuca bez wpisu dziennika", async () => {
+  it("awaria transakcji członkostwa nie zapisuje wpisu", async () => {
     mockPrisma.$transaction.mockRejectedValue(new Error("db down"));
 
     await expect(
@@ -94,7 +86,7 @@ describe("joinOrganizationCommand", () => {
     expect(mockTrackAudit).not.toHaveBeenCalled();
   });
 
-  it("awaria zapisu członka bez zaproszenia odrzuca bez wpisu dziennika", async () => {
+  it("awaria zapisu członka bez zaproszenia nie zapisuje wpisu", async () => {
     mockPrisma.member.create.mockRejectedValue(new Error("db down"));
 
     await expect(

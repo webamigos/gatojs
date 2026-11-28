@@ -1,6 +1,6 @@
 # ADR-61: Domain events carry the organization of their origin and run subscribers one at a time after the operation succeeded
 
-**Status:** Accepted (the sign-up and admin-invite event bullets are superseded by [ADR-70](70-membership-events-come-from-the-actor-who-added-the-member.md))
+**Status:** Accepted
 **Date:** 2026-11-26
 **Decided by:** Patryk Omiotek (extensibility decision 7A), implemented by an agent
 
