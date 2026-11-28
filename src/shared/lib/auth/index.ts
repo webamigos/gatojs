@@ -34,7 +34,10 @@ import {
 } from "./single-org-guard";
 import { eventsPlugin } from "./events-plugin";
 import { orgRoleGuardPlugin } from "./org-role-guard-plugin";
-import { isInviteSignup } from "./invite-signup-scope";
+import {
+  isInviteSignup,
+  recordInviteSignupMember,
+} from "./invite-signup-scope";
 import { readSignupMembership } from "./signup-membership-context";
 import { signupEvents } from "./signup-events";
 
@@ -107,6 +110,7 @@ export const auth = betterAuth({
           }
           const applied = await applySignupMembership(user.id, membership);
           if (isInviteSignup()) {
+            recordInviteSignupMember(applied.memberId);
             return;
           }
           const emits = signupEvents({
