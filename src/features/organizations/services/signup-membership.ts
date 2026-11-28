@@ -16,6 +16,11 @@ export type SignupMembership =
     }
   | { action: "create"; organizationName: string; role: "owner" };
 
+export interface AppliedSignupMembership {
+  organizationId: string;
+  memberId: string | null;
+}
+
 export interface ResolveSignupMembershipInput {
   multiOrg: boolean;
   invitationId: string | null;
@@ -88,19 +93,19 @@ export async function resolveSignupMembership(
 export async function applySignupMembership(
   userId: string,
   membership: SignupMembership,
-): Promise<{ organizationId: string }> {
+): Promise<AppliedSignupMembership> {
   if (membership.action === "create") {
     const organization = await createOrganizationWithOwnerCommand({
       name: membership.organizationName,
       ownerId: userId,
     });
-    return { organizationId: organization.id };
+    return { organizationId: organization.id, memberId: null };
   }
-  await joinOrganizationCommand({
+  const { memberId } = await joinOrganizationCommand({
     userId,
     organizationId: membership.organizationId,
     role: membership.role,
     invitationId: membership.invitationId,
   });
-  return { organizationId: membership.organizationId };
+  return { organizationId: membership.organizationId, memberId };
 }
