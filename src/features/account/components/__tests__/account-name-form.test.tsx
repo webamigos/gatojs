@@ -175,6 +175,42 @@ describe("AccountNameForm", () => {
     expect(mockUpdateAccountName).not.toHaveBeenCalled();
   });
 
+  it("na start pole nie jest oznaczone jako niepoprawne", () => {
+    renderForm("hello");
+
+    expect(nameInput()).toHaveAttribute("aria-invalid", "false");
+  });
+
+  it("po wysłaniu pustego pola jest oznaczone jako niepoprawne", async () => {
+    const user = userEvent.setup();
+    renderForm("hello");
+
+    await submitName(user, "");
+
+    await screen.findByText(INVALID);
+    expect(nameInput()).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("po wysłaniu samych spacji pole jest oznaczone jako niepoprawne", async () => {
+    const user = userEvent.setup();
+    renderForm("hello");
+
+    await submitName(user, "   ");
+
+    await screen.findByText(INVALID);
+    expect(nameInput()).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("po udanym wysłaniu pole nie jest oznaczone jako niepoprawne", async () => {
+    const user = userEvent.setup();
+    renderForm("hello");
+
+    await submitName(user, "Jan Kowalski");
+
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
+    expect(nameInput()).toHaveAttribute("aria-invalid", "false");
+  });
+
   it("przed wysłaniem nie pokazuje komunikatu walidacji", () => {
     renderForm("hello");
 
