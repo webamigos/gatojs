@@ -13,6 +13,7 @@ import usersModule from "@/features/users/module";
 import apiKeysModule from "@/features/api-keys/module";
 import auditLogsModule from "@/features/audit-logs/module";
 import encryptionModule from "@/features/encryption/module";
+import legalModule from "@/features/legal/module";
 import uploadsModule from "@/features/uploads/module";
 import { envSchema as apiKeysEnvSchema } from "@/features/api-keys/env";
 import { envSchema as encryptionEnvSchema } from "@/features/encryption/env";
@@ -23,18 +24,20 @@ import { events as uploadsEvents } from "@/features/uploads/events";
 import { subscribers as organizationsSubscribers } from "@/features/organizations/subscribers";
 import { subscribers as auditLogsSubscribers } from "@/features/audit-logs/subscribers";
 import * as accountSlots from "@/features/account/slots";
+import * as authSlots from "@/features/auth/slots";
 import * as dashboardSlots from "@/features/dashboard/slots";
 import * as usersSlots from "@/features/users/slots";
+import * as legalSlots from "@/features/legal/slots";
 
-export const modules = applyGatoConfig([accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, encryptionModule, uploadsModule], gatoConfig);
+export const modules = applyGatoConfig([accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, encryptionModule, legalModule, uploadsModule], gatoConfig);
 export const moduleEnvSchemas = enabledEntries([{ module: "api-keys", value: apiKeysEnvSchema }, { module: "encryption", value: encryptionEnvSchema }, { module: "uploads", value: uploadsEnvSchema }], gatoConfig);
 export const authPlugins: never[] = [];
 export const auditSinks = enabledEntries([{ module: "audit-logs", value: auditLogsAuditSink }], gatoConfig);
 export const moduleEvents = [{ module: "api-keys", value: apiKeysEvents }, { module: "uploads", value: uploadsEvents }];
 export const moduleSubscribers = enabledModuleEntries([{ module: "organizations", value: organizationsSubscribers }, { module: "audit-logs", value: auditLogsSubscribers }], gatoConfig);
-export const moduleCommandHooks = commandHookRegistry({ modules: [accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, encryptionModule, uploadsModule], hooks: [] }, gatoConfig);
+export const moduleCommandHooks = commandHookRegistry({ modules: [accountModule, authModule, dashboardModule, organizationsModule, usersModule, apiKeysModule, auditLogsModule, encryptionModule, legalModule, uploadsModule], hooks: [] }, gatoConfig);
 export const moduleSetups: never[] = [];
-export const moduleSlots = slotRegistry({ slots: [{ module: "account", value: accountSlots }, { module: "dashboard", value: dashboardSlots }, { module: "users", value: usersSlots }], clientSlots: [] }, gatoConfig);
+export const moduleSlots = slotRegistry({ slots: [{ module: "account", value: accountSlots }, { module: "auth", value: authSlots }, { module: "dashboard", value: dashboardSlots }, { module: "users", value: usersSlots }, { module: "legal", value: legalSlots }], clientSlots: [] }, gatoConfig);
 export const env = createEnv(moduleEnvSchemas);
 
 export type MessageLoader = { key: string; load: () => Promise<Record<string, unknown>> };
@@ -48,6 +51,7 @@ export const moduleMessages: Record<Locale, MessageLoader[]> = {
     { module: "users", value: { key: "users", load: () => import("@/features/users/i18n/pl.json").then((m) => m.default) } },
     { module: "api-keys", value: { key: "api-keys", load: () => import("@/features/api-keys/i18n/pl.json").then((m) => m.default) } },
     { module: "audit-logs", value: { key: "audit-logs", load: () => import("@/features/audit-logs/i18n/pl.json").then((m) => m.default) } },
+    { module: "legal", value: { key: "legal", load: () => import("@/features/legal/i18n/pl.json").then((m) => m.default) } },
     { module: "uploads", value: { key: "uploads", load: () => import("@/features/uploads/i18n/pl.json").then((m) => m.default) } },
   ], gatoConfig),
   en: enabledEntries<MessageLoader>([
@@ -58,6 +62,7 @@ export const moduleMessages: Record<Locale, MessageLoader[]> = {
     { module: "users", value: { key: "users", load: () => import("@/features/users/i18n/en.json").then((m) => m.default) } },
     { module: "api-keys", value: { key: "api-keys", load: () => import("@/features/api-keys/i18n/en.json").then((m) => m.default) } },
     { module: "audit-logs", value: { key: "audit-logs", load: () => import("@/features/audit-logs/i18n/en.json").then((m) => m.default) } },
+    { module: "legal", value: { key: "legal", load: () => import("@/features/legal/i18n/en.json").then((m) => m.default) } },
     { module: "uploads", value: { key: "uploads", load: () => import("@/features/uploads/i18n/en.json").then((m) => m.default) } },
   ], gatoConfig),
 };
