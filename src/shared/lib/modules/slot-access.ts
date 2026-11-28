@@ -5,10 +5,6 @@ import {
 } from "@/shared/lib/auth/permissions";
 import { roleAllows, type RegisteredContribution } from "./slots";
 
-export function anonymousViewer(multiOrg: boolean): AccessContext {
-  return { userRole: "user", orgRole: null, multiOrg };
-}
-
 export function moduleVisibleTo(
   module: string,
   viewer: AccessContext,

@@ -16,7 +16,6 @@ export const extensionPoints = {
     { key: "auth", module: "auth", stability: "stable", description: "Sign-in, sign-up, password reset and set-password pages" },
     { key: "dashboard", module: "dashboard", stability: "stable", description: "Dashboard page and its sections" },
     { key: "encryption", module: "encryption", stability: "stable", description: "Per-organization envelope encryption with data keys wrapped by a master key" },
-    { key: "legal", module: "legal", stability: "stable", description: "Public terms and privacy pages and an opt-in cookie consent banner" },
     { key: "organizations", module: "organizations", stability: "stable", description: "Organizations, memberships, invitation acceptance and the no-organization page" },
     { key: "uploads", module: "uploads", stability: "stable", description: "Organization files on disk or in S3 storage" },
     { key: "users", module: "users", stability: "stable", description: "Users page: user list, invitations, roles and impersonation" },
@@ -31,9 +30,6 @@ export const extensionPoints = {
   slots: [
     { key: "account.sections", module: "account", stability: "stable", description: "Server sections on the account page, rendered with the signed-in user id" },
     { key: "app.header.actions", module: "app", stability: "stable", description: "Server actions in the app header, rendered with the organization id" },
-    { key: "app.root", module: "app", stability: "experimental", description: "End of every page, once (public modules only). Contributions render for anonymous visitors: a component must not read the session to show user data here." },
-    { key: "app.sidebar.footer", module: "app", stability: "experimental", description: "Server contributions under the user menu of the app sidebar, rendered with the organization id" },
-    { key: "auth.footer", module: "auth", stability: "experimental", description: "Footer of the sign-in, sign-up and password pages. Contributions render for anonymous visitors: a component must not read the session to show user data here." },
     { key: "dashboard.sections", module: "dashboard", stability: "stable", description: "Server sections under the dashboard heading, rendered with the organization id" },
     { key: "users.table.columns", module: "users", stability: "experimental", description: "Client columns added to the users table" },
     { key: "users.table.row-actions", module: "users", stability: "stable", description: "Client actions in each row of the users table" },
@@ -45,13 +41,13 @@ export const extensionPoints = {
     { key: "api-keys.created", module: "api-keys", stability: "stable", description: "An API key was created in the organization" },
     { key: "api-keys.deleted", module: "api-keys", stability: "stable", description: "An API key was deleted from the organization" },
     { key: "api-keys.revoked", module: "api-keys", stability: "stable", description: "An API key was revoked and no longer authenticates" },
-    { key: "auth.signed-up", module: "auth", stability: "stable", description: "A user signed up, with or without an invitation, and got a membership; not emitted for an admin invite" },
+    { key: "auth.signed-up", module: "auth", stability: "stable", description: "A user signed up without an invitation and joined an organization" },
     { key: "organizations.created", module: "organizations", stability: "stable", description: "An organization was created with its owner" },
-    { key: "organizations.member-added", module: "organizations", stability: "stable", description: "A user became a member: an accepted invitation, a sign-up that joins the organization, an admin invite, or admin:create adding the owner" },
+    { key: "organizations.member-added", module: "organizations", stability: "stable", description: "A user became a member of the organization" },
     { key: "organizations.member-removed", module: "organizations", stability: "stable", description: "A member was removed from the organization or left it" },
     { key: "organizations.member-role-changed", module: "organizations", stability: "stable", description: "The organization role of a member changed" },
     { key: "uploads.deleted", module: "uploads", stability: "stable", description: "A file was deleted from the organization and its storage" },
-    { key: "users.invitation-accepted", module: "users", stability: "stable", description: "An invitation was accepted by its recipient, on the acceptance page or by signing up with it; not emitted for an admin invite" },
+    { key: "users.invitation-accepted", module: "users", stability: "stable", description: "An invitation was accepted by its recipient" },
     { key: "users.invitation-canceled", module: "users", stability: "stable", description: "An invitation was canceled before it was accepted" },
     { key: "users.invited", module: "users", stability: "stable", description: "A user was invited to the organization by email" },
   ],
@@ -76,9 +72,9 @@ export const extensionPoints = {
   ],
 } as const satisfies Record<string, readonly ExtensionPoint[]>;
 
-export type ModuleKey = "account" | "api-keys" | "audit-logs" | "auth" | "dashboard" | "encryption" | "legal" | "organizations" | "uploads" | "users";
+export type ModuleKey = "account" | "api-keys" | "audit-logs" | "auth" | "dashboard" | "encryption" | "organizations" | "uploads" | "users";
 export type NavItemId = "account.home" | "api-keys.list" | "audit-logs.list" | "dashboard.home" | "users.list";
-export type SlotId = "account.sections" | "app.header.actions" | "app.root" | "app.sidebar.footer" | "auth.footer" | "dashboard.sections" | "users.table.columns" | "users.table.row-actions";
+export type SlotId = "account.sections" | "app.header.actions" | "dashboard.sections" | "users.table.columns" | "users.table.row-actions";
 export type ComponentHandle = "users.invite-dialog";
 export type EventName = "api-keys.created" | "api-keys.deleted" | "api-keys.revoked" | "auth.signed-up" | "organizations.created" | "organizations.member-added" | "organizations.member-removed" | "organizations.member-role-changed" | "uploads.deleted" | "users.invitation-accepted" | "users.invitation-canceled" | "users.invited";
 export type CommandKey = "api-keys.create" | "api-keys.delete" | "api-keys.revoke" | "uploads.delete" | "users.invite";

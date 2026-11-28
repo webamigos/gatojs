@@ -30,7 +30,7 @@
     },
     "users.invitation-accepted": {
       "stability": "stable",
-      "description": "An invitation was accepted by its recipient, on the acceptance page or by signing up with it; not emitted for an admin invite"
+      "description": "An invitation was accepted by its recipient"
     },
     "users.invitation-canceled": {
       "stability": "stable",

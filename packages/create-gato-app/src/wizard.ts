@@ -4,8 +4,6 @@ import type { CreateCliArgs } from "./args.js";
 import type { CliDeps } from "./cli.js";
 import {
   busyPortsReport,
-  movedPortsReport,
-  portAssignments,
   portSettings,
   publishedPorts,
   suggestFreePort,
@@ -83,17 +81,12 @@ async function assemble(
   }
 }
 
-async function writeEnv(context: Context, text: string): Promise<void> {
-  const envPath = join(context.projectDir, ".env");
-  await writeFile(envPath, text, { mode: 0o600 });
-  await chmod(envPath, 0o600);
-}
-
 async function writeWizardEnv(
   context: Context,
   answers: Answers,
 ): Promise<string> {
-  const existing = await readFile(join(context.projectDir, ".env"), "utf8");
+  const envPath = join(context.projectDir, ".env");
+  const existing = await readFile(envPath, "utf8");
   const text = setEnvValues(
     existing,
     wizardEnvValues({
@@ -104,7 +97,8 @@ async function writeWizardEnv(
       mail: answers.mail,
     }),
   );
-  await writeEnv(context, text);
+  await writeFile(envPath, text, { mode: 0o600 });
+  await chmod(envPath, 0o600);
   return text;
 }
 
@@ -121,11 +115,12 @@ async function busyPorts(
   return busy;
 }
 
-async function freePorts(
+async function reportBusyPorts(
   deps: CliDeps,
   busy: PublishedPort[],
   ports: PublishedPort[],
-): Promise<Map<number, number | null>> {
+  envText: string,
+): Promise<void> {
   const taken = ports.map((port) => port.port);
   const free = new Map<number, number | null>();
   for (const { port } of busy) {
@@ -135,33 +130,9 @@ async function freePorts(
       taken.push(suggestion);
     }
   }
-  return free;
-}
-
-async function movePorts(
-  context: Context,
-  envText: string,
-  ports: PublishedPort[],
-): Promise<boolean> {
-  const { deps } = context;
-  const busy = await busyPorts(deps, ports);
-  if (busy.length === 0) {
-    return true;
-  }
-  const free = await freePorts(deps, busy, ports);
-  const input = { busy, free, envText, shellEnv: deps.env };
-  const { values, unresolved } = portAssignments(input);
-  if (unresolved.length > 0) {
-    deps.error(
-      busyPortsReport(busy, portSettings({ busy, free, envText })).join("\n"),
-    );
-    return false;
-  }
-  await writeEnv(context, setEnvValues(envText, values));
-  for (const line of movedPortsReport(input)) {
-    deps.ui.info(line);
-  }
-  return true;
+  deps.error(
+    busyPortsReport(busy, portSettings({ busy, free, envText })).join("\n"),
+  );
 }
 
 async function startDocker(
@@ -178,7 +149,9 @@ async function startDocker(
     profiles,
     env: { ...envEntries(envText), ...deps.env },
   });
-  if (!(await movePorts(context, envText, ports))) {
+  const busy = await busyPorts(deps, ports);
+  if (busy.length > 0) {
+    await reportBusyPorts(deps, busy, ports, envText);
     return false;
   }
   const info = await runQuiet(context, "docker", ["info"]);

@@ -3,9 +3,5 @@
   "title": "Konto",
   "user-data": "Dane użytkownika",
   "name": "Imię i nazwisko",
-  "email": "Email",
-  "description": "Zarządzaj swoimi danymi i hasłem.",
-  "save-name": "Zapisz",
-  "name-saved": "Zapisano imię i nazwisko",
-  "name-invalid": "Podaj imię i nazwisko (od 1 do 100 znaków)."
+  "email": "Email"
 }

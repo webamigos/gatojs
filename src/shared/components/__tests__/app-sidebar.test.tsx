@@ -73,10 +73,7 @@ const member: AccessContext = {
   multiOrg: false,
 };
 
-function renderSidebar(
-  accessContext: AccessContext = member,
-  footer?: React.ReactNode,
-) {
+function renderSidebar(accessContext: AccessContext = member) {
   return render(
     <NextIntlClientProvider locale="pl" messages={messages}>
       <SidebarProvider>
@@ -84,7 +81,6 @@ function renderSidebar(
           accessContext={accessContext}
           userName="Jan Kowalski"
           userEmail="jan@firma.pl"
-          footer={footer}
         />
       </SidebarProvider>
     </NextIntlClientProvider>,
@@ -171,42 +167,6 @@ describe("AppSidebar", () => {
     expect(mockSignOut).toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith("/sign-in");
     expect(mockRefresh).toHaveBeenCalled();
-  });
-});
-
-describe("AppSidebar footer", () => {
-  beforeEach(() => {
-    mockSignOut.mockResolvedValue({});
-    delete generatedBranding.logo;
-  });
-
-  it("renders the footer below the user menu of the expanded sidebar", () => {
-    renderSidebar(member, <p>Stopka modułu</p>);
-
-    const footer = screen.getByText("Stopka modułu");
-    const userMenu = screen.getByRole("button", { name: /Jan Kowalski/ });
-    expect(
-      userMenu.compareDocumentPosition(footer) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-  });
-
-  it("hides the footer when the sidebar is collapsed", async () => {
-    const user = userEvent.setup();
-    renderSidebar(member, <p>Stopka modułu</p>);
-    expect(screen.getByText("Stopka modułu")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Zwiń menu" }));
-
-    expect(screen.queryByText("Stopka modułu")).toBeNull();
-  });
-
-  it("without a footer renders nothing after the user menu", () => {
-    const { container } = renderSidebar();
-
-    const userMenu = screen.getByRole("button", { name: /Jan Kowalski/ });
-    const aside = container.querySelector("aside");
-    expect(aside?.lastElementChild).toBe(userMenu);
   });
 });
 

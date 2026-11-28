@@ -366,6 +366,7 @@ Dodatkowo strona przyjmuje zaproszenie w `page.tsx` przy samym otwarciu adresu (
 | Ograniczenie | Skutek | Gdzie | Obejście |
 | --- | --- | --- | --- |
 | Komunikaty błędów akcji serwerowych nie są tłumaczone | W wersji `en` użytkownik widzi polskie komunikaty akcji („Brak uprawnień”, „Nie udało się zaprosić użytkownika”). Błąd walidacji w `inviteUserCommand` to domyślny komunikat Zod po angielsku, ale formularz zwykle sprawdza ten sam schemat wcześniej i pokazuje własne teksty | `src/features/users/services/commands/invite-user-command.ts`, `src/features/organizations/services/commands/enter-organization-command.ts`, `src/features/auth/services/commands/change-password-command.ts` | Brak. Nowe komendy zwracają komunikat po polsku ([06-wzorce-kodu.md](06-wzorce-kodu.md#wynik-i-bledy)) |
+| Brak zlokalizowanej strony 404 | Kit nie ma strony `not-found`, więc 404 pokazuje domyślną stronę Next.js, niezależnie od języka | `src/app` | Dodaj w projekcie stronę `not-found` z tłumaczeniami |
 
 <a id="serwer"></a>
 

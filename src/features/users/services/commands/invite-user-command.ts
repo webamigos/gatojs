@@ -30,7 +30,7 @@ const inviteUser = defineCommand({
   deniedMessage: "Brak uprawnień",
   invalidInputMessage: (error) =>
     error.issues[0]?.message ?? "Nieprawidłowe dane",
-  events: ["users.invited", "organizations.member-added"],
+  events: ["users.invited"],
   run: async (
     { name, email, role },
     context,
@@ -59,14 +59,11 @@ const inviteUser = defineCommand({
     });
 
     const requestHeaders = await headers();
-    const { userId, memberId } = await registerInvitedUser(
+    const userId = await registerInvitedUser(
       { name, email, invitationId: invitation.id },
       requestHeaders,
     );
     emit("users.invited", { invitationId: invitation.id, email, role });
-    if (memberId !== null) {
-      emit("organizations.member-added", { memberId, userId, role });
-    }
 
     const mailSent = await sendWelcomeEmailBestEffort({ name, email, userId });
 
@@ -87,7 +84,7 @@ export async function inviteUserCommand(
 async function registerInvitedUser(
   data: { name: string; email: string; invitationId: string },
   requestHeaders: RequestHeaders,
-): Promise<{ userId: string; memberId: string | null }> {
+): Promise<string> {
   const { auth } = await import("@/shared/lib/auth");
   const body = {
     name: data.name,
@@ -97,10 +94,10 @@ async function registerInvitedUser(
   };
 
   try {
-    const { result, memberId } = await withInviteSignup(() =>
+    const { user } = await withInviteSignup(() =>
       auth.api.signUpEmail({ body, headers: requestHeaders }),
     );
-    return { userId: result.user.id, memberId };
+    return user.id;
   } catch (error) {
     await discardInvitation(data.invitationId);
     throw error;

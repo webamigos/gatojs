@@ -28,6 +28,5 @@
   "detail-after": "After",
   "badge-service-mode": "Service mode",
   "badge-api": "API",
-  "source-system": "System",
-  "description": "History of changes in the organization."
+  "source-system": "System"
 }

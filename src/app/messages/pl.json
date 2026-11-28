@@ -19,12 +19,7 @@
     "columns-panel-title": "Widoczne kolumny",
     "columns-reset": "Domyślne",
     "search-placeholder": "Szukaj...",
-    "no-results": "Brak wyników",
-    "notFound": {
-      "title": "Nie znaleziono strony",
-      "description": "Strona, której szukasz, nie istnieje albo została przeniesiona.",
-      "backHome": "Wróć na stronę główną"
-    }
+    "no-results": "Brak wyników"
   },
   "errors": {
     "generic": "Wystąpił błąd. Spróbuj ponownie.",

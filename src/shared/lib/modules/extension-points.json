@@ -3,14 +3,6 @@
     "app.header.actions": {
       "stability": "stable",
       "description": "Server actions in the app header, rendered with the organization id"
-    },
-    "app.root": {
-      "stability": "experimental",
-      "description": "End of every page, once (public modules only). Contributions render for anonymous visitors: a component must not read the session to show user data here."
-    },
-    "app.sidebar.footer": {
-      "stability": "experimental",
-      "description": "Server contributions under the user menu of the app sidebar, rendered with the organization id"
     }
   }
 }

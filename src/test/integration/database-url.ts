@@ -1,17 +1,11 @@
-import { readServicePortEnv, servicePorts } from "../service-ports";
-
 export const TEST_DATABASE_SUFFIX = "_test";
 
-export function defaultIntegrationDatabaseUrl(dbPort: number): string {
-  return `postgresql://postgres:postgres@localhost:${dbPort}/wa_app_test`;
-}
+export const DEFAULT_INTEGRATION_DATABASE_URL =
+  "postgresql://postgres:postgres@localhost:5432/wa_app_test";
 
-export function integrationDatabaseUrl(
-  env: Record<string, string | undefined> = process.env,
-): string {
+export function integrationDatabaseUrl(): string {
   return (
-    env.INTEGRATION_DATABASE_URL ??
-    defaultIntegrationDatabaseUrl(servicePorts(readServicePortEnv({ env })).db)
+    process.env.INTEGRATION_DATABASE_URL ?? DEFAULT_INTEGRATION_DATABASE_URL
   );
 }
 

@@ -8,7 +8,7 @@ set -euo pipefail
 # Without SMOKE_INSTALL it checks generated secrets, COMPOSE_PROJECT_NAME, storage and mail answers in .env.
 # SMOKE_INSTALL=1 lets the wizard install one project with --skip-docker (one clean commit), checks the
 # projects' gato-cli, checks the .env of the default and the --mail-provider console projects with
-# checkEnv, and runs the wizard against a busy DB_PORT set in the shell env (exit 1, port report, no containers).
+# checkEnv, and runs the wizard against a busy DB_PORT (exit 1, port report, no containers).
 
 kit_dir=$(cd "${1:?usage: smoke-pack.sh <gatojs-checkout>}" && pwd)
 shift

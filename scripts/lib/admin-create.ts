@@ -114,7 +114,7 @@ async function ensureUser(
 }
 
 type OwnedOrganization =
-  | { organizationId: string; created: false; addedMemberId: string | null }
+  | { organizationId: string; created: false }
   | { organizationId: string; created: true; name: string; slug: string };
 
 async function emitOrganizationCreated(
@@ -128,20 +128,6 @@ async function emitOrganizationCreated(
     { organizationId: organization.organizationId, actorUserId: userId },
     "organizations.created",
     { name: organization.name, slug: organization.slug, ownerUserId: userId },
-  );
-}
-
-async function emitOwnerMemberAdded(
-  userId: string,
-  organization: OwnedOrganization,
-): Promise<void> {
-  if (organization.created || organization.addedMemberId === null) {
-    return;
-  }
-  await emitEvent(
-    { organizationId: organization.organizationId, actorUserId: userId },
-    "organizations.member-added",
-    { memberId: organization.addedMemberId, userId, role: ORG_ROLES.OWNER },
   );
 }
 
@@ -173,26 +159,16 @@ async function ensureOrganizationOwner(
     const membership = await tx.member.findFirst({
       where: { organizationId: oldest.id, userId },
     });
-    if (membership) {
-      return {
-        organizationId: oldest.id,
-        created: false,
-        addedMemberId: null,
-      };
+    if (!membership) {
+      await tx.member.create({
+        data: {
+          organizationId: oldest.id,
+          userId,
+          role: ORG_ROLES.OWNER,
+        },
+      });
     }
-    const added = await tx.member.create({
-      data: {
-        organizationId: oldest.id,
-        userId,
-        role: ORG_ROLES.OWNER,
-      },
-      select: { id: true },
-    });
-    return {
-      organizationId: oldest.id,
-      created: false,
-      addedMemberId: added.id,
-    };
+    return { organizationId: oldest.id, created: false };
   });
 }
 
@@ -213,7 +189,6 @@ export async function adminCreate(
       options.orgName ?? project.name,
     );
     await emitOrganizationCreated(user.userId, organization);
-    await emitOwnerMemberAdded(user.userId, organization);
     if (organization.created) {
       await runOrganizationSetup(organization.organizationId, { hook: "seed" });
     }

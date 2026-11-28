@@ -281,50 +281,6 @@ describe("audit-logs rows from core organization events on real better-auth", ()
     expect(actions).toEqual([{ action: "invitation.accepted" }]);
   });
 
-  it("a public sign-up with an invitation writes exactly one invitation.accepted row in A with the new user as actor and none in B", async () => {
-    const invitation = await createInvitation({
-      organizationId: world.orgA.id,
-      inviterId: world.alice.id,
-      email: "gosc@a.example",
-      role: "member",
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-    });
-
-    await auth.api.signUpEmail({
-      body: {
-        name: "Gość",
-        email: "gosc@a.example",
-        password: "password-123456",
-        invitationId: invitation.id,
-      } as { name: string; email: string; password: string },
-    });
-
-    const newUser = await prisma.user.findUniqueOrThrow({
-      where: { email: "gosc@a.example" },
-      select: { id: true },
-    });
-    const rows = await withoutTenantScope("test assertion", () =>
-      prisma.auditLog.findMany({
-        select: {
-          organizationId: true,
-          action: true,
-          entityType: true,
-          entityId: true,
-          userId: true,
-        },
-      }),
-    );
-    expect(rows).toEqual([
-      {
-        organizationId: world.orgA.id,
-        action: "invitation.accepted",
-        entityType: "invitation",
-        entityId: invitation.id,
-        userId: newUser.id,
-      },
-    ]);
-  });
-
   it("updating the role of an unknown member writes no row", async () => {
     await expect(
       auth.api.updateMemberRole({
